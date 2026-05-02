@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AC HRA Analytics / HR Complete</title>
+<title>AC HRA Analytics Center</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -192,31 +192,32 @@ table.dtbl tr.alert td{background:#fff1f0}
 </style>
 
 <style>
-#hrCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+.xm-panel{background:#e8f4f0;border:1px solid #a8d5c5;border-radius:8px;padding:14px;margin:12px 0}
+.xm-title{font-size:12px;font-weight:700;color:#1a5c40;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.xm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px}
+.xm-card{background:#fff;border:1px solid #c8e6d8;border-radius:6px;padding:10px;text-align:center}
+.xm-val{font-size:20px;font-weight:700;font-family:monospace;color:#1a5c40}
+.xm-lbl{font-size:11px;color:#4a8a6a;margin-top:3px}
+.xm-src{font-size:9px;color:#888;margin-top:2px}
+#cloudCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
   background:#1a3a5f;border:1px solid #d4af37;color:#f5deb3;border-radius:50%;
-  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
-  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:.15s}
-#hrCloudBtn:hover{background:#234f80}
-#hrCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  font-size:18px;cursor:pointer;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);
+  display:flex;align-items:center;justify-content:center}
+#cloudCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
   background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
-  display:none;flex-direction:column;gap:8px;z-index:998;
+  display:none;flex-direction:column;gap:8px;z-index:9998;
   box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
-#hrCloudPanel.show{display:flex}
-.hcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
-.hcp-status{font-size:11px;font-family:monospace;min-height:14px;color:#475569}
-.hcp-status.ok{color:#4ade80}.hcp-status.warn{color:#fbbf24}.hcp-status.err{color:#f87171}
+#cloudCloudPanel.open{display:flex}
+.hcp-lbl{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.hcp-st{font-size:11px;font-family:monospace;color:#475569;min-height:14px}
+.hcp-st.ok{color:#4ade80}.hcp-st.warn{color:#fbbf24}.hcp-st.err{color:#f87171}
 .hcp-row{display:flex;gap:6px}
-.hcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
-  cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.hcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit}
 .hcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
 .hcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
-.hcp-btn:disabled{opacity:.4;cursor:not-allowed}
-.hcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
-  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
-.hcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
-  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
-.hcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
-  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.hcp-gi{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.hcp-gs{background:#253058;border:none;color:#cbd5e1;border-radius:5px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.hcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
 .hcl-ok{color:#4ade80}.hcl-err{color:#f87171}.hcl-i{color:#60a5fa}
 </style>
 </head>
@@ -244,6 +245,12 @@ table.dtbl tr.alert td{background:#fff1f0}
 </div>
 
 <!-- UPLOAD -->
+
+<div class="xm-panel" id="xm-summary" style="display:none">
+  <div class="xm-title">🔗 跨模組整合摘要 — Cross-Module Summary</div>
+  <div class="xm-grid" id="xm-kpi"></div>
+  <div style="font-size:10px;color:#4a8a6a">資料來自各工具 localStorage，需先在各工具開啟過才有資料</div>
+</div>
 <div id="uz" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="hdrop(event)" onclick="document.getElementById('fi').click()">
   <div class="uico">📂</div>
   <h3 id="uz-h3">拖入 / 點選 VRT Employee Information Excel (.xlsx)</h3>
@@ -967,81 +974,111 @@ renderAll();
 setLang('zh');
 </script>
 
-<!-- Cloud Sync Widget -->
-<button id="hrCloudBtn" title="☁ 雲端同步" onclick="hrCloudToggle()">☁</button>
-<div id="hrCloudPanel">
-  <div class="hcp-title">☁ 雲端同步 — HR Complete</div>
-  <div class="hcp-status" id="hrCloudStatus">未連線</div>
+<script>
+// ── Cross-module data reader (reads other HRA tools' localStorage) ──
+(function(){
+  function safeGet(key, fallback){
+    try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function xmRefresh(){
+    // Attendance
+    const att = safeGet('vrt_att_v5_db', {});
+    const attEmps = att.employees || [];
+    // Contract (IndexedDB - can't read directly, show N/A)
+    // Onboarding
+    const ob = safeGet('hr_contracts', []);
+    const obContracts = Array.isArray(ob) ? ob : (ob.contracts || []);
+    // Maternity
+    const mat = safeGet('vrt_maternity_v1', []);
+    const matActive = mat.filter(m => m.status === 'maternity' || m.status === 'pregnant').length;
+    // Calendar
+    const cal = safeGet('ac_hra_calendar_db', []);
+
+    const panel = document.getElementById('xm-summary');
+    const kpi   = document.getElementById('xm-kpi');
+    if(!panel || !kpi) return;
+
+    const cards = [
+      { val: attEmps.length, lbl: '出勤記錄員工數', src: '出勤系統' },
+      { val: obContracts.length, lbl: '合約/員工記錄', src: '入離職系統' },
+      { val: matActive, lbl: '產假中', src: '產假追蹤' },
+      { val: mat.length, lbl: '產假總記錄', src: '產假追蹤' },
+      { val: cal.length, lbl: '行事曆假期', src: '行事曆' },
+    ];
+
+    const hasAny = attEmps.length || obContracts.length || mat.length || cal.length;
+    panel.style.display = hasAny ? '' : 'none';
+
+    kpi.innerHTML = cards.map(c =>
+      '<div class="xm-card"><div class="xm-val">'+c.val+'</div>'
+      +'<div class="xm-lbl">'+c.lbl+'</div>'
+      +'<div class="xm-src">'+c.src+'</div></div>'
+    ).join('');
+  }
+  // Run after page load
+  document.addEventListener('DOMContentLoaded', function(){
+    xmRefresh();
+    // Inject cross-module panel into page
+    var mainEl = document.getElementById('main') || document.querySelector('main') || document.body;
+    var panel = document.getElementById('xm-summary');
+    if(panel && mainEl) mainEl.insertBefore(panel, mainEl.firstChild);
+  });
+  window.xmRefresh = xmRefresh;
+})();
+</script>
+
+<button id="cloudCloudBtn" title="☁ 雲端同步" onclick="document.getElementById('cloudCloudPanel').classList.toggle('open');hcInit()">☁</button>
+<div id="cloudCloudPanel">
+  <div class="hcp-lbl">☁ 雲端同步 — HR Complete</div>
+  <div class="hcp-st" id="hcSt">未連線</div>
   <div class="hcp-row">
-    <button class="hcp-btn hcp-push" onclick="hrPush()">☁ 推送</button>
-    <button class="hcp-btn hcp-pull" onclick="hrPull()">⬇ 拉取</button>
+    <button class="hcp-btn hcp-push" onclick="hcPush()">☁ 推送快照</button>
+    <button class="hcp-btn hcp-pull" onclick="hcLog('此工具讀取各模組資料，無需拉取','i')">ℹ️ 說明</button>
   </div>
   <div style="display:flex;gap:5px;align-items:center">
-    <input class="hcp-input" id="hrGasInput" placeholder="GAS /exec URL"/>
-    <button class="hcp-save" onclick="hrSaveGas()">存</button>
+    <input class="hcp-gi" id="hcGasUrl" placeholder="GAS /exec URL"/>
+    <button class="hcp-gs" onclick="hcSave()">存</button>
   </div>
-  <div class="hcp-log" id="hrLog"></div>
+  <div class="hcp-log" id="hcLog"></div>
 </div>
 <script>
 (function(){
-  const LS='ac_hra_gas_url';
-  const LS_META='ac_hra_complete_meta';
-  let gasUrl=localStorage.getItem(LS)||'';
-  let open=false;
-  window.hrCloudToggle=function(){
-    open=!open;
-    document.getElementById('hrCloudPanel').classList.toggle('show',open);
-    if(open){document.getElementById('hrGasInput').value=gasUrl;hrShowStatus();}
-  };
-  window.hrSaveGas=function(){
-    gasUrl=document.getElementById('hrGasInput').value.trim();
-    if(!gasUrl)return;
-    localStorage.setItem(LS,gasUrl);
-    hrLog('GAS URL 已儲存','i');hrShowStatus();
-  };
-  function hrShowStatus(){
-    const el=document.getElementById('hrCloudStatus');
-    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
-    if(meta){
-      const mins=(Date.now()-new Date(meta.ts))/60000;
-      el.textContent=`${meta.count}筆 · ${mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時'}前`;
-      el.className='hcp-status '+(mins<120?'ok':'warn');
-    } else {
-      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
-      el.className='hcp-status '+(gasUrl?'warn':'err');
-    }
-  }
-  window.hrPush=async function(){
-    if(!gasUrl){hrLog('請先設定 GAS URL','err');return;}
-    // HR Complete reads from attendance localStorage
-    const attRaw=localStorage.getItem('vrt_att_v5_db')||'{}';
-    const att=JSON.parse(attRaw);
-    const recs=att.employees||[];
-    const payload={action:'push',tool:'hr_complete',records:recs,
-      recordCount:recs.length,updatedAt:new Date().toISOString()};
-    try{
-      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-      const d=await r.json();
-      if(d.ok){
-        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
-        hrLog('✓ 推送完成','ok');hrShowStatus();
-      } else hrLog('✗ '+d.error,'err');
-    }catch(e){hrLog('✗ '+e.message,'err');}
-  };
-  window.hrPull=async function(){
-    if(!gasUrl){hrLog('請先設定 GAS URL','err');return;}
-    hrLog('HR Complete 為唯讀分析工具，請先在出勤系統 Pull 後開啟此頁','i');
-  };
-  function hrLog(msg,type){
-    const el=document.getElementById('hrLog');if(!el)return;
-    const cls=type==='ok'?'hcl-ok':type==='err'?'hcl-err':'hcl-i';
-    const t=new Date().toTimeString().slice(0,5);
-    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
-`;
+  var LS='ac_hra_gas_url',LM='ac_hra_complete_meta';
+  function gUrl(){return localStorage.getItem(LS)||'';}
+  function hcLog(m,t){
+    var el=document.getElementById('hcLog');if(!el)return;
+    var cls=t==='ok'?'hcl-ok':t==='err'?'hcl-err':'hcl-i';
+    var hh=new Date().getHours(),mm=new Date().getMinutes();
+    var ts=(hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm;
+    el.innerHTML+='<span class="'+cls+'">['+ts+'] '+m+'<\/span>\n';
     el.scrollTop=el.scrollHeight;
   }
-  document.addEventListener('DOMContentLoaded',hrShowStatus);
+  window.hcLog=hcLog;
+  function hcSt(){
+    var el=document.getElementById('hcSt');if(!el)return;
+    var meta=JSON.parse(localStorage.getItem(LM)||'null'),url=gUrl();
+    if(meta){var mins=(Date.now()-new Date(meta.ts))/60000;el.textContent='上次快照 '+(mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時')+'前';el.className='hcp-st '+(mins<120?'ok':'warn');}
+    else{el.textContent=url?'尚未同步':'未設定 GAS URL';el.className='hcp-st '+(url?'warn':'err');}
+  }
+  window.hcInit=function(){var gi=document.getElementById('hcGasUrl');if(gi)gi.value=gUrl();hcSt();};
+  window.hcSave=function(){var v=document.getElementById('hcGasUrl').value.trim();if(!v)return;localStorage.setItem(LS,v);hcLog('已儲存','i');hcSt();};
+  window.hcPush=async function(){
+    var url=gUrl();if(!url){hcLog('請設定 GAS URL','err');return;}
+    try{
+      var att=JSON.parse(localStorage.getItem('vrt_att_v5_db')||'{}');
+      var mat=JSON.parse(localStorage.getItem('vrt_maternity_v1')||'[]');
+      var cal=JSON.parse(localStorage.getItem('ac_hra_calendar_db')||'[]');
+      var snapshot={action:'push',tool:'hr_complete',
+        records:{attCount:(att.employees||[]).length,matCount:mat.length,calCount:cal.length},
+        recordCount:3,updatedAt:new Date().toISOString()};
+      var r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(snapshot)});
+      var d=await r.json();
+      if(d.ok){localStorage.setItem(LM,JSON.stringify({ts:Date.now()}));hcLog('✓ 快照已推送','ok');hcSt();}
+      else hcLog('✗ '+d.error,'err');
+    }catch(e){hcLog('✗ '+e.message,'err');}
+  };
+  document.addEventListener('DOMContentLoaded',hcSt);
 })();
 </script>
 </body>
