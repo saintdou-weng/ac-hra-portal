@@ -2,605 +2,632 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>AC HRA Portal v2 — 控制中心</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./shared/hra.css"/>
-<script src="./shared/cloud.js"></script>
-<script src="./shared/telegram.js"></script>
-<script src="./shared/hra-modules.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>AC HRA Portal v2</title>
 <style>
-/* Portal-specific overrides */
-body{background:var(--c-bg)}
-.portal-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
-.portal-grid.g4c{grid-template-columns:repeat(4,1fr)}
-.mod-card{background:#fff;border:1px solid var(--c-border);border-radius:var(--radius);padding:14px;display:flex;flex-direction:column;gap:6px;transition:.2s;position:relative;overflow:hidden}
-.mod-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--c-accent)}
-.mod-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.1);transform:translateY(-1px)}
-.mod-card.offline::before{background:#9ca3af}
-.mod-card.warn::before{background:#f59e0b}
-.mod-icon{font-size:24px;line-height:1}
-.mod-name{font-weight:700;font-size:13px;color:var(--c-primary)}
-.mod-sub{font-size:10px;color:var(--c-muted)}
-.mod-meta{display:flex;gap:6px;align-items:center;margin-top:4px}
-.mod-count{font-family:var(--f-mono);font-size:18px;font-weight:700;color:var(--c-accent)}
-.mod-link{display:inline-flex;align-items:center;gap:4px;font-size:10px;padding:4px 10px;background:var(--c-bg);border:1px solid var(--c-border);border-radius:5px;color:var(--c-text);text-decoration:none;margin-top:4px;transition:.15s;cursor:pointer}
-.mod-link:hover{background:var(--c-accent);color:#fff;border-color:var(--c-accent)}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;background:#0f1626;color:#f1f5f9;min-height:100dvh}
 
-/* Status panel */
-.status-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid var(--c-border2);font-size:12px}
-.status-row:last-child{border:none}
-.sdot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.sdot.ok{background:#10b981;box-shadow:0 0 4px #10b981}
-.sdot.err{background:#ef4444}
-.sdot.warn{background:#f59e0b}
-.sdot.off{background:#9ca3af}
+/* ── Header ── */
+.hdr{background:linear-gradient(135deg,#1a2540,#1e3050);border-bottom:1px solid #1e3050;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:40px;height:40px;background:linear-gradient(135deg,#10b981,#059669);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
+.hdr-text{flex:1;min-width:0}
+.hdr-title{font-size:15px;font-weight:700;line-height:1.2}
+.hdr-sub{font-size:10px;color:#475569;margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
+.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.lang-row{display:flex;background:#131f35;border:1px solid #1e3050;border-radius:7px;padding:2px;gap:2px}
+.lb{padding:3px 9px;border-radius:5px;border:none;background:transparent;color:#64748b;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-family:inherit;transition:.15s}
+.lb.on{background:#10b981;color:#fff}
 
-/* Pending item */
-.pend-item{border-left:3px solid var(--c-accent);background:#f7fbf9;border-radius:0 6px 6px 0;padding:8px 12px;margin-bottom:6px;font-size:12px}
-.pend-item.urgent{border-left-color:#ef4444;background:#fff5f5}
-.pend-item.warn{border-left-color:#f59e0b;background:#fffbeb}
+/* ── GAS Bar ── */
+.gas-bar{background:#131f35;border-bottom:1px solid #1e3050;padding:9px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gas-bar label{font-size:10px;font-weight:700;color:#475569;white-space:nowrap;text-transform:uppercase;letter-spacing:.06em}
+.gas-bar input{flex:1;min-width:220px;background:#0f1626;border:1px solid #1e3050;border-radius:7px;color:#f1f5f9;padding:5px 10px;font-size:11px;font-family:monospace;outline:none;transition:.2s}
+.gas-bar input:focus{border-color:#10b981}
+.btn-xs{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-save{background:#1a2540;color:#cbd5e1;border:1px solid #253058}.btn-save:hover{background:#253058}
+.gas-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#334155;transition:.3s}
+.gas-dot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
+.gas-dot.err{background:#ef4444;box-shadow:0 0 4px #ef4444}
+.gas-lbl{font-size:11px;color:#475569;min-width:60px}
 
-/* Search overlay */
-.search-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;align-items:flex-start;justify-content:center;padding-top:80px}
-.search-overlay.open{display:flex}
-.search-box-lg{width:560px;max-width:92vw;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.18);overflow:hidden}
-.search-input-lg{width:100%;padding:16px 20px;font-size:15px;border:none;outline:none;font-family:var(--f-body);border-bottom:1px solid var(--c-border)}
-.search-results{max-height:320px;overflow-y:auto;padding:8px}
-.sr-item{padding:9px 12px;border-radius:7px;cursor:pointer;font-size:12px;transition:.15s}
-.sr-item:hover{background:var(--c-bg)}
-.sr-icon{margin-right:8px}
+/* ── Main ── */
+.main{padding:16px;max-width:820px;margin:0 auto}
 
-/* Announcement */
-.ann-card{background:linear-gradient(135deg,#0f3027 0%,#1a6e5c 100%);color:#fff;border-radius:var(--radius);padding:14px;margin-bottom:10px}
-.ann-card h3{font-family:var(--f-display);font-size:14px;margin-bottom:6px;opacity:.9}
-.ann-card p{font-size:11px;opacity:.75;line-height:1.7}
+/* ── Module Grid ── */
+.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-bottom:16px}
 
-/* Audit log */
-.audit-row{padding:6px 0;border-bottom:1px solid var(--c-border2);font-size:11px;display:flex;gap:8px;align-items:center}
-.audit-row:last-child{border:none}
+/* ── Module Card ── */
+.mcard{background:#131f35;border:1px solid #1e3050;border-radius:14px;padding:18px;position:relative;overflow:hidden;transition:.2s}
+.mcard:hover{border-color:#253058;box-shadow:0 4px 16px rgba(0,0,0,.3);transform:translateY(-1px)}
 
-/* Storage bar */
-.stor-bar{height:6px;background:var(--c-border);border-radius:3px;overflow:hidden;margin-top:4px}
-.stor-fill{height:100%;border-radius:3px;transition:.4s}
+.mcard-stripe{position:absolute;top:0;left:0;right:0;height:3px}
+.mc-att  .mcard-stripe{background:linear-gradient(90deg,#10b981,transparent)}
+.mc-con  .mcard-stripe{background:linear-gradient(90deg,#3b82f6,transparent)}
+.mc-ob   .mcard-stripe{background:linear-gradient(90deg,#f59e0b,transparent)}
+.mc-mat  .mcard-stripe{background:linear-gradient(90deg,#ec4899,transparent)}
+.mc-cal  .mcard-stripe{background:linear-gradient(90deg,#8b5cf6,transparent)}
+.mc-ana  .mcard-stripe{background:linear-gradient(90deg,#06b6d4,transparent)}
 
-@media(max-width:1024px){.portal-grid.g4c{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:768px){.portal-grid{grid-template-columns:1fr 1fr}.portal-grid.g4c{grid-template-columns:1fr 1fr}}
-@media(max-width:480px){.portal-grid,.portal-grid.g4c{grid-template-columns:1fr}.hra-sidebar{display:none}}
+/* Card header */
+.mc-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.mc-icon{font-size:26px;width:38px;text-align:center;flex-shrink:0}
+.mc-info{flex:1;min-width:0}
+.mc-name{font-size:14px;font-weight:700;color:#f1f5f9}
+.mc-sub{font-size:10px;color:#475569;margin-top:2px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+.bd-ok  {background:#052e16;color:#4ade80;border:1px solid #166534}
+.bd-old {background:#1c1003;color:#fbbf24;border:1px solid #92400e}
+.bd-none{background:#1e293b;color:#64748b;border:1px solid #334155}
+.bd-auto{background:#0c1a2e;color:#93c5fd;border:1px solid #1d4ed8}
+
+/* Sync row */
+.mc-sync{font-size:11px;color:#475569;font-family:monospace;margin-bottom:14px;min-height:14px;line-height:1.5}
+.mc-sync .rec{font-weight:700}
+.sync-ok {color:#10b981}
+.sync-old{color:#f59e0b}
+.sync-non{color:#475569}
+
+/* Action buttons */
+.mc-acts{display:flex;gap:7px}
+.btn-open{flex:1.3;background:#1a2540;border:1px solid #253058;color:#cbd5e1;padding:9px 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;transition:.15s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px}
+.btn-open:hover{background:#253058;color:#f1f5f9}
+.btn-push{flex:1;background:#1c1500;border:1px solid #92400e;color:#fbbf24;padding:9px 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;transition:.15s;display:flex;align-items:center;justify-content:center;gap:4px}
+.btn-push:hover{background:#2a1d00}
+.btn-pull{flex:1;background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd;padding:9px 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;transition:.15s;display:flex;align-items:center;justify-content:center;gap:4px}
+.btn-pull:hover{background:#0f2040}
+.btn-push:disabled,.btn-pull:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Summary row (top) ── */
+.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:14px}
+.sum-card{background:#131f35;border:1px solid #1e3050;border-radius:10px;padding:10px 12px;text-align:center}
+.sum-val{font-size:20px;font-weight:700;font-family:monospace;color:#10b981}
+.sum-lbl{font-size:10px;color:#475569;margin-top:3px}
+
+/* ── TG Button ── */
+.btn-tg{background:#0c1e30;border:1px solid #1d4ed8;color:#60a5fa;padding:6px 14px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.btn-tg:hover{background:#0f2a42}
+
+/* ── Log ── */
+.log-wrap{background:#0a1120;border:1px solid #1e3050;border-radius:10px;padding:12px;margin-top:4px}
+.log-hd{font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;display:flex;justify-content:space-between}
+.log-hd button{font-size:9px;color:#334155;background:none;border:none;cursor:pointer;font-family:inherit}
+.log-hd button:hover{color:#64748b}
+.log-body{max-height:110px;overflow-y:auto;font-size:11px;font-family:monospace;line-height:1.75;color:#475569}
+.ll-ok  {color:#4ade80}
+.ll-err {color:#f87171}
+.ll-info{color:#60a5fa}
+
+/* ── Spinner ── */
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin .65s linear infinite;font-style:normal}
+
+/* ── TG Menu (Telegram-style) ── */
+.tg-menu{background:#131f35;border:1px solid #1e3050;border-radius:12px;padding:14px;margin-bottom:14px}
+.tg-menu-title{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.tg-btns{display:flex;flex-wrap:wrap;gap:7px}
+.tg-btn{background:#1a2540;border:1px solid #253058;color:#cbd5e1;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;display:inline-flex;align-items:center;gap:5px}
+.tg-btn:hover{background:#253058;color:#f1f5f9}
+.tg-btn.full{width:100%;justify-content:center}
+
+/* ── Mobile ── */
+@media(max-width:600px){
+  .mgrid{grid-template-columns:1fr}
+  .hdr-sub{display:none}
+  .summary-row{grid-template-columns:repeat(3,1fr)}
+  .mc-sub{display:none}
+  .gas-bar input{min-width:160px}
+}
+@media(max-width:380px){
+  .mc-acts{flex-wrap:wrap}
+  .btn-open{flex:1 1 100%}
+}
 </style>
 </head>
 <body>
-<div class="hra-layout">
 
-<!-- SIDEBAR -->
-<div class="hra-sidebar">
-  <div class="sb-logo">
-    <h1>AC HRA Portal</h1>
-    <p>Control Center · v2</p>
+<!-- Header -->
+<div class="hdr">
+  <div class="logo">🏥</div>
+  <div class="hdr-text">
+    <div class="hdr-title" id="h-title">AC HRA Portal</div>
+    <div class="hdr-sub">VANTAGE RIVER TEXTILES · SIHANOUKVILLE</div>
   </div>
-  <div class="sb-nav">
-    <div class="sb-sect">控制中心</div>
-    <button class="sb-btn on" onclick="goSection('dashboard',this)"><span class="ic">🏠</span>總覽</button>
-    <button class="sb-btn"    onclick="goSection('modules',this)"><span class="ic">🧩</span>模組</button>
-    <button class="sb-btn"    onclick="goSection('pending',this)"><span class="ic">⏳</span>待處理 <span id="pend-badge" class="sb-badge" style="display:none">0</span></button>
-    <button class="sb-btn"    onclick="goSection('status',this)"><span class="ic">📡</span>系統狀態</button>
-    <button class="sb-btn"    onclick="goSection('audit',this)"><span class="ic">📜</span>操作記錄</button>
-    <button class="sb-btn"    onclick="goSection('backup',this)"><span class="ic">💾</span>備份管理</button>
-    <button class="sb-btn"    onclick="goSection('settings',this)"><span class="ic">⚙️</span>設定</button>
-    <div class="sb-div"></div>
-    <div class="sb-sect">快速開啟</div>
-    <a class="sb-btn" href="./ac_hra_attendance_v1.html" target="_blank"><span class="ic">🕐</span>出勤系統</a>
-    <a class="sb-btn" href="./ac_hra_contract_v2.html" target="_blank"><span class="ic">📋</span>合約管理</a>
-    <a class="sb-btn" href="./ac_hra_onboarding_v2.html" target="_blank"><span class="ic">🚪</span>入離職</a>
-    <a class="sb-btn" href="./ac_hra_maternity_v1.html" target="_blank"><span class="ic">🤱</span>產假</a>
-    <a class="sb-btn" href="./ac_hra_calendar_v2.html" target="_blank"><span class="ic">📅</span>行事曆</a>
-    <a class="sb-btn" href="./ac_hra_complete_v2.html" target="_blank"><span class="ic">📊</span>分析中心</a>
-    <div class="sb-div"></div>
-    <div class="sb-gas-row">
-      <div class="sb-gas-dot" id="sb-gas-dot"></div>
-      <span class="sb-gas-lbl" id="sb-gas-lbl">GAS 未連線</span>
+  <div class="hdr-right">
+    <button class="btn-tg" onclick="sendTgMenu()">📱 <span id="h-tg">Telegram 選單</span></button>
+    <div class="lang-row">
+      <button class="lb on" onclick="setLang('zh')">中</button>
+      <button class="lb"    onclick="setLang('en')">EN</button>
+      <button class="lb"    onclick="setLang('km')">ខ្មែរ</button>
     </div>
-    <div style="margin-top:3px">
-      <div class="sb-gas-row">
-        <div class="sb-gas-dot" id="sb-tg-dot"></div>
-        <span class="sb-gas-lbl" id="sb-tg-lbl">TG 佇列: 0</span>
-      </div>
-    </div>
-  </div>
-  <div class="sb-bot">
-    <div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div>
-    <div style="color:#1d3a50;font-size:9px;margin-top:2px">Portal v2 Control Center</div>
   </div>
 </div>
 
-<!-- MAIN -->
-<div class="hra-main">
-  <!-- Header -->
-  <div class="hra-header">
-    <div class="hra-logo">
-      <div class="hra-logo-icon">🏠</div>
-      <div>
-        <div class="hra-logo-title">AC HRA Portal</div>
-        <div class="hra-logo-sub">Control Center v2 · Vantage River Textiles</div>
-      </div>
-    </div>
-    <div class="hra-header-space"></div>
-    <!-- Quick search trigger -->
-    <button class="btn btn-ghost btn-sm" onclick="openSearch()" title="快速搜尋 (Ctrl+K)">🔍 搜尋</button>
-    <div class="hra-sync-ind">
-      <span class="sync-dot" id="sync-dot-main"></span>
-      <span class="sync-lbl" id="sync-lbl-main">讀取中</span>
-    </div>
-    <div class="hra-lang">
-      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
-      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
-      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="refreshAll()">🔄 刷新</button>
-    <button class="btn btn-tg btn-sm" onclick="sendDailyReport()">📱 日報</button>
-  </div>
-  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
-
-  <!-- Content -->
-  <div class="hra-content">
-
-    <!-- 1 DASHBOARD -->
-    <div class="section on" id="sec-dashboard">
-      <!-- Announcements -->
-      <div class="ann-card" id="ann-card">
-        <h3>📢 系統公告 / Announcement</h3>
-        <p id="ann-text">AC HRA Portal v2 已啟動 · All modules ready · ប្រព័ន្ធ HRA Portal v2 បានដំណើរការ</p>
-      </div>
-      <!-- KPI Strip -->
-      <div class="kpi-grid g4c" id="portal-kpi"></div>
-      <!-- Row: Pending + Recent -->
-      <div class="g2">
-        <div class="card">
-          <div class="card-title">⏳ 待處理事項 / Pending Items</div>
-          <div id="pending-items"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">📋 最近操作紀錄</div>
-          <div id="recent-log"></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 2 MODULES -->
-    <div class="section" id="sec-modules" style="display:none">
-      <div class="ph"><h2>🧩 HRA 模組</h2><p>Module Overview — 點擊卡片開啟各工具</p></div>
-      <div class="portal-grid" id="module-cards-grid"></div>
-    </div>
-
-    <!-- 3 PENDING -->
-    <div class="section" id="sec-pending" style="display:none">
-      <div class="ph"><h2>⏳ 待處理事項</h2><p>Pending Items — 跨模組待處理清單</p></div>
-      <div id="all-pending-items"></div>
-    </div>
-
-    <!-- 4 STATUS -->
-    <div class="section" id="sec-status" style="display:none">
-      <div class="ph"><h2>📡 系統狀態</h2><p>System Status — GAS · Telegram · 各模組</p></div>
-      <div class="g2">
-        <div class="card">
-          <div class="card-title">☁️ 雲端同步狀態</div>
-          <div id="cloud-status-list"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">📱 Telegram 狀態</div>
-          <div id="tg-status-panel"></div>
-        </div>
-      </div>
-      <div class="card">
-        <div class="card-title">🗄️ 儲存空間使用 / Storage Usage</div>
-        <div id="storage-usage"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">💾 上次備份狀態 / Backup Status</div>
-        <div id="backup-status"></div>
-      </div>
-    </div>
-
-    <!-- 5 AUDIT -->
-    <div class="section" id="sec-audit" style="display:none">
-      <div class="ph"><h2>📜 操作記錄 / Audit Log</h2><p>跨系統操作紀錄</p></div>
-      <div class="frow" style="margin-bottom:12px">
-        <input class="search-box" id="audit-search" placeholder="搜尋…" oninput="renderAuditLog()">
-        <button class="btn btn-ghost btn-sm" onclick="clearEventLog()">🗑 清除</button>
-      </div>
-      <div class="log-box" id="portal-audit-log" style="max-height:480px"></div>
-    </div>
-
-    <!-- 6 BACKUP -->
-    <div class="section" id="sec-backup" style="display:none">
-      <div class="ph"><h2>💾 備份管理</h2><p>Backup — 各模組資料備份與還原</p></div>
-      <div class="portal-grid" id="backup-cards"></div>
-    </div>
-
-    <!-- 7 SETTINGS -->
-    <div class="section" id="sec-settings" style="display:none">
-      <div class="ph"><h2>⚙️ Portal 設定</h2></div>
-      <div class="card"><div class="card-title">系統設定</div><div id="settings-form-container"></div></div>
-      <div class="card">
-        <div class="card-title">📢 系統公告設定</div>
-        <textarea class="form-input" id="ann-input" rows="3" placeholder="輸入公告內容…"></textarea>
-        <div style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="saveAnn()">儲存公告</button></div>
-      </div>
-      <div class="card"><div class="card-title">🗒 事件紀錄</div><div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div></div>
-    </div>
-
-  </div>
-</div>
+<!-- GAS Config Bar -->
+<div class="gas-bar">
+  <label>GAS URL</label>
+  <input id="gasInput" type="text" placeholder="https://script.google.com/macros/s/…/exec"/>
+  <button class="btn-xs btn-save" onclick="saveGas()">儲存</button>
+  <div class="gas-dot" id="gasDot"></div>
+  <span class="gas-lbl" id="gasLbl">未設定</span>
 </div>
 
-<!-- Quick Search Overlay -->
-<div class="search-overlay" id="search-overlay" onclick="if(event.target===this)closeSearch()">
-  <div class="search-box-lg">
-    <input class="search-input-lg" id="search-input-lg" placeholder="🔍 快速搜尋員工、合約、記錄…" oninput="doSearch()">
-    <div class="search-results" id="search-results"></div>
+<!-- Main -->
+<div class="main">
+
+  <!-- Summary strip -->
+  <div class="summary-row" id="sum-row">
+    <div class="sum-card"><div class="sum-val" id="s-total">—</div><div class="sum-lbl">總模組</div></div>
+    <div class="sum-card"><div class="sum-val" id="s-synced" style="color:#10b981">—</div><div class="sum-lbl" id="s-synced-lbl">已同步</div></div>
+    <div class="sum-card"><div class="sum-val" id="s-records" style="color:#93c5fd">—</div><div class="sum-lbl" id="s-records-lbl">筆記錄</div></div>
+    <div class="sum-card"><div class="sum-val" id="s-last" style="font-size:13px;color:#fbbf24">—</div><div class="sum-lbl" id="s-last-lbl">最後同步</div></div>
   </div>
-</div>
+
+  <!-- Telegram quick menu -->
+  <div class="tg-menu">
+    <div class="tg-menu-title" id="tm-title">📱 快速開啟 / Quick Access</div>
+    <div class="tg-btns">
+      <button class="tg-btn" onclick="openMod('ac_hra_attendance_v1.html')">🕐 <span data-zh="出勤系統" data-en="Attendance" data-km="វត្តមាន">出勤系統</span></button>
+      <button class="tg-btn" onclick="openMod('ac_hra_contract_v2.html')">📋 <span data-zh="合約管理" data-en="Contract" data-km="កិច្ចសន្យា">合約管理</span></button>
+      <button class="tg-btn" onclick="openMod('ac_hra_onboarding_v2.html')">🚪 <span data-zh="入離職" data-en="Onboarding" data-km="ចូល/ចេញ">入離職</span></button>
+      <button class="tg-btn" onclick="openMod('ac_hra_maternity_v1.html')">🤱 <span data-zh="產假" data-en="Maternity" data-km="មាតា">產假</span></button>
+      <button class="tg-btn" onclick="openMod('ac_hra_calendar_v2.html')">📅 <span data-zh="行事曆" data-en="Calendar" data-km="ប្រតិទិន">行事曆</span></button>
+      <button class="tg-btn" onclick="openMod('ac_hra_complete_v2.html')">📊 <span data-zh="分析中心" data-en="Analytics" data-km="វិភាគ">分析中心</span></button>
+    </div>
+  </div>
+
+  <!-- Module Cards Grid -->
+  <div class="mgrid" id="mod-grid">
+    <!-- Rendered by JS -->
+  </div>
+
+  <!-- Log -->
+  <div class="log-wrap">
+    <div class="log-hd"><span id="log-hd-txt">操作紀錄</span><button onclick="clearLog()">清除</button></div>
+    <div class="log-body" id="logBody"><span class="ll-info">就緒 · AC HRA Portal v2</span></div>
+  </div>
+
+</div><!-- /main -->
 
 <script>
-// ══════════════════════════════════════════════════════
-// AC HRA Portal v2 — Control Center
-// ══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════
+// AC HRA Portal v2
+// Style: Production Portal (dark cards, no sidebar)
+// ═══════════════════════════════════════════════════
+const GAS_KEY = 'ac_hra_gas_url';
+let gasUrl    = '';
+let LANG      = localStorage.getItem('ac_hra_lang') || 'zh';
 
-// Module definitions
+// ── Module definitions ───────────────────────────
 const MODULES = [
-  { id:'attendance', name:'出勤管理', nameEn:'Attendance', icon:'🕐', file:'ac_hra_attendance_v1.html', storeKey:'vrt_att_v5_db', cloudKey:'attendance', color:'#10b981' },
-  { id:'contract',   name:'合約管理', nameEn:'Contract Tracker', icon:'📋', file:'ac_hra_contract_v2.html', storeKey:'ac_hra_contract_db', cloudKey:'contract', color:'#3b82f6' },
-  { id:'onboarding', name:'入離職管理', nameEn:'Onboarding/Offboarding', icon:'🚪', file:'ac_hra_onboarding_v2.html', storeKey:'ac_hra_onboarding_db', cloudKey:'onboarding', color:'#f59e0b' },
-  { id:'maternity',  name:'產假追蹤', nameEn:'Maternity Tracker', icon:'🤱', file:'ac_hra_maternity_v1.html', storeKey:'vrt_maternity_v1', cloudKey:'maternity', color:'#ec4899' },
-  { id:'calendar',   name:'工廠行事曆', nameEn:'Factory Calendar', icon:'📅', file:'ac_hra_calendar_v2.html', storeKey:'ac_hra_calendar_db', cloudKey:'calendar', color:'#8b5cf6' },
-  { id:'analytics',  name:'分析中心', nameEn:'Analytics Center', icon:'📊', file:'ac_hra_complete_v2.html', storeKey:null, cloudKey:null, color:'#0f3027' },
+  {
+    id      : 'attendance',
+    icon    : '🕐',
+    nameZh  : '出勤系統',
+    nameEn  : 'Attendance',
+    nameKm  : 'ប្រព័ន្ធវត្តមាន',
+    file    : 'ac_hra_attendance_v1.html',
+    storeKey: 'vrt_att_v5_db',
+    color   : 'mc-att',
+    getRecords: () => {
+      try { const d = JSON.parse(localStorage.getItem('vrt_att_v5_db')||'{}'); return d.employees?.length||0; }
+      catch(e){ return 0; }
+    },
+    getPayload: () => {
+      const raw = localStorage.getItem('vrt_att_v5_db')||'{}';
+      const d   = JSON.parse(raw);
+      return { tool:'attendance', records: d.employees||[], summary: { monthSummaries: d.monthSummaries||[] } };
+    },
+    onPull: (records, meta) => {
+      // Reconstruct attendance db format
+      const db = { employees: records, monthSummaries: meta?.summary?.monthSummaries||[], log:[] };
+      localStorage.setItem('vrt_att_v5_db', JSON.stringify(db));
+    }
+  },
+  {
+    id      : 'contract',
+    icon    : '📋',
+    nameZh  : '合約管理',
+    nameEn  : 'Contract Tracker',
+    nameKm  : 'តាមដានកិច្ចសន្យា',
+    file    : 'ac_hra_contract_v2.html',
+    storeKey: 'ac_hra_contract_db',
+    color   : 'mc-con',
+    getRecords: () => { try{ return JSON.parse(localStorage.getItem('ac_hra_contract_db')||'[]').length; }catch(e){return 0;} },
+    getPayload: () => {
+      const recs = JSON.parse(localStorage.getItem('ac_hra_contract_db')||'[]');
+      return { tool:'contract', records: recs, recordCount: recs.length };
+    },
+    onPull: (records) => { localStorage.setItem('ac_hra_contract_db', JSON.stringify(records)); }
+  },
+  {
+    id      : 'onboarding',
+    icon    : '🚪',
+    nameZh  : '入離職管理',
+    nameEn  : 'Onboarding / Offboarding',
+    nameKm  : 'ការគ្រប់គ្រងចូល/ចេញ',
+    file    : 'ac_hra_onboarding_v2.html',
+    storeKey: 'ac_hra_onboarding_db',
+    color   : 'mc-ob',
+    getRecords: () => { try{ const d=JSON.parse(localStorage.getItem('ac_hra_onboarding_db')||'{}'); return (d.records||d||[]).length; }catch(e){return 0;} },
+    getPayload: () => {
+      const d = JSON.parse(localStorage.getItem('ac_hra_onboarding_db')||'{}');
+      const recs = Array.isArray(d) ? d : (d.records||[]);
+      return { tool:'onboarding', records: recs, recordCount: recs.length, summary:{ auditLog: d.auditLog||[] } };
+    },
+    onPull: (records, meta) => {
+      const db = { records, auditLog: meta?.summary?.auditLog||[] };
+      localStorage.setItem('ac_hra_onboarding_db', JSON.stringify(db));
+    }
+  },
+  {
+    id      : 'maternity',
+    icon    : '🤱',
+    nameZh  : '產假追蹤',
+    nameEn  : 'Maternity Tracker',
+    nameKm  : 'តាមដានការសម្រាកមាតា',
+    file    : 'ac_hra_maternity_v1.html',
+    storeKey: 'vrt_maternity_v1',
+    color   : 'mc-mat',
+    getRecords: () => { try{ return JSON.parse(localStorage.getItem('vrt_maternity_v1')||'[]').length; }catch(e){return 0;} },
+    getPayload: () => {
+      const recs = JSON.parse(localStorage.getItem('vrt_maternity_v1')||'[]');
+      return { tool:'maternity', records: recs, recordCount: recs.length };
+    },
+    onPull: (records) => { localStorage.setItem('vrt_maternity_v1', JSON.stringify(records)); }
+  },
+  {
+    id      : 'calendar',
+    icon    : '📅',
+    nameZh  : '行事曆',
+    nameEn  : 'Factory Calendar',
+    nameKm  : 'ប្រតិទិនរោងចក្រ',
+    file    : 'ac_hra_calendar_v2.html',
+    storeKey: 'ac_hra_calendar_db',
+    color   : 'mc-cal',
+    getRecords: () => { try{ return JSON.parse(localStorage.getItem('ac_hra_calendar_db')||'[]').length; }catch(e){return 0;} },
+    getPayload: () => {
+      const recs = JSON.parse(localStorage.getItem('ac_hra_calendar_db')||'[]');
+      return { tool:'calendar', records: recs, recordCount: recs.length };
+    },
+    onPull: (records) => { localStorage.setItem('ac_hra_calendar_db', JSON.stringify(records)); }
+  },
+  {
+    id      : 'analytics',
+    icon    : '📊',
+    nameZh  : '分析中心',
+    nameEn  : 'Analytics Center',
+    nameKm  : 'មជ្ឈមណ្ឌលវិភាគ',
+    file    : 'ac_hra_complete_v2.html',
+    storeKey: null,
+    color   : 'mc-ana',
+    getRecords: () => 0,
+    getPayload: null,
+    onPull  : null,
+    readOnly: true,
+  },
 ];
 
-// ── Read data from each module ──
-function readModule(m) {
-  if (!m.storeKey) return { count:0, data:null };
+// Cloud snap cache (from GAS status)
+let cloudStatus = {};
+
+// ── Helpers ─────────────────────────────────────
+function modName(m) { return LANG==='en'?m.nameEn:LANG==='km'?m.nameKm:m.nameZh; }
+function fmtISO(iso) {
+  if (!iso) return '—';
   try {
-    const raw = localStorage.getItem(m.storeKey);
-    if (!raw) return { count:0, data:null };
-    const d = JSON.parse(raw);
-    // Each module stores differently
-    if (m.id === 'attendance') return { count: d.employees?.length||0, data:d };
-    if (m.id === 'onboarding') return { count: d.records?.length||0, data:d };
-    return { count: Array.isArray(d)?d.length:0, data:d };
-  } catch(e) { return { count:0, data:null }; }
+    const d = new Date(iso);
+    return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch(e) { return '—'; }
+}
+function ageStr(iso) {
+  if (!iso) return '';
+  const mins = (Date.now() - new Date(iso)) / 60000;
+  if (mins < 60)   return `${Math.round(mins)}分前`;
+  if (mins < 1440) return `${Math.round(mins/60)}小時前`;
+  return `${Math.round(mins/1440)}天前`;
+}
+function pad(n) { return String(n).padStart(2,'0'); }
+
+// ── INIT ────────────────────────────────────────
+function init() {
+  gasUrl = localStorage.getItem(GAS_KEY) || '';
+  document.getElementById('gasInput').value = gasUrl;
+  renderCards();
+  if (gasUrl) { verifyGas(); fetchStatus(); }
+  applyLang();
 }
 
-function computeContractStatus(c) {
-  const today=new Date();today.setHours(0,0,0,0);
-  const probEnd=c.probEndDate?new Date(c.probEndDate):null;
-  const contEnd=c.endDate?new Date(c.endDate):null;
-  if(c.status==='terminated')return'terminated';
-  if(probEnd&&probEnd>=today)return'probation';
-  if(!contEnd)return'active';
-  const d=Math.ceil((contEnd-today)/86400000);
-  if(d<0)return'expired';if(d<=30)return'expiring';return'active';
+// ── GAS URL ─────────────────────────────────────
+function saveGas() {
+  gasUrl = document.getElementById('gasInput').value.trim();
+  if (!gasUrl) return;
+  localStorage.setItem(GAS_KEY, gasUrl);
+  // Sync to shared cloud.js if loaded
+  if (window.HRA?.Cloud) HRA.Cloud.setUrl(gasUrl);
+  log('GAS URL 已儲存', 'info');
+  verifyGas();
+  fetchStatus();
 }
 
-function daysUntil(ds){if(!ds)return null;const d=new Date(ds);d.setHours(0,0,0,0);const t=new Date();t.setHours(0,0,0,0);return Math.ceil((d-t)/86400000);}
-
-// ── Navigation ──
-function goSection(id, el) {
-  document.querySelectorAll('.section').forEach(s=>s.style.display='none');
-  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('on'));
-  const sec = document.getElementById('sec-'+id);
-  if(sec) sec.style.display='';
-  if(el) el.classList.add('on');
-  if(id==='dashboard') renderDashboard();
-  if(id==='modules')   renderModules();
-  if(id==='pending')   renderAllPending();
-  if(id==='status')    renderStatus();
-  if(id==='audit')     renderAuditLog();
-  if(id==='backup')    renderBackup();
-  if(id==='settings')  { HRA.Settings.renderForm('settings-form-container'); const ann=localStorage.getItem('hra_ann')||''; document.getElementById('ann-input').value=ann; }
+async function verifyGas() {
+  const dot = document.getElementById('gasDot');
+  const lbl = document.getElementById('gasLbl');
+  dot.className = 'gas-dot';
+  lbl.textContent = '驗證中…';
+  try {
+    const r = await fetch(gasUrl + '?action=heartbeat', { redirect:'follow' });
+    const d = await r.json();
+    if (d.ok) {
+      dot.className = 'gas-dot ok';
+      lbl.textContent = '連線正常';
+      log('✓ GAS 連線成功', 'ok');
+    } else throw new Error(JSON.stringify(d));
+  } catch(e) {
+    dot.className = 'gas-dot err';
+    lbl.textContent = '連線失敗';
+    log('✗ GAS 連線失敗：' + e.message, 'err');
+  }
 }
 
-function refreshAll() {
-  renderDashboard();
-  HRA.UI.toast('🔄 資料已刷新','info');
+async function fetchStatus() {
+  if (!gasUrl) return;
+  try {
+    const r = await fetch(gasUrl + '?action=status', { redirect:'follow' });
+    const d = await r.json();
+    if (!d.ok) return;
+    cloudStatus = d.data || {};
+    renderCards();
+    updateSummary();
+  } catch(e) { /* silent */ }
 }
 
-function renderAll() { renderDashboard(); }
-
-// ── DASHBOARD ──
-function renderDashboard() {
-  const now = new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh'});
-
-  // Read all modules
-  const conRaw = readModule(MODULES[1]).data || [];
-  const obRaw  = readModule(MODULES[2]).data || {records:[]};
-  const matRaw = readModule(MODULES[3]).data || [];
-  const contracts = (Array.isArray(conRaw)?conRaw:[]).map(c=>({...c,_s:computeContractStatus(c)}));
-  const obRecords = Array.isArray(obRaw.records)?obRaw.records:(Array.isArray(obRaw)?obRaw:[]);
-  const matArr    = Array.isArray(matRaw)?matRaw:[];
-
-  const activeStaff = contracts.filter(c=>c._s!=='terminated').length;
-  const expiring    = contracts.filter(c=>c._s==='expiring').length;
-  const pending     = obRecords.filter(r=>r.reviewStatus==='pending').length;
-  const matActive   = matArr.filter(m=>m.status==='maternity').length;
-  const mo          = new Date().toISOString().slice(0,7);
-  const moJoins     = obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
-  const moResigns   = obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
-
-  // KPI
-  document.getElementById('portal-kpi').innerHTML = [
-    kpi('在職人數',activeStaff,'','good'),
-    kpi('合約到期預警',expiring,'30天內',expiring>0?'warn':''),
-    kpi('待審核申請',pending,'',pending>0?'warn':''),
-    kpi('產假中',matActive,'','info'),
-    kpi('本月入職',moJoins,mo,''),
-    kpi('本月離職',moResigns,mo,''),
-  ].join('');
-
-  // Update pending badge
-  const pBadge=document.getElementById('pend-badge');
-  if(pBadge){pBadge.textContent=pending;pBadge.style.display=pending?'':'none';}
-
-  // Pending items
-  const pendItems=[];
-  if(expiring>0)pendItems.push({urgent:true,icon:'⚠️',text:`${expiring} 份合約 30 天內到期`,link:'ac_hra_contract_v2.html'});
-  if(pending>0)pendItems.push({warn:true,icon:'⏳',text:`${pending} 筆入離職申請待審核`,link:'ac_hra_onboarding_v2.html'});
-  const expired=contracts.filter(c=>c._s==='expired').length;
-  if(expired>0)pendItems.push({urgent:true,icon:'❌',text:`${expired} 份合約已過期，需更新`,link:'ac_hra_contract_v2.html'});
-  const returning=matArr.filter(m=>{const d=daysUntil(m.returnDate);return m.status==='maternity'&&d!==null&&d>=0&&d<=14;});
-  if(returning.length)pendItems.push({warn:true,icon:'🤱',text:`${returning.length} 位員工產假即將結束（14天內）`,link:'ac_hra_maternity_v1.html'});
-
-  document.getElementById('pending-items').innerHTML = pendItems.length===0
-    ? '<div class="alert alert-ok">✅ 目前無待處理事項</div>'
-    : pendItems.map(p=>`<div class="pend-item ${p.urgent?'urgent':p.warn?'warn':''}">
-        ${p.icon} ${p.text}
-        <a href="./${p.link}" target="_blank" style="font-size:10px;color:var(--c-accent);text-decoration:none;margin-left:8px">→ 前往處理</a>
-      </div>`).join('');
-
-  // Recent log
-  const logs = HRA.Logger.getLogs().slice(0,10);
-  document.getElementById('recent-log').innerHTML = logs.length===0
-    ? '<div class="empty"><p>尚無操作記錄</p></div>'
-    : logs.map(l=>`<div class="audit-row">
-        <span style="font-family:var(--f-mono);color:var(--c-muted);font-size:10px;min-width:40px">${l.ts.slice(11,16)}</span>
-        <span class="badge badge-muted" style="font-size:9px">${l.type}</span>
-        <span style="flex:1">${l.msg}</span>
-      </div>`).join('');
-
-  // Sync indicator
-  HRA.UI.syncStatus('synced', now.slice(0,16));
+// ── RENDER CARDS ────────────────────────────────
+function renderCards() {
+  const grid = document.getElementById('mod-grid');
+  grid.innerHTML = MODULES.map(m => renderCard(m)).join('');
 }
 
-// ── MODULES ──
-function renderModules() {
-  document.getElementById('module-cards-grid').innerHTML = MODULES.map(m=>{
-    const {count, data} = readModule(m);
-    const snap = HRA.Cloud.getSnap(m.cloudKey||m.id);
-    const synced = !!snap;
-    const syncTime = snap?.timestamp?.slice(0,16)||'—';
-    let extra = '';
-    if(m.id==='contract' && data) {
-      const cs=data.filter(c=>computeContractStatus(c)==='expiring').length;
-      if(cs>0)extra=`<div style="font-size:10px;color:#d97706">⚠️ ${cs} 份即將到期</div>`;
-    }
-    if(m.id==='onboarding' && data) {
-      const pend=(data.records||data||[]).filter(r=>r.reviewStatus==='pending').length;
-      if(pend>0)extra=`<div style="font-size:10px;color:#d97706">⏳ ${pend} 待審核</div>`;
-    }
-    return `<div class="mod-card ${count===0?'offline':''}">
-      <div class="mod-icon">${m.icon}</div>
-      <div class="mod-name">${m.name}</div>
-      <div class="mod-sub">${m.nameEn}</div>
-      <div class="mod-count">${count}<span style="font-size:12px;font-weight:400;color:var(--c-muted)"> 筆</span></div>
-      ${extra}
-      <div style="display:flex;align-items:center;gap:5px;margin-top:4px">
-        <div class="sdot ${synced?'ok':'off'}"></div>
-        <span style="font-size:9px;color:var(--c-muted)">${synced?'雲端：'+syncTime:'未雲端同步'}</span>
-      </div>
-      <a class="mod-link" href="./${m.file}" target="_blank">🔗 開啟模組</a>
-    </div>`;
-  }).join('');
-}
+function renderCard(m) {
+  const local   = m.getRecords();
+  const cloud   = cloudStatus[m.id];
+  const hasCloud= !!cloud?.timestamp;
+  const age     = hasCloud ? ageStr(cloud.timestamp) : '';
+  const mins    = hasCloud ? (Date.now() - new Date(cloud.timestamp)) / 60000 : Infinity;
+  const isOld   = mins > 480;
+  const badgeCls= !hasCloud ? 'bd-none' : isOld ? 'bd-old' : 'bd-ok';
+  const badgeTxt= !hasCloud ? (LANG==='en'?'Never':LANG==='km'?'មិនទាន់':'未同步') : age;
+  const syncCls = !hasCloud ? 'sync-non' : isOld ? 'sync-old' : 'sync-ok';
+  const cloudRec= hasCloud ? cloud.recordCount : null;
+  const name    = modName(m);
 
-// ── PENDING ──
-function renderAllPending() {
-  const conRaw = readModule(MODULES[1]).data || [];
-  const obRaw  = readModule(MODULES[2]).data || {records:[]};
-  const contracts = (Array.isArray(conRaw)?conRaw:[]).map(c=>({...c,_s:computeContractStatus(c)}));
-  const obRecords = Array.isArray(obRaw.records)?obRaw.records:(Array.isArray(obRaw)?obRaw:[]);
+  const sub = m.storeKey || (LANG==='en'?'Read-only analytics':LANG==='km'?'វិភាគ':'整合分析');
 
-  let html='';
-  const expList=contracts.filter(c=>c._s==='expiring').sort((a,b)=>new Date(a.endDate)-new Date(b.endDate));
-  if(expList.length) html+=`<h3 style="margin-bottom:8px;font-size:13px;color:var(--c-primary)">⚠️ 合約到期預警 (${expList.length})</h3>
-    ${expList.map(c=>{const d=daysUntil(c.endDate);return`<div class="pend-item ${d<=7?'urgent':'warn'}">⚠️ <b>${c.name}</b> · ${c.dept} — 合約到期 ${c.endDate} (<b>${d} 天</b>)</div>`;}).join('')}`;
-
-  const pendOb=obRecords.filter(r=>r.reviewStatus==='pending');
-  if(pendOb.length) html+=`<h3 style="margin:14px 0 8px;font-size:13px;color:var(--c-primary)">⏳ 待審核申請 (${pendOb.length})</h3>
-    ${pendOb.map(r=>`<div class="pend-item warn">${r.type==='join'?'🟢':'🔴'} <b>${r.name}</b> · ${r.dept} — ${r.type==='join'?'入職':'離職'} 申請 (生效日 ${r.effectDate||'—'})</div>`).join('')}`;
-
-  if(!html) html='<div class="alert alert-ok">✅ 目前無待處理事項</div>';
-  document.getElementById('all-pending-items').innerHTML=html;
-}
-
-// ── STATUS ──
-async function renderStatus() {
-  // Cloud status
-  document.getElementById('cloud-status-list').innerHTML='<div class="status-row"><div class="sdot warn"></div><span>正在測試連線…</span></div>';
-  const gasUrl=HRA.Cloud.getUrl();
-  if(!gasUrl){
-    document.getElementById('cloud-status-list').innerHTML='<div class="status-row"><div class="sdot err"></div><span>GAS URL 未設定</span></div>';
+  let syncLine = '';
+  if (hasCloud) {
+    syncLine = `☁ ${fmtISO(cloud.timestamp)} · <span class="rec">${cloudRec} 筆</span> · ${age}`;
   } else {
-    const r=await HRA.Cloud.heartbeat();
-    const snap=MODULES.filter(m=>m.cloudKey).map(m=>{
-      const s=HRA.Cloud.getSnap(m.cloudKey);
-      return`<div class="status-row"><div class="sdot ${s?'ok':'off'}"></div><span style="flex:1">${m.icon} ${m.name}</span><span style="font-size:10px;color:var(--c-muted)">${s?'最後同步：'+s.timestamp?.slice(0,16):'未同步'}</span></div>`;
-    }).join('');
-    document.getElementById('cloud-status-list').innerHTML=`<div class="status-row"><div class="sdot ${r.ok?'ok':'err'}"></div><b>GAS 連線：${r.ok?'正常 ✅':'失敗 ❌'}</b></div>${snap}`;
-    HRA.UI.syncStatus(r.ok?'synced':'failed','');
+    syncLine = LANG==='en'?'Cloud: Not synced yet':LANG==='km'?'Cloud: មិនទាន់ Sync':'雲端：尚未同步';
   }
 
-  // TG status
-  const tgSt=HRA.TG.status();
-  document.getElementById('tg-status-panel').innerHTML=`
-    <div class="status-row"><div class="sdot ${tgSt.enabled?'ok':'off'}"></div><span>Telegram：${tgSt.enabled?'已啟用':'已停用'}</span></div>
-    <div class="status-row"><div class="sdot ${tgSt.queueLen>0?'warn':'ok'}"></div><span>佇列：${tgSt.queueLen} 則</span></div>
-    <div class="status-row"><div class="sdot ${tgSt.sending?'warn':'ok'}"></div><span>發送中：${tgSt.sending?'是':'否'}</span></div>
-    <div style="margin-top:10px;display:flex;gap:8px">
-      <button class="btn btn-ghost btn-sm" onclick="HRA.TG.test().then(ok=>HRA.UI.toast(ok?'✅ TG OK':'❌ TG 失敗',ok?'ok':'err'))">測試</button>
-      <button class="btn btn-ghost btn-sm" onclick="HRA.TG.clear();HRA.UI.toast('佇列已清除','ok')">清除佇列</button>
-    </div>`;
+  const openLabel  = LANG==='en'?'Open':LANG==='km'?'បើក':'開啟';
+  const pushLabel  = LANG==='en'?'Push':LANG==='km'?'Push':'☁ 推送';
+  const pullLabel  = LANG==='en'?'Pull':LANG==='km'?'Pull':'⬇ 拉取';
 
-  // Storage usage
-  renderStorageUsage();
-  renderBackupStatus();
+  const noCloud = !m.getPayload;
+  const actBtns = noCloud
+    ? `<a class="btn-open" href="./${m.file}" target="_self" style="flex:1">📊 ${openLabel}</a>`
+    : `<a class="btn-open" href="./${m.file}" target="_self">📂 ${openLabel}</a>
+       <button class="btn-push" id="pp-${m.id}" onclick="push('${m.id}')" ${!gasUrl?'disabled':''}>☁ ${LANG==='en'?'Push':LANG==='km'?'Push':'推送'}</button>
+       <button class="btn-pull" id="pl-${m.id}" onclick="pull('${m.id}')" ${!gasUrl?'disabled':''}>⬇ ${LANG==='en'?'Pull':LANG==='km'?'Pull':'拉取'}</button>`;
+
+  return `<div class="mcard ${m.color}">
+    <div class="mcard-stripe"></div>
+    <div class="mc-head">
+      <div class="mc-icon">${m.icon}</div>
+      <div class="mc-info">
+        <div class="mc-name">${name}</div>
+        <div class="mc-sub">${sub}</div>
+      </div>
+      <span class="mc-badge ${noCloud?'bd-auto':badgeCls}">${noCloud?'自動':badgeTxt}</span>
+    </div>
+    <div class="mc-sync ${noCloud?'':syncCls}" id="st-${m.id}">
+      ${noCloud?'讀取各模組 localStorage · 無需同步':syncLine}
+    </div>
+    <div style="font-size:11px;color:#475569;margin-bottom:10px" id="local-${m.id}">
+      本地：<b style="color:#cbd5e1">${local} 筆</b>${hasCloud&&cloudRec!==null&&cloudRec!==local?` · 雲端：<span style="color:${isOld?'#fbbf24':'#4ade80'}">${cloudRec} 筆</span>`:''}
+    </div>
+    <div class="mc-acts">${actBtns}</div>
+  </div>`;
 }
 
-function renderStorageUsage() {
-  const items=[];
-  let total=0;
-  MODULES.forEach(m=>{
-    if(!m.storeKey)return;
-    const raw=localStorage.getItem(m.storeKey)||'';
-    const kb=Math.round(raw.length/1024*10)/10;
-    total+=kb;
-    items.push({name:m.name,icon:m.icon,kb});
+// ── SUMMARY STRIP ────────────────────────────────
+function updateSummary() {
+  const mods       = MODULES.filter(m=>m.storeKey);
+  const synced     = mods.filter(m=>cloudStatus[m.id]?.timestamp).length;
+  const totalRecs  = mods.reduce((a,m)=>a+m.getRecords(),0);
+  const timestamps = mods.map(m=>cloudStatus[m.id]?.timestamp).filter(Boolean).sort().reverse();
+  document.getElementById('s-total').textContent   = MODULES.length;
+  document.getElementById('s-synced').textContent  = synced + '/' + mods.length;
+  document.getElementById('s-records').textContent = totalRecs;
+  document.getElementById('s-last').textContent    = timestamps[0] ? fmtISO(timestamps[0]) : '—';
+}
+
+// ── PUSH ────────────────────────────────────────
+async function push(id) {
+  if (!gasUrl) { log('請先設定 GAS URL', 'err'); return; }
+  const m = MODULES.find(x=>x.id===id);
+  if (!m?.getPayload) { log(id + ' 無法從 Portal 推送', 'err'); return; }
+  setBtns(id, true);
+  log(`推送 ${modName(m)}…`, 'info');
+  try {
+    const payload = m.getPayload();
+    if (!payload) { log(`${modName(m)} 無本地資料`, 'err'); return; }
+    payload.action = 'push';
+
+    // Chunk if large
+    const CHUNK = 200;
+    const recs  = payload.records || [];
+    if (recs.length > CHUNK) {
+      const total = Math.ceil(recs.length / CHUNK);
+      for (let i=0;i<total;i++) {
+        const chunk = { ...payload, records: recs.slice(i*CHUNK,(i+1)*CHUNK), chunk:i, totalChunks:total,
+          summary: i===total-1 ? (payload.summary||{}) : {} };
+        const r = await postGas(chunk);
+        if (!r.ok) throw new Error(r.error||r.data?.error||'GAS error');
+        log(`${modName(m)} 第${i+1}/${total}批`, 'info');
+      }
+    } else {
+      const r = await postGas(payload);
+      if (!r.ok) throw new Error(r.error||r.data?.error||'GAS error');
+    }
+
+    log(`✓ ${modName(m)} 推送完成（${recs.length} 筆）`, 'ok');
+    // Update local snap
+    const snap = { timestamp: new Date().toISOString(), recordCount: recs.length };
+    cloudStatus[id] = snap;
+    localStorage.setItem('ac_hra_snap_' + id, JSON.stringify(snap));
+    renderCards(); updateSummary();
+  } catch(e) {
+    log(`✗ ${modName(m)} 推送失敗：${e.message}`, 'err');
+  } finally { setBtns(id, false); }
+}
+
+// ── PULL ────────────────────────────────────────
+async function pull(id) {
+  if (!gasUrl) { log('請先設定 GAS URL', 'err'); return; }
+  const m = MODULES.find(x=>x.id===id);
+  if (!m?.onPull) { log(id + ' 無法拉取', 'err'); return; }
+  const btn = document.getElementById('pl-' + id);
+  if (btn) { btn.disabled=true; btn.innerHTML='<i class="spin">⏳</i>'; }
+  log(`拉取 ${modName(m)}…`, 'info');
+  try {
+    // Get meta first
+    const meta = await getGas(`${gasUrl}?action=pull&tool=${id}&meta=1`);
+    if (!meta.ok) throw new Error(meta.error || 'GAS error');
+    const d = meta.data;
+    if (d.data === null || (!d.chunked && !d.records && !d.data)) {
+      log(`${modName(m)} 雲端尚無資料`, 'info'); return;
+    }
+
+    let records, metaObj;
+    if (!d.chunked) {
+      records = d.records || d.data?.records || d.data || [];
+      metaObj = { summary: d.data?.summary || {} };
+    } else {
+      const chunks = d.meta?.totalChunks || 1;
+      records = [];
+      for (let i=0;i<chunks;i++) {
+        const r = await getGas(`${gasUrl}?action=pull&tool=${id}&chunk=${i}`);
+        if (!r.ok) throw new Error(r.error);
+        records.push(...(r.data?.records || []));
+      }
+      metaObj = { summary: d.meta?.summary || {} };
+    }
+
+    m.onPull(records, metaObj);
+    log(`✓ ${modName(m)} 拉取完成（${records.length} 筆）→ 重新整理工具即可看到`, 'ok');
+    cloudStatus[id] = { ...cloudStatus[id], recordCount: records.length };
+    renderCards(); updateSummary();
+  } catch(e) {
+    log(`✗ ${modName(m)} 拉取失敗：${e.message}`, 'err');
+  } finally {
+    if (btn) { btn.disabled=false; btn.innerHTML=`⬇ ${LANG==='en'?'Pull':'拉取'}`; }
+  }
+}
+
+// ── HTTP helpers ─────────────────────────────────
+async function postGas(body) {
+  // text/plain = no CORS preflight
+  const r = await fetch(gasUrl, {
+    method  : 'POST',
+    redirect: 'follow',
+    headers : { 'Content-Type': 'text/plain' },
+    body    : JSON.stringify(body),
   });
-  const maxKb=5120; // 5MB estimate
-  document.getElementById('storage-usage').innerHTML=`
-    <div style="font-size:12px;color:var(--c-muted);margin-bottom:8px">HRA 資料使用：<b>${total.toFixed(1)} KB</b> / 5 MB 估計</div>
-    <div class="stor-bar"><div class="stor-fill" style="width:${Math.min(total/maxKb*100,100).toFixed(1)}%;background:${total/maxKb>.7?'#ef4444':total/maxKb>.5?'#f59e0b':'#10b981'}"></div></div>
-    <div style="margin-top:10px;display:flex;flex-direction:column;gap:4px">
-      ${items.map(i=>`<div style="display:flex;justify-content:space-between;font-size:11px"><span>${i.icon} ${i.name}</span><span class="td-mono">${i.kb} KB</span></div>`).join('')}
-    </div>`;
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+async function getGas(url) {
+  const r = await fetch(url, { redirect:'follow' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
 }
 
-function renderBackupStatus() {
-  const checks=MODULES.filter(m=>m.storeKey).map(m=>{
-    const raw=localStorage.getItem(m.storeKey);
-    const snap=HRA.Cloud.getSnap(m.cloudKey);
-    return{name:m.name,icon:m.icon,local:!!raw,cloud:!!snap,snapTs:snap?.timestamp};
+// ── TELEGRAM MENU ────────────────────────────────
+async function sendTgMenu() {
+  const BASE = 'https://saintdou-weng.github.io/ac-hra-portal';
+  const ts   = new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const text = `🏥 <b>AC HRA Portal</b> — ${ts}\n選擇要開啟的模組：\n\n🕐 出勤 ｜ 📋 合約 ｜ 🚪 入離職\n🤱 產假 ｜ 📅 行事曆 ｜ 📊 分析`;
+  // Send via GAS proxy
+  if (gasUrl) {
+    try {
+      const r = await postGas({ action:'telegram', text });
+      log(r.ok ? '✓ Telegram 選單已發送' : '✗ Telegram 失敗', r.ok ? 'ok' : 'err');
+      return;
+    } catch(e) {}
+  }
+  // Fallback: direct
+  const TOKEN = '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
+  const CHAT  = '-5233667043';
+  fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})}).then(r=>r.json()).then(d=>log(d.ok?'✓ Telegram 已發送':'✗ Telegram 失敗',d.ok?'ok':'err')).catch(e=>log('✗ Telegram：'+e.message,'err'));
+}
+
+// ── QUICK OPEN ───────────────────────────────────
+function openMod(file) { window.location.href = './' + file; }
+
+// ── LANGUAGE ─────────────────────────────────────
+const I18N = {
+  zh: { title:'AC HRA Portal', tg:'Telegram 選單', logHd:'操作紀錄', sumSynced:'已同步', sumRecs:'筆記錄', sumLast:'最後同步', tmTitle:'📱 快速開啟' },
+  en: { title:'AC HRA Portal', tg:'Telegram Menu', logHd:'Activity Log', sumSynced:'Synced', sumRecs:'Records', sumLast:'Last Sync', tmTitle:'📱 Quick Access' },
+  km: { title:'AC HRA Portal', tg:'Telegram Menu', logHd:'កំណត់ត្រា', sumSynced:'បានធ្វើ Sync', sumRecs:'កំណត់ត្រា', sumLast:'Sync ចុងក្រោយ', tmTitle:'📱 ចូលប្រើរហ័ស' },
+};
+function setLang(l) {
+  LANG = l;
+  localStorage.setItem('ac_hra_lang', l);
+  document.querySelectorAll('.lb').forEach((b,i)=>b.classList.toggle('on',['zh','en','km'][i]===l));
+  applyLang();
+  renderCards();
+}
+function applyLang() {
+  const T = I18N[LANG]||I18N.zh;
+  document.getElementById('h-title').textContent    = T.title;
+  document.getElementById('h-tg').textContent       = T.tg;
+  document.getElementById('log-hd-txt').textContent = T.logHd;
+  document.getElementById('s-synced-lbl').textContent = T.sumSynced;
+  document.getElementById('s-records-lbl').textContent = T.sumRecs;
+  document.getElementById('s-last-lbl').textContent  = T.sumLast;
+  document.getElementById('tm-title').textContent    = T.tmTitle;
+  document.querySelectorAll('[data-zh]').forEach(el => {
+    el.textContent = l==='en'?el.dataset.en:l==='km'?el.dataset.km:el.dataset.zh;
   });
-  document.getElementById('backup-status').innerHTML=checks.map(c=>`
-    <div class="status-row">
-      <div class="sdot ${c.cloud?'ok':c.local?'warn':'off'}"></div>
-      <span style="flex:1">${c.icon} ${c.name}</span>
-      <span style="font-size:10px;color:var(--c-muted)">${c.cloud?'☁️ 已雲端備份 '+c.snapTs?.slice(0,10):c.local?'💾 本地有資料，未雲端':'❌ 無資料'}</span>
-    </div>`).join('');
 }
 
-// ── AUDIT LOG ──
-function renderAuditLog() {
-  const q=document.getElementById('audit-search')?.value?.toLowerCase()||'';
-  const logs=HRA.Logger.getLogs().filter(l=>!q||l.msg?.toLowerCase().includes(q)||l.type?.toLowerCase().includes(q));
-  const el=document.getElementById('portal-audit-log');
-  if(!el)return;
-  el.innerHTML=logs.length===0
-    ?'<div class="ll info">— 尚無紀錄 —</div>'
-    :logs.map(l=>`<div class="ll ${l.level==='err'?'err':l.level==='warn'?'warn':l.type?.includes('TG')?'info':'ok'}">${l.ts.slice(11,16)} [${l.type}] ${l.msg}</div>`).join('');
+// ── UI HELPERS ────────────────────────────────────
+function setBtns(id, dis) {
+  ['pp-','pl-'].forEach(p => {
+    const el = document.getElementById(p+id);
+    if (!el) return;
+    el.disabled = dis;
+    if (dis) { el.dataset.orig=el.innerHTML; el.innerHTML='<i class="spin">⏳</i>'; }
+    else el.innerHTML = el.dataset.orig||el.innerHTML;
+  });
 }
-function clearEventLog(){if(!confirm('清除事件紀錄？'))return;localStorage.removeItem('ac_hra_log');HRA.UI.toast('已清除','ok');renderAuditLog();}
-
-// ── BACKUP ──
-function renderBackup() {
-  document.getElementById('backup-cards').innerHTML=MODULES.filter(m=>m.storeKey).map(m=>{
-    const raw=localStorage.getItem(m.storeKey);
-    const count=raw?JSON.parse(raw).length||0:0;
-    return`<div class="card" style="text-align:center">
-      <div style="font-size:24px">${m.icon}</div>
-      <div style="font-weight:700;margin:4px 0">${m.name}</div>
-      <div style="font-family:var(--f-mono);font-size:18px;color:var(--c-accent)">${count}</div>
-      <div style="font-size:10px;color:var(--c-muted);margin-bottom:10px">筆資料</div>
-      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="backupModule('${m.id}','${m.name}','${m.storeKey}')">📦 備份</button>
-    </div>`;
-  }).join('');
+function log(msg, type) {
+  const el = document.getElementById('logBody');
+  if (!el) return;
+  const now = new Date();
+  const t   = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const cls = type==='ok'?'ll-ok':type==='err'?'ll-err':'ll-info';
+  el.innerHTML += `\n<span class="${cls}">[${t}] ${msg}</span>`;
+  el.scrollTop  = el.scrollHeight;
 }
+function clearLog() { document.getElementById('logBody').innerHTML='<span class="ll-info">就緒</span>'; }
 
-function backupModule(id, name, key) {
-  const raw=localStorage.getItem(key);
-  if(!raw){HRA.UI.toast('無資料','warn');return;}
-  const blob=new Blob([raw],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=`AC_HRA_${name}_Backup_${new Date().toISOString().slice(0,10)}.json`;a.click();
-  HRA.UI.toast(`📦 ${name} 已備份`,'ok');
-  HRA.Logger.log('BACKUP','Backed up: '+name);
-}
-
-// ── SEARCH ──
-function openSearch(){document.getElementById('search-overlay').classList.add('open');document.getElementById('search-input-lg').focus();}
-function closeSearch(){document.getElementById('search-overlay').classList.remove('open');}
-document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();openSearch();}if(e.key==='Escape')closeSearch();});
-
-function doSearch() {
-  const q=document.getElementById('search-input-lg')?.value?.toLowerCase().trim();
-  if(!q||q.length<2){document.getElementById('search-results').innerHTML='';return;}
-  const results=[];
-  // Search contracts
-  try{const cs=JSON.parse(localStorage.getItem('ac_hra_contract_db')||'[]');
-    cs.filter(c=>c.name?.toLowerCase().includes(q)||c.empId?.toLowerCase().includes(q)).slice(0,5).forEach(c=>{results.push({icon:'📋',text:`${c.name} — ${c.dept} · ${c.position}`,sub:`合約到期：${c.endDate||'無期限'}`,link:'ac_hra_contract_v2.html'});});}catch(e){}
-  // Search onboarding
-  try{const od=JSON.parse(localStorage.getItem('ac_hra_onboarding_db')||'{}');
-    const rs=od.records||[];rs.filter(r=>r.name?.toLowerCase().includes(q)||r.empId?.toLowerCase().includes(q)).slice(0,5).forEach(r=>{results.push({icon:r.type==='join'?'🟢':'🔴',text:`${r.name} — ${r.dept}`,sub:`${r.type==='join'?'入職':'離職'} ${r.effectDate||''}`,link:'ac_hra_onboarding_v2.html'});});}catch(e){}
-
-  const el=document.getElementById('search-results');
-  el.innerHTML=results.length===0
-    ?'<div style="padding:14px;text-align:center;color:var(--c-muted);font-size:12px">找不到相關記錄</div>'
-    :results.map(r=>`<div class="sr-item" onclick="window.open('./${r.link}','_blank');closeSearch()">
-        <span class="sr-icon">${r.icon}</span><b>${r.text}</b><br>
-        <span style="font-size:10px;color:var(--c-muted)">${r.sub}</span>
-      </div>`).join('');
-}
-
-// ── REPORTS ──
-function sendDailyReport() {
-  const mo=new Date().toISOString().slice(0,7);
-  const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const conRaw=readModule(MODULES[1]).data||[];
-  const obRaw=readModule(MODULES[2]).data||{records:[]};
-  const contracts=(Array.isArray(conRaw)?conRaw:[]).map(c=>({...c,_s:computeContractStatus(c)}));
-  const obRecords=Array.isArray(obRaw.records)?obRaw.records:(Array.isArray(obRaw)?obRaw:[]);
-  const activeStaff=contracts.filter(c=>c._s!=='terminated').length;
-  const expiring=contracts.filter(c=>c._s==='expiring').length;
-  const pending=obRecords.filter(r=>r.reviewStatus==='pending').length;
-  const moJoins=obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
-  const moResigns=obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
-  const SEP='─'.repeat(26);
-  const txt=`【AC HRA 每日摘要 / Daily Summary】\n${SEP}\n📅 ${ts}\n${SEP}\n👥 在職：${activeStaff}　⚠️ 到期預警：${expiring}　⏳ 待審：${pending}\n📈 本月 ${mo}: 入職 ${moJoins} · 離職 ${moResigns}\n${SEP}\n[EN] Active:${activeStaff} Expiring:${expiring} Pending:${pending}\n[KM] សកម្ម:${activeStaff} ជិតផុត:${expiring} រង់ចាំ:${pending}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
-  HRA.TG.push(txt);
-  HRA.UI.toast('📱 日報已加入 Telegram 佇列','info');
-  HRA.Logger.log('PORTAL','Daily report queued');
-}
-
-// ── ANN ──
-function saveAnn(){const v=document.getElementById('ann-input')?.value||'';localStorage.setItem('hra_ann',v);document.getElementById('ann-text').textContent=v||'AC HRA Portal v2 已啟動';HRA.UI.toast('✅ 公告已更新','ok');}
-
-// ── MISC ──
-function kpi(label,val,sub,cls){return`<div class="kpi${cls?' '+cls:''}"><div class="kpi-val">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;}
-function setLang(l){HRA.I18N.setLang(l);['lb-zh','lb-en','lb-km'].forEach((id,i)=>{document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l);});}
-
-// ── INIT ──
-window.addEventListener('DOMContentLoaded', () => {
-  HRA.I18N.init(); HRA.TG.init(); HRA.Settings.init(); HRA.Cloud.init();
-  // Load saved announcement
-  const ann=localStorage.getItem('hra_ann');
-  if(ann)document.getElementById('ann-text').textContent=ann;
-  renderDashboard();
-  HRA.Logger.log('PORTAL','HRA Portal v2 started');
-  // TG queue updater
-  setInterval(()=>{
-    const t=HRA.TG.status();
-    const el=document.getElementById('sb-tg-lbl');
-    const dot=document.getElementById('sb-tg-dot');
-    if(el)el.textContent='TG 佇列: '+t.queueLen;
-    if(dot)dot.className='sb-gas-dot '+(t.queueLen>0?'ok':'');
-  },3000);
-  // GAS status check
-  setTimeout(async()=>{
-    const r=await HRA.Cloud.heartbeat();
-    const d=document.getElementById('sb-gas-dot');
-    const l=document.getElementById('sb-gas-lbl');
-    if(d)d.className='sb-gas-dot '+(r.ok?'ok':'err');
-    if(l)l.textContent=r.ok?'GAS 正常':'GAS 離線';
-  },2000);
-});
+// ── INIT ─────────────────────────────────────────
+init();
+// Auto-refresh status every 2 min
+setInterval(fetchStatus, 120000);
 </script>
 </body>
 </html>
