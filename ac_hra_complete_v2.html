@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AC HRA Analytics Center</title>
+<title>VRT HR Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -190,36 +190,6 @@ table.dtbl tr.alert td{background:#fff1f0}
   border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle}
 @keyframes sp{to{transform:rotate(360deg)}}
 </style>
-
-<style>
-.xm-panel{background:#e8f4f0;border:1px solid #a8d5c5;border-radius:8px;padding:14px;margin:12px 0}
-.xm-title{font-size:12px;font-weight:700;color:#1a5c40;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.xm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px;margin-bottom:10px}
-.xm-card{background:#fff;border:1px solid #c8e6d8;border-radius:6px;padding:10px;text-align:center}
-.xm-val{font-size:20px;font-weight:700;font-family:monospace;color:#1a5c40}
-.xm-lbl{font-size:11px;color:#4a8a6a;margin-top:3px}
-.xm-src{font-size:9px;color:#888;margin-top:2px}
-#cloudCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
-  background:#1a3a5f;border:1px solid #d4af37;color:#f5deb3;border-radius:50%;
-  font-size:18px;cursor:pointer;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.3);
-  display:flex;align-items:center;justify-content:center}
-#cloudCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
-  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
-  display:none;flex-direction:column;gap:8px;z-index:9998;
-  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
-#cloudCloudPanel.open{display:flex}
-.hcp-lbl{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
-.hcp-st{font-size:11px;font-family:monospace;color:#475569;min-height:14px}
-.hcp-st.ok{color:#4ade80}.hcp-st.warn{color:#fbbf24}.hcp-st.err{color:#f87171}
-.hcp-row{display:flex;gap:6px}
-.hcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit}
-.hcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
-.hcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
-.hcp-gi{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
-.hcp-gs{background:#253058;border:none;color:#cbd5e1;border-radius:5px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
-.hcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
-.hcl-ok{color:#4ade80}.hcl-err{color:#f87171}.hcl-i{color:#60a5fa}
-</style>
 </head>
 <body>
 
@@ -245,12 +215,6 @@ table.dtbl tr.alert td{background:#fff1f0}
 </div>
 
 <!-- UPLOAD -->
-
-<div class="xm-panel" id="xm-summary" style="display:none">
-  <div class="xm-title">🔗 跨模組整合摘要 — Cross-Module Summary</div>
-  <div class="xm-grid" id="xm-kpi"></div>
-  <div style="font-size:10px;color:#4a8a6a">資料來自各工具 localStorage，需先在各工具開啟過才有資料</div>
-</div>
 <div id="uz" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="hdrop(event)" onclick="document.getElementById('fi').click()">
   <div class="uico">📂</div>
   <h3 id="uz-h3">拖入 / 點選 VRT Employee Information Excel (.xlsx)</h3>
@@ -974,112 +938,250 @@ renderAll();
 setLang('zh');
 </script>
 
-<script>
-// ── Cross-module data reader (reads other HRA tools' localStorage) ──
-(function(){
-  function safeGet(key, fallback){
-    try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
-    catch(e){ return fallback; }
-  }
-  function xmRefresh(){
-    // Attendance
-    const att = safeGet('vrt_att_v5_db', {});
-    const attEmps = att.employees || [];
-    // Contract (IndexedDB - can't read directly, show N/A)
-    // Onboarding
-    const ob = safeGet('hr_contracts', []);
-    const obContracts = Array.isArray(ob) ? ob : (ob.contracts || []);
-    // Maternity
-    const mat = safeGet('vrt_maternity_v1', []);
-    const matActive = mat.filter(m => m.status === 'maternity' || m.status === 'pregnant').length;
-    // Calendar
-    const cal = safeGet('ac_hra_calendar_db', []);
+<!-- ═══ Cross-Module Analytics Panel ═══ -->
+<style>
+#xmaPanel{background:#fff;border:1px solid #dde2ea;border-radius:8px;margin:16px;padding:16px;display:none}
+#xmaPanel.show{display:block}
+.xma-title{font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:12px;border-bottom:2px solid #d4af37;padding-bottom:6px}
+.xma-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.xma-card{background:#f5f7fa;border:1px solid #dde2ea;border-radius:6px;padding:12px;text-align:center}
+.xma-val{font-size:22px;font-weight:700;color:#1e3a5f;font-family:monospace}
+.xma-lbl{font-size:11px;color:#8595b0;margin-top:4px}
+.xma-src{font-size:10px;color:#b8c5d8;margin-top:2px}
+.xma-table{width:100%;border-collapse:collapse;font-size:12px}
+.xma-table th{background:#1e3a5f;color:#f5deb3;padding:6px 8px;text-align:left}
+.xma-table td{padding:5px 8px;border-bottom:1px solid #eee}
+.xma-table tbody tr:hover td{background:#f9f7f0}
+.xma-sect{font-size:11px;font-weight:700;color:#445068;text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px}
+.xma-alert{padding:8px 12px;border-radius:4px;border-left:4px solid;font-size:12px;margin-bottom:6px}
+.xma-alert.warn{background:#fff8e1;border-color:#f59e0b;color:#92400e}
+.xma-alert.ok{background:#e8f5e9;border-color:#2e7d32;color:#1b5e20}
+.xma-alert.err{background:#ffebee;border-color:#c62828;color:#b71c1c}
 
-    const panel = document.getElementById('xm-summary');
-    const kpi   = document.getElementById('xm-kpi');
-    if(!panel || !kpi) return;
+/* Cloud sync widget */
+#hrcCloudBtn{position:fixed;bottom:20px;right:20px;width:44px;height:44px;
+  background:#1e3a5f;border:2px solid #d4af37;color:#f5deb3;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:9999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
+#hrcCloudBtn:hover{background:#234f80}
+#hrcCloudPanel{position:fixed;bottom:72px;right:20px;width:244px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:9998;
+  box-shadow:0 8px 28px rgba(0,0,0,.6);font-family:system-ui,sans-serif}
+#hrcCloudPanel.show{display:flex}
+.hrcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.hrcp-status{font-size:11px;color:#475569;font-family:monospace}
+.hrcp-status.ok{color:#4ade80}.hrcp-status.warn{color:#fbbf24}.hrcp-status.err{color:#f87171}
+.hrcp-row{display:flex;gap:6px}
+.hrcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit}
+.hrcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.hrcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.hrcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.hrcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700}
+.hrcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;overflow-y:auto;
+  border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.hrcp-l-ok{color:#4ade80}.hrcp-l-err{color:#f87171}.hrcp-l-i{color:#60a5fa}
+@keyframes hrcSpin{to{transform:rotate(360deg)}}
+.hrc-spin{display:inline-block;animation:hrcSpin .7s linear infinite}
+</style>
 
-    const cards = [
-      { val: attEmps.length, lbl: '出勤記錄員工數', src: '出勤系統' },
-      { val: obContracts.length, lbl: '合約/員工記錄', src: '入離職系統' },
-      { val: matActive, lbl: '產假中', src: '產假追蹤' },
-      { val: mat.length, lbl: '產假總記錄', src: '產假追蹤' },
-      { val: cal.length, lbl: '行事曆假期', src: '行事曆' },
-    ];
+<!-- Cross-Module Analytics Toggle Button (in header area) -->
+<div style="padding:8px 18px;background:#f5f7fa;border-bottom:1px solid #dde2ea;display:flex;align-items:center;gap:10px">
+  <button onclick="xmaToggle()" style="background:#1e3a5f;color:#f5deb3;border:none;border-radius:5px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">
+    📊 跨模組整合摘要
+  </button>
+  <span style="font-size:11px;color:#8595b0">整合出勤・合約・入離職・產假資料</span>
+</div>
 
-    const hasAny = attEmps.length || obContracts.length || mat.length || cal.length;
-    panel.style.display = hasAny ? '' : 'none';
+<!-- Cross-Module Panel -->
+<div id="xmaPanel">
+  <div class="xma-title">📊 AC HRA 跨模組整合摘要</div>
+  <div class="xma-grid" id="xmaKpi"></div>
+  <div class="xma-sect">⚠️ 需要注意</div>
+  <div id="xmaAlerts"></div>
+  <div class="xma-sect">📋 各模組資料狀態</div>
+  <div id="xmaModStatus"></div>
+</div>
 
-    kpi.innerHTML = cards.map(c =>
-      '<div class="xm-card"><div class="xm-val">'+c.val+'</div>'
-      +'<div class="xm-lbl">'+c.lbl+'</div>'
-      +'<div class="xm-src">'+c.src+'</div></div>'
-    ).join('');
-  }
-  // Run after page load
-  document.addEventListener('DOMContentLoaded', function(){
-    xmRefresh();
-    // Inject cross-module panel into page
-    var mainEl = document.getElementById('main') || document.querySelector('main') || document.body;
-    var panel = document.getElementById('xm-summary');
-    if(panel && mainEl) mainEl.insertBefore(panel, mainEl.firstChild);
-  });
-  window.xmRefresh = xmRefresh;
-})();
-</script>
-
-<button id="cloudCloudBtn" title="☁ 雲端同步" onclick="document.getElementById('cloudCloudPanel').classList.toggle('open');hcInit()">☁</button>
-<div id="cloudCloudPanel">
-  <div class="hcp-lbl">☁ 雲端同步 — HR Complete</div>
-  <div class="hcp-st" id="hcSt">未連線</div>
-  <div class="hcp-row">
-    <button class="hcp-btn hcp-push" onclick="hcPush()">☁ 推送快照</button>
-    <button class="hcp-btn hcp-pull" onclick="hcLog('此工具讀取各模組資料，無需拉取','i')">ℹ️ 說明</button>
+<!-- Cloud Sync Widget -->
+<button id="hrcCloudBtn" title="☁ 雲端同步" onclick="hrcCloudToggle()">☁</button>
+<div id="hrcCloudPanel">
+  <div class="hrcp-title">☁ 雲端同步 — HR Complete</div>
+  <div class="hrcp-status" id="hrcCloudStatus">讀取中…</div>
+  <div class="hrcp-row">
+    <button class="hrcp-btn hrcp-push" id="hrcPushBtn" onclick="hrcPush()">☁ 推送</button>
+    <button class="hrcp-btn hrcp-pull" onclick="hrcPull()">⬇ 拉取</button>
   </div>
   <div style="display:flex;gap:5px;align-items:center">
-    <input class="hcp-gi" id="hcGasUrl" placeholder="GAS /exec URL"/>
-    <button class="hcp-gs" onclick="hcSave()">存</button>
+    <input class="hrcp-input" id="hrcGasInput" placeholder="GAS /exec URL"/>
+    <button class="hrcp-save" onclick="hrcSaveGas()">存</button>
   </div>
-  <div class="hcp-log" id="hcLog"></div>
+  <div class="hrcp-log" id="hrcLog"></div>
 </div>
+
 <script>
+// ═══ Cross-Module Analytics ═══════════════════════════════
+function xmaToggle(){
+  var el=document.getElementById('xmaPanel');
+  el.classList.toggle('show');
+  if(el.classList.contains('show')) xmaRender();
+}
+
+function xmaRender(){
+  // ── Read all module data from localStorage ──
+  function safe(key){ try{return JSON.parse(localStorage.getItem(key)||'null');}catch(e){return null;} }
+
+  var attDb   = safe('vrt_att_v5_db') || {};
+  var attEmps = attDb.employees || safe('vrt_att_records') || [];
+  var conRecs = safe('ac_hra_contract_db') || [];
+  var obDb    = safe('ac_hra_onboarding_db') || {};
+  var obRecs  = Array.isArray(obDb)?obDb:(obDb.records||[]);
+  var matRecs = safe('vrt_maternity_v1') || [];
+  var calRecs = safe('cambodia_hols') || safe('ac_hra_calendar_db') || [];
+
+  // ── KPI cards ──
+  var mo = new Date().toISOString().slice(0,7);
+  function daysUntil(ds){if(!ds)return null;return Math.ceil((new Date(ds)-new Date(new Date().toDateString()))/86400000);}
+  function contractStatus(c){
+    var today=new Date();today.setHours(0,0,0,0);
+    var pe=c.probEndDate?new Date(c.probEndDate):null;
+    var ce=c.endDate?new Date(c.endDate):null;
+    if(c.status==='terminated')return'terminated';
+    if(pe&&pe>=today)return'probation';
+    if(!ce)return'active';
+    var d=Math.ceil((ce-today)/86400000);
+    if(d<0)return'expired';if(d<=30)return'expiring';return'active';
+  }
+
+  var conAll   = conRecs.map(function(c){return Object.assign({},c,{_s:contractStatus(c)});});
+  var active   = conAll.filter(function(c){return c._s==='active';}).length;
+  var probation= conAll.filter(function(c){return c._s==='probation';}).length;
+  var expiring = conAll.filter(function(c){return c._s==='expiring';}).length;
+  var expired  = conAll.filter(function(c){return c._s==='expired';}).length;
+  var matActive= matRecs.filter(function(m){return m.status==='maternity'||m.status==='pregnant';}).length;
+  var pendingOb= obRecs.filter(function(r){return r.reviewStatus==='pending';}).length;
+  var moJoins  = obRecs.filter(function(r){return r.type==='join'&&(r.effectDate||'').startsWith(mo);}).length;
+  var moResigns= obRecs.filter(function(r){return r.type==='resign'&&(r.effectDate||'').startsWith(mo);}).length;
+  var todayHols= calRecs.filter(function(h){
+    var d=h.date||h.Date||'';
+    return d===new Date().toISOString().slice(0,10);
+  }).length;
+
+  var kpis=[
+    {val:attEmps.length,   lbl:'出勤員工', src:'ac_hra_attendance'},
+    {val:conAll.length,    lbl:'合約總數', src:'ac_hra_contract'},
+    {val:active,           lbl:'在職', src:'contract', cls:'color:#2e7d32'},
+    {val:expiring,         lbl:'30天到期', src:'contract', cls:expiring>0?'color:#c62828':''},
+    {val:probation,        lbl:'試用期中', src:'contract'},
+    {val:pendingOb,        lbl:'待審核申請', src:'onboarding', cls:pendingOb>0?'color:#c62828':''},
+    {val:moJoins,          lbl:'本月入職', src:'onboarding'},
+    {val:moResigns,        lbl:'本月離職', src:'onboarding'},
+    {val:matActive,        lbl:'產假中', src:'maternity'},
+    {val:todayHols,        lbl:'今日假期', src:'calendar'},
+  ];
+
+  document.getElementById('xmaKpi').innerHTML = kpis.map(function(k){
+    return '<div class="xma-card"><div class="xma-val" style="'+(k.cls||'')+'">'+k.val+'</div><div class="xma-lbl">'+k.lbl+'</div><div class="xma-src">'+k.src+'</div></div>';
+  }).join('');
+
+  // ── Alerts ──
+  var alerts=[];
+  if(expiring>0) alerts.push({cls:'err',msg:'⚠️ '+expiring+' 份合約將在 30 天內到期'});
+  if(expired>0)  alerts.push({cls:'warn',msg:'❌ '+expired+' 份合約已過期，需更新狀態'});
+  if(pendingOb>0)alerts.push({cls:'warn',msg:'⏳ '+pendingOb+' 筆入離職申請待審核'});
+  var returning=matRecs.filter(function(m){var d=daysUntil(m.returnDate);return d!==null&&d>=0&&d<=14;});
+  if(returning.length>0) alerts.push({cls:'warn',msg:'🤱 '+returning.length+' 位員工產假將在14天內結束'});
+  if(!alerts.length) alerts.push({cls:'ok',msg:'✅ 目前無緊急待處理事項'});
+  document.getElementById('xmaAlerts').innerHTML = alerts.map(function(a){
+    return '<div class="xma-alert '+a.cls+'">'+a.msg+'</div>';
+  }).join('');
+
+  // ── Module status ──
+  var mods=[
+    {name:'出勤 Attendance',key:'vrt_att_v5_db',count:attEmps.length},
+    {name:'合約 Contract',   key:'ac_hra_contract_db',count:conRecs.length},
+    {name:'入離職 Onboarding',key:'ac_hra_onboarding_db',count:obRecs.length},
+    {name:'產假 Maternity',  key:'vrt_maternity_v1',count:matRecs.length},
+    {name:'行事曆 Calendar', key:'cambodia_hols',count:calRecs.length},
+  ];
+  document.getElementById('xmaModStatus').innerHTML =
+    '<table class="xma-table"><thead><tr><th>模組</th><th>本地筆數</th><th>狀態</th></tr></thead><tbody>'+
+    mods.map(function(m){
+      var raw=localStorage.getItem(m.key);
+      var status=raw?(m.count>0?'<span style="color:#2e7d32">✅ 有資料</span>':'<span style="color:#ef6c00">⚠️ 空資料</span>'):'<span style="color:#c62828">❌ 無資料</span>';
+      return '<tr><td>'+m.name+'</td><td style="font-family:monospace">'+m.count+'</td><td>'+status+'</td></tr>';
+    }).join('')+
+    '</tbody></table>';
+}
+
+// ═══ HR Complete Cloud Sync ═══════════════════════════════
 (function(){
-  var LS='ac_hra_gas_url',LM='ac_hra_complete_meta';
-  function gUrl(){return localStorage.getItem(LS)||'';}
-  function hcLog(m,t){
-    var el=document.getElementById('hcLog');if(!el)return;
-    var cls=t==='ok'?'hcl-ok':t==='err'?'hcl-err':'hcl-i';
-    var hh=new Date().getHours(),mm=new Date().getMinutes();
-    var ts=(hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm;
-    el.innerHTML+='<span class="'+cls+'">['+ts+'] '+m+'<\/span>\n';
+  var GAS_KEY = 'ac_hra_gas_url';
+  var META_KEY= 'ac_hra_complete_meta';
+  var gasUrl  = localStorage.getItem(GAS_KEY)||'';
+  var open    = false;
+
+  function pad2(n){return String(n).padStart(2,'0');}
+  function now5(){var d=new Date();return pad2(d.getHours())+':'+pad2(d.getMinutes());}
+  function hrcLog(msg,type){
+    var el=document.getElementById('hrcLog');if(!el)return;
+    var cls=type==='ok'?'hrcp-l-ok':type==='err'?'hrcp-l-err':'hrcp-l-i';
+    el.innerHTML+='<span class="'+cls+'">['+now5()+'] '+msg+'</span>
+';
     el.scrollTop=el.scrollHeight;
   }
-  window.hcLog=hcLog;
-  function hcSt(){
-    var el=document.getElementById('hcSt');if(!el)return;
-    var meta=JSON.parse(localStorage.getItem(LM)||'null'),url=gUrl();
-    if(meta){var mins=(Date.now()-new Date(meta.ts))/60000;el.textContent='上次快照 '+(mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時')+'前';el.className='hcp-st '+(mins<120?'ok':'warn');}
-    else{el.textContent=url?'尚未同步':'未設定 GAS URL';el.className='hcp-st '+(url?'warn':'err');}
+  function hrcShowStatus(){
+    var el=document.getElementById('hrcCloudStatus');if(!el)return;
+    var meta=null;try{meta=JSON.parse(localStorage.getItem(META_KEY)||'null');}catch(e){}
+    if(meta){
+      var mins=(Date.now()-new Date(meta.ts))/60000;
+      el.textContent=meta.count+'筆 · '+(mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時')+'前';
+      el.className='hrcp-status '+(mins<120?'ok':'warn');
+    }else{
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='hrcp-status '+(gasUrl?'warn':'err');
+    }
   }
-  window.hcInit=function(){var gi=document.getElementById('hcGasUrl');if(gi)gi.value=gUrl();hcSt();};
-  window.hcSave=function(){var v=document.getElementById('hcGasUrl').value.trim();if(!v)return;localStorage.setItem(LS,v);hcLog('已儲存','i');hcSt();};
-  window.hcPush=async function(){
-    var url=gUrl();if(!url){hcLog('請設定 GAS URL','err');return;}
-    try{
-      var att=JSON.parse(localStorage.getItem('vrt_att_v5_db')||'{}');
-      var mat=JSON.parse(localStorage.getItem('vrt_maternity_v1')||'[]');
-      var cal=JSON.parse(localStorage.getItem('ac_hra_calendar_db')||'[]');
-      var snapshot={action:'push',tool:'hr_complete',
-        records:{attCount:(att.employees||[]).length,matCount:mat.length,calCount:cal.length},
-        recordCount:3,updatedAt:new Date().toISOString()};
-      var r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(snapshot)});
-      var d=await r.json();
-      if(d.ok){localStorage.setItem(LM,JSON.stringify({ts:Date.now()}));hcLog('✓ 快照已推送','ok');hcSt();}
-      else hcLog('✗ '+d.error,'err');
-    }catch(e){hcLog('✗ '+e.message,'err');}
+  window.hrcCloudToggle=function(){
+    open=!open;
+    document.getElementById('hrcCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('hrcGasInput').value=gasUrl;hrcShowStatus();}
   };
-  document.addEventListener('DOMContentLoaded',hcSt);
+  window.hrcSaveGas=function(){
+    gasUrl=(document.getElementById('hrcGasInput').value||'').trim();
+    if(!gasUrl)return;
+    localStorage.setItem(GAS_KEY,gasUrl);
+    hrcLog('GAS URL 已儲存','i');hrcShowStatus();
+  };
+  window.hrcPush=async function(){
+    if(!gasUrl){hrcLog('請先設定 GAS URL','err');return;}
+    var btn=document.getElementById('hrcPushBtn');
+    if(btn){btn.disabled=true;btn.innerHTML='<span class="hrc-spin">⏳</span>';}
+    try{
+      // Push attendance data (the main data in HR Complete)
+      var raw=localStorage.getItem('vrt_att_v5_db')||'{}';
+      var db=JSON.parse(raw);
+      var recs=db.employees||[];
+      var payload={action:'push',tool:'hr_complete',records:recs,
+        recordCount:recs.length,updatedAt:new Date().toISOString()};
+      var r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      var d=await r.json();
+      if(d.ok){
+        localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:recs.length}));
+        hrcLog('✓ 推送完成 ('+recs.length+'筆)','ok');hrcShowStatus();
+      }else hrcLog('✗ '+(d.error||d.data?.error||'error'),'err');
+    }catch(e){hrcLog('✗ '+e.message,'err');}
+    finally{if(btn){btn.disabled=false;btn.innerHTML='☁ 推送';}}
+  };
+  window.hrcPull=function(){
+    hrcLog('HR Complete 為整合分析工具，請分別在各模組 Pull 後返回此頁查看','i');
+  };
+  document.addEventListener('DOMContentLoaded',hrcShowStatus);
 })();
 </script>
+
 </body>
 </html>

@@ -2287,31 +2287,7 @@ h1{text-align:center;color:#1b5e20;margin-bottom:4px;font-size:18px}
   body{margin:4px}.pm{width:calc(33.3% - 8px);margin:2px}
   @page{size:A4 landscape;margin:10mm}
 }
-</style>
-<style>
-#calCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
-  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
-  font-size:18px;cursor:pointer;z-index:9999;box-shadow:0 4px 12px rgba(0,0,0,.4);
-  display:flex;align-items:center;justify-content:center}
-#calCloudBtn:hover{background:#292000}
-#calCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
-  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
-  display:none;flex-direction:column;gap:8px;z-index:9998;
-  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
-#calCloudPanel.open{display:flex}
-.ccp-lbl{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
-.ccp-st{font-size:11px;font-family:monospace;color:#475569;min-height:14px}
-.ccp-st.ok{color:#4ade80}.ccp-st.warn{color:#fbbf24}.ccp-st.err{color:#f87171}
-.ccp-row{display:flex;gap:6px}
-.ccp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit}
-.ccp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
-.ccp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
-.ccp-gi{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
-.ccp-gs{background:#253058;border:none;color:#cbd5e1;border-radius:5px;padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
-.ccp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
-.ccl-ok{color:#4ade80}.ccl-err{color:#f87171}.ccl-i{color:#60a5fa}
-</style>
-</head><body>
+</style></head><body>
 <h1>🇰🇭 ${yr}年 柬埔寨假日行事曆（VRT廠）</h1>
 <div class="legend">${typeKey}</div>
 ${monthsHtml}
@@ -2433,68 +2409,162 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
 init();
 </script>
 
-<button id="calCloudBtn" title="☁ 雲端同步" onclick="document.getElementById('calCloudPanel').classList.toggle('open');ccInit()">☁</button>
+<style>
+#calCloudBtn{position:fixed;bottom:20px;right:20px;width:44px;height:44px;
+  background:#1c1500;border:2px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:9999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.5);transition:.15s;
+  font-family:system-ui,sans-serif}
+#calCloudBtn:hover{opacity:.85}
+#calCloudPanel{position:fixed;bottom:72px;right:20px;width:244px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:9998;
+  box-shadow:0 8px 28px rgba(0,0,0,.6);font-family:system-ui,sans-serif;font-size:12px}
+#calCloudPanel.show{display:flex}
+.calcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em}
+.calcp-status{font-size:11px;color:#475569;font-family:monospace;min-height:14px}
+.calcp-status.ok{color:#4ade80}.calcp-status.warn{color:#fbbf24}.calcp-status.err{color:#f87171}
+.calcp-row{display:flex;gap:6px}
+.calcp-btn{flex:1;padding:8px 4px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.calcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.calcp-push:hover{background:#2a1e00}
+.calcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.calcp-pull:hover{background:#0f2040}
+.calcp-btn:disabled{opacity:.4;cursor:not-allowed}
+.calcp-gasrow{display:flex;gap:5px;align-items:center}
+.calcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;color:#f1f5f9;padding:5px 8px;font-size:10px;font-family:monospace;outline:none}
+.calcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;padding:5px 9px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit}
+.calcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:60px;overflow-y:auto;border-top:1px solid #1e3050;padding-top:7px;line-height:1.7}
+.calcl-ok{color:#4ade80}.calcl-err{color:#f87171}.calcl-i{color:#60a5fa}
+@keyframes calspin{to{transform:rotate(360deg)}}
+.calspin{display:inline-block;animation:calspin .7s linear infinite}
+</style>
+
+<button id="calCloudBtn" title="☁ 雲端同步" onclick="calCloudToggle()">☁</button>
 <div id="calCloudPanel">
-  <div class="ccp-lbl">☁ 雲端同步 — 行事曆</div>
-  <div class="ccp-st" id="ccSt">未連線</div>
-  <div class="ccp-row">
-    <button class="ccp-btn ccp-push" onclick="ccPush()">☁ 推送</button>
-    <button class="ccp-btn ccp-pull" onclick="ccPull()">⬇ 拉取</button>
+  <div class="calcp-title">☁ 雲端同步 — 行事曆</div>
+  <div class="calcp-status" id="calCloudStatus">讀取中…</div>
+  <div class="calcp-row">
+    <button class="calcp-btn calcp-push" id="calPushBtn" onclick="calPush()">☁ 推送</button>
+    <button class="calcp-btn calcp-pull" id="calPullBtn" onclick="calPull()">⬇ 拉取</button>
   </div>
-  <div style="display:flex;gap:5px;align-items:center">
-    <input class="ccp-gi" id="ccGasUrl" placeholder="GAS /exec URL"/>
-    <button class="ccp-gs" onclick="ccSave()">存</button>
+  <div class="calcp-gasrow">
+    <input class="calcp-input" id="calGasInput" placeholder="GAS /exec URL"/>
+    <button class="calcp-save" onclick="calSaveGas()">存</button>
   </div>
-  <div class="ccp-log" id="ccLog"></div>
+  <div class="calcp-log" id="calLog"></div>
 </div>
+
 <script>
 (function(){
-  var LS='ac_hra_gas_url',LD='ac_hra_calendar_db',LM='ac_hra_cal_meta';
-  function gUrl(){return localStorage.getItem(LS)||'';}
-  function ccLog(m,t){
-    var el=document.getElementById('ccLog');if(!el)return;
-    var cls=t==='ok'?'ccl-ok':t==='err'?'ccl-err':'ccl-i';
-    var hh=new Date().getHours(),mm=new Date().getMinutes();
-    var ts=(hh<10?'0':'')+hh+':'+(mm<10?'0':'')+mm;
-    el.innerHTML+='<span class="'+cls+'">['+ts+'] '+m+'<\/span>\n';
-    el.scrollTop=el.scrollHeight;
+  var GAS_KEY  = 'ac_hra_gas_url';
+  var META_KEY = 'ac_hra_calendar_meta';
+  var DATA_KEY = 'ac_hra_calendar_db';
+  var gasUrl   = localStorage.getItem(GAS_KEY) || '';
+  var panelOpen= false;
+
+  function pad(n){ return String(n).padStart(2,'0'); }
+  function now5(){ var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+
+  function calLog(msg, type){
+    var el = document.getElementById('calLog');
+    if(!el) return;
+    var cls = type==='ok'?'calcl-ok':type==='err'?'calcl-err':'calcl-i';
+    el.innerHTML += '<span class="'+cls+'">['+now5()+'] '+msg+'</span>\n';
+    el.scrollTop = el.scrollHeight;
   }
-  function ccSt(){
-    var el=document.getElementById('ccSt');if(!el)return;
-    var meta=JSON.parse(localStorage.getItem(LM)||'null'),url=gUrl();
-    if(meta){var mins=(Date.now()-new Date(meta.ts))/60000;el.textContent=meta.count+'筆 · '+(mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時')+'前';el.className='ccp-st '+(mins<120?'ok':'warn');}
-    else{el.textContent=url?'尚未同步':'未設定 GAS URL';el.className='ccp-st '+(url?'warn':'err');}
+
+  function calShowStatus(){
+    var el  = document.getElementById('calCloudStatus');
+    if(!el) return;
+    var meta = null;
+    try{ meta = JSON.parse(localStorage.getItem(META_KEY)||'null'); }catch(e){}
+    if(meta){
+      var mins = (Date.now()-new Date(meta.ts))/60000;
+      var age  = mins<60 ? Math.round(mins)+'分前' : Math.round(mins/60)+'小時前';
+      el.textContent  = meta.count+'筆 · 上次同步 '+age;
+      el.className    = 'calcp-status '+(mins<120?'ok':'warn');
+    } else {
+      el.textContent = gasUrl ? '尚未同步' : '未設定 GAS URL';
+      el.className   = 'calcp-status '+(gasUrl?'warn':'err');
+    }
   }
-  window.ccInit=function(){var gi=document.getElementById('ccGasUrl');if(gi)gi.value=gUrl();ccSt();};
-  window.ccSave=function(){var v=document.getElementById('ccGasUrl').value.trim();if(!v)return;localStorage.setItem(LS,v);ccLog('已儲存','i');ccSt();};
-  window.ccPush=async function(){
-    var url=gUrl();if(!url){ccLog('請設定 GAS URL','err');return;}
-    var recs=[];try{recs=JSON.parse(localStorage.getItem(LD)||'[]');}catch(e){}
-    if(!recs.length&&typeof events!=='undefined')recs=events;
-    if(!recs.length&&typeof holidays!=='undefined')recs=holidays;
-    var body=JSON.stringify({action:'push',tool:'calendar',records:recs,recordCount:recs.length,updatedAt:new Date().toISOString()});
-    try{
-      var r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:body});
-      var d=await r.json();
-      if(d.ok){localStorage.setItem(LM,JSON.stringify({ts:Date.now(),count:recs.length}));ccLog('✓ 推送 '+recs.length+'筆','ok');ccSt();}
-      else ccLog('✗ '+d.error,'err');
-    }catch(e){ccLog('✗ '+e.message,'err');}
+
+  window.calCloudToggle = function(){
+    panelOpen = !panelOpen;
+    document.getElementById('calCloudPanel').classList.toggle('show', panelOpen);
+    if(panelOpen){
+      document.getElementById('calGasInput').value = gasUrl;
+      calShowStatus();
+    }
   };
-  window.ccPull=async function(){
-    var url=gUrl();if(!url){ccLog('請設定 GAS URL','err');return;}
-    if(!confirm('拉取雲端行事曆資料？'))return;
-    try{
-      var r=await fetch(url+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
-      var d=await r.json();if(!d.ok)throw new Error(d.error);
-      var dd=d.data;
-      if(dd.data===null){ccLog('雲端尚無資料','i');return;}
-      var recs=dd.records||dd.data&&dd.data.records||[];
-      localStorage.setItem(LD,JSON.stringify(recs));
-      localStorage.setItem(LM,JSON.stringify({ts:Date.now(),count:recs.length}));
-      ccLog('✓ 拉取 '+recs.length+'筆，請重新整理','ok');ccSt();
-    }catch(e){ccLog('✗ '+e.message,'err');}
+
+  window.calSaveGas = function(){
+    gasUrl = (document.getElementById('calGasInput').value||'').trim();
+    if(!gasUrl) return;
+    localStorage.setItem(GAS_KEY, gasUrl);
+    calLog('GAS URL 已儲存','i');
+    calShowStatus();
   };
-  document.addEventListener('DOMContentLoaded',ccSt);
+
+  window.calPush = async function(){
+    if(!gasUrl){ calLog('請先設定 GAS URL','err'); return; }
+    var btn = document.getElementById('calPushBtn');
+    if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
+    try{
+      var rawData = localStorage.getItem(DATA_KEY);
+      var recs = rawData ? JSON.parse(rawData) : [];
+      if(!Array.isArray(recs)) recs = recs.records || recs.employees || [];
+      var payload = {action:'push',tool:'calendar',records:recs,
+        recordCount:recs.length,updatedAt:new Date().toISOString()};
+      var r = await fetch(gasUrl, {method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify(payload)});
+      var d = await r.json();
+      if(d.ok){
+        localStorage.setItem(META_KEY, JSON.stringify({ts:Date.now(),count:recs.length}));
+        calLog('✓ 推送完成 ('+recs.length+'筆)','ok');
+        calShowStatus();
+      } else {
+        calLog('✗ '+d.error,'err');
+      }
+    } catch(e){ calLog('✗ '+e.message,'err'); }
+    finally{ if(btn){ btn.disabled=false; btn.innerHTML='☁ 推送'; } }
+  };
+
+  window.calPull = async function(){
+    if(!gasUrl){ calLog('請先設定 GAS URL','err'); return; }
+    if(!confirm('拉取雲端資料？本地資料會被覆蓋。')) return;
+    var btn = document.getElementById('calPullBtn');
+    if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
+    try{
+      var r1 = await fetch(gasUrl+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
+      var d1 = await r1.json();
+      if(!d1.ok) throw new Error(d1.error||'GAS error');
+      var dd = d1.data;
+      if(dd.data===null){ calLog('☁️ 雲端尚無資料','i'); return; }
+      var recs = dd.records || (dd.data&&dd.data.records) || dd.data || [];
+      if(!dd.chunked){
+        // non-chunked
+      } else {
+        var chunks = (dd.meta&&dd.meta.totalChunks)||1;
+        recs = [];
+        for(var i=0;i<chunks;i++){
+          var rc = await fetch(gasUrl+'?action=pull&tool=calendar&chunk='+i,{method:'GET',redirect:'follow'});
+          var dc = await rc.json();
+          recs = recs.concat(dc.data&&dc.data.records || dc.records || []);
+        }
+      }
+      localStorage.setItem(DATA_KEY, JSON.stringify(recs));
+      localStorage.setItem(META_KEY, JSON.stringify({ts:Date.now(),count:recs.length}));
+      calLog('✓ 拉取完成 ('+recs.length+'筆)，重新整理可見資料','ok');
+      calShowStatus();
+    } catch(e){ calLog('✗ '+e.message,'err'); }
+    finally{ if(btn){ btn.disabled=false; btn.innerHTML='⬇ 拉取'; } }
+  };
+
+  // Init
+  document.addEventListener('DOMContentLoaded', calShowStatus);
 })();
 </script>
 </body>
