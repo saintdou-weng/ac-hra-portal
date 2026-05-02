@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Maternity & Pregnancy Tracker Cloud v1 — VRT</title>
+<title>AC HRA 產假追蹤 / Maternity & Pregnancy Tracker — VRT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -260,20 +260,34 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-dark
 .salary-val{font-weight:600;color:var(--text-dark)}
 .salary-val.pos{color:var(--green)}
 .salary-val.neg{color:#E53E3E}
+</style>
 
-/* ── Cloud Sync (injected) ── */
-.cloud-ind{display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 12px;background:#fdf8f5;border:1px solid #ede0e5;border-radius:20px;cursor:pointer;transition:.15s}
-.cloud-ind:hover{background:#f5d0db}
-.cdot{width:7px;height:7px;border-radius:50%;background:#9ca3af;display:inline-block;transition:.3s}
-.cdot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
-.cdot.syncing{background:#f59e0b;animation:cpulse .8s infinite}
-.cdot.err{background:#ef4444}
-.cloud-sync-card{background:#fff;border-radius:var(--radius);border:1.5px solid var(--border);padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
-.cloud-prog-bar{height:4px;background:#ede0e5;border-radius:2px;overflow:hidden;margin-top:10px;display:none}
-.cloud-prog-bar.active{display:block}
-.cloud-prog-fill{height:100%;background:var(--rose);width:0%;transition:width .25s;border-radius:2px}
-@keyframes cpulse{0%,100%{opacity:1}50%{opacity:.35}}
-
+<style>
+#matCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+#matCloudBtn:hover{background:#292000}
+#matCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#matCloudPanel.show{display:flex}
+.mcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.mcp-status{font-size:11px;font-family:monospace;color:#475569;min-height:14px}
+.mcp-status.ok{color:#4ade80}.mcp-status.warn{color:#fbbf24}.mcp-status.err{color:#f87171}
+.mcp-row{display:flex;gap:6px}
+.mcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit}
+.mcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.mcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.mcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.mcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.mcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.mcl-ok{color:#4ade80}.mcl-err{color:#f87171}.mcl-i{color:#60a5fa}
 </style>
 </head>
 <body>
@@ -294,10 +308,6 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-dark
     <button class="lang-btn" onclick="setLang('km')">ខ្មែរ</button>
   </div>
   <div class="header-date" id="headerDate"></div>
-  <div class="cloud-ind" onclick="showTab('settings')" title="雲端同步狀態">
-    <span class="cdot" id="matCdot"></span>
-    <span id="matClbl" style="color:#a08090">雲端未設定</span>
-  </div>
 </header>
 
 <!-- SIDEBAR -->
@@ -666,33 +676,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-dark
         <div style="font-size:11px;color:var(--text-light)">Individual calc sheets: use 🖨️ button in Maternity Leave tab</div>
       </div>
     </div>
-    
-  <!-- ── Cloud Sync Card (injected) ── -->
-  <div class="cloud-sync-card">
-    <div class="tg-header">
-      <div class="tg-icon" style="background:#e0f2fe">☁️</div>
-      <div style="flex:1">
-        <div class="tg-title">雲端同步 / Cloud Sync</div>
-        <div class="tg-status disconnected" id="matCloudStatus">未設定</div>
-      </div>
-      <div style="font-size:10px;color:#a08090;font-family:monospace" id="matCloudTs"></div>
-    </div>
-    <div style="margin-bottom:10px">
-      <label class="form-label" style="font-size:11px;margin-bottom:4px;display:block">GAS URL (VRT_HR_CloudSync)</label>
-      <input class="form-input" id="matGasUrl" type="text" placeholder="https://script.google.com/macros/s/…/exec" oninput="saveMatGasUrl()">
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-primary btn-sm" onclick="pushMaternity()">⬆ Push 上傳</button>
-      <button class="btn btn-outline btn-sm" onclick="pullMaternity()">⬇ Pull 拉取</button>
-      <button class="btn btn-sm" style="background:#f3f4f6;border:1px solid #e5e7eb" onclick="testMatGas()">🔌 測試</button>
-    </div>
-    <div class="cloud-prog-bar" id="matProgBar">
-      <div class="cloud-prog-fill" id="matProgFill"></div>
-    </div>
-    <div style="font-size:10px;color:#a08090;margin-top:8px" id="matProgText"></div>
-  </div>
-
-<div class="tg-card">
+    <div class="tg-card">
       <div class="tg-header">
         <div class="tg-icon">✈️</div>
         <div>
@@ -1201,7 +1185,6 @@ function loadData(){
 }
 function saveData(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify({employees,salaryRecords}));
-  scheduleMatSave();
 }
 
 // ════════════════════════════════════════════════════
@@ -1852,10 +1835,8 @@ function saveTgConfig(){
 function loadTgConfig(){
   try{
     const c=JSON.parse(localStorage.getItem('vrt_tg')||'{}');
-    const tkEl=document.getElementById('tgToken');
-    const cidEl=document.getElementById('tgChatId');
-    if(tkEl)  tkEl.value  = c.token  || '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
-    if(cidEl) cidEl.value = c.chatId || '-5233667043';
+    if(c.token) document.getElementById('tgToken').value=c.token;
+    if(c.chatId) document.getElementById('tgChatId').value=c.chatId;
     saveTgConfig();
   }catch(e){}
 }
@@ -2171,7 +2152,7 @@ function printMaternityReport(empId){
     `<tr><td class="c">-</td><td class="c">-</td><td class="r">$ -</td><td class="r">$ -</td><td class="r">$ -</td><td class="r">$ -</td></tr>`).join('');
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<title>Maternity Calculation — ${emp.name||''}</title>
+<title>AC HRA 產假追蹤 / Maternity Calculation — ${emp.name||''}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 @page{size:A4 portrait;margin:14mm 18mm}
@@ -2210,21 +2191,35 @@ table.sig td{width:33%;padding:4px 10px;vertical-align:bottom;font-size:10pt}
 .sig-date{font-size:9pt;color:#aaa;margin-top:14px}
 .footer{font-size:8.5pt;color:#aaa;margin-top:14px;border-top:1px solid #ddd;padding-top:6px}
 @media print{.no-print{display:none}}
-
-/* ── Cloud Sync (injected) ── */
-.cloud-ind{display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 12px;background:#fdf8f5;border:1px solid #ede0e5;border-radius:20px;cursor:pointer;transition:.15s}
-.cloud-ind:hover{background:#f5d0db}
-.cdot{width:7px;height:7px;border-radius:50%;background:#9ca3af;display:inline-block;transition:.3s}
-.cdot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
-.cdot.syncing{background:#f59e0b;animation:cpulse .8s infinite}
-.cdot.err{background:#ef4444}
-.cloud-sync-card{background:#fff;border-radius:var(--radius);border:1.5px solid var(--border);padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
-.cloud-prog-bar{height:4px;background:#ede0e5;border-radius:2px;overflow:hidden;margin-top:10px;display:none}
-.cloud-prog-bar.active{display:block}
-.cloud-prog-fill{height:100%;background:var(--rose);width:0%;transition:width .25s;border-radius:2px}
-@keyframes cpulse{0%,100%{opacity:1}50%{opacity:.35}}
-
-</style></head><body>
+</style>
+<style>
+#matCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+#matCloudBtn:hover{background:#292000}
+#matCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#matCloudPanel.show{display:flex}
+.mcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.mcp-status{font-size:11px;font-family:monospace;color:#475569;min-height:14px}
+.mcp-status.ok{color:#4ade80}.mcp-status.warn{color:#fbbf24}.mcp-status.err{color:#f87171}
+.mcp-row{display:flex;gap:6px}
+.mcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit}
+.mcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.mcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.mcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.mcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.mcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.mcl-ok{color:#4ade80}.mcl-err{color:#f87171}.mcl-i{color:#60a5fa}
+</style>
+</head><body>
 <div class="no-print">
   <button class="btn-c" onclick="window.close()">✕ Close</button>
   <button class="btn-p" onclick="window.print()">🖨️ Print</button>
@@ -2282,6 +2277,96 @@ table.sig td{width:33%;padding:4px 10px;vertical-align:bottom;font-size:10pt}
   </tr>
 </table>
 <div class="footer">Cambodia Labour Law Art.182-184 — Maternity Fee = (12-month avg ÷ 26) × 90 ÷ 2 &nbsp;|&nbsp; ${docNo}</div>
+
+<button id="matCloudBtn" title="☁ 雲端同步" onclick="matCloudToggle()">☁</button>
+<div id="matCloudPanel">
+  <div class="mcp-title">☁ 雲端同步 — 產假</div>
+  <div class="mcp-status" id="matCloudStatus">未連線</div>
+  <div class="mcp-row">
+    <button class="mcp-btn mcp-push" onclick="matPush()">☁ 推送</button>
+    <button class="mcp-btn mcp-pull" onclick="matPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="mcp-input" id="matGasInput" placeholder="GAS /exec URL"/>
+    <button class="mcp-save" onclick="matSaveGas()">存</button>
+  </div>
+  <div class="mcp-log" id="matLog"></div>
+</div>
+<script>
+(function(){
+  const LS='ac_hra_gas_url';
+  const LS_DATA='vrt_maternity_v1';
+  const LS_META='ac_hra_mat_meta';
+  let gasUrl=localStorage.getItem(LS)||'';
+  let open=false;
+  window.matCloudToggle=function(){
+    open=!open;
+    document.getElementById('matCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('matGasInput').value=gasUrl;matShowStatus();}
+  };
+  window.matSaveGas=function(){
+    gasUrl=document.getElementById('matGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    matLog('GAS URL 已儲存','i');matShowStatus();
+  };
+  function matShowStatus(){
+    const el=document.getElementById('matCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      el.textContent=`${meta.count}筆 · ${mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時'}前`;
+      el.className='mcp-status '+(mins<120?'ok':'warn');
+    }else{
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='mcp-status '+(gasUrl?'warn':'err');
+    }
+  }
+  window.matPush=async function(){
+    if(!gasUrl){matLog('請先設定 GAS URL','err');return;}
+    let recs=[];
+    try{recs=JSON.parse(localStorage.getItem(LS_DATA)||'[]');}catch(e){}
+    if(!recs.length && typeof CASES!=='undefined') recs=CASES;
+    if(!recs.length && typeof maternityData!=='undefined') recs=maternityData;
+    const payload={action:'push',tool:'maternity',records:recs,
+      recordCount:recs.length,updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+        matLog('✓ 推送完成 ('+recs.length+'筆)','ok');matShowStatus();
+      }else matLog('✗ '+d.error,'err');
+    }catch(e){matLog('✗ '+e.message,'err');}
+  };
+  window.matPull=async function(){
+    if(!gasUrl){matLog('請先設定 GAS URL','err');return;}
+    if(!confirm('拉取雲端產假資料？'))return;
+    try{
+      const r=await fetch(gasUrl+'?action=pull&tool=maternity&meta=1',{method:'GET',redirect:'follow'});
+      const d=await r.json();
+      if(!d.ok)throw new Error(d.error);
+      const dd=d.data;
+      if(dd.data===null){matLog('雲端尚無資料','i');return;}
+      const recs=dd.records||dd.data?.records||[];
+      localStorage.setItem(LS_DATA,JSON.stringify(recs));
+      localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+      matLog('✓ 拉取完成 ('+recs.length+'筆)，請重新整理頁面','ok');
+      matShowStatus();
+    }catch(e){matLog('✗ '+e.message,'err');}
+  };
+  function matLog(msg,type){
+    const el=document.getElementById('matLog');if(!el)return;
+    const cls=type==='ok'?'mcl-ok':type==='err'?'mcl-err':'mcl-i';
+    const t=new Date().toTimeString().slice(0,5);
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
+  }
+  document.addEventListener('DOMContentLoaded',matShowStatus);
+})();
+</script>
 </body></html>`;
 
   const w = window.open('','_blank','width=820,height=1060');
@@ -2328,7 +2413,7 @@ function printSummaryReport(filterMonth){
     `<tr style="height:30px"><td class="c">${rows.length+i+1}</td><td></td><td></td><td></td><td></td><td></td></tr>`).join('');
 
   const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<title>Maternity Summary — ${monthLabel}</title>
+<title>AC HRA 產假追蹤 / Maternity Summary — ${monthLabel}</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 @page{size:A4 portrait;margin:20mm 18mm}
@@ -2357,21 +2442,35 @@ table.sig td{width:33%;padding:4px 14px;vertical-align:bottom;font-size:10.5pt}
 .srole{color:#555;font-size:9.5pt;margin-top:2px}
 .footer{font-size:8.5pt;color:#aaa;margin-top:18px;border-top:1px solid #ddd;padding-top:8px;text-align:center}
 @media print{.no-print{display:none}}
-
-/* ── Cloud Sync (injected) ── */
-.cloud-ind{display:flex;align-items:center;gap:6px;font-size:11px;padding:4px 12px;background:#fdf8f5;border:1px solid #ede0e5;border-radius:20px;cursor:pointer;transition:.15s}
-.cloud-ind:hover{background:#f5d0db}
-.cdot{width:7px;height:7px;border-radius:50%;background:#9ca3af;display:inline-block;transition:.3s}
-.cdot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
-.cdot.syncing{background:#f59e0b;animation:cpulse .8s infinite}
-.cdot.err{background:#ef4444}
-.cloud-sync-card{background:#fff;border-radius:var(--radius);border:1.5px solid var(--border);padding:20px;box-shadow:var(--shadow);margin-bottom:16px}
-.cloud-prog-bar{height:4px;background:#ede0e5;border-radius:2px;overflow:hidden;margin-top:10px;display:none}
-.cloud-prog-bar.active{display:block}
-.cloud-prog-fill{height:100%;background:var(--rose);width:0%;transition:width .25s;border-radius:2px}
-@keyframes cpulse{0%,100%{opacity:1}50%{opacity:.35}}
-
-</style></head><body>
+</style>
+<style>
+#matCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+#matCloudBtn:hover{background:#292000}
+#matCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#matCloudPanel.show{display:flex}
+.mcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.mcp-status{font-size:11px;font-family:monospace;color:#475569;min-height:14px}
+.mcp-status.ok{color:#4ade80}.mcp-status.warn{color:#fbbf24}.mcp-status.err{color:#f87171}
+.mcp-row{display:flex;gap:6px}
+.mcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit}
+.mcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.mcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.mcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.mcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.mcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.mcl-ok{color:#4ade80}.mcl-err{color:#f87171}.mcl-i{color:#60a5fa}
+</style>
+</head><body>
 <div class="no-print">
   <button class="btn-c" onclick="window.close()">✕ Close</button>
   <button class="btn-p" onclick="window.print()">🖨️ Print</button>
@@ -2400,6 +2499,96 @@ table.sig td{width:33%;padding:4px 14px;vertical-align:bottom;font-size:10.5pt}
   </tr>
 </table>
 <div class="footer">Vantage River Textiles Co., Ltd. &nbsp;|&nbsp; Maternity Summary ${monthLabel} &nbsp;|&nbsp; Generated: ${printDate}</div>
+
+<button id="matCloudBtn" title="☁ 雲端同步" onclick="matCloudToggle()">☁</button>
+<div id="matCloudPanel">
+  <div class="mcp-title">☁ 雲端同步 — 產假</div>
+  <div class="mcp-status" id="matCloudStatus">未連線</div>
+  <div class="mcp-row">
+    <button class="mcp-btn mcp-push" onclick="matPush()">☁ 推送</button>
+    <button class="mcp-btn mcp-pull" onclick="matPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="mcp-input" id="matGasInput" placeholder="GAS /exec URL"/>
+    <button class="mcp-save" onclick="matSaveGas()">存</button>
+  </div>
+  <div class="mcp-log" id="matLog"></div>
+</div>
+<script>
+(function(){
+  const LS='ac_hra_gas_url';
+  const LS_DATA='vrt_maternity_v1';
+  const LS_META='ac_hra_mat_meta';
+  let gasUrl=localStorage.getItem(LS)||'';
+  let open=false;
+  window.matCloudToggle=function(){
+    open=!open;
+    document.getElementById('matCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('matGasInput').value=gasUrl;matShowStatus();}
+  };
+  window.matSaveGas=function(){
+    gasUrl=document.getElementById('matGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    matLog('GAS URL 已儲存','i');matShowStatus();
+  };
+  function matShowStatus(){
+    const el=document.getElementById('matCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      el.textContent=`${meta.count}筆 · ${mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時'}前`;
+      el.className='mcp-status '+(mins<120?'ok':'warn');
+    }else{
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='mcp-status '+(gasUrl?'warn':'err');
+    }
+  }
+  window.matPush=async function(){
+    if(!gasUrl){matLog('請先設定 GAS URL','err');return;}
+    let recs=[];
+    try{recs=JSON.parse(localStorage.getItem(LS_DATA)||'[]');}catch(e){}
+    if(!recs.length && typeof CASES!=='undefined') recs=CASES;
+    if(!recs.length && typeof maternityData!=='undefined') recs=maternityData;
+    const payload={action:'push',tool:'maternity',records:recs,
+      recordCount:recs.length,updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+        matLog('✓ 推送完成 ('+recs.length+'筆)','ok');matShowStatus();
+      }else matLog('✗ '+d.error,'err');
+    }catch(e){matLog('✗ '+e.message,'err');}
+  };
+  window.matPull=async function(){
+    if(!gasUrl){matLog('請先設定 GAS URL','err');return;}
+    if(!confirm('拉取雲端產假資料？'))return;
+    try{
+      const r=await fetch(gasUrl+'?action=pull&tool=maternity&meta=1',{method:'GET',redirect:'follow'});
+      const d=await r.json();
+      if(!d.ok)throw new Error(d.error);
+      const dd=d.data;
+      if(dd.data===null){matLog('雲端尚無資料','i');return;}
+      const recs=dd.records||dd.data?.records||[];
+      localStorage.setItem(LS_DATA,JSON.stringify(recs));
+      localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+      matLog('✓ 拉取完成 ('+recs.length+'筆)，請重新整理頁面','ok');
+      matShowStatus();
+    }catch(e){matLog('✗ '+e.message,'err');}
+  };
+  function matLog(msg,type){
+    const el=document.getElementById('matLog');if(!el)return;
+    const cls=type==='ok'?'mcl-ok':type==='err'?'mcl-err':'mcl-i';
+    const t=new Date().toTimeString().slice(0,5);
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
+  }
+  document.addEventListener('DOMContentLoaded',matShowStatus);
+})();
+</script>
 </body></html>`;
 
   const w = window.open('','_blank','width=820,height=1060');
@@ -2413,199 +2602,102 @@ window.addEventListener('DOMContentLoaded',()=>{
   // Load data
   loadData();
   loadTgConfig();
-  initMaternityCloud();
   // Load sample if empty
   if(!employees.length) loadSampleData();
   else renderAll();
   // Default preview
   setTimeout(updateTgPreview,500);
 });
+</script>
 
-// ══════════════════════════════════════════════════════
-// MATERNITY CLOUD SYNC v1 (injected)
-// ══════════════════════════════════════════════════════
-const MAT_CLOUD_KEY = 'vrt_mat_cloud_v1';
-let MAT_GAS_URL = localStorage.getItem(MAT_CLOUD_KEY + '_url') || '';
-let matSaveTimer = null;
-
-// ── Init on load ──
-function initMaternityCloud() {
-  if (!MAT_GAS_URL) return;
-  document.getElementById('matGasUrl').value = MAT_GAS_URL;
-  setMatCloud('idle', 'GAS 已設定');
-  // Auto-pull if no employees
-  if (!employees.length) pullMaternity(true);
-  else checkMatCloudVersion();
-}
-
-function saveMatGasUrl() {
-  const url = document.getElementById('matGasUrl').value.trim();
-  if (!url) return;
-  if (!url.startsWith('https://')) { matToast('請輸入有效 GAS URL', 'error'); return; }
-  MAT_GAS_URL = url;
-  localStorage.setItem(MAT_CLOUD_KEY + '_url', url);
-  setMatCloud('idle', 'GAS 已儲存');
-}
-
-async function testMatGas() {
-  if (!MAT_GAS_URL) { matToast('請先填寫 GAS URL'); return; }
-  setMatCloud('syncing', '測試中…');
-  try {
-    const r = await fetch(MAT_GAS_URL + '?action=heartbeat');
-    const d = await r.json();
-    if (d.ok) { setMatCloud('ok', 'GAS 連線正常'); matToast('✅ GAS 連線正常'); }
-    else       { setMatCloud('err', 'GAS 回應錯誤'); }
-  } catch(e) {
-    setMatCloud('err', '無法連線');
-    matToast('❌ 無法連線：' + e.message, 'error');
+<button id="matCloudBtn" title="☁ 雲端同步" onclick="matCloudToggle()">☁</button>
+<div id="matCloudPanel">
+  <div class="mcp-title">☁ 雲端同步 — 產假</div>
+  <div class="mcp-status" id="matCloudStatus">未連線</div>
+  <div class="mcp-row">
+    <button class="mcp-btn mcp-push" onclick="matPush()">☁ 推送</button>
+    <button class="mcp-btn mcp-pull" onclick="matPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="mcp-input" id="matGasInput" placeholder="GAS /exec URL"/>
+    <button class="mcp-save" onclick="matSaveGas()">存</button>
+  </div>
+  <div class="mcp-log" id="matLog"></div>
+</div>
+<script>
+(function(){
+  const LS='ac_hra_gas_url';
+  const LS_DATA='vrt_maternity_v1';
+  const LS_META='ac_hra_mat_meta';
+  let gasUrl=localStorage.getItem(LS)||'';
+  let open=false;
+  window.matCloudToggle=function(){
+    open=!open;
+    document.getElementById('matCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('matGasInput').value=gasUrl;matShowStatus();}
+  };
+  window.matSaveGas=function(){
+    gasUrl=document.getElementById('matGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    matLog('GAS URL 已儲存','i');matShowStatus();
+  };
+  function matShowStatus(){
+    const el=document.getElementById('matCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      el.textContent=`${meta.count}筆 · ${mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時'}前`;
+      el.className='mcp-status '+(mins<120?'ok':'warn');
+    }else{
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='mcp-status '+(gasUrl?'warn':'err');
+    }
   }
-}
-
-async function checkMatCloudVersion() {
-  if (!MAT_GAS_URL) return;
-  try {
-    const r = await fetch(MAT_GAS_URL + '?action=status');
-    const d = await r.json();
-    if (d.ok && d.maternity) {
-      setMatCloud('ok', '');
-      document.getElementById('matCloudTs').textContent = fmtTs(d.maternity.timestamp);
-    }
-  } catch(e) {}
-}
-
-// ── PUSH ──
-async function pushMaternity() {
-  if (!MAT_GAS_URL) { showTab('settings'); matToast('請先設定 GAS URL'); return; }
-  setMatCloud('syncing', '上傳中…');
-  matProg(0, true);
-  try {
-    const payload = {
-      action      : 'push',
-      tool        : 'maternity',
-      records     : { employees, salaryRecords },
-      recordCount : employees.length,
-      summary     : {
-        totalEmployees : employees.length,
-        pregnant  : employees.filter(e => e.status === 'pregnant').length,
-        onLeave   : employees.filter(e => e.status === 'maternity').length,
-        returned  : employees.filter(e => e.status === 'returned').length,
-        salaryCount: salaryRecords.length,
-      },
-    };
-    matProg(50);
-    const r = await fetch(MAT_GAS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    const d = await r.json();
-    matProg(100);
-    if (d.ok) {
-      localStorage.setItem(MAT_CLOUD_KEY + '_lastPush', new Date().toISOString());
-      setMatCloud('ok', '已同步 ' + fmtTs(new Date().toISOString()));
-      matToast('✅ 上傳成功 — ' + employees.length + ' 筆員工資料');
-      // Send TG notification via GAS
-      sendMatTg('✅ <b>VRT 產假追蹤雲端上傳成功</b>\n👩 員工: ' + employees.length + '\n💰 薪資記錄: ' + salaryRecords.length + '\n⏱ ' + fmtTs(new Date().toISOString()));
-    } else {
-      setMatCloud('err', '上傳失敗');
-      matToast('❌ 上傳失敗：' + (d.error || ''), 'error');
-    }
-  } catch(e) {
-    setMatCloud('err', '連線失敗');
-    matToast('❌ 連線失敗：' + e.message, 'error');
+  window.matPush=async function(){
+    if(!gasUrl){matLog('請先設定 GAS URL','err');return;}
+    let recs=[];
+    try{recs=JSON.parse(localStorage.getItem(LS_DATA)||'[]');}catch(e){}
+    if(!recs.length && typeof CASES!=='undefined') recs=CASES;
+    if(!recs.length && typeof maternityData!=='undefined') recs=maternityData;
+    const payload={action:'push',tool:'maternity',records:recs,
+      recordCount:recs.length,updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+        matLog('✓ 推送完成 ('+recs.length+'筆)','ok');matShowStatus();
+      }else matLog('✗ '+d.error,'err');
+    }catch(e){matLog('✗ '+e.message,'err');}
+  };
+  window.matPull=async function(){
+    if(!gasUrl){matLog('請先設定 GAS URL','err');return;}
+    if(!confirm('拉取雲端產假資料？'))return;
+    try{
+      const r=await fetch(gasUrl+'?action=pull&tool=maternity&meta=1',{method:'GET',redirect:'follow'});
+      const d=await r.json();
+      if(!d.ok)throw new Error(d.error);
+      const dd=d.data;
+      if(dd.data===null){matLog('雲端尚無資料','i');return;}
+      const recs=dd.records||dd.data?.records||[];
+      localStorage.setItem(LS_DATA,JSON.stringify(recs));
+      localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+      matLog('✓ 拉取完成 ('+recs.length+'筆)，請重新整理頁面','ok');
+      matShowStatus();
+    }catch(e){matLog('✗ '+e.message,'err');}
+  };
+  function matLog(msg,type){
+    const el=document.getElementById('matLog');if(!el)return;
+    const cls=type==='ok'?'mcl-ok':type==='err'?'mcl-err':'mcl-i';
+    const t=new Date().toTimeString().slice(0,5);
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
   }
-  setTimeout(() => matProg(0, false), 2500);
-}
-
-// ── PULL ──
-async function pullMaternity(silent) {
-  if (!MAT_GAS_URL) { if(!silent) { showTab('settings'); matToast('請先設定 GAS URL'); } return; }
-  setMatCloud('syncing', '拉取中…');
-  matProg(0, true);
-  try {
-    const r1 = await fetch(MAT_GAS_URL + '?action=pull&tool=maternity&meta=1');
-    const d1 = await r1.json();
-    matProg(40);
-    if (!d1.ok || d1.data === null) {
-      setMatCloud('idle', '雲端尚無資料');
-      if (!silent) matToast('☁️ 雲端尚無資料', 'info');
-      matProg(0, false); return;
-    }
-    if (!silent && employees.length > 0) {
-      const cloudCnt = d1.chunked ? (d1.meta?.recordCount || 0) : (d1.data?.recordCount || 0);
-      if (!confirm('雲端有 ' + cloudCnt + ' 筆員工資料。\n本地有 ' + employees.length + ' 筆。\n確定要覆蓋本地資料？')) {
-        setMatCloud('idle', ''); matProg(0, false); return;
-      }
-    }
-    const data = d1.chunked ? null : (d1.data || {});
-    matProg(70);
-    if (data) {
-      const recs = data.records || data;
-      employees     = recs.employees    || data.employees    || [];
-      salaryRecords = recs.salaryRecords || data.salaryRecords || [];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ employees, salaryRecords }));
-      renderAll();
-      matProg(100);
-      setMatCloud('ok', '已同步 ' + fmtTs(new Date().toISOString()));
-      if (!silent) matToast('✅ 拉取完成 — ' + employees.length + ' 筆員工資料');
-    }
-  } catch(e) {
-    setMatCloud('err', '連線失敗');
-    matToast('❌ 拉取失敗：' + e.message, 'error');
-  }
-  setTimeout(() => matProg(0, false), 2500);
-}
-
-// ── Send TG via GAS (avoids CORS on mobile) ──
-async function sendMatTg(text) {
-  if (!MAT_GAS_URL) return;
-  try {
-    await fetch(MAT_GAS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'telegram', text }),
-    });
-  } catch(e) {}
-}
-
-// ── Auto-save (debounced 30s) ──
-function scheduleMatSave() {
-  clearTimeout(matSaveTimer);
-  if (!MAT_GAS_URL) return;
-  matSaveTimer = setTimeout(() => pushMaternity(), 30000);
-}
-
-// ── UI helpers ──
-function setMatCloud(state, label) {
-  const dot  = document.getElementById('matCdot');
-  const lbl  = document.getElementById('matClbl');
-  const stat = document.getElementById('matCloudStatus');
-  const stateMap = { ok:'已同步', idle:'GAS已設定', syncing:'同步中…', err:'連線失敗' };
-  if (dot)  { dot.className  = 'cdot ' + state; }
-  if (lbl)  { lbl.textContent = label || stateMap[state] || state; lbl.style.color = state==='ok'?'#059669':state==='err'?'#ef4444':'#a08090'; }
-  if (stat) {
-    stat.textContent  = label || stateMap[state] || state;
-    stat.className    = 'tg-status ' + (state==='ok'?'connected':'disconnected');
-  }
-}
-function matProg(pct, show) {
-  const bar  = document.getElementById('matProgBar');
-  const fill = document.getElementById('matProgFill');
-  const txt  = document.getElementById('matProgText');
-  if (!bar||!fill) return;
-  if (show !== undefined) bar.classList[show?'add':'remove']('active');
-  fill.style.width = pct + '%';
-  if (txt) txt.textContent = pct < 100 ? (pct + '% …') : '✅ 完成';
-}
-function fmtTs(ts) {
-  if (!ts) return '';
-  try { return new Date(ts).toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
-  catch(e) { return ts.slice(0,16); }
-}
-function matToast(m, t) {
-  toast(m, t || 'success');
-}
-
+  document.addEventListener('DOMContentLoaded',matShowStatus);
+})();
 </script>
 </body>
 </html>

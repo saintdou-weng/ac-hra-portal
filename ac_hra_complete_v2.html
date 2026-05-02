@@ -1,582 +1,1048 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>AC HRA Analytics Center v2</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./shared/hra.css"/>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="./shared/cloud.js"></script>
-<script src="./shared/telegram.js"></script>
-<script src="./shared/hra-modules.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AC HRA Analytics / HR Complete</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
-.module-status-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--c-border2);font-size:12px}
-.module-status-row:last-child{border:none}
-.mod-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
-.mod-dot.ok{background:#10b981}
-.mod-dot.warn{background:#f59e0b}
-.mod-dot.empty{background:#cbd5e1}
-.insight-card{background:linear-gradient(135deg,#0f3027 0%,#1a6e5c 100%);color:#fff;border-radius:var(--radius);padding:16px;margin-bottom:10px}
-.insight-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;opacity:.7;margin-bottom:6px}
-.insight-val{font-size:22px;font-weight:700;font-family:var(--f-mono)}
-.insight-sub{font-size:11px;opacity:.75;margin-top:4px}
+:root{
+  --bg:#f0f3f7;--bg2:#fff;--bg3:#f5f7fa;--bg4:#e8ecf2;
+  --navy:#1e3a5f;--navy2:#2a4f80;
+  --gold:#d4841a;--gold2:#f0a030;--gold3:#fbbf24;
+  --teal:#1a7a7a;--teal2:#28a0a0;
+  --red:#b83232;--red2:#e05040;--red3:#fca5a5;
+  --green:#1e7040;--green2:#28a060;--green3:#6ee7b7;
+  --blue:#2563eb;--blue2:#3b82f6;
+  --orange:#c2410c;--orange2:#f97316;
+  --pu:#6d28d9;--pu2:#8b5cf6;
+  --tx:#1a2235;--tx2:#445068;--tx3:#8595b0;--tx4:#b8c5d8;
+  --brd:#dde2ea;--brd2:#c8d0dc;
+  --sh:0 1px 3px #1a22351a,0 4px 12px #1a22350d;
+  --sh2:0 4px 16px #1a223528;
+  --mono:'DM Mono',monospace;
+  --sans:'DM Sans','Noto Sans TC','Noto Sans Khmer',sans-serif;
+  --kh:'Noto Sans Khmer','DM Sans',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);min-height:100vh}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg3)}
+::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px}
+
+/* HEADER */
+#hdr{background:var(--navy);height:50px;padding:0 18px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:200;box-shadow:0 2px 10px #0005}
+.hlogo{display:flex;align-items:center;gap:10px}
+.hvrt{font-size:19px;font-weight:700;letter-spacing:2px;color:var(--gold2);
+  border-right:1px solid #fff2;padding-right:10px}
+.htit{font-size:11px;color:#ffffffaa}
+.hright{display:flex;align-items:center;gap:6px}
+.lb{font-size:10px;font-weight:700;padding:3px 8px;border-radius:3px;
+  border:1px solid #fff3;background:transparent;color:#fff8;cursor:pointer;transition:all .15s}
+.lb.on{background:var(--gold);color:#000;border-color:var(--gold)}
+.lb.kh-lb{font-family:var(--kh);font-size:11px}
+.tbtn{font-size:11px;font-weight:600;padding:4px 10px;border-radius:4px;
+  border:1px solid;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:4px}
+.tbtn.tg{background:#229ED9;color:#fff;border-color:#229ED9}
+.tbtn.tg:hover{background:#1a8cbf}
+.tbtn.png{background:var(--green);color:#fff;border-color:var(--green)}
+.tbtn.png:hover{background:var(--green2)}
+
+/* TABS */
+#tabbar{background:var(--bg2);border-bottom:2px solid var(--brd);
+  display:flex;padding:0 18px;position:sticky;top:50px;z-index:150;
+  box-shadow:0 1px 4px #0001;overflow-x:auto;gap:0}
+#tabbar::-webkit-scrollbar{height:2px}
+.tab{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;
+  padding:9px 12px;border:none;background:transparent;color:var(--tx3);
+  cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;
+  transition:all .15s;white-space:nowrap}
+.tab:hover{color:var(--navy);background:var(--bg3)}
+.tab.on{color:var(--navy);border-bottom-color:var(--gold)}
+
+/* UPLOAD */
+#uz{margin:14px 16px 0;border:2px dashed var(--brd2);border-radius:10px;
+  background:var(--bg2);padding:20px;text-align:center;cursor:pointer;transition:all .2s}
+#uz:hover,#uz.drag{border-color:var(--gold);background:#d4841a08}
+#uz.loaded{padding:10px 16px;border-style:solid;border-color:var(--teal);background:#1a7a7a08}
+#uz .uico{font-size:28px;margin-bottom:5px}
+#uz h3{font-size:13px;font-weight:600;color:var(--tx2)}
+#uz p{font-size:11px;color:var(--tx3);font-family:var(--mono);margin-top:2px}
+#uz.loaded .uico{display:none}
+#uz.loaded h3{color:var(--teal);margin:0;font-size:12px}
+#uz.loaded p{margin:0;color:var(--teal2)}
+#fst{font-size:11px;color:var(--teal);font-weight:600;margin-top:2px;font-family:var(--mono)}
+
+/* MAIN */
+.pane{display:none;padding:14px 16px 28px}
+.pane.on{display:block}
+
+/* KPI STRIP */
+.ks{display:grid;gap:10px;margin-bottom:12px}
+.ks5{grid-template-columns:repeat(5,1fr)}
+.ks4{grid-template-columns:repeat(4,1fr)}
+.ks6{grid-template-columns:repeat(6,1fr)}
+@media(max-width:900px){.ks5,.ks6{grid-template-columns:repeat(3,1fr)}.ks4{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;
+  padding:10px 13px;box-shadow:var(--sh);position:relative;overflow:hidden;transition:box-shadow .15s}
+.kpi:hover{box-shadow:var(--sh2)}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;border-radius:3px 0 0 3px}
+.kpi.nv::before{background:var(--navy)}.kpi.gd::before{background:var(--gold)}
+.kpi.tl::before{background:var(--teal)}.kpi.rd::before{background:var(--red)}
+.kpi.gn::before{background:var(--green)}.kpi.pu::before{background:var(--pu)}
+.kpi.or::before{background:var(--orange)}.kpi.bl::before{background:var(--blue)}
+.kl{font-size:9.5px;font-weight:500;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.kv{font-size:24px;font-weight:800;color:var(--navy);line-height:1;letter-spacing:-1px}
+.ks2{font-size:10px;color:var(--tx3);font-family:var(--mono);margin-top:1px}
+.kbar{margin-top:5px;height:3px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.kbf{height:100%;border-radius:2px;transition:width .8s ease}
+.delta{font-size:10px;font-family:var(--mono);font-weight:600;padding:1px 5px;
+  border-radius:3px;margin-left:4px}
+.delta.up{background:#fef2f2;color:var(--red)}.delta.dn{background:#f0fdf4;color:var(--green)}
+.delta.neu{background:var(--bg3);color:var(--tx3)}
+
+/* GRID */
+.gr{display:grid;gap:10px;margin-bottom:10px}
+.gr2{grid-template-columns:repeat(2,1fr)}
+.gr3{grid-template-columns:repeat(3,1fr)}
+.gr21{grid-template-columns:2fr 1fr}
+.gr12{grid-template-columns:1fr 2fr}
+.gr13{grid-template-columns:1fr 3fr}
+@media(max-width:900px){.gr2,.gr21,.gr12,.gr13{grid-template-columns:1fr}.gr3{grid-template-columns:repeat(2,1fr)}}
+
+/* STAT PANEL = table left + chart right */
+.sp{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;
+  box-shadow:var(--sh);overflow:hidden}
+.sp-hdr{background:var(--navy);color:#fff;padding:7px 13px;
+  font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sp-hdr .nb{font-family:var(--mono);font-size:12px;color:var(--gold2);
+  background:#ffffff18;border-radius:3px;padding:1px 6px}
+.sp-inner{display:grid;grid-template-columns:1fr 1fr;min-height:160px}
+.sp-tbl{padding:8px 10px;border-right:1px solid var(--bg4)}
+.sp-chart{display:flex;align-items:center;justify-content:center;padding:6px}
+table.st{width:100%;border-collapse:collapse;font-size:11px}
+table.st tr{border-bottom:1px solid var(--bg3)}
+table.st tr:last-child{border-bottom:none;font-weight:700;background:var(--bg3)}
+table.st td{padding:3px 4px;color:var(--tx)}
+table.st td:first-child{color:var(--tx2);font-size:10.5px}
+table.st td:nth-child(2){text-align:right;font-family:var(--mono);font-weight:600;color:var(--navy)}
+table.st td:nth-child(3){text-align:right;font-size:10px;color:var(--tx3);font-family:var(--mono)}
+.bm{height:3px;background:var(--bg3);border-radius:2px;margin-top:2px;overflow:hidden}
+.bmf{height:100%;border-radius:2px}
+
+/* CHART CARD (full width) */
+.cc{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;
+  box-shadow:var(--sh);overflow:hidden}
+.cc-hdr{background:var(--navy);color:#fff;padding:7px 13px;
+  font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  display:flex;align-items:center;justify-content:space-between}
+.cc-body{padding:12px}
+.cc-body canvas{max-height:220px}
+
+/* SECTION TITLE */
+.stit{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;
+  color:var(--tx3);margin:14px 0 8px;padding-bottom:6px;
+  border-bottom:1px solid var(--brd);display:flex;align-items:center;gap:8px}
+.stit::before{content:'';display:block;width:3px;height:12px;background:var(--gold);border-radius:2px}
+
+/* DATA TABLE */
+.dtbl-wrap{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;
+  overflow:hidden;box-shadow:var(--sh);margin-bottom:10px}
+.dtbl-hdr{background:var(--navy);color:#fff;padding:7px 13px;
+  font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;
+  display:flex;justify-content:space-between;align-items:center}
+.dtbl-hdr .expbtn{font-size:10px;padding:2px 7px;border-radius:3px;
+  border:1px solid #fff4;background:transparent;color:#fff9;cursor:pointer}
+.dtbl-hdr .expbtn:hover{background:#ffffff22}
+table.dtbl{width:100%;border-collapse:collapse;font-size:11px;font-family:var(--mono)}
+table.dtbl th{background:var(--bg3);color:var(--tx2);font-weight:700;
+  padding:5px 9px;text-align:right;font-size:9.5px;letter-spacing:.3px;
+  text-transform:uppercase;border-bottom:1px solid var(--brd)}
+table.dtbl th:first-child,table.dtbl th:nth-child(2){text-align:left;font-family:var(--sans)}
+table.dtbl td{padding:4px 9px;text-align:right;border-bottom:1px solid var(--bg3);color:var(--tx)}
+table.dtbl td:first-child,table.dtbl td:nth-child(2){text-align:left;font-family:var(--sans);font-size:11px;color:var(--tx2)}
+table.dtbl tr:hover td{background:var(--bg3)}
+table.dtbl tr.high td{background:#fef9ec}
+table.dtbl tr.alert td{background:#fff1f0}
+
+/* ANOMALY BOX */
+.anom-box{padding:8px 12px;border-radius:6px;font-size:11px;font-family:var(--mono);
+  margin-bottom:6px;display:flex;gap:7px;line-height:1.5;border-left:3px solid}
+.anom-box.crit{background:#fef2f2;color:var(--red);border-color:var(--red)}
+.anom-box.warn{background:#fffbeb;color:var(--orange);border-color:var(--orange)}
+.anom-box.good{background:#f0fdf4;color:var(--green);border-color:var(--green)}
+.anom-box.info{background:#eff6ff;color:var(--blue);border-color:var(--blue)}
+
+/* TOAST */
+#toast{position:fixed;bottom:20px;right:20px;z-index:999;
+  background:var(--navy);color:#fff;padding:9px 16px;border-radius:8px;
+  font-size:12px;font-family:var(--mono);box-shadow:var(--sh2);
+  transition:opacity .3s,transform .3s;opacity:0;transform:translateY(10px);pointer-events:none}
+#toast.show{opacity:1;transform:translateY(0)}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid #fff4;
+  border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+
+<style>
+#hrCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1a3a5f;border:1px solid #d4af37;color:#f5deb3;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3);transition:.15s}
+#hrCloudBtn:hover{background:#234f80}
+#hrCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#hrCloudPanel.show{display:flex}
+.hcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
+.hcp-status{font-size:11px;font-family:monospace;min-height:14px;color:#475569}
+.hcp-status.ok{color:#4ade80}.hcp-status.warn{color:#fbbf24}.hcp-status.err{color:#f87171}
+.hcp-row{display:flex;gap:6px}
+.hcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.hcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.hcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.hcp-btn:disabled{opacity:.4;cursor:not-allowed}
+.hcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.hcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.hcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.hcl-ok{color:#4ade80}.hcl-err{color:#f87171}.hcl-i{color:#60a5fa}
 </style>
 </head>
 <body>
-<div class="hra-layout">
 
-<!-- SIDEBAR -->
-<div class="hra-sidebar">
-  <div class="sb-logo">
-    <h1>AC HRA Analytics</h1>
-    <p>Analytics Center · v2</p>
+<div id="hdr">
+  <div class="hlogo">
+    <div class="hvrt">VRT</div>
+    <div class="htit" id="htit">HR Dashboard · Mar 2026</div>
   </div>
-  <div class="sb-nav">
-    <div class="sb-sect">分析</div>
-    <button class="sb-btn on" onclick="goTab('overview',this)"><span class="ic">📊</span>總覽 Overview</button>
-    <button class="sb-btn"    onclick="goTab('attendance',this)"><span class="ic">🕐</span>出勤分析</button>
-    <button class="sb-btn"    onclick="goTab('contract',this)"><span class="ic">📋</span>合約分析</button>
-    <button class="sb-btn"    onclick="goTab('onboarding',this)"><span class="ic">🚪</span>入離職分析</button>
-    <button class="sb-btn"    onclick="goTab('maternity',this)"><span class="ic">🤱</span>產假追蹤</button>
-    <button class="sb-btn"    onclick="goTab('reports',this)"><span class="ic">📱</span>整合報表</button>
-    <button class="sb-btn"    onclick="goTab('settings',this)"><span class="ic">⚙️</span>設定</button>
-    <div class="sb-div"></div>
-    <div class="sb-sect">資料來源</div>
-    <div id="sb-data-status" style="padding:4px 8px"></div>
-    <div class="sb-div"></div>
-    <div class="sb-gas-row">
-      <div class="sb-gas-dot" id="sb-gas-dot"></div>
-      <span class="sb-gas-lbl" id="sb-gas-lbl">未連線</span>
-    </div>
-  </div>
-  <div class="sb-bot">
-    <div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div>
-    <div style="color:#1d3a50;font-size:9px;margin-top:2px">Analytics — 讀取各工具 localStorage</div>
+  <div class="hright" style="gap:6px">
+    <button class="lb on" onclick="setLang('zh')">中文</button>
+    <button class="lb" onclick="setLang('en')">EN</button>
+    <button class="lb kh-lb" onclick="setLang('kh')">ខ្មែរ</button>
+    <button class="tbtn png" onclick="doExportPNG()">🖼 PNG</button>
+    <button class="tbtn tg" onclick="doExportTG()">✈️ TG</button>
   </div>
 </div>
 
-<!-- MAIN -->
-<div class="hra-main">
-  <div class="hra-header">
-    <div class="hra-logo">
-      <div class="hra-logo-icon">📊</div>
-      <div>
-        <div class="hra-logo-title">HRA Analytics Center</div>
-        <div class="hra-logo-sub">整合分析中心 v2 · AC HRA</div>
+<div id="tabbar">
+  <button class="tab on" data-t="emp">👥 <span id="t-emp">員工資料</span></button>
+  <button class="tab" data-t="att">📅 <span id="t-att">每日考勤</span></button>
+  <button class="tab" data-t="cmp">🔍 <span id="t-cmp">異常分析</span></button>
+  <button class="tab" data-t="hist">📊 <span id="t-hist">歷史記錄</span></button>
+</div>
+
+<!-- UPLOAD -->
+<div id="uz" ondragover="ev.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="hdrop(event)" onclick="document.getElementById('fi').click()">
+  <div class="uico">📂</div>
+  <h3 id="uz-h3">拖入 / 點選 VRT Employee Information Excel (.xlsx)</h3>
+  <p id="uz-p">自動解析 Employee information 工作表</p>
+  <div id="fst"></div>
+</div>
+<input type="file" id="fi" accept=".xlsx,.xls" style="display:none" onchange="hfile(this.files[0])">
+
+<!-- ══ EMPLOYEE TAB ══ -->
+<div id="pane-emp" class="pane on">
+  <div class="stit" id="s-overview">👥 全廠概況</div>
+  <div class="ks ks5" id="kpi-emp"></div>
+  <div class="gr gr21" style="margin-bottom:10px">
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-dept">部門人數</span><span class="nb" id="nb-dept">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-dept"></table></div>
+        <div class="sp-chart"><canvas id="ch-dept" width="140" height="140"></canvas></div>
       </div>
     </div>
-    <div class="hra-header-space"></div>
-    <div class="hra-sync-ind" onclick="refreshAll()">
-      <span class="sync-dot" id="sync-dot-main"></span>
-      <span class="sync-lbl" id="sync-lbl-main">讀取資料中</span>
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-gender">男女分佈</span><span class="nb" id="nb-gender">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-gender"></table></div>
+        <div class="sp-chart"><canvas id="ch-gender" width="140" height="140"></canvas></div>
+      </div>
     </div>
-    <div class="hra-lang">
-      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
-      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
-      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="refreshAll()">🔄 刷新資料</button>
-    <button class="btn btn-tg btn-sm" onclick="sendIntegratedReport()">📱 整合報表</button>
   </div>
-  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
-
-  <div class="hra-content">
-
-    <!-- ══ OVERVIEW ══ -->
-    <div class="tab-page on" id="tab-overview">
-      <div class="ph"><h2>📊 HRA 整合總覽</h2><p>Analytics Center — 整合所有 HRA 模組資料</p></div>
-      <div id="overview-kpi" class="kpi-grid"></div>
-      <div class="g2">
-        <div class="card">
-          <div class="card-title">⚠️ 需要立即處理</div>
-          <div id="action-items"></div>
-        </div>
-        <div class="card">
-          <div class="card-title">📈 本月摘要</div>
-          <div id="monthly-overview"></div>
-        </div>
-      </div>
-      <div class="g2">
-        <div class="card"><div class="card-title">合約狀態分佈</div><div class="ch-wrap" style="height:200px"><canvas id="ch-contract-status"></canvas></div></div>
-        <div class="card"><div class="card-title">入離職月度趨勢</div><div class="ch-wrap" style="height:200px"><canvas id="ch-ob-trend"></canvas></div></div>
-      </div>
-      <div class="card">
-        <div class="card-title">📡 各模組資料狀態</div>
-        <div id="module-status-list"></div>
+  <div class="gr gr3">
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-age">年齡分佈</span><span class="nb" id="nb-age">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-age"></table></div>
+        <div class="sp-chart"><canvas id="ch-age" width="130" height="130"></canvas></div>
       </div>
     </div>
-
-    <!-- ══ ATTENDANCE ══ -->
-    <div class="tab-page" id="tab-attendance">
-      <div class="ph"><h2>🕐 出勤分析</h2><p>Attendance Analytics — 來自 ac_hra_attendance_v1.html</p></div>
-      <div id="att-kpi" class="kpi-grid"></div>
-      <div id="att-warning" class="alert alert-info" style="margin-bottom:12px;display:none"></div>
-      <div class="g2">
-        <div class="card"><div class="card-title">部門出勤率</div><div class="ch-wrap" style="height:220px"><canvas id="ch-att-dept"></canvas></div></div>
-        <div class="card"><div class="card-title">出勤月度趨勢</div><div class="ch-wrap" style="height:220px"><canvas id="ch-att-trend"></canvas></div></div>
-      </div>
-      <div class="card">
-        <div class="card-title">⚠️ 出勤異常員工（缺勤 ≥ 3天）</div>
-        <div id="att-anomalies"></div>
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-edu">學歷分佈</span><span class="nb" id="nb-edu">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-edu"></table></div>
+        <div class="sp-chart"><canvas id="ch-edu" width="130" height="130"></canvas></div>
       </div>
     </div>
-
-    <!-- ══ CONTRACT ══ -->
-    <div class="tab-page" id="tab-contract">
-      <div class="ph"><h2>📋 合約分析</h2><p>Contract Analytics — 來自 ac_hra_contract_v2.html</p></div>
-      <div id="con-kpi" class="kpi-grid"></div>
-      <div class="g2">
-        <div class="card"><div class="card-title">合約類型分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-con-type"></canvas></div></div>
-        <div class="card"><div class="card-title">部門人數分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-con-dept"></canvas></div></div>
-      </div>
-      <div class="card">
-        <div class="card-title">⚠️ 30 天內到期合約</div>
-        <div id="con-expiring"></div>
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-sen">工齡分佈</span><span class="nb" id="nb-sen">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-sen"></table></div>
+        <div class="sp-chart"><canvas id="ch-sen" width="130" height="130"></canvas></div>
       </div>
     </div>
-
-    <!-- ══ ONBOARDING ══ -->
-    <div class="tab-page" id="tab-onboarding">
-      <div class="ph"><h2>🚪 入離職分析</h2><p>Onboarding Analytics — 來自 ac_hra_onboarding_v2.html</p></div>
-      <div id="ob-kpi" class="kpi-grid"></div>
-      <div class="g2">
-        <div class="card"><div class="card-title">月度入離職趨勢（6個月）</div><div class="ch-wrap" style="height:220px"><canvas id="ch-ob-trend2"></canvas></div></div>
-        <div class="card"><div class="card-title">離職原因分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-ob-reason"></canvas></div></div>
-      </div>
-      <div class="card">
-        <div class="card-title">⏳ 待審核申請</div>
-        <div id="ob-pending"></div>
+  </div>
+  <div class="gr gr21" style="margin-top:10px">
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-ori">本地/外來</span><span class="nb" id="nb-ori">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-ori"></table></div>
+        <div class="sp-chart"><canvas id="ch-ori" width="130" height="130"></canvas></div>
       </div>
     </div>
-
-    <!-- ══ MATERNITY ══ -->
-    <div class="tab-page" id="tab-maternity">
-      <div class="ph"><h2>🤱 產假追蹤</h2><p>Maternity Tracker — 來自 ac_hra_maternity_v1.html</p></div>
-      <div id="mat-kpi" class="kpi-grid"></div>
-      <div id="mat-warning" style="display:none" class="alert alert-warn"></div>
-      <div class="card">
-        <div class="card-title">🤱 目前產假中員工</div>
-        <div id="mat-active-list"></div>
-      </div>
-      <div class="card">
-        <div class="card-title">📅 即將返回復工</div>
-        <div id="mat-returning"></div>
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-pob">省份來源 Top 8</span><span class="nb" id="nb-pob">—</span></div>
+      <div class="sp-inner" style="grid-template-columns:1fr">
+        <div class="sp-chart" style="padding:8px"><canvas id="ch-pob" height="120"></canvas></div>
       </div>
     </div>
-
-    <!-- ══ REPORTS ══ -->
-    <div class="tab-page" id="tab-reports">
-      <div class="ph"><h2>📱 整合報表</h2><p>Integrated Reports — 跨模組 Telegram 推送</p></div>
-      <div class="g2">
-        <div class="card">
-          <div class="card-title">報表類型</div>
-          <select class="form-input" id="report-type" onchange="updatePreview()" style="margin-bottom:12px">
-            <option value="daily">每日 HRA 摘要</option>
-            <option value="weekly">週報</option>
-            <option value="monthly">月度整合報告</option>
-            <option value="alerts">異常警示</option>
-            <option value="headcount">人力盤點</option>
-          </select>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-tg btn-sm" onclick="sendReport()">📱 發送</button>
-            <button class="btn btn-ghost btn-sm" onclick="updatePreview()">🔄 更新</button>
-          </div>
-        </div>
-        <div class="card">
-          <div class="card-title">💡 自動排程</div>
-          <div style="font-size:12px;line-height:2">
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="auto-daily"> 每天 08:00 自動發送日報</label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="auto-weekly"> 每週一 08:00 自動發送週報</label>
-            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="auto-alerts"> 自動發送異常警示</label>
-            <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="saveAutoSettings()">儲存排程設定</button>
-          </div>
-        </div>
-      </div>
-      <div style="background:#1e2640;color:#e2e8f0;border-radius:8px;padding:14px;font-family:var(--f-mono);font-size:11px;line-height:1.8;white-space:pre-wrap;max-height:360px;overflow-y:auto;margin-top:10px" id="tg-preview"></div>
-    </div>
-
-    <!-- ══ SETTINGS ══ -->
-    <div class="tab-page" id="tab-settings">
-      <div class="ph"><h2>⚙️ 設定</h2></div>
-      <div class="card"><div class="card-title">系統設定</div><div id="settings-form-container"></div></div>
-      <div class="card">
-        <div class="card-title">🔗 模組連結</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <a class="btn btn-ghost btn-sm" href="./ac_hra_attendance_v1.html" target="_blank">🕐 出勤系統</a>
-          <a class="btn btn-ghost btn-sm" href="./ac_hra_contract_v2.html" target="_blank">📋 合約管理</a>
-          <a class="btn btn-ghost btn-sm" href="./ac_hra_onboarding_v2.html" target="_blank">🚪 入離職</a>
-          <a class="btn btn-ghost btn-sm" href="./ac_hra_maternity_v1.html" target="_blank">🤱 產假追蹤</a>
-          <a class="btn btn-ghost btn-sm" href="./ac_hra_calendar_v2.html" target="_blank">📅 行事曆</a>
-        </div>
-      </div>
-      <div class="card"><div class="card-title">🗒 事件紀錄</div><div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div></div>
-    </div>
-
   </div>
 </div>
+
+<!-- ══ ATTENDANCE TAB ══ -->
+<div id="pane-att" class="pane">
+  <div class="stit" id="s-att-kpi">📊 Mar 2026 考勤概況</div>
+  <div class="ks ks6" id="kpi-att"></div>
+
+  <div class="cc" style="margin-bottom:10px">
+    <div class="cc-hdr"><span id="lbl-trend">每日出勤人數 / 應到人數趨勢</span></div>
+    <div class="cc-body"><canvas id="ch-trend" height="90"></canvas></div>
+  </div>
+
+  <div class="gr gr2">
+    <div class="cc">
+      <div class="cc-hdr"><span id="lbl-rate">每日出勤率 %</span></div>
+      <div class="cc-body"><canvas id="ch-rate" height="120"></canvas></div>
+    </div>
+    <div class="sp">
+      <div class="sp-hdr"><span id="lbl-absent-type">缺勤類型分佈</span><span class="nb" id="nb-absent">—</span></div>
+      <div class="sp-inner">
+        <div class="sp-tbl"><table class="st" id="st-absent"></table></div>
+        <div class="sp-chart"><canvas id="ch-absent" width="130" height="130"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="gr gr2" style="margin-top:10px">
+    <div class="cc">
+      <div class="cc-hdr"><span id="lbl-jr">每日入職/離職</span></div>
+      <div class="cc-body"><canvas id="ch-jr" height="120"></canvas></div>
+    </div>
+    <div class="cc">
+      <div class="cc-hdr"><span id="lbl-abs-daily">每日缺勤明細</span></div>
+      <div class="cc-body"><canvas id="ch-abs-type" height="120"></canvas></div>
+    </div>
+  </div>
+
+  <div class="dtbl-wrap" style="margin-top:10px">
+    <div class="dtbl-hdr">
+      <span id="lbl-att-tbl">每日考勤記錄</span>
+      <button class="expbtn" onclick="exportAttCSV()">CSV ↓</button>
+    </div>
+    <div style="overflow-x:auto"><table class="dtbl" id="att-tbl"><thead></thead><tbody></tbody></table></div>
+  </div>
 </div>
+
+<!-- ══ ANOMALY/COMPARE TAB ══ -->
+<div id="pane-cmp" class="pane">
+  <div class="stit" id="s-anom">🚨 異常偵測 Anomaly Detection</div>
+  <div id="anom-list"></div>
+
+  <div class="stit" id="s-weekly">📊 週別分析</div>
+  <div class="cc" style="margin-bottom:10px">
+    <div class="cc-hdr"><span id="lbl-weekly">週別平均出勤率對比</span></div>
+    <div class="cc-body"><canvas id="ch-weekly" height="110"></canvas></div>
+  </div>
+
+  <div class="gr gr2">
+    <div class="cc">
+      <div class="cc-hdr"><span id="lbl-al-trend">年假趨勢（AL）</span></div>
+      <div class="cc-body"><canvas id="ch-al" height="130"></canvas></div>
+    </div>
+    <div class="cc">
+      <div class="cc-hdr"><span id="lbl-headcount-trend">在職人數趨勢</span></div>
+      <div class="cc-body"><canvas id="ch-hc" height="130"></canvas></div>
+    </div>
+  </div>
+
+  <div class="stit" id="s-summary">📋 月度考勤摘要</div>
+  <div class="gr gr2">
+    <div class="dtbl-wrap">
+      <div class="dtbl-hdr"><span id="lbl-summary-tbl">考勤統計摘要</span></div>
+      <div style="overflow-x:auto"><table class="dtbl" id="summary-tbl"><thead></thead><tbody></tbody></table></div>
+    </div>
+    <div class="dtbl-wrap">
+      <div class="dtbl-hdr"><span id="lbl-top-absent">最高缺勤日</span></div>
+      <div style="overflow-x:auto"><table class="dtbl" id="top-absent-tbl"><thead></thead><tbody></tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ HISTORY TAB ══ -->
+<div id="pane-hist" class="pane">
+  <div class="stit" id="s-hist">📊 跨月比對（localStorage 儲存）</div>
+  <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+    <button class="tbtn" style="background:var(--navy);color:#fff;border-color:var(--navy)" onclick="saveCurrentMonth()">💾 <span id="tb-save">儲存本月</span></button>
+    <button class="tbtn" style="background:var(--bg3);color:var(--tx2);border-color:var(--brd)" onclick="clearHistory()">🗑 <span id="tb-clear">清除記錄</span></button>
+  </div>
+  <div id="hist-charts" style="display:none">
+    <div class="cc" style="margin-bottom:10px">
+      <div class="cc-hdr"><span id="lbl-hist-trend">歷史出勤率趨勢</span></div>
+      <div class="cc-body"><canvas id="ch-hist-rate" height="100"></canvas></div>
+    </div>
+    <div class="cc" style="margin-bottom:10px">
+      <div class="cc-hdr"><span id="lbl-hist-hc">歷史在職人數</span></div>
+      <div class="cc-body"><canvas id="ch-hist-hc" height="100"></canvas></div>
+    </div>
+  </div>
+  <div id="no-hist" style="text-align:center;padding:40px;color:var(--tx3)">
+    <div style="font-size:36px;margin-bottom:8px">📭</div>
+    <div style="font-size:13px" id="no-hist-txt">點擊「儲存本月」建立記錄</div>
+  </div>
+  <div class="dtbl-wrap" id="hist-tbl-wrap" style="display:none">
+    <div class="dtbl-hdr"><span id="lbl-hist-tbl">月度記錄表</span></div>
+    <div style="overflow-x:auto"><table class="dtbl" id="hist-tbl"><thead></thead><tbody></tbody></table></div>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <script>
-// ══════════════════════════════════════════════════════
-// AC HRA Analytics Center v2
-// 讀取各模組 localStorage，不存自己的資料
-// ══════════════════════════════════════════════════════
-let D = { att:{}, con:[], ob:{records:[], auditLog:[]}, mat:[], cal:[] };
+Chart.register(ChartDataLabels);
+'use strict';
 
-// ── Read all module data from localStorage ──
-function readAllData() {
-  // Attendance
-  try { const raw=localStorage.getItem('vrt_att_v5_db'); D.att=raw?JSON.parse(raw):{employees:[],monthSummaries:[],log:[]}; } catch(e){D.att={employees:[],monthSummaries:[],log:[]};}
-  // Contract
-  try { const raw=localStorage.getItem('ac_hra_contract_db'); D.con=raw?JSON.parse(raw):[]; } catch(e){D.con=[];}
-  // Onboarding
-  try { const raw=localStorage.getItem('ac_hra_onboarding_db'); D.ob=raw?JSON.parse(raw):{records:[],auditLog:[]}; } catch(e){D.ob={records:[],auditLog:[]};}
-  // Maternity
-  try { const raw=localStorage.getItem('vrt_maternity_v1'); D.mat=raw?JSON.parse(raw):[]; } catch(e){D.mat=[];}
-  // Calendar
-  try { const raw=localStorage.getItem('ac_hra_calendar_db'); D.cal=raw?JSON.parse(raw):[]; } catch(e){D.cal=[];}
-}
+// ══ PRE-LOADED ATTENDANCE DATA (Mar 2026 from MSG) ══
+const ATT_DATA = [{"date":"2026-03-02","day":2,"M":66,"F":410,"TTL":476,"headcount":476,"join":1,"resign":1,"AL":29,"PL":0,"SL":1,"NP":1,"absent":31,"present":445,"rate":93.5},{"date":"2026-03-03","day":3,"M":67,"F":409,"TTL":476,"headcount":476,"join":2,"resign":2,"AL":14,"PL":2,"SL":1,"NP":1,"absent":18,"present":458,"rate":96.2},{"date":"2026-03-04","day":4,"M":67,"F":409,"TTL":476,"headcount":476,"join":1,"resign":1,"AL":13,"PL":6,"SL":1,"NP":1,"absent":21,"present":455,"rate":95.6},{"date":"2026-03-05","day":5,"M":67,"F":409,"TTL":476,"headcount":477,"join":1,"resign":0,"AL":12,"PL":6,"SL":1,"NP":2,"absent":21,"present":456,"rate":95.6},{"date":"2026-03-06","day":6,"M":67,"F":410,"TTL":477,"headcount":478,"join":3,"resign":2,"AL":13,"PL":6,"SL":1,"NP":0,"absent":20,"present":458,"rate":95.8},{"date":"2026-03-07","day":7,"M":67,"F":411,"TTL":478,"headcount":478,"join":0,"resign":0,"AL":17,"PL":4,"SL":1,"NP":0,"absent":22,"present":456,"rate":95.4},{"date":"2026-03-09","day":9,"M":67,"F":411,"TTL":478,"headcount":478,"join":0,"resign":0,"AL":22,"PL":5,"SL":0,"NP":0,"absent":27,"present":451,"rate":94.4},{"date":"2026-03-10","day":10,"M":67,"F":411,"TTL":478,"headcount":479,"join":2,"resign":1,"AL":13,"PL":4,"SL":1,"NP":1,"absent":19,"present":460,"rate":96.0},{"date":"2026-03-11","day":11,"M":67,"F":412,"TTL":479,"headcount":478,"join":1,"resign":2,"AL":12,"PL":2,"SL":1,"NP":1,"absent":16,"present":462,"rate":96.7},{"date":"2026-03-12","day":12,"M":67,"F":411,"TTL":478,"headcount":481,"join":3,"resign":0,"AL":14,"PL":3,"SL":1,"NP":3,"absent":21,"present":460,"rate":95.6},{"date":"2026-03-13","day":13,"M":67,"F":414,"TTL":481,"headcount":482,"join":2,"resign":1,"AL":21,"PL":6,"SL":1,"NP":2,"absent":30,"present":452,"rate":93.8},{"date":"2026-03-14","day":14,"M":67,"F":415,"TTL":482,"headcount":483,"join":2,"resign":1,"AL":29,"PL":5,"SL":1,"NP":2,"absent":37,"present":446,"rate":92.3},{"date":"2026-03-16","day":16,"M":67,"F":416,"TTL":483,"headcount":482,"join":1,"resign":2,"AL":20,"PL":3,"SL":1,"NP":3,"absent":27,"present":455,"rate":94.4},{"date":"2026-03-17","day":17,"M":67,"F":415,"TTL":482,"headcount":483,"join":1,"resign":0,"AL":13,"PL":6,"SL":1,"NP":2,"absent":22,"present":461,"rate":95.4},{"date":"2026-03-18","day":18,"M":67,"F":416,"TTL":483,"headcount":482,"join":1,"resign":2,"AL":12,"PL":7,"SL":1,"NP":2,"absent":22,"present":460,"rate":95.4},{"date":"2026-03-19","day":19,"M":67,"F":415,"TTL":482,"headcount":482,"join":2,"resign":2,"AL":14,"PL":5,"SL":1,"NP":2,"absent":22,"present":460,"rate":95.4},{"date":"2026-03-20","day":20,"M":67,"F":415,"TTL":482,"headcount":481,"join":1,"resign":2,"AL":8,"PL":3,"SL":1,"NP":1,"absent":13,"present":468,"rate":97.3},{"date":"2026-03-21","day":21,"M":67,"F":414,"TTL":481,"headcount":482,"join":1,"resign":0,"AL":15,"PL":3,"SL":1,"NP":1,"absent":20,"present":462,"rate":95.9},{"date":"2026-03-22","day":22,"M":67,"F":415,"TTL":482,"headcount":479,"join":0,"resign":3,"AL":22,"PL":4,"SL":1,"NP":0,"absent":27,"present":452,"rate":94.4},{"date":"2026-03-23","day":23,"M":67,"F":415,"TTL":482,"headcount":479,"join":0,"resign":3,"AL":22,"PL":4,"SL":1,"NP":0,"absent":27,"present":452,"rate":94.4},{"date":"2026-03-24","day":24,"M":67,"F":412,"TTL":479,"headcount":480,"join":1,"resign":0,"AL":13,"PL":4,"SL":1,"NP":1,"absent":19,"present":461,"rate":96.0},{"date":"2026-03-25","day":25,"M":67,"F":413,"TTL":480,"headcount":480,"join":1,"resign":1,"AL":7,"PL":4,"SL":1,"NP":1,"absent":13,"present":467,"rate":97.3},{"date":"2026-03-26","day":26,"M":67,"F":413,"TTL":480,"headcount":480,"join":1,"resign":1,"AL":11,"PL":2,"SL":1,"NP":1,"absent":15,"present":465,"rate":96.9},{"date":"2026-03-27","day":27,"M":66,"F":414,"TTL":480,"headcount":481,"join":1,"resign":0,"AL":17,"PL":3,"SL":1,"NP":1,"absent":22,"present":459,"rate":95.4},{"date":"2026-03-28","day":28,"M":66,"F":415,"TTL":481,"headcount":481,"join":0,"resign":0,"AL":18,"PL":6,"SL":1,"NP":1,"absent":26,"present":455,"rate":94.6},{"date":"2026-03-30","day":30,"M":66,"F":415,"TTL":481,"headcount":481,"join":0,"resign":0,"AL":14,"PL":6,"SL":0,"NP":1,"absent":21,"present":460,"rate":95.6},{"date":"2026-03-31","day":31,"M":66,"F":415,"TTL":481,"headcount":480,"join":0,"resign":1,"AL":9,"PL":7,"SL":1,"NP":0,"absent":17,"present":463,"rate":96.5}];
 
-function dataCount(key) {
-  const c={att:D.att.employees?.length||0,con:D.con.length,ob:D.ob.records?.length||0,mat:D.mat.length,cal:D.cal.length};
-  return c[key]||0;
-}
-
-function computeContractStatus(c) {
-  const today=new Date();today.setHours(0,0,0,0);
-  const probEnd=c.probEndDate?new Date(c.probEndDate):null;
-  const contEnd=c.endDate?new Date(c.endDate):null;
-  if(c.status==='terminated')return 'terminated';
-  if(probEnd&&probEnd>=today){const d=Math.ceil((probEnd-today)/86400000);if(d<=14)return 'expiring';return 'probation';}
-  if(!contEnd)return 'active';
-  const d=Math.ceil((contEnd-today)/86400000);
-  if(d<0)return 'expired';if(d<=30)return 'expiring';return 'active';
-}
-
-function daysUntil(dateStr) {
-  if(!dateStr)return null;
-  const d=new Date(dateStr);d.setHours(0,0,0,0);const t=new Date();t.setHours(0,0,0,0);
-  return Math.ceil((d-t)/86400000);
-}
-
-// ── Navigation ──
-function goTab(id, el) {
-  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('on'));
-  document.getElementById('tab-'+id).classList.add('on');
-  if(el)el.classList.add('on');
-  readAllData();
-  if(id==='overview')   renderOverview();
-  if(id==='attendance') renderAttendance();
-  if(id==='contract')   renderContract();
-  if(id==='onboarding') renderOnboarding();
-  if(id==='maternity')  renderMaternity();
-  if(id==='reports')    updatePreview();
-  if(id==='settings')   HRA.Settings.renderForm('settings-form-container');
-}
-
-function refreshAll() {
-  readAllData();
-  const active=document.querySelector('.tab-page.on')?.id?.replace('tab-','');
-  if(active)goTab(active,null);
-  HRA.UI.toast('🔄 資料已刷新','info');
-  HRA.UI.syncStatus('synced',new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',hour:'2-digit',minute:'2-digit'}));
-}
-
-function kpi(label,val,sub,cls){return`<div class="kpi${cls?' '+cls:''}"><div class="kpi-val">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;}
-
-// ── OVERVIEW ──
-function renderOverview() {
-  const contracts=D.con.map(c=>({...c,_s:computeContractStatus(c)}));
-  const activeStaff=contracts.filter(c=>c._s!=='terminated').length;
-  const expiringC=contracts.filter(c=>c._s==='expiring').length;
-  const probation=contracts.filter(c=>c._s==='probation').length;
-  const obRecords=D.ob.records||[];
-  const pendingOb=obRecords.filter(r=>r.reviewStatus==='pending').length;
-  const mo=new Date().toISOString().slice(0,7);
-  const moJoins=obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
-  const moResigns=obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
-  const matActive=(D.mat||[]).filter(m=>m.status==='maternity').length;
-
-  document.getElementById('overview-kpi').innerHTML=[
-    kpi('在職人數',activeStaff,'','good'),
-    kpi('合約到期',expiringC,'30天內',expiringC>0?'warn':''),
-    kpi('試用期中',probation,'','info'),
-    kpi('待審核申請',pendingOb,'',pendingOb>0?'warn':''),
-    kpi('本月入職',moJoins,mo,'good'),
-    kpi('本月離職',moResigns,mo,moResigns>0?'bad':''),
-    kpi('產假中',matActive,'','info'),
-  ].join('');
-
-  // Action items
-  const items=[];
-  if(expiringC>0)items.push(`⚠️ ${expiringC} 份合約將在 30 天內到期，請確認續簽或終止`);
-  if(pendingOb>0)items.push(`⏳ ${pendingOb} 筆入離職申請待 HRA 審核`);
-  const expired=contracts.filter(c=>c._s==='expired').length;
-  if(expired>0)items.push(`❌ ${expired} 份合約已過期，請更新狀態`);
-  if(matActive>0){
-    const returning=(D.mat||[]).filter(m=>{const d=daysUntil(m.returnDate);return m.status==='maternity'&&d!==null&&d>=0&&d<=14;});
-    if(returning.length)items.push(`🤱 ${returning.length} 位員工產假將在 14 天內結束`);
+// ══ I18N ══
+const T = {
+  zh:{
+    'htit':'HR Dashboard · Mar 2026',
+    't-emp':'員工資料','t-att':'每日考勤','t-cmp':'異常分析','t-hist':'歷史記錄',
+    'uz-h3':'拖入 / 點選 VRT Employee Information Excel (.xlsx)',
+    'uz-p':'自動解析 Employee information 工作表',
+    's-overview':'👥 全廠概況','lbl-dept':'部門人數','lbl-gender':'男女分佈',
+    'lbl-age':'年齡分佈','lbl-edu':'學歷分佈','lbl-sen':'工齡分佈',
+    'lbl-ori':'本地/外來','lbl-pob':'省份來源 Top 8',
+    's-att-kpi':'📊 Mar 2026 考勤概況','lbl-trend':'每日出勤 / 應到人數趨勢',
+    'lbl-rate':'每日出勤率 %','lbl-absent-type':'缺勤類型分佈',
+    'lbl-jr':'每日入職/離職','lbl-abs-daily':'每日缺勤明細',
+    'lbl-att-tbl':'每日考勤記錄',
+    's-anom':'🚨 異常偵測','s-weekly':'📊 週別分析','lbl-weekly':'週別平均出勤率對比',
+    'lbl-al-trend':'年假趨勢（AL）','lbl-headcount-trend':'在職人數趨勢',
+    's-summary':'📋 月度考勤摘要','lbl-summary-tbl':'考勤統計摘要','lbl-top-absent':'最高缺勤日',
+    's-hist':'📊 跨月比對','tb-save':'儲存本月','tb-clear':'清除記錄',
+    'lbl-hist-trend':'歷史出勤率趨勢','lbl-hist-hc':'歷史在職人數','lbl-hist-tbl':'月度記錄表',
+    'no-hist-txt':'點擊「儲存本月」建立記錄',
+    'Total':'合計','kl-total':'全廠員工','kl-f':'女性','kl-m':'男性','kl-local':'本地',
+    'kl-avgrate':'月均出勤率','kl-avgabsent':'日均缺勤','kl-totalJoin':'月入職',
+    'kl-totalResign':'月離職','kl-avgHC':'月均人數',
+    DEPT_LABELS:['車縫/Sew','包裝/Pack','裁剪/Cut','倉庫/WH','QC','其它'],
+    AGE_LABELS:['<20歲','20-29','30-39','40-49','50+'],
+    EDU_LABELS:['大學/專科','高中(職)','國中','國中以下','未填'],
+    SEN_LABELS:['<1年','1-2年','2-3年','3-4年','4-5年','5-6年','>6年'],
+    ORI_LABELS:['外來','本地'],
+    ABS_LABELS:['年假AL','事假PL','病假SL','曠工NP'],
+  },
+  en:{
+    'htit':'HR Dashboard · Mar 2026',
+    't-emp':'Employees','t-att':'Daily Attendance','t-cmp':'Analysis','t-hist':'History',
+    'uz-h3':'Drop / Click to Load Employee Information Excel (.xlsx)',
+    'uz-p':'Auto-parse Employee information sheet',
+    's-overview':'👥 Overview','lbl-dept':'Dept Headcount','lbl-gender':'Gender',
+    'lbl-age':'Age Distribution','lbl-edu':'Education','lbl-sen':'Seniority',
+    'lbl-ori':'Local/External','lbl-pob':'Origin Province Top 8',
+    's-att-kpi':'📊 Mar 2026 Attendance Overview','lbl-trend':'Daily Present / Should Work Trend',
+    'lbl-rate':'Daily Attendance Rate %','lbl-absent-type':'Absence Type Distribution',
+    'lbl-jr':'Daily Join/Resign','lbl-abs-daily':'Daily Absence Breakdown',
+    'lbl-att-tbl':'Daily Attendance Records',
+    's-anom':'🚨 Anomaly Detection','s-weekly':'📊 Weekly Analysis','lbl-weekly':'Weekly Avg Attendance Rate',
+    'lbl-al-trend':'Annual Leave Trend (AL)','lbl-headcount-trend':'Headcount Trend',
+    's-summary':'📋 Monthly Summary','lbl-summary-tbl':'Attendance Summary','lbl-top-absent':'Highest Absence Days',
+    's-hist':'📊 Cross-Month Comparison','tb-save':'Save Month','tb-clear':'Clear Records',
+    'lbl-hist-trend':'Historical Attendance Rate','lbl-hist-hc':'Historical Headcount','lbl-hist-tbl':'Monthly Records',
+    'no-hist-txt':'Click "Save Month" to create a record',
+    'Total':'Total','kl-total':'Total Staff','kl-f':'Female','kl-m':'Male','kl-local':'Local',
+    'kl-avgrate':'Avg Rate','kl-avgabsent':'Avg Absent','kl-totalJoin':'Join','kl-totalResign':'Resign','kl-avgHC':'Avg HC',
+    DEPT_LABELS:['Sewing','Packing','Cutting','Warehouse','QC','Others'],
+    AGE_LABELS:['<20yrs','20-29','30-39','40-49','50+'],
+    EDU_LABELS:['University','High School','Jr High','Below JH','N/A'],
+    SEN_LABELS:['<1yr','1-2yr','2-3yr','3-4yr','4-5yr','5-6yr','>6yr'],
+    ORI_LABELS:['External','Local'],
+    ABS_LABELS:['Annual AL','Personal PL','Sick SL','No-pay NP'],
+  },
+  kh:{
+    'htit':'ផ្ទាំងគ្រប់គ្រង · Mar 2026',
+    't-emp':'បុគ្គលិក','t-att':'វត្តមានប្រចាំថ្ងៃ','t-cmp':'វិភាគ','t-hist':'ប្រវត្តិ',
+    'uz-h3':'ទម្លាក់/ចុចដើម្បីផ្ទុក Excel',
+    'uz-p':'ដំណើរការស្វ័យប្រវត្តិ',
+    's-overview':'👥 ទិដ្ឋភាពទូទៅ','lbl-dept':'ចំនួននៅតាមនាយកដ្ឋាន','lbl-gender':'ភេទ',
+    'lbl-age':'ការបែងចែកតាមអាយុ','lbl-edu':'ការអប់រំ','lbl-sen':'អាយុការងារ',
+    'lbl-ori':'មូលដ្ឋាន/ខាងក្រៅ','lbl-pob':'ខេត្តកំណើត',
+    's-att-kpi':'📊 វត្តមាន Mar 2026','lbl-trend':'វត្តមានប្រចាំថ្ងៃ',
+    'lbl-rate':'អត្រាវត្តមាន %','lbl-absent-type':'ប្រភេទអវត្តមាន',
+    'lbl-jr':'ចូល/ចេញប្រចាំថ្ងៃ','lbl-abs-daily':'អវត្តមានប្រចាំថ្ងៃ',
+    'lbl-att-tbl':'កំណត់ត្រាវត្តមានប្រចាំថ្ងៃ',
+    's-anom':'🚨 ការរកឃើញភាពមិនប្រក្រតី','s-weekly':'📊 ការវិភាគប្រចាំសប្តាហ៍',
+    'lbl-weekly':'អត្រាវត្តមានប្រចាំសប្តាហ៍','lbl-al-trend':'ការឈប់សម្រាក','lbl-headcount-trend':'ចំនួនបុគ្គលិក',
+    's-summary':'📋 សង្ខេបប្រចាំខែ','lbl-summary-tbl':'សង្ខេបវត្តមាន','lbl-top-absent':'ថ្ងៃអវត្តមានខ្ពស់',
+    's-hist':'📊 ប្រៀបធៀបរវាងខែ','tb-save':'រក្សាទុក','tb-clear':'លុប',
+    'lbl-hist-trend':'អត្រាវត្តមានប្រវត្តិ','lbl-hist-hc':'ចំនួនបុគ្គលិក','lbl-hist-tbl':'កំណត់ត្រាប្រចាំខែ',
+    'no-hist-txt':'ចុច "រក្សាទុក" ដើម្បីបង្កើតកំណត់ត្រា',
+    'Total':'សរុប','kl-total':'បុគ្គលិកសរុប','kl-f':'ស្ត្រី','kl-m':'ប្រុស','kl-local':'មូលដ្ឋាន',
+    'kl-avgrate':'អត្រាបញ្ចូល','kl-avgabsent':'អវត្តមានជា','kl-totalJoin':'ចូល','kl-totalResign':'ចេញ','kl-avgHC':'ចំនួនជា',
+    DEPT_LABELS:['ដេរ','ខ្ចប់','កាត់','ឃ្លាំង','QC','ផ្សេងៗ'],
+    AGE_LABELS:['<20','20-29','30-39','40-49','50+'],
+    EDU_LABELS:['សាកល','វិទ្យាល័យ','អន','ក្រោម','មិនបំពេញ'],
+    SEN_LABELS:['<1ឆ','1-2','2-3','3-4','4-5','5-6','>6ឆ'],
+    ORI_LABELS:['ខាងក្រៅ','មូលដ្ឋាន'],
+    ABS_LABELS:['AL','PL','SL','NP'],
   }
+};
 
-  document.getElementById('action-items').innerHTML=items.length===0
-    ?'<div class="alert alert-ok">✅ 目前無需立即處理的事項</div>'
-    :items.map(i=>`<div class="alert alert-warn">${i}</div>`).join('');
+let LANG='zh';
+const CH={};
+let EMP=null;
+const PAL=['#2563eb','#d4841a','#1e7040','#b83232','#6d28d9','#1a7a7a','#f97316','#3b82f6','#28a060','#e05040','#8b5cf6','#28a0a0','#fbbf24','#c2410c'];
+const PAL_A=PAL.map(c=>c+'cc');
 
-  // Monthly overview
-  document.getElementById('monthly-overview').innerHTML=`
-    <div style="font-size:12px;line-height:2.2">
-      📅 統計月份：<b>${mo}</b><br>
-      🟢 本月入職：<b>${moJoins}</b><br>
-      🔴 本月離職：<b>${moResigns}</b><br>
-      📊 淨變動：<b>${moJoins-moResigns>=0?'+':''}${moJoins-moResigns}</b><br>
-      📋 在職合約：<b>${activeStaff}</b><br>
-      🤱 產假中：<b>${matActive}</b>
-    </div>`;
+function t(k){return (T[LANG]||T.zh)[k]||(T.zh)[k]||k}
+function tA(k){return (T[LANG]||T.zh)[k]||(T.zh)[k]||[]}
+const nv=v=>{const n=parseFloat(String(v||'').replace(/[,$]/g,''));return isNaN(n)?0:n};
+const sv=v=>String(v==null?'':v).trim();
+const pct=(a,b)=>b>0?((a/b)*100).toFixed(1)+'%':'—';
+const avg=arr=>arr.length?arr.reduce((s,v)=>s+v,0)/arr.length:0;
 
-  // Contract status chart
-  const act=contracts.filter(c=>c._s==='active').length;
-  const prob=contracts.filter(c=>c._s==='probation').length;
-  const exp=contracts.filter(c=>c._s==='expiring').length;
-  const xpd=contracts.filter(c=>c._s==='expired').length;
-  const ter=contracts.filter(c=>c._s==='terminated').length;
-  HRA.Charts.make('ch-contract-status',{type:'doughnut',data:{labels:['在職','試用','到期','已期','離職'],datasets:[{data:[act,prob,exp,xpd,ter],backgroundColor:['#10b981','#3b82f6','#f59e0b','#ef4444','#9ca3af'],borderWidth:2,borderColor:'#fff'}]},options:{...HRA.Charts.doughnutOpts()}});
-
-  // OB trend
-  const months=[];for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7));}
-  HRA.Charts.make('ch-ob-trend',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
-    {label:'入職',data:months.map(m=>obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#10b981',borderRadius:3},
-    {label:'離職',data:months.map(m=>obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#ef4444',borderRadius:3}
-  ]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,stacked:false}}}});
-
-  // Module status
-  const mods=[
-    {name:'出勤系統',key:'att',file:'ac_hra_attendance_v1.html',count:dataCount('att'),icon:'🕐'},
-    {name:'合約管理',key:'con',file:'ac_hra_contract_v2.html',count:dataCount('con'),icon:'📋'},
-    {name:'入離職',key:'ob',file:'ac_hra_onboarding_v2.html',count:dataCount('ob'),icon:'🚪'},
-    {name:'產假追蹤',key:'mat',file:'ac_hra_maternity_v1.html',count:dataCount('mat'),icon:'🤱'},
-    {name:'行事曆',key:'cal',file:'ac_hra_calendar_v2.html',count:dataCount('cal'),icon:'📅'},
-  ];
-  const snap=k=>HRA.Cloud.getSnap(k);
-  document.getElementById('module-status-list').innerHTML=mods.map(m=>`<div class="module-status-row">
-    <div class="mod-dot ${m.count>0?'ok':'empty'}"></div>
-    <span style="flex:1">${m.icon} ${m.name}</span>
-    <span class="badge badge-muted" style="margin-right:8px">${m.count} 筆</span>
-    ${snap(m.key)?`<span style="font-size:10px;color:var(--c-muted)">雲端：${(snap(m.key)?.timestamp||'').slice(0,10)}</span>`:
-    '<span style="font-size:10px;color:var(--c-muted)">未雲端同步</span>'}
-    <a class="btn btn-ghost btn-sm" href="./${m.file}" target="_blank" style="margin-left:8px">開啟</a>
-  </div>`).join('');
-
-  // Sidebar data status
-  document.getElementById('sb-data-status').innerHTML=mods.map(m=>`<div class="sb-gas-row">
-    <div class="sb-gas-dot ${m.count>0?'ok':''}"></div>
-    <span class="sb-gas-lbl">${m.icon} ${m.name}: ${m.count}</span>
-  </div>`).join('');
+// ══ LANGUAGE ══
+function setLang(l){
+  LANG=l;
+  document.querySelectorAll('.lb').forEach(b=>{b.classList.toggle('on',
+    (b.textContent==='中文'&&l==='zh')||(b.textContent==='EN'&&l==='en')||(b.textContent==='ខ្មែរ'&&l==='kh'));
+    b.style.fontFamily=l==='kh'?'var(--kh)':'';
+  });
+  Object.keys(T.zh).forEach(k=>{
+    if(typeof T.zh[k]==='string'){const el=document.getElementById(k);if(el)el.textContent=t(k);}
+  });
+  renderAll();
 }
 
-// ── ATTENDANCE ──
-function renderAttendance() {
-  const emps=D.att.employees||[];
-  const summaries=D.att.monthSummaries||[];
-  if(!emps.length&&!summaries.length){
-    document.getElementById('att-warning').style.display='';
-    document.getElementById('att-warning').textContent='ℹ️ 尚無出勤資料。請先在出勤系統匯入資料，然後返回此頁刷新。';
-    document.getElementById('att-kpi').innerHTML=kpi('員工','0','','');
-    HRA.Charts.destroy('ch-att-dept');HRA.Charts.destroy('ch-att-trend');
-    document.getElementById('att-anomalies').innerHTML='<div class="empty"><p>尚無資料</p></div>';
-    return;
+// ══ TABS ══
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===id));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+id));
+  if(id==='hist')renderHistory();
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
+
+// ══ FILE HANDLING ══
+function hdrop(e){e.preventDefault();document.getElementById('uz').classList.remove('drag');hfile(e.dataTransfer.files[0]);}
+function hfile(file){
+  if(!file)return;
+  const uz=document.getElementById('uz');uz.classList.add('loaded');
+  document.getElementById('fst').textContent='⏳ '+file.name;
+  const r=new FileReader();
+  r.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array',cellDates:true});
+      const ws=wb.Sheets['Employee information'];
+      if(!ws)throw new Error('找不到 Employee information 工作表');
+      EMP=parseEmp(ws);
+      document.getElementById('fst').textContent='✅ '+file.name+' · '+EMP.total+'人';
+      document.getElementById('uz-h3').textContent='✅ '+file.name;
+      renderEmp();
+    }catch(ex){document.getElementById('fst').textContent='❌ '+ex.message;console.error(ex);}
+  };
+  r.readAsArrayBuffer(file);
+}
+
+// ══ EMPLOYEE PARSER ══
+function parseEmp(ws){
+  const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:false});
+  const REF=new Date(2026,2,1);
+  const emps=[];
+  for(let ri=2;ri<rows.length;ri++){
+    const row=rows[ri];if(!row)continue;
+    if(row[0]===null||row[0]===undefined||isNaN(Number(row[0])))continue;
+    const g=sv(row[10]).toUpperCase();if(g!=='M'&&g!=='F')continue;
+    let jd=null;const jv=row[14];
+    if(jv instanceof Date)jd=jv;else if(typeof jv==='string'&&jv.includes('-'))jd=new Date(jv);
+    emps.push({g,age:nv(row[12]),jd,dept:sv(row[15]),sec:sv(row[16]),pos:sv(row[17]),pob:sv(row[18]),edu:row[21]});
   }
-
-  const totalEmp=emps.length;
-  const avgAbsence=emps.reduce((a,e)=>{const v=parseFloat(e.absenceDays)||0;return a+v;},0)/Math.max(totalEmp,1);
-  const anomalies=emps.filter(e=>(parseFloat(e.absenceDays)||0)>=3);
-  document.getElementById('att-kpi').innerHTML=[
-    kpi('員工總數',totalEmp,'',''),
-    kpi('平均缺勤天數',avgAbsence.toFixed(1),'天',''),
-    kpi('缺勤≥3天',anomalies.length,'需關注',anomalies.length>0?'warn':'good'),
-    kpi('月份摘要',summaries.length,'個月','info'),
-  ].join('');
-  document.getElementById('att-warning').style.display='none';
-
-  // Dept attendance
-  const deptAbs={};
-  emps.forEach(e=>{if(!deptAbs[e.dept])deptAbs[e.dept]={total:0,abs:0};deptAbs[e.dept].total++;deptAbs[e.dept].abs+=parseFloat(e.absenceDays)||0;});
-  const deptEntries=Object.entries(deptAbs).sort((a,b)=>b[1].abs-a[1].abs).slice(0,8);
-  HRA.Charts.make('ch-att-dept',{type:'bar',data:{labels:deptEntries.map(e=>e[0]),datasets:[{label:'平均缺勤天數',data:deptEntries.map(e=>(e[1].abs/e[1].total).toFixed(1)),backgroundColor:'#f59e0b',borderRadius:4}]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
-
-  // Monthly trend from summaries
-  const sorted=[...summaries].sort((a,b)=>a.month?.localeCompare(b.month)||0).slice(-6);
-  HRA.Charts.make('ch-att-trend',{type:'line',data:{labels:sorted.map(s=>s.month?.slice(5)||s.month||''),datasets:[{label:'出勤人數',data:sorted.map(s=>s.presentCount||s.totalPresent||0),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true,pointRadius:3}]},options:{...HRA.Charts.lineOpts('人',0),plugins:{legend:{labels:{font:{size:10}}}}}});
-
-  // Anomalies
-  document.getElementById('att-anomalies').innerHTML=anomalies.length===0
-    ?'<div class="alert alert-ok">✅ 無缺勤異常員工</div>'
-    :`<div class="tbl-wrap" style="max-height:200px"><table><thead><tr><th>姓名</th><th>部門</th><th>缺勤天數</th></tr></thead><tbody>
-      ${anomalies.sort((a,b)=>(parseFloat(b.absenceDays)||0)-(parseFloat(a.absenceDays)||0)).slice(0,20).map(e=>`<tr>
-        <td>${e.name||e.nameEn||e.nameKm||'—'}</td>
-        <td>${e.dept||'—'}</td>
-        <td><b style="color:#dc2626">${e.absenceDays||0} 天</b></td>
-      </tr>`).join('')}
-      </tbody></table></div>`;
-}
-
-// ── CONTRACT ──
-function renderContract() {
-  const all=D.con.map(c=>({...c,_s:computeContractStatus(c)}));
-  if(!all.length){
-    document.getElementById('con-kpi').innerHTML=kpi('合約','0','','');
-    document.getElementById('con-expiring').innerHTML='<div class="empty"><p>尚無合約資料</p></div>';
-    return;
+  const total=emps.length;
+  const gM=emps.filter(e=>e.g==='M').length,gF=total-gM;
+  const ageBkts=[['<20',a=>a>0&&a<20],['20~29',a=>a>=20&&a<30],['30~39',a=>a>=30&&a<40],['40~49',a=>a>=40&&a<50],['50+',a=>a>=50]];
+  const ageD=ageBkts.map(([l,fn])=>({l,v:emps.filter(e=>fn(e.age)).length}));
+  const eduC={'大學/專科':0,'高中(職)':0,'國中':0,'國中以下':0,'未填':0};
+  emps.forEach(e=>{
+    const ed=e.edu;
+    if(ed===null||ed===undefined||sv(ed).toLowerCase()==='no')return eduC['未填']++;
+    if(typeof ed==='number'||(typeof ed==='string'&&!isNaN(ed))){
+      const n=parseInt(ed);if(n===0)return eduC['未填']++;
+      if(n>=12)return eduC['高中(職)']++;if(n>=7)return eduC['國中']++;return eduC['國中以下']++;
+    }
+    if(/bachelor|university|doctor|bbu|ume|college/i.test(sv(ed))||/បរិញ្ញ|មហាវ/.test(sv(ed)))return eduC['大學/專科']++;
+    eduC['未填']++;
+  });
+  const DEPTS=['Sew','Pack','Cut','WH','QC','Oth'];
+  const mapDept=e=>{
+    const s=e.sec.toLowerCase().replace(/\s+/g,''),p=e.pos.toLowerCase();
+    if(/^line\d+$|^supervisor$|^sample$/.test(s)||/sewing|operator/i.test(p))return 'Sew';
+    if(/pack|finish/.test(s))return 'Pack';
+    if(/cut/.test(s))return 'Cut';
+    if(/^wh|warehouse|fabric|trims/.test(s))return 'WH';
+    if(/^qc/.test(s)||/^qc/.test(p))return 'QC';
+    return 'Oth';
+  };
+  const deptC={};DEPTS.forEach(d=>deptC[d]=0);
+  emps.forEach(e=>deptC[mapDept(e)]++);
+  const isLocal=pob=>/ព្រះសីហនុ|sihanouk/i.test(pob);
+  const localTotal=emps.filter(e=>isLocal(e.pob)).length;
+  const pobDist={};emps.forEach(e=>{const p=e.pob;if(p)pobDist[p]=(pobDist[p]||0)+1;});
+  const pobTop=Object.entries(pobDist).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  function senBkt(jd){
+    if(!jd)return null;
+    const mo=(REF-jd)/(1000*60*60*24*30.44);
+    if(mo<12)return '<1yr';if(mo<24)return '1-2yr';if(mo<36)return '2-3yr';
+    if(mo<48)return '3-4yr';if(mo<60)return '4-5yr';if(mo<72)return '5-6yr';return '>6yr';
   }
-  const act=all.filter(c=>c._s==='active').length;
-  const prob=all.filter(c=>c._s==='probation').length;
-  const exp=all.filter(c=>c._s==='expiring').length;
-  const xpd=all.filter(c=>c._s==='expired').length;
-  const ter=all.filter(c=>c._s==='terminated').length;
-  document.getElementById('con-kpi').innerHTML=[
-    kpi('在職',act,'','good'),kpi('試用期',prob,'','info'),kpi('到期預警',exp,'','exp>0?warn:'),
-    kpi('已過期',xpd,'',xpd>0?'bad':''),kpi('離職',ter,'',''),
-  ].join('');
-
-  const types={};all.forEach(c=>{types[c.contractType]=(types[c.contractType]||0)+1;});
-  const typeMap={fixed_term:'定期',permanent:'無限期',probation:'試用',expat:'外籍'};
-  HRA.Charts.make('ch-con-type',{type:'doughnut',data:{labels:Object.keys(types).map(k=>typeMap[k]||k),datasets:[{data:Object.values(types),backgroundColor:['#10b981','#3b82f6','#f59e0b','#8b5cf6'],borderWidth:2,borderColor:'#fff'}]},options:{...HRA.Charts.doughnutOpts()}});
-
-  const depts={};all.filter(c=>c._s!=='terminated').forEach(c=>{depts[c.dept]=(depts[c.dept]||0)+1;});
-  const de=Object.entries(depts).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  HRA.Charts.make('ch-con-dept',{type:'bar',data:{labels:de.map(e=>e[0]),datasets:[{label:'人數',data:de.map(e=>e[1]),backgroundColor:'#1a6e5c',borderRadius:4}]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
-
-  const expList=all.filter(c=>{const d=daysUntil(c.endDate);return d!==null&&d>=0&&d<=30&&c._s!=='terminated';}).sort((a,b)=>new Date(a.endDate)-new Date(b.endDate));
-  document.getElementById('con-expiring').innerHTML=expList.length===0
-    ?'<div class="alert alert-ok">✅ 30天內無合約到期</div>'
-    :`<div class="tbl-wrap" style="max-height:200px"><table><thead><tr><th>姓名</th><th>部門</th><th>合約到期</th><th>剩餘天數</th></tr></thead><tbody>
-      ${expList.map(c=>{const d=daysUntil(c.endDate);return`<tr>
-        <td><b>${c.name}</b></td><td>${c.dept}</td>
-        <td class="td-mono">${c.endDate}</td>
-        <td><b style="color:${d<=7?'#dc2626':d<=14?'#d97706':'#92400e'}">${d} 天</b></td>
-      </tr>`;}).join('')}
-      </tbody></table></div>`;
+  const senLbls=['<1yr','1-2yr','2-3yr','3-4yr','4-5yr','5-6yr','>6yr'];
+  const senC={};senLbls.forEach(l=>senC[l]=0);
+  emps.forEach(e=>{const b=senBkt(e.jd);if(b)senC[b]++;});
+  const senD=senLbls.map(l=>({l,v:senC[l]}));
+  return{total,gM,gF,ageD,eduC,deptC,DEPTS,localTotal,extTotal:total-localTotal,pobTop,senD};
 }
 
-// ── ONBOARDING ──
-function renderOnboarding() {
-  const records=D.ob.records||[];
-  const tot=records.length;
-  const joins=records.filter(r=>r.type==='join').length;
-  const resigns=records.filter(r=>r.type==='resign').length;
-  const pending=records.filter(r=>r.reviewStatus==='pending').length;
-  const mo=new Date().toISOString().slice(0,7);
-
-  document.getElementById('ob-kpi').innerHTML=[
-    kpi('總申請',tot,'',''),kpi('入職',joins,'','good'),kpi('離職',resigns,'',resigns>0?'bad':''),
-    kpi('待審核',pending,'',pending>0?'warn':''),
-    kpi('本月入職',records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length,mo,''),
-    kpi('本月離職',records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length,mo,''),
-  ].join('');
-
-  const months=[];for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7));}
-  HRA.Charts.make('ch-ob-trend2',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
-    {label:'入職',data:months.map(m=>records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#10b981',borderRadius:3},
-    {label:'離職',data:months.map(m=>records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#ef4444',borderRadius:3}
-  ]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true}}}});
-
-  const reasons={};
-  records.filter(r=>r.type==='resign').forEach(r=>{const k=r.resignReason||'other';reasons[k]=(reasons[k]||0)+1;});
-  const rMap={personal:'個人',contract_end:'合約到期',family:'家庭',salary:'薪資',health:'健康',transfer:'調職',termination:'解雇',other:'其他'};
-  HRA.Charts.make('ch-ob-reason',{type:'doughnut',data:{labels:Object.keys(reasons).map(k=>rMap[k]||k),datasets:[{data:Object.values(reasons),backgroundColor:['#ef4444','#f59e0b','#3b82f6','#10b981','#8b5cf6','#ec4899','#6b7280','#14b8a6'],borderWidth:2,borderColor:'#fff'}]},options:{...HRA.Charts.doughnutOpts()}});
-
-  const pendList=records.filter(r=>r.reviewStatus==='pending').slice(0,8);
-  document.getElementById('ob-pending').innerHTML=pendList.length===0
-    ?'<div class="alert alert-ok">✅ 無待審核申請</div>'
-    :pendList.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--c-border2);font-size:12px">
-        <span>${r.type==='join'?'🟢':'🔴'} <b>${r.name}</b> · ${r.dept}</span>
-        <span style="font-size:11px;color:var(--c-muted)">${r.effectDate||r.applyDate}</span>
-      </div>`).join('');
+// ══ CHART HELPER ══
+function mkC(id,type,data,opts={}){
+  if(CH[id])CH[id].destroy();
+  const el=document.getElementById(id);if(!el)return;
+  const isRound=type==='pie'||type==='doughnut';
+  CH[id]=new Chart(el,{type,data,options:{
+    responsive:true,maintainAspectRatio:true,
+    plugins:{
+      legend:{position:isRound?'bottom':'top',labels:{color:'#445068',font:{size:10},padding:8,boxWidth:11,boxHeight:8},...(opts.legend||{})},
+      datalabels:opts.datalabels!==false?{
+        display:isRound?ctx=>ctx.dataset.data[ctx.dataIndex]/ctx.dataset.data.reduce((s,v)=>s+v,0)>0.04:false,
+        formatter:(v,ctx)=>{if(!isRound)return null;const sum=ctx.dataset.data.reduce((s,x)=>s+x,0);return v+'\n'+(v/sum*100).toFixed(1)+'%';},
+        color:'#fff',font:{size:9,weight:'bold'},textAlign:'center',anchor:'center',align:'center',
+      }:{display:false},
+      tooltip:{backgroundColor:'#1e3a5f',titleColor:'#fff',bodyColor:'#ffffffcc',padding:8,cornerRadius:6,...(opts.tooltip||{})},
+      ...(opts.plugins||{})
+    },
+    scales:isRound?undefined:{
+      x:{ticks:{color:'#8595b0',font:{size:9}},grid:{color:'#e8ecf2',lineWidth:.8},...(opts.sx||{})},
+      y:{ticks:{color:'#8595b0',font:{size:9}},grid:{color:'#e8ecf2',lineWidth:.8},...(opts.sy||{})},
+      ...(opts.scales||{})
+    },...(opts.extra||{})
+  }});
 }
 
-// ── MATERNITY ──
-function renderMaternity() {
-  const mat=D.mat||[];
-  const active=mat.filter(m=>m.status==='maternity');
-  const returning=active.filter(m=>{const d=daysUntil(m.returnDate);return d!==null&&d>=0&&d<=14;});
-  const completed=mat.filter(m=>m.status==='completed');
-  document.getElementById('mat-kpi').innerHTML=[
-    kpi('產假中',active.length,'','info'),
-    kpi('14天內返回',returning.length,'',returning.length>0?'warn':'good'),
-    kpi('已完成',completed.length,'',''),
-    kpi('總記錄',mat.length,'',''),
-  ].join('');
-
-  if(!mat.length){
-    document.getElementById('mat-warning').style.display='';
-    document.getElementById('mat-warning').textContent='ℹ️ 尚無產假資料，請在產假追蹤系統新增資料。';
-  } else { document.getElementById('mat-warning').style.display='none'; }
-
-  document.getElementById('mat-active-list').innerHTML=active.length===0
-    ?'<div class="empty"><p>目前無員工產假中</p></div>'
-    :active.map(m=>{const d=daysUntil(m.returnDate);return`<div style="border:1px solid var(--c-border);border-left:4px solid #ec4899;border-radius:8px;padding:12px;margin-bottom:8px">
-        <b>${m.name||m.nameKm||'—'}</b> · ${m.dept||'—'}<br>
-        <span style="font-size:11px;color:var(--c-muted)">產假開始：${m.startDate||'—'} · 返回：${m.returnDate||'—'}</span>
-        ${d!==null?`<br><span style="font-size:12px;color:${d<=7?'#dc2626':d<=14?'#d97706':'var(--c-muted)'}">距返回：${d<=0?'已過期':d+'天'}</span>`:''}
-      </div>`;}).join('');
-
-  document.getElementById('mat-returning').innerHTML=returning.length===0
-    ?'<div class="alert alert-ok">✅ 14天內無產假員工返回</div>'
-    :returning.map(m=>`<div class="alert alert-warn">⚠️ <b>${m.name||m.nameKm}</b> · ${m.dept} — 返回日：${m.returnDate} (${daysUntil(m.returnDate)}天後)</div>`).join('');
+function spTable(tbId,rows,total){
+  const tbl=document.getElementById(tbId);if(!tbl)return;
+  tbl.innerHTML=rows.map((r,i)=>{
+    const p=total>0?(r.v/total*100):0;
+    return`<tr><td>${r.l}</td><td>${r.v}</td><td>${p.toFixed(1)}%<div class="bm"><div class="bmf" style="width:${p.toFixed(1)}%;background:${PAL[i%PAL.length]}"></div></div></td></tr>`;
+  }).join('')+`<tr><td>${t('Total')}</td><td><b>${total}</b></td><td>100%</td></tr>`;
 }
 
-// ── REPORTS ──
-function updatePreview(){document.getElementById('tg-preview').textContent=buildReport(document.getElementById('report-type')?.value||'daily');}
+// ══ RENDER EMPLOYEE ══
+function renderEmp(){
+  if(!EMP)return;
+  const E=EMP,tot=E.total;
+  const dL=tA('DEPT_LABELS');
+  document.getElementById('nb-dept').textContent=tot;
+  document.getElementById('nb-gender').textContent=tot;
+  document.getElementById('nb-age').textContent=tot;
+  document.getElementById('nb-edu').textContent=tot;
+  document.getElementById('nb-sen').textContent=tot;
+  document.getElementById('nb-ori').textContent=tot;
+  document.getElementById('nb-pob').textContent=tot;
 
-function buildReport(type){
-  const SEP='─'.repeat(26);
-  const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const mo=new Date().toISOString().slice(0,7);
-  const contracts=D.con.map(c=>({...c,_s:computeContractStatus(c)}));
-  const obRecords=D.ob.records||[];
-  const activeStaff=contracts.filter(c=>c._s!=='terminated').length;
-  const expiring=contracts.filter(c=>c._s==='expiring').length;
-  const pending=obRecords.filter(r=>r.reviewStatus==='pending').length;
-  const matActive=(D.mat||[]).filter(m=>m.status==='maternity').length;
-  const moJoins=obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
-  const moResigns=obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
+  // KPIs
+  document.getElementById('kpi-emp').innerHTML=[
+    {l:'kl-total',v:tot.toLocaleString(),s:'Mar 2026',c:'nv',b:100},
+    {l:'kl-f',v:E.gF,s:pct(E.gF,tot),c:'gd',b:E.gF/tot*100},
+    {l:'kl-m',v:E.gM,s:pct(E.gM,tot),c:'tl',b:E.gM/tot*100},
+    {l:'kl-local',v:E.localTotal,s:pct(E.localTotal,tot)+' local',c:'gn',b:E.localTotal/tot*100},
+    {l:'kl-avgHC',v:tot,s:'on record',c:'nv',b:100},
+  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${t(k.l)}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div><div class="kbar"><div class="kbf" style="width:${k.b.toFixed(1)}%;background:var(--${k.c==='nv'?'navy':k.c==='gd'?'gold':k.c==='tl'?'teal':k.c==='gn'?'green':'red'})"></div></div></div>`).join('');
 
-  if(type==='daily'||type==='weekly'){
-    return `【AC HRA ${type==='daily'?'每日摘要':'週報'} / ${type==='daily'?'Daily Summary':'Weekly Report'}】\n${SEP}\n📅 ${ts}\n${SEP}\n👥 在職人數：${activeStaff}\n⚠️ 合約到期預警：${expiring}\n⏳ 待審核申請：${pending}\n🤱 產假中：${matActive}\n${SEP}\n📈 本月入離職 (${mo}):\n🟢 入職：${moJoins}　🔴 離職：${moResigns}\n${SEP}\n[EN] Active: ${activeStaff} | Expiring: ${expiring} | Pending: ${pending}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+  // Dept
+  const dRows=E.DEPTS.map((d,i)=>({l:dL[i]||d,v:E.deptC[d]||0}));
+  spTable('st-dept',dRows,tot);
+  mkC('ch-dept','pie',{labels:dRows.map(r=>r.l),datasets:[{data:dRows.map(r=>r.v),backgroundColor:PAL_A,borderColor:PAL,borderWidth:1.5,hoverOffset:6}]});
+
+  // Gender
+  const gRows=[{l:tA('ORI_LABELS')[1]||'女/F',v:E.gF},{l:tA('ORI_LABELS')[0]||'男/M',v:E.gM}];
+  spTable('st-gender',[{l:(LANG==='kh'?'ស្ត្រី':'女/F'),v:E.gF},{l:(LANG==='kh'?'ប្រុស':'男/M'),v:E.gM}],tot);
+  mkC('ch-gender','doughnut',{labels:[LANG==='kh'?'ស្ត្រី':'女/F',LANG==='kh'?'ប្រុស':'男/M'],datasets:[{data:[E.gF,E.gM],backgroundColor:[PAL[0]+'cc',PAL[1]+'cc'],borderColor:[PAL[0],PAL[1]],borderWidth:2,hoverOffset:6}]});
+
+  // Age
+  const aL=tA('AGE_LABELS');
+  const aRows=E.ageD.map((a,i)=>({l:aL[i]||a.l,v:a.v}));
+  spTable('st-age',aRows,tot);
+  mkC('ch-age','pie',{labels:aRows.map(r=>r.l),datasets:[{data:aRows.map(r=>r.v),backgroundColor:PAL_A,borderColor:PAL,borderWidth:1.5,hoverOffset:5}]},{legend:{labels:{font:{size:9}}}});
+
+  // Education
+  const eL=tA('EDU_LABELS');
+  const eRows=Object.entries(E.eduC).map(([k,v],i)=>({l:eL[i]||k,v}));
+  spTable('st-edu',eRows,tot);
+  mkC('ch-edu','doughnut',{labels:eRows.map(r=>r.l),datasets:[{data:eRows.map(r=>r.v),backgroundColor:PAL_A,borderColor:PAL,borderWidth:1.5,hoverOffset:5}]},{legend:{labels:{font:{size:9}}}});
+
+  // Seniority
+  const sL=tA('SEN_LABELS');
+  const sRows=E.senD.map((s,i)=>({l:sL[i]||s.l,v:s.v}));
+  spTable('st-sen',sRows,tot);
+  mkC('ch-sen','bar',{labels:sRows.map(r=>r.l),datasets:[{data:sRows.map(r=>r.v),backgroundColor:PAL_A,borderRadius:4,borderWidth:0}]},{plugins:{legend:{display:false}},datalabels:false,legend:{display:false}});
+
+  // Origin
+  const oL=tA('ORI_LABELS');
+  spTable('st-ori',[{l:oL[0],v:E.extTotal},{l:oL[1],v:E.localTotal}],tot);
+  mkC('ch-ori','doughnut',{labels:[oL[0],oL[1]],datasets:[{data:[E.extTotal,E.localTotal],backgroundColor:[PAL[1]+'cc',PAL[0]+'cc'],borderColor:[PAL[1],PAL[0]],borderWidth:2,hoverOffset:5}]});
+
+  // POB bar
+  mkC('ch-pob','bar',{
+    labels:E.pobTop.map(([l])=>{const m=l.match(/ខេត្ត(.+)/);return m?m[1].trim():l.trim().slice(0,12);}),
+    datasets:[{data:E.pobTop.map(([,v])=>v),backgroundColor:PAL_A,borderRadius:4,borderWidth:0}]
+  },{plugins:{legend:{display:false}},datalabels:false,sx:{ticks:{font:{size:9}}}});
+}
+
+// ══ RENDER ATTENDANCE ══
+function renderAtt(){
+  const D=ATT_DATA;
+  const n=D.length;
+  const avgRate=+(avg(D.map(d=>d.rate))).toFixed(1);
+  const avgAbsent=+(avg(D.map(d=>d.absent))).toFixed(1);
+  const totalJoin=D.reduce((s,d)=>s+d.join,0);
+  const totalResign=D.reduce((s,d)=>s+d.resign,0);
+  const avgHC=Math.round(avg(D.map(d=>d.headcount)));
+  const totalAL=D.reduce((s,d)=>s+d.AL,0);
+  const totalPL=D.reduce((s,d)=>s+d.PL,0);
+  const totalSL=D.reduce((s,d)=>s+d.SL,0);
+  const totalNP=D.reduce((s,d)=>s+d.NP,0);
+
+  // KPIs
+  const kpi=document.getElementById('kpi-att');
+  kpi.innerHTML=[
+    {l:'kl-avgHC',v:avgHC,s:'avg headcount',c:'nv'},
+    {l:'kl-avgrate',v:avgRate+'%',s:'avg attendance',c:'gn'},
+    {l:'kl-avgabsent',v:avgAbsent,s:'avg absent/day',c:'rd'},
+    {l:'kl-totalJoin',v:totalJoin,s:'this month',c:'tl'},
+    {l:'kl-totalResign',v:totalResign,s:'this month',c:'or'},
+    {l:'lbl-absent-type',v:totalAL+totalPL+totalSL+totalNP,s:'total absences',c:'pu'},
+  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${t(k.l)}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');
+
+  // Trend chart
+  const labels=D.map(d=>d.day+'/3');
+  mkC('ch-trend','line',{labels,datasets:[
+    {label:LANG==='kh'?'វត្តមាន':LANG==='en'?'Present':'出勤人數',data:D.map(d=>d.present),borderColor:PAL[2],backgroundColor:PAL[2]+'20',tension:.3,pointRadius:3,fill:true,borderWidth:2},
+    {label:LANG==='kh'?'ត្រូវវត្តមាន':LANG==='en'?'Should Work':'應到人數',data:D.map(d=>d.headcount),borderColor:PAL[0],borderDash:[5,3],tension:.3,pointRadius:2,borderWidth:1.5},
+  ]},{datalabels:false,sy:{min:440,ticks:{stepSize:10}}});
+
+  // Rate chart
+  const rateColors=D.map(d=>d.rate>=97?PAL[2]+'cc':d.rate>=95?PAL[0]+'cc':d.rate>=93?PAL[6]+'cc':PAL[3]+'cc');
+  mkC('ch-rate','bar',{labels,datasets:[{label:'%',data:D.map(d=>d.rate),backgroundColor:rateColors,borderRadius:4,borderWidth:0}]},{
+    datalabels:false,plugins:{legend:{display:false}},
+    sy:{min:90,max:100,ticks:{callback:v=>v+'%'}}
+  });
+
+  // Absent type donut
+  const aL=tA('ABS_LABELS');
+  spTable('st-absent',[{l:aL[0]||'AL',v:totalAL},{l:aL[1]||'PL',v:totalPL},{l:aL[2]||'SL',v:totalSL},{l:aL[3]||'NP',v:totalNP}],totalAL+totalPL+totalSL+totalNP);
+  document.getElementById('nb-absent').textContent=totalAL+totalPL+totalSL+totalNP;
+  mkC('ch-absent','doughnut',{
+    labels:[aL[0]||'AL',aL[1]||'PL',aL[2]||'SL',aL[3]||'NP'],
+    datasets:[{data:[totalAL,totalPL,totalSL,totalNP],backgroundColor:[PAL[1]+'cc',PAL[3]+'cc',PAL[4]+'cc',PAL[0]+'cc'],borderColor:[PAL[1],PAL[3],PAL[4],PAL[0]],borderWidth:1.5,hoverOffset:5}]
+  });
+
+  // Join/Resign bar
+  mkC('ch-jr','bar',{labels,datasets:[
+    {label:LANG==='kh'?'ចូល':LANG==='en'?'Join':'入職',data:D.map(d=>d.join),backgroundColor:PAL[2]+'cc',borderRadius:4,borderWidth:0},
+    {label:LANG==='kh'?'ចេញ':LANG==='en'?'Resign':'離職',data:D.map(d=>d.resign),backgroundColor:PAL[3]+'cc',borderRadius:4,borderWidth:0},
+  ]},{datalabels:false});
+
+  // Absence breakdown stacked
+  mkC('ch-abs-type','bar',{labels,datasets:[
+    {label:aL[0]||'AL',data:D.map(d=>d.AL),backgroundColor:PAL[1]+'cc',borderRadius:3,borderWidth:0},
+    {label:aL[1]||'PL',data:D.map(d=>d.PL),backgroundColor:PAL[3]+'cc',borderRadius:3,borderWidth:0},
+    {label:aL[2]||'SL',data:D.map(d=>d.SL),backgroundColor:PAL[4]+'cc',borderRadius:3,borderWidth:0},
+    {label:aL[3]||'NP',data:D.map(d=>d.NP),backgroundColor:PAL[0]+'cc',borderRadius:3,borderWidth:0},
+  ]},{datalabels:false,extra:{scales:{x:{stacked:true},y:{stacked:true}}}});
+
+  // Attendance table
+  const tbl=document.getElementById('att-tbl');
+  const zh=LANG==='zh',kh=LANG==='kh';
+  const th=(a,b,c)=>kh?c:zh?a:b;
+  tbl.querySelector('thead').innerHTML=`<tr>
+    <th>${th('日期','Date','ថ្ងៃ')}</th><th>${th('週','Day','ថ្ងៃ')}</th>
+    <th>${th('在職','HC','ចំ')}</th><th>${th('出勤','Present','វត')}</th>
+    <th>${th('出勤率','Rate','%')}</th><th>${th('缺勤','Absent','អ')}</th>
+    <th>AL</th><th>PL</th><th>SL</th><th>NP</th>
+    <th>${th('入職','Join','ចូ')}</th><th>${th('離職','Resign','ចេ')}</th>
+  </tr>`;
+  const DAYS=['日','一','二','三','四','五','六'];
+  tbl.querySelector('tbody').innerHTML=D.map(d=>{
+    const dayN=new Date(d.date).getDay();
+    const rateClass=d.rate<93?'alert':d.rate<95?'high':'';
+    const rateSpan=d.rate<93?`<span style="color:var(--red);font-weight:700">${d.rate}%</span>`:d.rate>=97?`<span style="color:var(--green)">${d.rate}%</span>`:`${d.rate}%`;
+    return`<tr class="${rateClass}">
+      <td>${d.date}</td><td>${DAYS[dayN]}</td>
+      <td>${d.headcount}</td><td>${d.present}</td>
+      <td>${rateSpan}</td><td>${d.absent}</td>
+      <td>${d.AL}</td><td>${d.PL}</td><td>${d.SL}</td><td>${d.NP}</td>
+      <td>${d.join>0?`<span style="color:var(--green)">${d.join}</span>`:0}</td>
+      <td>${d.resign>0?`<span style="color:var(--red)">${d.resign}</span>`:0}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ══ RENDER ANOMALY ══
+function renderAnomaly(){
+  const D=ATT_DATA;
+  const avgRate=avg(D.map(d=>d.rate));
+  const avgAbsent=avg(D.map(d=>d.absent));
+  const anoms=[];
+
+  D.forEach(d=>{
+    if(d.rate<93)anoms.push({lvl:'crit',txt:`🔴 ${d.date}: ${t('lbl-rate')} ${d.rate}% (低於93%警戒線) — 缺勤 ${d.absent}人`});
+    else if(d.rate<94.5)anoms.push({lvl:'warn',txt:`🟡 ${d.date}: 出勤率 ${d.rate}% 偏低 — 缺勤 ${d.absent}人`});
+    if(d.AL>25)anoms.push({lvl:'warn',txt:`🟡 ${d.date}: 年假(AL) ${d.AL}人，偏高`});
+    if(d.resign>2)anoms.push({lvl:'warn',txt:`🟡 ${d.date}: 離職 ${d.resign}人，當日人數下降`});
+    if(d.NP>2)anoms.push({lvl:'crit',txt:`🔴 ${d.date}: 曠工(NP) ${d.NP}人`});
+  });
+  // Net flow
+  const netFlow=D.reduce((s,d)=>s+d.join-d.resign,0);
+  if(netFlow>0)anoms.push({lvl:'good',txt:`✅ 月度淨增員 ${netFlow} 人 (入職 ${D.reduce((s,d)=>s+d.join,0)} vs 離職 ${D.reduce((s,d)=>s+d.resign,0)})`});
+  else if(netFlow<0)anoms.push({lvl:'warn',txt:`⚠ 月度淨減員 ${Math.abs(netFlow)} 人`});
+  anoms.push({lvl:'info',txt:`ℹ 月均出勤率 ${avgRate.toFixed(1)}% · 日均缺勤 ${avgAbsent.toFixed(1)} 人 · ${D.length} 個工作日`});
+
+  document.getElementById('anom-list').innerHTML=anoms.map(a=>`<div class="anom-box ${a.lvl}">${a.txt}</div>`).join('');
+
+  // Weekly grouping
+  const weeks={};
+  D.forEach(d=>{const w=Math.ceil(d.day/7);if(!weeks[w])weeks[w]=[];weeks[w].push(d.rate);});
+  const wkLabels=Object.keys(weeks).map(w=>`W${w}`);
+  const wkAvgs=Object.values(weeks).map(arr=>(arr.reduce((s,v)=>s+v,0)/arr.length).toFixed(1));
+  mkC('ch-weekly','bar',{
+    labels:wkLabels,
+    datasets:[{label:'%',data:wkAvgs.map(Number),backgroundColor:wkAvgs.map(v=>+v>=96?PAL[2]+'cc':+v>=94?PAL[1]+'cc':PAL[3]+'cc'),borderRadius:5,borderWidth:0}]
+  },{datalabels:false,sy:{min:90,max:100,ticks:{callback:v=>v+'%'}},plugins:{legend:{display:false}}});
+
+  // AL trend
+  mkC('ch-al','line',{
+    labels:D.map(d=>d.day+'/3'),
+    datasets:[{label:'AL',data:D.map(d=>d.AL),borderColor:PAL[1],backgroundColor:PAL[1]+'20',tension:.3,pointRadius:2,fill:true,borderWidth:2}]
+  },{datalabels:false,plugins:{legend:{display:false}}});
+
+  // Headcount trend
+  mkC('ch-hc','line',{
+    labels:D.map(d=>d.day+'/3'),
+    datasets:[{label:'HC',data:D.map(d=>d.headcount),borderColor:PAL[0],backgroundColor:PAL[0]+'15',tension:.3,pointRadius:2,fill:true,borderWidth:2}]
+  },{datalabels:false,plugins:{legend:{display:false}},sy:{min:470,max:490}});
+
+  // Summary table
+  const stbl=document.getElementById('summary-tbl');
+  const zh=LANG==='zh';
+  stbl.querySelector('thead').innerHTML=`<tr><th>${zh?'指標':'Metric'}</th><th>${zh?'數值':'Value'}</th></tr>`;
+  stbl.querySelector('tbody').innerHTML=[
+    [zh?'工作天數':'Working Days',D.length],
+    [zh?'月均應到':'Avg HC',Math.round(avg(D.map(d=>d.headcount)))],
+    [zh?'月均出勤':'Avg Present',Math.round(avg(D.map(d=>d.present)))],
+    [zh?'月均出勤率':'Avg Rate',avgRate.toFixed(1)+'%'],
+    [zh?'最高出勤率':'Max Rate',Math.max(...D.map(d=>d.rate))+'%'],
+    [zh?'最低出勤率':'Min Rate',Math.min(...D.map(d=>d.rate))+'%'],
+    [zh?'月均缺勤':'Avg Absent',avgAbsent.toFixed(1)],
+    [zh?'總年假AL':'Total AL',D.reduce((s,d)=>s+d.AL,0)],
+    [zh?'總事假PL':'Total PL',D.reduce((s,d)=>s+d.PL,0)],
+    [zh?'總病假SL':'Total SL',D.reduce((s,d)=>s+d.SL,0)],
+    [zh?'總曠工NP':'Total NP',D.reduce((s,d)=>s+d.NP,0)],
+    [zh?'月入職':'Total Join',D.reduce((s,d)=>s+d.join,0)],
+    [zh?'月離職':'Total Resign',D.reduce((s,d)=>s+d.resign,0)],
+  ].map(([l,v])=>`<tr><td>${l}</td><td><b>${v}</b></td></tr>`).join('');
+
+  // Top absent days
+  const atbl=document.getElementById('top-absent-tbl');
+  atbl.querySelector('thead').innerHTML=`<tr><th>${zh?'日期':'Date'}</th><th>${zh?'缺勤':'Absent'}</th><th>${zh?'出勤率':'Rate'}</th><th>AL</th><th>PL</th><th>SL</th><th>NP</th></tr>`;
+  const sorted=[...D].sort((a,b)=>b.absent-a.absent).slice(0,10);
+  atbl.querySelector('tbody').innerHTML=sorted.map(d=>`<tr class="${d.rate<93?'alert':d.rate<95?'high':''}"><td>${d.date}</td><td>${d.absent}</td><td>${d.rate}%</td><td>${d.AL}</td><td>${d.PL}</td><td>${d.SL}</td><td>${d.NP}</td></tr>`).join('');
+}
+
+// ══ HISTORY ══
+function getRecs(){try{return JSON.parse(localStorage.getItem('vrt_att_records')||'[]')}catch{return[]}}
+function saveCurrentMonth(){
+  const D=ATT_DATA;
+  const rec={
+    period:'2026-03',month:'Mar 2026',
+    avgRate:+(avg(D.map(d=>d.rate))).toFixed(1),
+    avgAbsent:+(avg(D.map(d=>d.absent))).toFixed(1),
+    avgHC:Math.round(avg(D.map(d=>d.headcount))),
+    totalJoin:D.reduce((s,d)=>s+d.join,0),
+    totalResign:D.reduce((s,d)=>s+d.resign,0),
+    days:D.length,savedAt:new Date().toISOString()
+  };
+  const recs=getRecs().filter(r=>r.period!=='2026-03');
+  recs.push(rec);localStorage.setItem('vrt_att_records',JSON.stringify(recs));
+  toast(t('tb-save')+' · 2026-03 ✅');renderHistory();
+}
+function clearHistory(){if(!confirm('Clear all?'))return;localStorage.removeItem('vrt_att_records');renderHistory();toast(t('tb-clear')+' ✅')}
+
+function renderHistory(){
+  const recs=getRecs().sort((a,b)=>a.period.localeCompare(b.period));
+  document.getElementById('no-hist').style.display=recs.length?'none':'block';
+  document.getElementById('hist-tbl-wrap').style.display=recs.length?'block':'none';
+  document.getElementById('hist-charts').style.display=recs.length>=2?'block':'none';
+  if(!recs.length)return;
+  const zh=LANG==='zh';
+  const htbl=document.getElementById('hist-tbl');
+  htbl.querySelector('thead').innerHTML=`<tr><th>${zh?'月份':'Month'}</th><th>${zh?'均出勤率':'Avg Rate'}</th><th>${zh?'均缺勤':'Avg Absent'}</th><th>${zh?'均人數':'Avg HC'}</th><th>${zh?'入職':'Join'}</th><th>${zh?'離職':'Resign'}</th><th>${zh?'工作天':'Days'}</th></tr>`;
+  htbl.querySelector('tbody').innerHTML=recs.map((r,i)=>{
+    const prev=recs[i-1];const chg=(a,b)=>{if(!prev||!b)return'';const d=a-b;const cl=d>0?'up':'dn';return`<span class="delta ${cl}">${d>0?'+':''}${d.toFixed?d.toFixed(1):d}</span>`;};
+    return`<tr><td><b>${r.month}</b></td><td>${r.avgRate}% ${chg(r.avgRate,prev?.avgRate)}</td><td>${r.avgAbsent}${chg(r.avgAbsent,prev?.avgAbsent)}</td><td>${r.avgHC}${chg(r.avgHC,prev?.avgHC)}</td><td>${r.totalJoin}</td><td>${r.totalResign}</td><td>${r.days}</td></tr>`;
+  }).join('');
+  if(recs.length>=2){
+    mkC('ch-hist-rate','line',{labels:recs.map(r=>r.month),datasets:[{label:'%',data:recs.map(r=>r.avgRate),borderColor:PAL[2],backgroundColor:PAL[2]+'20',tension:.4,pointRadius:4,fill:true,borderWidth:2}]},{datalabels:false,sy:{min:88,ticks:{callback:v=>v+'%'}}});
+    mkC('ch-hist-hc','bar',{labels:recs.map(r=>r.month),datasets:[{label:'HC',data:recs.map(r=>r.avgHC),backgroundColor:PAL_A,borderRadius:6,borderWidth:0}]},{datalabels:false,plugins:{legend:{display:false}}});
   }
-  if(type==='monthly'){
-    return `【AC HRA 月度整合報告 ${mo}】\n${SEP}\n📅 ${ts}\n${SEP}\n═ 人力概況 ═\n👥 在職人數：${activeStaff}\n🔵 試用期：${contracts.filter(c=>c._s==='probation').length}\n⚠️ 即將到期：${expiring}\n${SEP}\n═ 入離職 ═\n🟢 本月入職：${moJoins}\n🔴 本月離職：${moResigns}\n📊 淨變動：${moJoins-moResigns>=0?'+':''}${moJoins-moResigns}\n⏳ 待審核：${pending}\n${SEP}\n═ 產假 ═\n🤱 產假中：${matActive}\n${SEP}\n[EN] Monthly Report\nActive:${activeStaff} Joins:${moJoins} Resigns:${moResigns} Net:${moJoins-moResigns}\n[KM] ខែ ${mo}: កំពុងធ្វើ:${activeStaff} ចូល:${moJoins} ចេញ:${moResigns}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
-  }
-  if(type==='alerts'){
-    const items=[];
-    if(expiring>0)items.push(`⚠️ ${expiring} 份合約30天內到期`);
-    if(pending>0)items.push(`⏳ ${pending} 筆申請待審核`);
-    const expired=contracts.filter(c=>c._s==='expired').length;
-    if(expired>0)items.push(`❌ ${expired} 份合約已過期`);
-    return `【AC HRA ⚠️ 異常警示】\n${SEP}\n📅 ${ts}\n${SEP}\n${items.length?items.join('\n'):'✅ 目前無異常'}\n${SEP}\n🏭 Vantage River Textiles`;
-  }
-  // headcount
-  const depts={};contracts.filter(c=>c._s!=='terminated').forEach(c=>{depts[c.dept]=(depts[c.dept]||0)+1;});
-  const deptStr=Object.entries(depts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([d,n])=>`  ${d}: ${n}人`).join('\n');
-  return `【AC HRA 人力盤點 / Headcount】\n${SEP}\n📅 ${ts}\n在職總人數：${activeStaff}\n${SEP}\n部門分佈：\n${deptStr||'  無資料'}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
 }
 
-function sendReport(){HRA.TG.push(buildReport(document.getElementById('report-type')?.value||'daily'));HRA.UI.toast('📱 已加入 Telegram 佇列','info');}
-function sendIntegratedReport(){HRA.TG.push(buildReport('daily'));HRA.UI.toast('📱 整合報表已發送','info');}
-function saveAutoSettings(){HRA.UI.toast('✅ 排程設定已儲存','ok');}
+// ══ EXPORT ══
+function doExportPNG(){
+  const target=document.querySelector('.pane.on');
+  toast('📸 Exporting…');
+  html2canvas(target,{scale:1.5,backgroundColor:'#f0f3f7',useCORS:true}).then(c=>{
+    const a=document.createElement('a');a.href=c.toDataURL('image/png');
+    a.download='VRT_HR_Mar2026.png';a.click();toast('✅ PNG saved');
+  }).catch(()=>toast('❌ Export failed'));
+}
 
-function setLang(l){HRA.I18N.setLang(l);['lb-zh','lb-en','lb-km'].forEach((id,i)=>{document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l);});}
+function doExportTG(){
+  const D=ATT_DATA;
+  const avgRate=avg(D.map(d=>d.rate)).toFixed(1);
+  const avgAbsent=avg(D.map(d=>d.absent)).toFixed(1);
+  const totalJoin=D.reduce((s,d)=>s+d.join,0);
+  const totalResign=D.reduce((s,d)=>s+d.resign,0);
+  const txt=`📊 *VRT HR Daily Attendance · Mar 2026*\n👥 Avg HC: *${Math.round(avg(D.map(d=>d.headcount)))}*\n✅ Avg Attendance: *${avgRate}%*\n🔴 Avg Absent: ${avgAbsent}/day\n📅 Working Days: ${D.length}\n📈 Join: ${totalJoin} | 📉 Resign: ${totalResign}\n🗓 AL: ${D.reduce((s,d)=>s+d.AL,0)} | PL: ${D.reduce((s,d)=>s+d.PL,0)} | SL: ${D.reduce((s,d)=>s+d.SL,0)} | NP: ${D.reduce((s,d)=>s+d.NP,0)}\n\n_Generated by VRT HR Dashboard_`;
+  // Export PNG + copy text
+  const target=document.querySelector('.pane.on');
+  html2canvas(target,{scale:1.5,backgroundColor:'#f0f3f7',useCORS:true}).then(c=>{
+    const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='VRT_HR_TG.png';a.click();
+    navigator.clipboard.writeText(txt).then(()=>toast('📸 PNG下載 + 文字已複製！在TG發圖+貼文字')).catch(()=>toast('📸 PNG下載！複製文字再傳TG'));
+  }).catch(()=>{navigator.clipboard.writeText(txt).catch(()=>{});toast('✅ 文字已複製到剪貼板');});
+}
 
-window.addEventListener('DOMContentLoaded',()=>{
-  HRA.I18N.init();HRA.TG.init();HRA.Settings.init();
-  HRA.Cloud.init();
-  readAllData();
-  renderOverview();
-  HRA.UI.syncStatus('synced','資料已讀取');
-  HRA.Logger.log('INIT','HRA Analytics Center v2 loaded');
-});
+function exportAttCSV(){
+  const D=ATT_DATA;
+  const h='Date,Headcount,Present,Rate%,Absent,AL,PL,SL,NP,Join,Resign';
+  const rows=D.map(d=>`${d.date},${d.headcount},${d.present},${d.rate},${d.absent},${d.AL},${d.PL},${d.SL},${d.NP},${d.join},${d.resign}`);
+  const b=new Blob([[h,...rows].join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='VRT_Attendance_Mar2026.csv';a.click();
+}
+
+// ══ TOAST ══
+function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3000);}
+
+// ══ RENDER ALL ══
+function renderAll(){
+  renderAtt();
+  renderAnomaly();
+  renderHistory();
+  if(EMP)renderEmp();
+}
+
+// INIT
+renderAll();
+setLang('zh');
+</script>
+
+<!-- Cloud Sync Widget -->
+<button id="hrCloudBtn" title="☁ 雲端同步" onclick="hrCloudToggle()">☁</button>
+<div id="hrCloudPanel">
+  <div class="hcp-title">☁ 雲端同步 — HR Complete</div>
+  <div class="hcp-status" id="hrCloudStatus">未連線</div>
+  <div class="hcp-row">
+    <button class="hcp-btn hcp-push" onclick="hrPush()">☁ 推送</button>
+    <button class="hcp-btn hcp-pull" onclick="hrPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="hcp-input" id="hrGasInput" placeholder="GAS /exec URL"/>
+    <button class="hcp-save" onclick="hrSaveGas()">存</button>
+  </div>
+  <div class="hcp-log" id="hrLog"></div>
+</div>
+<script>
+(function(){
+  const LS='ac_hra_gas_url';
+  const LS_META='ac_hra_complete_meta';
+  let gasUrl=localStorage.getItem(LS)||'';
+  let open=false;
+  window.hrCloudToggle=function(){
+    open=!open;
+    document.getElementById('hrCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('hrGasInput').value=gasUrl;hrShowStatus();}
+  };
+  window.hrSaveGas=function(){
+    gasUrl=document.getElementById('hrGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    hrLog('GAS URL 已儲存','i');hrShowStatus();
+  };
+  function hrShowStatus(){
+    const el=document.getElementById('hrCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      el.textContent=`${meta.count}筆 · ${mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時'}前`;
+      el.className='hcp-status '+(mins<120?'ok':'warn');
+    } else {
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='hcp-status '+(gasUrl?'warn':'err');
+    }
+  }
+  window.hrPush=async function(){
+    if(!gasUrl){hrLog('請先設定 GAS URL','err');return;}
+    // HR Complete reads from attendance localStorage
+    const attRaw=localStorage.getItem('vrt_att_v5_db')||'{}';
+    const att=JSON.parse(attRaw);
+    const recs=att.employees||[];
+    const payload={action:'push',tool:'hr_complete',records:recs,
+      recordCount:recs.length,updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+        hrLog('✓ 推送完成','ok');hrShowStatus();
+      } else hrLog('✗ '+d.error,'err');
+    }catch(e){hrLog('✗ '+e.message,'err');}
+  };
+  window.hrPull=async function(){
+    if(!gasUrl){hrLog('請先設定 GAS URL','err');return;}
+    hrLog('HR Complete 為唯讀分析工具，請先在出勤系統 Pull 後開啟此頁','i');
+  };
+  function hrLog(msg,type){
+    const el=document.getElementById('hrLog');if(!el)return;
+    const cls=type==='ok'?'hcl-ok':type==='err'?'hcl-err':'hcl-i';
+    const t=new Date().toTimeString().slice(0,5);
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
+  }
+  document.addEventListener('DOMContentLoaded',hrShowStatus);
+})();
 </script>
 </body>
 </html>

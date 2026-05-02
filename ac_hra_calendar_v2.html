@@ -1,629 +1,2796 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>AC HRA 行事曆 v2</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
-<link rel="stylesheet" href="./shared/hra.css"/>
-<script src="./shared/cloud.js"></script>
-<script src="./shared/telegram.js"></script>
-<script src="./shared/hra-modules.js"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🇰🇭 柬埔寨假日行事曆管理系統</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-/* Calendar specific */
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px}
-.cal-dow{text-align:center;font-size:9px;font-weight:700;color:var(--c-muted);padding:6px 0;text-transform:uppercase;letter-spacing:.5px}
-.cal-day{min-height:72px;border:1px solid var(--c-border2);border-radius:5px;padding:4px 5px;cursor:pointer;background:#fff;position:relative;font-size:11px;transition:.15s}
-.cal-day:hover{border-color:var(--c-accent);z-index:1}
-.cal-day.today{border:2px solid var(--c-accent);background:#f0fdf8}
-.cal-day.outside{background:#f7f8fa;opacity:.5}
-.cal-day.weekend{background:#fef9f7}
-.cal-day.has-pub{background:#fef3c7!important}
-.cal-day.has-factory{background:#dbeafe!important}
-.cal-day.has-ot{background:#fce7f3!important}
-.cal-day.has-pub.has-factory{background:linear-gradient(135deg,#fef3c7 50%,#dbeafe 50%)!important}
-.day-num{font-weight:700;font-size:13px;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between}
-.day-tags{display:flex;flex-direction:column;gap:2px;overflow:hidden}
-.day-tag{font-size:9px;padding:1px 4px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
-.tag-public{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
-.tag-factory{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
-.tag-ot{background:#fce7f3;color:#9d174d;border:1px solid #fbcfe8}
-.tag-reminder{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
-/* Year view */
-.year-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.mini-month{background:#fff;border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:10px}
-.mini-month h4{text-align:center;margin-bottom:6px;font-size:11px;font-weight:700;color:var(--c-primary)}
-.mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
-.mini-dow{text-align:center;font-size:8px;color:var(--c-muted);padding:2px 0}
-.mini-d{text-align:center;padding:2px;border-radius:3px;font-size:9px;cursor:default;line-height:1.4}
-.mini-d.today-m{background:var(--c-accent);color:#fff;font-weight:700}
-.mini-d.has-ev{background:#fef3c7;color:#92400e}
-.mini-d.outside-m{color:var(--c-border)}
-.mini-d.weekend-m{color:#9ca3af}
-.legend-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px}
-.legend-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0}
-/* Holiday list */
-.hday-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border2);font-size:12px}
-.hday-item:last-child{border:none}
-.hday-date{font-family:var(--f-mono);color:var(--c-muted);font-size:11px;min-width:80px}
-/* Mobile year view */
-@media(max-width:768px){.year-grid{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:480px){.year-grid{grid-template-columns:1fr}.cal-day{min-height:50px}.day-num{font-size:11px}}
+:root{
+  --bg:#f2faf0;--bg2:#fffde7;--bg3:#fff;--card:#fff;
+  --green:#2e7d32;--green2:#43a047;--green3:#a5d6a7;--green4:#e8f5e9;
+  --gold:#f9a825;--gold2:#fff9c4;--gold3:#fdd835;
+  --red:#c62828;--red2:#ef5350;--orange:#e65100;--orange2:#ff7043;
+  --blue:#1565c0;--blue2:#42a5f5;--purple:#6a1b9a;--teal:#00695c;
+  --gray:#546e7a;--gray2:#eceff1;--gray3:#b0bec5;
+  --border:#c8e6c9;--border2:#f0f4c3;
+  --text:#1b2a1b;--text2:#4a6741;--text3:#7a9478;
+  --shadow:0 2px 12px rgba(46,125,50,0.10);
+  --radius:10px;--radius2:6px;
+  --font:"Noto Sans TC",sans-serif;--font2:"Noto Serif TC",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:linear-gradient(135deg,var(--bg) 0%,var(--bg2) 100%);min-height:100vh;color:var(--text);font-size:14px}
+/* ── HEADER ── */
+.header{background:linear-gradient(135deg,#1b5e20 0%,#2e7d32 50%,#388e3c 100%);color:#fff;padding:10px 20px;position:sticky;top:0;z-index:200;box-shadow:0 3px 16px rgba(27,94,32,.4)}
+.header-inner{max-width:1600px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.header-logo{font-size:1.8rem}
+.header-title{font-family:var(--font2);font-weight:900;font-size:1.05rem;line-height:1.2}
+.header-sub{font-size:.62rem;opacity:.8;letter-spacing:.08em}
+.header-controls{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.lang-btn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.3);color:#fff;padding:4px 8px;border-radius:5px;cursor:pointer;font-size:.72rem;font-weight:700;font-family:var(--font)}
+.lang-btn.active{background:#fff;color:var(--green)}
+select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);padding:4px 8px;border-radius:5px;font-size:.8rem;font-weight:700;font-family:var(--font);cursor:pointer;outline:none}
+/* ── RIBBON ── */
+.ribbon{background:rgba(255,255,255,.85);backdrop-filter:blur(8px);border-bottom:2px solid var(--border);padding:6px 20px}
+.ribbon-inner{max-width:1600px;margin:0 auto;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.stat-chip{display:flex;align-items:center;gap:5px;font-size:.78rem;padding:4px 12px;border-radius:20px;font-weight:600;white-space:nowrap}
+/* ── TABS ── */
+.tabs{background:#fff;border-bottom:2px solid var(--border);position:sticky;top:56px;z-index:180;box-shadow:0 2px 8px rgba(46,125,50,.07)}
+.tabs-inner{max-width:1600px;margin:0 auto;display:flex;overflow-x:auto;gap:0}
+.tab-btn{background:none;border:none;padding:9px 14px;font-size:.8rem;font-weight:600;cursor:pointer;white-space:nowrap;color:var(--text3);border-bottom:3px solid transparent;transition:all .18s;font-family:var(--font);display:flex;align-items:center;gap:5px}
+.tab-btn:hover{color:var(--green);background:var(--green4)}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green);background:var(--green4)}
+/* ── CONTENT ── */
+.content{max-width:1600px;margin:0 auto;padding:14px 20px}
+.tab-panel{display:none}.tab-panel.active{display:block}
+/* ── SUBVIEW BAR ── */
+.view-bar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
+.view-btn{background:#fff;border:1.5px solid var(--border);color:var(--text2);padding:5px 12px;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:600;font-family:var(--font);transition:all .15s}
+.view-btn.active{background:var(--green);color:#fff;border-color:var(--green)}
+.view-btn:hover:not(.active){background:var(--green4);border-color:var(--green2)}
+/* ── CALENDAR GRIDS ── */
+.cal-year{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:1100px){.cal-year{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:780px){.cal-year{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.cal-year{grid-template-columns:1fr}}
+.cal-month-card{background:#fff;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.cal-month-head{background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;text-align:center;padding:9px 6px;font-weight:700;font-size:.9rem;font-family:var(--font2);letter-spacing:.06em}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);width:100%}
+.cal-wd{text-align:center;padding:5px 2px;font-size:.72rem;font-weight:700;color:var(--text3);background:var(--green4);border-bottom:1.5px solid var(--border)}
+.cal-wd.we{color:var(--red)}
+/* Each cell fills its column evenly */
+.cal-day{min-height:58px;border-right:1px solid #e8f0e8;border-bottom:1px solid #e8f0e8;padding:4px 3px;cursor:pointer;transition:background .12s;position:relative;overflow:hidden}
+.cal-day:hover{background:#edf7ed}
+.cal-day.empty{background:#f8fcf8;cursor:default}
+.cal-day.today .day-num{background:var(--green);color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin:0 auto 3px;font-size:.78rem}
+.cal-day.weekend{background:#fff8f8}
+.cal-day.weekend .day-num{color:var(--red)}
+.cal-day.selected{outline:2px solid var(--gold3);outline-offset:-2px;background:#fffde7 !important}
+.day-num{font-size:.78rem;font-weight:700;text-align:center;line-height:1.6;color:var(--text);margin-bottom:2px}
+.day-tags{display:flex;flex-direction:column;gap:2px}
+.day-tag{font-size:.58rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:1px 4px;border-radius:3px;line-height:1.4}
+/* ── WEEK VIEW ── */
+.week-nav{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.week-nav button{background:var(--green);color:#fff;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-family:var(--font);font-size:.8rem;font-weight:600}
+.week-grid{display:grid;grid-template-columns:80px repeat(7,1fr);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:#fff}
+.week-head{background:linear-gradient(135deg,var(--green4),var(--bg2));padding:8px 4px;text-align:center;font-size:.72rem;font-weight:700;border-bottom:1px solid var(--border)}
+.week-head.we{color:var(--red)}
+.week-time-col{border-right:1px solid var(--border)}
+.week-slot{min-height:54px;border-bottom:1px solid #f0f4ec;padding:4px 6px;font-size:.68rem;color:var(--text3);display:flex;flex-direction:column;gap:2px}
+.week-day-col{border-right:1px solid var(--border)}
+.week-day-slot{min-height:54px;border-bottom:1px solid #f0f4ec;padding:3px 4px;cursor:pointer;transition:background .12s}
+.week-day-slot:hover{background:var(--green4)}
+.week-day-slot.today-col{background:#f1fff3}
+/* ── DAY VIEW ── */
+.day-view{background:#fff;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.day-view-head{background:linear-gradient(135deg,var(--green),var(--green2));color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px}
+.day-view-body{padding:14px}
+/* ── SUMMARY TABLE ── */
+.tbl-wrap{background:#fff;border-radius:var(--radius);border:1px solid var(--border);overflow:hidden;box-shadow:var(--shadow)}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:8px 10px;font-size:.75rem;text-align:left;font-weight:700;white-space:nowrap}
+.tbl td{padding:7px 10px;font-size:.76rem;border-bottom:1px solid var(--green4);vertical-align:middle}
+.tbl tr:hover td{background:#f7fbf7}
+.tbl tr:last-child td{border-bottom:none}
+/* ── BADGES ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:12px;font-size:.64rem;font-weight:700;white-space:nowrap}
+.badge-legal{background:#ffebee;color:#c62828;border:1px solid #ef9a9a}
+.badge-regular{background:#e8eaf6;color:#283593;border:1px solid #9fa8da}
+.badge-substitute{background:#fff3e0;color:#e65100;border:1px solid #ffcc80}
+.badge-annual{background:#f3e5f5;color:#6a1b9a;border:1px solid #ce93d8}
+.badge-makeup{background:#fffde7;color:#f57f17;border:1px solid #fff176}
+.badge-workday{background:#e8f5e9;color:#2e7d32;border:1px solid #a5d6a7}
+.badge-halfpay{background:#fce4ec;color:#880e4f;border:1px solid #f48fb1}
+.badge-cancelled{background:#f5f5f5;color:#546e7a;border:1px solid #b0bec5}
+.badge-postponed{background:#e0f2f1;color:#00695c;border:1px solid #80cbc4}
+.badge-vrt{background:#ede7f6;color:#4527a0;border:1px solid #9575cd}
+.badge-stopwork{background:#fff3e0;color:#bf360c;border:1px solid #ffb74d}
+/* ── FORM/MODAL ── */
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:900;align-items:center;justify-content:center;padding:12px}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:14px;width:100%;max-width:560px;max-height:92vh;overflow-y:auto;box-shadow:0 16px 60px rgba(0,0,0,.22)}
+.modal-head{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:14px 18px;border-radius:14px 14px 0 0;display:flex;justify-content:space-between;align-items:center}
+.modal-head h3{font-family:var(--font2);font-size:1rem;font-weight:700}
+.modal-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;font-family:var(--font)}
+.modal-body{padding:16px 18px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:.7rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.04em}
+.form-input{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:.82rem;font-family:var(--font);outline:none;background:#fafdf9;transition:border-color .15s}
+.form-input:focus{border-color:var(--green2);background:#fff}
+.form-select{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:.82rem;font-family:var(--font);outline:none;background:#fafdf9;cursor:pointer}
+.form-textarea{padding:7px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:.8rem;font-family:var(--font);outline:none;resize:vertical;min-height:70px;background:#fafdf9}
+.modal-foot{padding:12px 18px;background:#f9fbf9;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end;border-radius:0 0 14px 14px}
+/* ── BUTTONS ── */
+.btn{padding:7px 16px;border:none;border-radius:7px;cursor:pointer;font-size:.8rem;font-weight:700;font-family:var(--font);transition:all .15s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:var(--green2)}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:var(--red2)}
+.btn-gold{background:var(--gold);color:#1b2a1b}.btn-gold:hover{background:var(--gold3)}
+.btn-gray{background:var(--gray2);color:var(--text)}.btn-gray:hover{background:#dde3e8}
+.btn-blue{background:var(--blue);color:#fff}.btn-blue:hover{background:var(--blue2)}
+.btn-tg{background:#0088cc;color:#fff}.btn-tg:hover{background:#0077bb}
+.btn-sm{padding:4px 10px;font-size:.72rem;border-radius:5px}
+.btn-xs{padding:2px 7px;font-size:.67rem;border-radius:4px}
+/* ── CARDS & STATS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.stat-card{background:#fff;border-radius:var(--radius);padding:12px;text-align:center;border:1.5px solid var(--border);box-shadow:var(--shadow)}
+.stat-card .big{font-size:1.8rem;font-weight:900;font-family:var(--font2)}
+.stat-card .lbl{font-size:.67rem;font-weight:600;color:var(--text2);margin-top:2px}
+/* ── ANALYSIS ── */
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.bar-label{font-size:.72rem;color:var(--text);width:90px;text-align:right;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-track{flex:1;background:#f0f4ec;border-radius:99px;height:12px;overflow:hidden}
+.bar-fill{height:100%;border-radius:99px;transition:width .5s ease}
+.bar-val{font-size:.7rem;font-weight:700;width:32px;text-align:right}
+/* ── MISC ── */
+.section-title{font-family:var(--font2);font-size:.9rem;font-weight:700;color:var(--green);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.section-card{background:#fff;border-radius:var(--radius);border:1px solid var(--border);padding:14px;box-shadow:var(--shadow);margin-bottom:14px}
+.info-box{background:var(--green4);border:1px solid var(--green3);border-radius:7px;padding:10px 12px;font-size:.76rem;line-height:1.7;color:#1b5e20;margin-bottom:12px}
+.warn-box{background:#fffde7;border:1px solid var(--gold3);border-radius:7px;padding:10px 12px;font-size:.76rem;line-height:1.7;color:#5d4037;margin-bottom:12px}
+.success-msg{color:var(--green);font-weight:700;font-size:.82rem;padding:8px;border-radius:6px;background:var(--green4)}
+.error-msg{color:var(--red);font-weight:700;font-size:.82rem;padding:8px;border-radius:6px;background:#ffebee}
+.tag-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.hol-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:8px;border:1.5px solid var(--border);margin-bottom:5px;background:#fff;cursor:pointer;transition:all .12s}
+.hol-row:hover{border-color:var(--green2);background:var(--green4)}
+.hol-row .hol-bar{width:5px;align-self:stretch;border-radius:3px;flex-shrink:0}
+.filter-bar{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px;align-items:center}
+/* ── TELEGRAM ── */
+.tg-preview{background:#e8f5e9;border:1px solid var(--green3);border-radius:8px;padding:12px;font-family:monospace;font-size:.75rem;line-height:1.8;white-space:pre-wrap;max-height:260px;overflow-y:auto;color:#1b5e20}
+/* ── MONTH HEATMAP ── */
+.heatmap{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.heat-cell{border-radius:5px;padding:5px 3px;text-align:center;cursor:default}
+.heat-cell .hm{font-size:.58rem;font-weight:700}.heat-cell .hd{font-size:.72rem;font-weight:800}
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:#f0f4ec}::-webkit-scrollbar-thumb{background:var(--green3);border-radius:3px}
+/* ── LEGEND ── */
+.legend{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:.72rem;font-weight:600;padding:4px 10px;border-radius:14px;cursor:default}
+/* ── RESPONSIVE ── */
+@media(max-width:640px){.form-grid{grid-template-columns:1fr}.cal-year{grid-template-columns:repeat(auto-fill,minmax(155px,1fr))}.stats-grid{grid-template-columns:repeat(2,1fr)}}
+/* ── ANIMATIONS ── */
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.tab-panel.active{animation:fadeIn .22s ease}
+.hol-row,.stat-card{animation:fadeIn .2s ease}
+/* ── OVERLAY TOGGLES ── */
+.ovl-btn{background:#fff;border:1.5px solid var(--border);border-radius:6px;padding:3px 7px;cursor:pointer;font-size:.9rem;transition:all .15s;line-height:1;opacity:.55}
+.ovl-btn:hover{opacity:1;transform:scale(1.1)}
+.ovl-btn.active{opacity:1;border-color:var(--green2);background:var(--green4);box-shadow:0 0 0 2px var(--green3)}
+/* ── SWAP LINK ── */
+.swap-link{font-size:.55rem;background:#fff8e1;border:1px solid #ffe082;color:#f57f17;border-radius:3px;padding:1px 3px;white-space:nowrap;display:inline-flex;align-items:center;gap:2px;cursor:pointer}
+.swap-link:hover{background:#fff3e0}
+/* ── EXT DOTS ── */
+.ext-dots{display:flex;gap:2px;flex-wrap:wrap;margin-top:2px}
+.ext-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ext-tag{font-size:.52rem;padding:1px 3px;border-radius:3px;white-space:nowrap;line-height:1.4;font-weight:700}
+.lunar-txt{font-size:.52rem;color:#e91e63;line-height:1.2;margin-top:1px}
+/* ── PRINT ── */
+@media print{.header,.tabs,.view-bar,.filter-bar,.btn,.modal-foot{display:none!important}.content{padding:0}}
+/* ── QUICK-EDIT PANEL ── */
+.qe-panel{background:#fff;border-radius:var(--radius);border:2px solid var(--green2);box-shadow:0 8px 32px rgba(46,125,50,.16);overflow:hidden;animation:fadeIn .18s ease}
+.qe-head{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:10px 14px;display:flex;align-items:center;gap:8px}
+.qe-section{padding:12px 14px;border-bottom:1px solid var(--green4)}
+.qe-section:last-child{border-bottom:none}
+.qe-section-title{font-size:.65rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px}
+.qe-type-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:4px;margin-bottom:8px}
+.qe-type-btn{padding:5px 3px;border:1.5px solid var(--border);border-radius:7px;cursor:pointer;font-size:.62rem;font-weight:700;font-family:var(--font);text-align:center;transition:all .14s;background:#fff;line-height:1.5;width:100%}
+.qe-type-btn:hover{transform:translateY(-1px);box-shadow:0 3px 8px rgba(0,0,0,.10)}
+.qe-type-btn.active{box-shadow:0 0 0 2px currentColor,0 3px 8px rgba(0,0,0,.1)}
+.qe-rec-card{border-radius:8px;padding:9px 10px;margin-bottom:7px}
+.qe-chg-area{background:var(--green4);border-radius:7px;padding:8px 10px;margin-top:6px}
+.qe-reason-box{background:#fffde7;border:1px solid var(--gold3);border-radius:6px;padding:7px 10px;font-size:.7rem;color:#5d4037;margin-bottom:6px;line-height:1.5}
+.qe-input{padding:5px 9px;border:1.5px solid var(--border);border-radius:6px;font-size:.8rem;font-family:var(--font);outline:none;background:#fafdf9;transition:border-color .15s;width:100%}
+.qe-input:focus{border-color:var(--green2)}
+/* ── YEAR TABLE ── */
+.yr-table{width:100%;border-collapse:collapse;font-size:.73rem}
+.yr-table th{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:6px 8px;text-align:center;font-weight:700;white-space:nowrap}
+.yr-table td{padding:5px 8px;border:1px solid var(--border);text-align:center;vertical-align:middle}
+.yr-table tr.hol-row-yr:hover td{background:var(--green4)}
+.yr-table .total-row td{background:#f0f9f0;font-weight:700;color:var(--green)}
+/* ── TYPE COLOR DOTS ── */
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+</style>
+
+<style>
+/* Cloud Sync Widget - Calendar */
+#calCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:.15s}
+#calCloudBtn:hover{background:#292000}
+#calCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#calCloudPanel.show{display:flex}
+.ccp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em}
+.ccp-status{font-size:11px;color:#475569;font-family:monospace;min-height:14px}
+.ccp-status.ok{color:#4ade80}.ccp-status.warn{color:#fbbf24}.ccp-status.err{color:#f87171}
+.ccp-row{display:flex;gap:6px}
+.ccp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.ccp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.ccp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.ccp-btn:disabled{opacity:.4;cursor:not-allowed}
+.ccp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.ccp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.ccp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.ccl-ok{color:#4ade80}.ccl-err{color:#f87171}.ccl-i{color:#60a5fa}
 </style>
 </head>
 <body>
-<div class="hra-layout">
 
-<!-- SIDEBAR -->
-<div class="hra-sidebar">
-  <div class="sb-logo">
-    <h1>AC HRA 行事曆</h1>
-    <p>Factory Calendar · v2</p>
-  </div>
-  <div class="sb-nav">
-    <div class="sb-sect">視圖</div>
-    <button class="sb-btn on" onclick="goTab('month',this)"><span class="ic">📅</span>月份視圖</button>
-    <button class="sb-btn"    onclick="goTab('year',this)"><span class="ic">📆</span>年度視圖</button>
-    <button class="sb-btn"    onclick="goTab('list',this)"><span class="ic">📋</span>假期列表</button>
-    <button class="sb-btn"    onclick="goTab('settings',this)"><span class="ic">⚙️</span>設定</button>
-    <div class="sb-div"></div>
-    <div class="sb-sect">圖例</div>
-    <div style="padding:4px 8px">
-      <div class="legend-row"><div class="legend-dot" style="background:#fef3c7;border:1px solid #fde68a"></div><span style="font-size:10px;color:var(--c-sb-txt)">柬國假期</span></div>
-      <div class="legend-row"><div class="legend-dot" style="background:#dbeafe;border:1px solid #bfdbfe"></div><span style="font-size:10px;color:var(--c-sb-txt)">工廠假期</span></div>
-      <div class="legend-row"><div class="legend-dot" style="background:#fce7f3;border:1px solid #fbcfe8"></div><span style="font-size:10px;color:var(--c-sb-txt)">加班/補班</span></div>
-      <div class="legend-row"><div class="legend-dot" style="background:#ede9fe;border:1px solid #c4b5fd"></div><span style="font-size:10px;color:var(--c-sb-txt)">提醒</span></div>
+<!-- HEADER -->
+<div class="header">
+  <div class="header-inner">
+    <div class="header-logo">🇰🇭</div>
+    <div>
+      <div class="header-title" id="hdr-title">柬埔寨假日行事曆管理系統</div>
+      <div class="header-sub">CAMBODIA HOLIDAY MANAGEMENT • ប្រតិទិនថ្ងៃឈប់</div>
     </div>
-    <div class="sb-div"></div>
-    <div class="sb-gas-row">
-      <div class="sb-gas-dot" id="sb-gas-dot"></div>
-      <span class="sb-gas-lbl" id="sb-gas-lbl">未連線</span>
+    <div class="header-controls">
+      <select class="hdr-sel" id="yearSel" onchange="changeYear(this.value)"></select>
+      <button class="lang-btn active" onclick="setLang('zh')">中</button>
+      <button class="lang-btn" onclick="setLang('en')">EN</button>
+      <button class="lang-btn" onclick="setLang('km')">ខ្មែរ</button>
     </div>
   </div>
-  <div class="sb-bot"><div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div></div>
 </div>
 
-<!-- MAIN -->
-<div class="hra-main">
-  <div class="hra-header">
-    <div class="hra-logo">
-      <div class="hra-logo-icon">📅</div>
-      <div>
-        <div class="hra-logo-title">工廠行事曆</div>
-        <div class="hra-logo-sub">Factory Calendar v2 · AC HRA</div>
+<!-- RIBBON -->
+<div class="ribbon">
+  <div class="ribbon-inner" id="ribbon"></div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <div class="tabs-inner">
+    <button class="tab-btn active" onclick="switchTab('calendar')">📅 <span data-t="tab_cal">行事曆</span></button>
+    <button class="tab-btn" onclick="switchTab('summary')">📋 <span data-t="tab_sum">總表</span></button>
+    <button class="tab-btn" onclick="switchTab('manage')">⚙️ <span data-t="tab_mgr">假日管理</span></button>
+    <button class="tab-btn" onclick="switchTab('analysis')">📊 <span data-t="tab_ana">統計對比</span></button>
+    <button class="tab-btn" onclick="switchTab('expimp')">📤 <span data-t="tab_exp">匯出匯入</span></button>
+    <button class="tab-btn" onclick="switchTab('telegram')">✈️ Telegram</button>
+  </div>
+</div>
+
+<!-- CONTENT -->
+<div class="content">
+
+<!-- ─────── CALENDAR TAB ─────── -->
+<div class="tab-panel active" id="tab-calendar">
+  <div class="view-bar">
+    <button class="view-btn active" onclick="setCalView('year')" id="vb-year">🗓 <span data-t="view_year">年</span></button>
+    <button class="view-btn" onclick="setCalView('month')" id="vb-month">📅 <span data-t="view_month">月</span></button>
+    <button class="view-btn" onclick="setCalView('week')" id="vb-week">📆 <span data-t="view_week">週</span></button>
+    <button class="view-btn" onclick="setCalView('day')" id="vb-day">📌 <span data-t="view_day">日</span></button>
+    <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap" id="overlay-toggles">
+      <span style="font-size:.65rem;color:var(--text2);font-weight:700">疊加層：</span>
+      <button class="ovl-btn" id="ovl-tw"    onclick="toggleOverlay('tw')"    title="台灣國定假">🇹🇼</button>
+      <button class="ovl-btn" id="ovl-my"    onclick="toggleOverlay('my')"    title="馬來西亞">🇲🇾</button>
+      <button class="ovl-btn" id="ovl-school" onclick="toggleOverlay('school')" title="東馬學校假">📚</button>
+      <button class="ovl-btn" id="ovl-lunar"  onclick="toggleOverlay('lunar')"  title="農曆">🌙</button>
+    </div>
+    <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
+      <button class="btn btn-green btn-sm" onclick="openModal()">＋ <span data-t="add_hol">新增假日</span></button>
+      <button class="btn btn-gold btn-sm" onclick="exportExcel()">📊 Excel</button>
+      <button class="btn btn-gray btn-sm" onclick="exportColorPrint()">🖨 彩色列印</button>
+    </div>
+  </div>
+  <!-- LEGEND -->
+  <div class="legend" id="legend" style="margin-bottom:10px"></div>
+  <!-- VIEWS -->
+  <div id="view-year"></div>
+  <div id="view-month" style="display:none"></div>
+  <div id="view-week" style="display:none"></div>
+  <div id="view-day" style="display:none"></div>
+  <!-- Day detail panel -->
+  <div id="day-panel" style="display:none;margin-top:10px"></div>
+</div>
+
+<!-- ─────── SUMMARY TABLE TAB ─────── -->
+<div class="tab-panel" id="tab-summary">
+  <div class="filter-bar">
+    <select class="form-select" id="flt-year" onchange="renderSummary()" style="width:90px"></select>
+    <select class="form-select" id="flt-type" onchange="renderSummary()" style="width:130px"></select>
+    <select class="form-select" id="flt-month" onchange="renderSummary()" style="width:110px"></select>
+    <input class="form-input" id="flt-search" placeholder="🔍 搜尋..." oninput="renderSummary()" style="width:140px">
+    <button class="btn btn-green btn-sm" onclick="openModal()">＋ <span data-t="add_hol">新增假日</span></button>
+    <button class="btn btn-gold btn-sm" onclick="exportCSV()">📊 CSV</button>
+    <div style="margin-left:auto;font-size:.75rem;color:var(--text2)" id="sum-count"></div>
+  </div>
+  <!-- Year total row -->
+  <div id="sum-totals" style="margin-bottom:8px"></div>
+  <div class="tbl-wrap">
+    <table class="tbl" id="sum-table">
+      <thead>
+        <tr>
+          <th>#</th><th data-t="col_date">日期</th><th data-t="col_end">結束日</th>
+          <th data-t="col_type">類型</th><th data-t="col_name">假日名稱（中）</th>
+          <th data-t="col_name_en">English</th><th data-t="col_name_km">ខ្មែរ</th>
+          <th data-t="col_days">天數</th><th data-t="col_weekday">星期</th>
+          <th data-t="col_note">備注</th><th data-t="col_action">操作</th>
+        </tr>
+      </thead>
+      <tbody id="sum-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ─────── MANAGE TAB ─────── -->
+<div class="tab-panel" id="tab-manage">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+    <!-- Quick add cards for each type -->
+    <div id="mgr-type-cards"></div>
+    <!-- Recent / All list -->
+    <div style="grid-column:1/-1">
+      <div class="filter-bar">
+        <select class="form-select" id="mgr-flt-type" onchange="renderManage()" style="width:130px"></select>
+        <select class="form-select" id="mgr-flt-year" onchange="renderManage()" style="width:90px"></select>
+        <input class="form-input" id="mgr-search" placeholder="🔍 搜尋..." oninput="renderManage()" style="width:150px">
+        <button class="btn btn-green btn-sm" onclick="openModal()">＋ <span data-t="add_hol">新增假日</span></button>
+      </div>
+      <div id="mgr-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ─────── ANALYSIS TAB ─────── -->
+<div class="tab-panel" id="tab-analysis">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+    <!-- Stats cards -->
+    <div>
+      <div class="section-title">📊 <span data-t="year_stats">年度統計</span></div>
+      <div class="stats-grid" id="ana-stats"></div>
+      <div class="section-card">
+        <div class="section-title" style="margin-bottom:8px">📈 <span data-t="type_dist">類型分佈</span></div>
+        <div id="ana-bars"></div>
       </div>
     </div>
-    <div class="hra-header-space"></div>
-    <div class="hra-sync-ind" onclick="HRA.Sync.push()">
-      <span class="sync-dot" id="sync-dot-main"></span>
-      <span class="sync-lbl" id="sync-lbl-main">雲端未設定</span>
+    <!-- Heatmap + compare -->
+    <div>
+      <div class="section-card">
+        <div class="section-title" style="margin-bottom:8px">🗺 <span data-t="month_heat">月份熱力圖</span></div>
+        <div class="heatmap" id="ana-heat"></div>
+      </div>
+      <div class="section-card">
+        <div class="section-title" style="margin-bottom:8px">🔄 <span data-t="compare">年份對比</span></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+          <select class="form-select" id="ana-yr1" onchange="renderAnalysis()" style="flex:1"></select>
+          <span style="font-weight:700;color:var(--text2)">VS</span>
+          <select class="form-select" id="ana-yr2" onchange="renderAnalysis()" style="flex:1"></select>
+        </div>
+        <div id="ana-compare"></div>
+      </div>
     </div>
-    <div class="hra-lang">
-      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
-      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
-      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
+    <!-- Upcoming -->
+    <div style="grid-column:1/-1">
+      <div class="section-card">
+        <div class="section-title" style="margin-bottom:8px">⏰ <span data-t="upcoming">即將到來的假日</span></div>
+        <div id="ana-upcoming" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px"></div>
+      </div>
     </div>
-    <button class="btn btn-primary btn-sm" onclick="openAddModal()">＋ 新增假期</button>
-    <button class="btn btn-tg btn-sm" onclick="sendUpcomingTg()">📱 提醒</button>
-    <button class="btn btn-ghost btn-sm" onclick="HRA.Sync.push()">⬆</button>
-    <button class="btn btn-ghost btn-sm" onclick="HRA.Sync.pull()">⬇</button>
   </div>
-  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
+</div>
 
-  <div class="hra-content">
+<!-- ─────── EXPORT/IMPORT TAB ─────── -->
+<div class="tab-panel" id="tab-expimp">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px">
+    <div class="section-card">
+      <div class="section-title">📤 <span data-t="export">匯出資料</span></div>
+      <div class="info-box">選擇年份或全部年份，匯出為 JSON / CSV / HTML 報表格式，方便存檔或分享。</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;gap:6px;align-items:center">
+          <select class="form-select" id="exp-year" style="flex:1"></select>
+          <button class="btn btn-blue" onclick="exportJSON()">📄 JSON</button>
+          <button class="btn btn-green" onclick="exportCSV()">📊 CSV</button>
+        <button class="btn btn-blue" onclick="exportExcel()">🗂 彩色 Excel</button>
+        <button class="btn" style="background:#ff6f00;color:#fff" onclick="exportColorPrint()">🎨 彩色月曆列印</button>
+        </div>
+        <button class="btn btn-blue" style="width:100%" onclick="exportAllJSON()">📦 匯出全部年份 JSON</button>
+        <button class="btn" style="background:#ff6f00;color:#fff;width:100%" onclick="exportHTML()">🖨 匯出 HTML 報表</button>
+      </div>
+    </div>
+    <div class="section-card">
+      <div class="section-title">📥 <span data-t="import">匯入資料</span></div>
+      <div class="warn-box">⚠️ 匯入 JSON 格式資料，相同年份的假日將被<strong>合併</strong>（不覆蓋）。建議先備份。</div>
+      <input type="file" id="imp-file" accept=".json" onchange="importJSON(event)" style="display:none">
+      <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="document.getElementById('imp-file').click()">
+        📥 選擇 JSON 檔案匯入
+      </button>
+      <div id="imp-status"></div>
+    </div>
+    <div class="section-card" style="grid-column:1/-1">
+      <div class="section-title">📋 <span data-t="data_overview">資料總覽</span></div>
+      <div id="exp-overview" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px"></div>
+    </div>
+  </div>
+</div>
 
-    <!-- MONTH VIEW -->
-    <div class="tab-page on" id="tab-month">
-      <div class="ph">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="moveMonth(-1)">← <span data-i18n="prev">上個月</span></button>
-          <h2 id="month-title" style="margin:0;font-size:18px"></h2>
-          <button class="btn btn-ghost btn-sm" onclick="moveMonth(1)"><span data-i18n="next">下個月</span> →</button>
-          <button class="btn btn-ghost btn-sm" onclick="goToday()">今天</button>
+<!-- ─────── TELEGRAM TAB ─────── -->
+<div class="tab-panel" id="tab-telegram">
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+    <div class="section-card">
+      <div class="section-title">⚙️ Telegram <span data-t="tg_config">設定</span></div>
+      <div class="info-box">
+        <strong>設定步驟：</strong><br>
+        1. 搜尋 @BotFather → /newbot 建立 Bot<br>
+        2. 複製 Bot Token（格式：123456:ABC...）<br>
+        3. 將 Bot 加入群組並給予管理員權限<br>
+        4. 搜尋 @userinfobot 取得群組 Chat ID<br>
+        5. 群組 Chat ID 通常以 <code>-100</code> 開頭
+      </div>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label class="form-label">Bot Token</label>
+          <input class="form-input" id="tg-token" placeholder="1234567890:ABCdefGHIjklMNO..." style="font-family:monospace;font-size:.75rem">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">群組 Chat ID</label>
+          <input class="form-input" id="tg-chatid" placeholder="-1001234567890" style="font-family:monospace">
+        </div>
+        <div class="form-group">
+          <label class="form-label">通知類型</label>
+          <select class="form-select" id="tg-msgtype">
+            <option value="upcoming">即將到來假日（5筆）</option>
+            <option value="month">本月假日</option>
+            <option value="year">全年假日摘要</option>
+            <option value="custom">自訂訊息</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">年份</label>
+          <select class="form-select" id="tg-year"></select>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">自訂訊息（選填，留空自動生成）</label>
+          <textarea class="form-textarea" id="tg-msg" placeholder="輸入自訂通知內容..." style="min-height:80px"></textarea>
         </div>
       </div>
-      <div class="cal-grid" id="cal-dow-row">
-        <div class="cal-dow">日 Sun</div><div class="cal-dow">一 Mon</div><div class="cal-dow">二 Tue</div>
-        <div class="cal-dow">三 Wed</div><div class="cal-dow">四 Thu</div><div class="cal-dow">五 Fri</div><div class="cal-dow">六 Sat</div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn btn-gray" onclick="previewTgMsg()" style="flex:1">👁 預覽</button>
+        <button class="btn btn-tg" onclick="sendTelegram()" style="flex:2">✈️ 發送 Telegram 通知</button>
       </div>
-      <div class="cal-grid" id="cal-grid"></div>
-      <!-- Right: upcoming list -->
-      <div class="card" style="margin-top:14px">
-        <div class="card-title">📅 近期假期 / Upcoming Holidays</div>
-        <div id="upcoming-list"></div>
+      <div id="tg-status" style="margin-top:10px"></div>
+    </div>
+    <div class="section-card">
+      <div class="section-title">📝 訊息預覽</div>
+      <div class="tg-preview" id="tg-preview">點擊「預覽」按鈕查看通知內容...</div>
+      <div style="margin-top:8px;font-size:.72rem;color:var(--text2)">
+        📌 支援 HTML 格式（&lt;b&gt;粗體&lt;/b&gt;、&lt;i&gt;斜體&lt;/i&gt;、&lt;code&gt;程式碼&lt;/code&gt;）
+      </div>
+      <div class="warn-box" style="margin-top:10px">
+        <strong>💡 注意：</strong>直接從瀏覽器發送 Telegram API 需要 CORS 支持。若遇到跨域錯誤，建議使用後端代理或 Telegram Bot Server。
       </div>
     </div>
+  </div>
+</div>
 
-    <!-- YEAR VIEW -->
-    <div class="tab-page" id="tab-year">
-      <div class="ph">
-        <div style="display:flex;align-items:center;gap:12px">
-          <button class="btn btn-ghost btn-sm" onclick="moveYear(-1)">←</button>
-          <h2 id="year-title" style="margin:0;font-size:18px"></h2>
-          <button class="btn btn-ghost btn-sm" onclick="moveYear(1)">→</button>
+</div><!-- /content -->
+
+<!-- ─────── ADD/EDIT MODAL ─────── -->
+<div class="overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="modal-title">新增假日</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="f-id">
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">假日類型 *</label>
+          <select class="form-select" id="f-type" onchange="onTypeChange()">
+            <option value="legal">🔴 法定假日</option>
+            <option value="regular">🔵 例假日</option>
+            <option value="substitute">🟠 調換假日</option>
+            <option value="annual">🟣 年假</option>
+            <option value="makeup">🟡 補假</option>
+            <option value="workday">🟢 新增上班日</option>
+            <option value="halfpay">🩷 停工半薪</option>
+            <option value="cancelled">⚫ 取消假日</option>
+            <option value="postponed">🔶 延後假日</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">所屬年份</label>
+          <select class="form-select" id="f-year"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">開始日期 *</label>
+          <input class="form-input" type="date" id="f-date" onchange="calcDays()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">結束日期（多天假日）</label>
+          <input class="form-input" type="date" id="f-enddate" onchange="calcDays()">
+        </div>
+        <div class="form-group">
+          <label class="form-label">天數</label>
+          <input class="form-input" type="number" id="f-days" min="1" max="60" value="1" style="width:80px">
+        </div>
+        <div class="form-group" id="fg-ref" style="display:none">
+          <label class="form-label">原假日日期（調換/補假用）</label>
+          <input class="form-input" type="date" id="f-refdate">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">中文名稱 *</label>
+          <input class="form-input" id="f-zh" placeholder="例：元旦、春節、調休上班...">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">English Name</label>
+          <input class="form-input" id="f-en" placeholder="e.g. New Year's Day, Substitute Holiday...">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">ឈ្មោះខ្មែរ（高棉語）</label>
+          <input class="form-input" id="f-km" placeholder="ឧ. ថ្ងៃឈប់...">
+        </div>
+        <div class="form-group full">
+          <label class="form-label">備注 / 說明</label>
+          <textarea class="form-textarea" id="f-note" placeholder="例：因星期日調至星期一補假、政府公告第xxx號..."></textarea>
+        </div>
+        <div class="form-group full">
+          <label class="form-label">發布公告/依據</label>
+          <input class="form-input" id="f-source" placeholder="例：勞動部公告 2026-01-01、Sub-Decree No.12">
         </div>
       </div>
-      <div class="year-grid" id="year-grid"></div>
+      <div id="type-hint" style="margin-top:8px"></div>
     </div>
-
-    <!-- HOLIDAY LIST -->
-    <div class="tab-page" id="tab-list">
-      <div class="ph"><h2>📋 假期列表</h2><p>Holiday List — 柬國及工廠假期</p></div>
-      <div class="frow">
-        <input class="search-box" id="search-holidays" placeholder="搜尋…" oninput="renderList()">
-        <select class="form-input" id="filter-htype" onchange="renderList()" style="min-width:120px">
-          <option value="">全部類型</option>
-          <option value="public">柬國假期</option>
-          <option value="factory">工廠假期</option>
-          <option value="ot">加班/補班日</option>
-          <option value="reminder">提醒</option>
-        </select>
-        <select class="form-input" id="filter-hyear" onchange="renderList()" style="min-width:90px">
-          <option value="">全部年份</option>
-        </select>
-        <button class="btn btn-ghost btn-sm" onclick="exportExcel()">⬇ Excel</button>
-      </div>
-      <div id="holiday-list"></div>
-    </div>
-
-    <!-- SETTINGS -->
-    <div class="tab-page" id="tab-settings">
-      <div class="ph"><h2>⚙️ 設定</h2></div>
-      <div class="card"><div class="card-title">系統設定</div><div id="settings-form-container"></div></div>
-      <div class="card">
-        <div class="card-title">📋 柬國法定假期預設資料</div>
-        <p style="font-size:11px;color:var(--c-muted);margin-bottom:10px">載入柬國 2025 年法定假期（26天）</p>
-        <button class="btn btn-primary btn-sm" onclick="loadCambodiaHolidays(2025)">載入 2025 年假期</button>
-        <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="loadCambodiaHolidays(2026)">載入 2026 年假期</button>
-      </div>
-      <div class="card">
-        <div class="card-title">💾 資料管理</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-ghost btn-sm" onclick="backupJSON()">📦 備份</button>
-          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restore-file').click()">📂 還原</button>
-          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(event)">
-          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearCustom()">🗑 清除自訂假期</button>
-        </div>
-      </div>
-      <div class="card"><div class="card-title">🗒 事件紀錄</div><div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div></div>
-    </div>
-
-  </div>
-</div>
-</div>
-
-<!-- ADD/EDIT MODAL -->
-<div class="modal-bg" id="modal-holiday">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-title">
-      <span id="modal-title-text">新增假期</span>
-      <button onclick="HRA.UI.closeModal('modal-holiday')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
-    </div>
-    <div class="form-grid">
-      <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" type="date" id="m-date"></div>
-      <div class="form-group"><label class="form-label">類型</label>
-        <select class="form-input" id="m-type">
-          <option value="public">🇰🇭 柬國假期</option>
-          <option value="factory">🏭 工廠假期</option>
-          <option value="ot">⚙️ 加班/補班</option>
-          <option value="reminder">🔔 提醒</option>
-        </select>
-      </div>
-      <div class="form-group full"><label class="form-label">名稱（中文）*</label><input class="form-input" id="m-name-zh"></div>
-      <div class="form-group full"><label class="form-label">名稱（English）</label><input class="form-input" id="m-name-en"></div>
-      <div class="form-group full"><label class="form-label">名稱（ខ្មែរ）</label><input class="form-input" id="m-name-km"></div>
-      <div class="form-group full"><label class="form-label">備註</label><input class="form-input" id="m-remark"></div>
-      <div class="form-group">
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
-          <input type="checkbox" id="m-tg-remind"> Telegram 提醒（前一天）
-        </label>
-      </div>
-    </div>
-    <div class="modal-acts">
-      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-holiday')">取消</button>
-      <button class="btn btn-primary" onclick="saveHoliday()">💾 儲存</button>
+    <div class="modal-foot">
+      <button class="btn btn-gray" onclick="closeModal()" data-t="cancel">取消</button>
+      <button class="btn btn-red" id="del-btn" onclick="deleteHol()" style="display:none" data-t="delete">🗑 刪除</button>
+      <button class="btn btn-green" onclick="saveHol()" data-t="save">💾 儲存</button>
     </div>
   </div>
 </div>
 
-<!-- Day detail modal -->
-<div class="modal-bg" id="modal-day">
-  <div class="modal" style="max-width:420px">
-    <div class="modal-title">
-      <span id="day-modal-title"></span>
-      <button onclick="HRA.UI.closeModal('modal-day')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
-    </div>
-    <div id="day-modal-content"></div>
-    <div class="modal-acts">
-      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-day')">關閉</button>
-      <button class="btn btn-primary btn-sm" onclick="HRA.UI.closeModal('modal-day');openAddModal()">＋ 新增假期</button>
-    </div>
-  </div>
-</div>
-
+<!-- ─────── JS ─────── -->
 <script>
-// ══════════════════════════════════════════════════════
-// AC HRA Calendar v2
-// ══════════════════════════════════════════════════════
-const MODULE    = 'calendar';
-const STORE_KEY = 'ac_hra_calendar_db';
+// ═══════════════════ DATA ═══════════════════
+const TYPE_CFG = {
+  legal:     { zh:'法定假日', en:'Legal Holiday',    km:'ថ្ងៃឈប់ច្បាប់',    icon:'🔴', bg:'#ffebee', border:'#ef9a9a', text:'#c62828', dot:'#c62828' },
+  regular:   { zh:'例假日',   en:'Regular Off',      km:'ថ្ងៃឈប់ធម្មតា',   icon:'🔵', bg:'#e8eaf6', border:'#9fa8da', text:'#283593', dot:'#3949ab' },
+  substitute:{ zh:'調換假日', en:'Substitute Day',   km:'ថ្ងៃជំនួស',        icon:'🟠', bg:'#fff3e0', border:'#ffcc80', text:'#e65100', dot:'#f57c00' },
+  annual:    { zh:'年假',     en:'Annual Leave',     km:'វិស្សមការ',         icon:'🟣', bg:'#f3e5f5', border:'#ce93d8', text:'#6a1b9a', dot:'#8e24aa' },
+  makeup:    { zh:'補假',     en:'Makeup Holiday',   km:'ថ្ងៃសង',            icon:'🟡', bg:'#fffde7', border:'#fff176', text:'#f57f17', dot:'#fdd835' },
+  workday:   { zh:'新增上班日',en:'Extra Workday',   km:'ថ្ងៃធ្វើការបន្ថែម',  icon:'🟢', bg:'#e8f5e9', border:'#a5d6a7', text:'#2e7d32', dot:'#43a047' },
+  halfpay:   { zh:'停工半薪', en:'Half Pay Stop',    km:'ឈប់ពាក់កណ្ដាល',    icon:'🩷', bg:'#fce4ec', border:'#f48fb1', text:'#880e4f', dot:'#e91e63' },
+  cancelled: { zh:'取消假日', en:'Cancelled Holiday',km:'ថ្ងៃឈប់ដែលបោះបង់', icon:'⚫', bg:'#f5f5f5', border:'#bdbdbd', text:'#546e7a', dot:'#78909c' },
+  postponed: { zh:'延後假日', en:'Postponed Holiday',km:'ថ្ងៃឈប់ពន្យារ',    icon:'🔶', bg:'#e0f2f1', border:'#80cbc4', text:'#00695c', dot:'#00897b' },
+  vrt:       { zh:'VRT工廠假期',en:'VRT Factory Holiday',km:'ឈប់ VRT',        icon:'🏭', bg:'#ede7f6', border:'#9575cd', text:'#4527a0', dot:'#5e35b1' },
+  stopwork:  { zh:'工廠停工',   en:'Factory Stoppage',  km:'ផ្អាករោងចក្រ',    icon:'⛔', bg:'#fff3e0', border:'#ffb74d', text:'#bf360c', dot:'#e64a19' },
+};
 
-let holidays = [];       // { id, date, type, nameZh, nameEn, nameKm, remark, tgRemind, custom }
-let _editId  = null;
-let curYear  = new Date().getFullYear();
-let curMonth = new Date().getMonth();
+const TYPE_HINTS = {
+  legal:     '法定假日：政府公告的法定放假日，全國適用',
+  regular:   '例假日：週六/週日或固定休息日',
+  substitute:'調換假日：因假日碰到非工作日，調整至其他日期補休',
+  annual:    '年假：員工年度帶薪休假',
+  makeup:    '補假：因調換而需要補回的工作日',
+  workday:   '新增上班日：原本放假但調整為需要上班的日期',
+  halfpay:   '停工半薪：因特殊情況停工，員工領取半薪',
+  cancelled: '取消假日：原定假日被取消，需正常上班',
+  postponed: '延後假日：假日推遲至其他日期執行',
+  vrt:       'VRT工廠假期：VRT工廠依實際情況自行安排之放假期間，可涵蓋並超出法定假日範圍；以管理部紀錄為主',
+  stopwork:  '工廠停工：因訂單不足或特殊情況安排工人停工，期間薪資依當時協議辦理',
+};
 
-const LANG = () => HRA.I18N.getLang();
-function hName(h) { return LANG()==='en'?(h.nameEn||h.nameZh):LANG()==='km'?(h.nameKm||h.nameZh):h.nameZh; }
 
-// ── Cambodia Public Holidays data ──
-const CAM_HOLIDAYS = {
-  2025: [
-    {d:'01-01',zh:'元旦',en:"New Year's Day",km:'ទិវាចូលឆ្នាំ'},
-    {d:'01-07',zh:'勝利日',en:'Victory Day',km:'ទិវាជ័យជម្នះ'},
-    {d:'02-12',zh:'麥卜恰節（農曆）',en:'Meak Bochea Day',km:'ទិវាមាឃបូជា'},
-    {d:'03-08',zh:'國際婦女節',en:"International Women's Day",km:'ទិវាស្ត្រីអន្តរជាតិ'},
-    {d:'04-13',zh:'柬埔寨新年',en:'Khmer New Year (Day 1)',km:'ចូលឆ្នាំខ្មែរ'},
-    {d:'04-14',zh:'柬埔寨新年',en:'Khmer New Year (Day 2)',km:'ចូលឆ្នាំខ្មែរ'},
-    {d:'04-15',zh:'柬埔寨新年',en:'Khmer New Year (Day 3)',km:'ចូលឆ្នាំខ្មែរ'},
-    {d:'05-01',zh:'勞動節',en:'International Labour Day',km:'ទិវាពលករអន្តរជាតិ'},
-    {d:'05-14',zh:'國王耕田節',en:'Royal Ploughing Ceremony',km:'ព្រះរាជពិធីបុណ្យចំការ'},
-    {d:'05-15',zh:'國王耕田節',en:'Royal Ploughing Ceremony',km:'ព្រះរាជពិធីបុណ្យចំការ'},
-    {d:'05-21',zh:'維薩卡節',en:'Visak Bochea Day',km:'ទិវាវិសាខបូជា'},
-    {d:'06-01',zh:'兒童節',en:"International Children's Day",km:'ទិវាកុមារអន្តរជាតិ'},
-    {d:'06-18',zh:'王太后壽辰',en:"Queen Mother's Birthday",km:'ព្រះរាជសម្ភពព្រះម្ចាស់'},
-    {d:'09-24',zh:'憲法日',en:'Constitution Day',km:'ទិវារដ្ឋធម្មនុញ្ញ'},
-    {d:'10-02',zh:'普欽本節（祭祖節）',en:'Pchum Ben Day 1',km:'ព្រះរាជពិធីបុណ្យភ្ជុំបិណ្ឌ'},
-    {d:'10-03',zh:'普欽本節（祭祖節）',en:'Pchum Ben Day 2',km:'ព្រះរាជពិធីបុណ្យភ្ជុំបិណ្ឌ'},
-    {d:'10-04',zh:'普欽本節（祭祖節）',en:'Pchum Ben Day 3',km:'ព្រះរាជពិធីបុណ្យភ្ជុំបិណ្ឌ'},
-    {d:'10-23',zh:'巴黎和平協定紀念日',en:'Paris Peace Agreement Day',km:'ទិវាកិច្ចព្រមព្រៀងសន្តិភាព'},
-    {d:'10-29',zh:'西哈莫尼國王誕辰',en:"King's Birthday Day 1",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
-    {d:'10-30',zh:'西哈莫尼國王誕辰',en:"King's Birthday Day 2",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
-    {d:'10-31',zh:'西哈莫尼國王誕辰',en:"King's Birthday Day 3",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
-    {d:'11-09',zh:'獨立日',en:'Independence Day',km:'ទិវាឯករាជ្យជាតិ'},
-    {d:'11-10',zh:'水燈節',en:'Water Festival Day 1',km:'ព្រះរាជពិធីបុណ្យអុំទូក'},
-    {d:'11-11',zh:'水燈節',en:'Water Festival Day 2',km:'ព្រះរាជពិធីបុណ្យអុំទូក'},
-    {d:'11-12',zh:'水燈節',en:'Water Festival Day 3',km:'ព្រះរាជពិធីបុណ្យអុំទូក'},
-    {d:'12-10',zh:'人權日',en:'Human Rights Day',km:'ទិវាសិទ្ធិមនុស្ស'},
+// ═══════════════════ EXTERNAL CALENDAR LAYERS ═══════════════════
+const EXT_LAYERS = {
+  tw:     {key:'tw',     label:'🇹🇼 台灣國定假', dot:'#1565c0', bg:'#e3f2fd', border:'#90caf9', enabled:false},
+  my:     {key:'my',     label:'🇲🇾 馬來西亞',   dot:'#e65100', bg:'#fff8e1', border:'#ffe082', enabled:false},
+  school: {key:'school', label:'📚 東馬學校假',   dot:'#7b1fa2', bg:'#f3e5f5', border:'#ce93d8', enabled:false},
+  lunar:  {key:'lunar',  label:'🌙 農曆',          dot:'#e91e63', bg:null,      border:null,      enabled:false},
+};
+
+// TW National Holidays 2019-2026 (政府公告)
+const TW_DB = {
+  2019:[
+    {date:'2019-01-01',zh:'元旦',days:1},{date:'2019-02-02',zh:'春節',enddate:'2019-02-10',days:9},
+    {date:'2019-02-28',zh:'和平紀念日',days:1},{date:'2019-04-04',zh:'兒童節+清明',days:1},
+    {date:'2019-05-01',zh:'勞動節',days:1},{date:'2019-06-07',zh:'端午節',days:1},
+    {date:'2019-09-13',zh:'中秋節',days:1},{date:'2019-10-10',zh:'國慶日',days:1},
   ],
+  2020:[
+    {date:'2020-01-01',zh:'元旦',days:1},{date:'2020-01-22',zh:'春節',enddate:'2020-01-29',days:8},
+    {date:'2020-02-28',zh:'和平紀念日',days:1},{date:'2020-04-03',zh:'兒童節',days:1},
+    {date:'2020-04-04',zh:'清明節',days:1},{date:'2020-05-01',zh:'勞動節',days:1},
+    {date:'2020-06-25',zh:'端午節',days:1},{date:'2020-10-01',zh:'中秋節',days:1},
+    {date:'2020-10-10',zh:'國慶日',days:1},
+  ],
+  2021:[
+    {date:'2021-01-01',zh:'元旦',days:1},{date:'2021-02-10',zh:'春節',enddate:'2021-02-16',days:7},
+    {date:'2021-02-28',zh:'和平紀念日',days:1},{date:'2021-04-02',zh:'兒童節+清明',enddate:'2021-04-06',days:5},
+    {date:'2021-05-01',zh:'勞動節',days:1},{date:'2021-06-14',zh:'端午節',days:1},
+    {date:'2021-09-21',zh:'中秋節',days:1},{date:'2021-10-10',zh:'國慶日',days:1},
+  ],
+  2022:[
+    {date:'2022-01-01',zh:'元旦',days:1},{date:'2022-01-28',zh:'春節',enddate:'2022-02-05',days:9},
+    {date:'2022-02-28',zh:'和平紀念日',days:1},{date:'2022-04-02',zh:'兒童節+清明',enddate:'2022-04-05',days:4},
+    {date:'2022-05-01',zh:'勞動節',days:1},{date:'2022-06-03',zh:'端午節',days:1},
+    {date:'2022-09-10',zh:'中秋節',days:1},{date:'2022-10-10',zh:'國慶日',days:1},
+  ],
+  2023:[
+    {date:'2023-01-01',zh:'元旦',days:1},{date:'2023-01-20',zh:'春節',enddate:'2023-01-27',days:8},
+    {date:'2023-02-28',zh:'和平紀念日',days:1},{date:'2023-04-03',zh:'兒童節+清明',enddate:'2023-04-05',days:3},
+    {date:'2023-05-01',zh:'勞動節',days:1},{date:'2023-06-22',zh:'端午節',days:1},
+    {date:'2023-09-29',zh:'中秋節',days:1},{date:'2023-10-10',zh:'國慶日',days:1},
+  ],
+  2024:[
+    {date:'2024-01-01',zh:'元旦',days:1},{date:'2024-02-08',zh:'春節',enddate:'2024-02-14',days:7},
+    {date:'2024-02-28',zh:'和平紀念日',days:1},{date:'2024-04-04',zh:'兒童節+清明',enddate:'2024-04-05',days:2},
+    {date:'2024-05-01',zh:'勞動節',days:1},{date:'2024-06-10',zh:'端午節',days:1},
+    {date:'2024-09-17',zh:'中秋節',days:1},{date:'2024-10-10',zh:'國慶日',days:1},
+  ],
+  2025:[
+    {date:'2025-01-01',zh:'元旦',days:1},{date:'2025-01-27',zh:'春節',enddate:'2025-02-02',days:7},
+    {date:'2025-02-28',zh:'和平紀念日',days:1},{date:'2025-04-03',zh:'兒童節+清明',enddate:'2025-04-04',days:2},
+    {date:'2025-05-01',zh:'勞動節',days:1},{date:'2025-05-31',zh:'端午節',days:1},
+    {date:'2025-10-06',zh:'中秋節',days:1},{date:'2025-10-10',zh:'國慶日',days:1},
+  ],
+  2026:[
+    {date:'2026-01-01',zh:'元旦',days:1},{date:'2026-02-16',zh:'春節',enddate:'2026-02-22',days:7},
+    {date:'2026-02-28',zh:'和平紀念日',days:1},{date:'2026-04-04',zh:'兒童節+清明',enddate:'2026-04-05',days:2},
+    {date:'2026-05-01',zh:'勞動節',days:1},{date:'2026-06-19',zh:'端午節',days:1},
+    {date:'2026-10-01',zh:'中秋節',days:1},{date:'2026-10-10',zh:'國慶日',days:1},
+  ],
+};
+
+// Malaysia National Holidays 2019-2026
+const MY_DB = {
+  2019:[
+    {date:'2019-01-01',zh:'元旦(MY)',days:1},{date:'2019-02-05',zh:'農曆新年(MY)',enddate:'2019-02-06',days:2},
+    {date:'2019-02-01',zh:'聯邦日',days:1},{date:'2019-04-19',zh:'開齋節',enddate:'2019-04-20',days:2},
+    {date:'2019-05-01',zh:'勞動節(MY)',days:1},{date:'2019-05-19',zh:'衛塞節',days:1},
+    {date:'2019-06-03',zh:'最高元首誕辰',days:1},{date:'2019-06-26',zh:'宰牲節(MY)',days:1},
+    {date:'2019-07-30',zh:'最高元首誕辰(舊)',days:1},{date:'2019-08-09',zh:'開齋節(砂)',days:1},
+    {date:'2019-08-31',zh:'獨立日(MY)',days:1},{date:'2019-09-16',zh:'馬來西亞日',days:1},
+    {date:'2019-11-09',zh:'先知誕辰(MY)',days:1},{date:'2019-10-27',zh:'屠妖節',days:1},
+    {date:'2019-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2020:[
+    {date:'2020-01-01',zh:'元旦(MY)',days:1},{date:'2020-01-25',zh:'農曆新年(MY)',enddate:'2020-01-26',days:2},
+    {date:'2020-01-27',zh:'聯邦日',days:1},{date:'2020-05-24',zh:'開齋節',enddate:'2020-05-25',days:2},
+    {date:'2020-05-01',zh:'勞動節(MY)',days:1},{date:'2020-05-07',zh:'衛塞節',days:1},
+    {date:'2020-06-08',zh:'最高元首誕辰',days:1},{date:'2020-07-31',zh:'宰牲節(MY)',days:1},
+    {date:'2020-08-31',zh:'獨立日(MY)',days:1},{date:'2020-09-16',zh:'馬來西亞日',days:1},
+    {date:'2020-10-29',zh:'先知誕辰(MY)',days:1},{date:'2020-11-14',zh:'屠妖節',days:1},
+    {date:'2020-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2021:[
+    {date:'2021-01-01',zh:'元旦(MY)',days:1},{date:'2021-02-01',zh:'聯邦日',days:1},
+    {date:'2021-02-12',zh:'農曆新年(MY)',enddate:'2021-02-13',days:2},
+    {date:'2021-05-01',zh:'勞動節(MY)',days:1},{date:'2021-05-13',zh:'開齋節',enddate:'2021-05-14',days:2},
+    {date:'2021-05-26',zh:'衛塞節',days:1},{date:'2021-06-07',zh:'最高元首誕辰',days:1},
+    {date:'2021-07-20',zh:'宰牲節(MY)',days:1},{date:'2021-08-31',zh:'獨立日(MY)',days:1},
+    {date:'2021-09-16',zh:'馬來西亞日',days:1},{date:'2021-10-19',zh:'先知誕辰(MY)',days:1},
+    {date:'2021-11-04',zh:'屠妖節',days:1},{date:'2021-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2022:[
+    {date:'2022-01-01',zh:'元旦(MY)',days:1},{date:'2022-02-01',zh:'聯邦日',days:1},
+    {date:'2022-02-01',zh:'農曆新年(MY)',enddate:'2022-02-02',days:2},
+    {date:'2022-05-01',zh:'勞動節(MY)',days:1},{date:'2022-05-02',zh:'開齋節',enddate:'2022-05-03',days:2},
+    {date:'2022-05-15',zh:'衛塞節',days:1},{date:'2022-06-06',zh:'最高元首誕辰',days:1},
+    {date:'2022-07-10',zh:'宰牲節(MY)',days:1},{date:'2022-08-31',zh:'獨立日(MY)',days:1},
+    {date:'2022-09-16',zh:'馬來西亞日',days:1},{date:'2022-10-08',zh:'先知誕辰(MY)',days:1},
+    {date:'2022-10-24',zh:'屠妖節',days:1},{date:'2022-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2023:[
+    {date:'2023-01-01',zh:'元旦(MY)',days:1},{date:'2023-01-22',zh:'農曆新年(MY)',enddate:'2023-01-23',days:2},
+    {date:'2023-02-01',zh:'聯邦日',days:1},{date:'2023-04-21',zh:'開齋節',enddate:'2023-04-22',days:2},
+    {date:'2023-05-01',zh:'勞動節(MY)',days:1},{date:'2023-05-04',zh:'衛塞節',days:1},
+    {date:'2023-06-05',zh:'最高元首誕辰',days:1},{date:'2023-06-28',zh:'宰牲節(MY)',days:1},
+    {date:'2023-08-31',zh:'獨立日(MY)',days:1},{date:'2023-09-16',zh:'馬來西亞日',days:1},
+    {date:'2023-09-28',zh:'先知誕辰(MY)',days:1},{date:'2023-11-13',zh:'屠妖節',days:1},
+    {date:'2023-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2024:[
+    {date:'2024-01-01',zh:'元旦(MY)',days:1},{date:'2024-02-01',zh:'聯邦日',days:1},
+    {date:'2024-02-10',zh:'農曆新年(MY)',enddate:'2024-02-11',days:2},
+    {date:'2024-04-10',zh:'開齋節',enddate:'2024-04-11',days:2},
+    {date:'2024-05-01',zh:'勞動節(MY)',days:1},{date:'2024-05-22',zh:'衛塞節',days:1},
+    {date:'2024-06-03',zh:'最高元首誕辰',days:1},{date:'2024-06-17',zh:'宰牲節(MY)',days:1},
+    {date:'2024-08-31',zh:'獨立日(MY)',days:1},{date:'2024-09-16',zh:'馬來西亞日',days:1},
+    {date:'2024-09-16',zh:'先知誕辰(MY)',days:1},{date:'2024-10-31',zh:'屠妖節',days:1},
+    {date:'2024-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2025:[
+    {date:'2025-01-01',zh:'元旦(MY)',days:1},{date:'2025-01-29',zh:'農曆新年(MY)',enddate:'2025-01-30',days:2},
+    {date:'2025-02-01',zh:'聯邦日',days:1},{date:'2025-03-31',zh:'開齋節',enddate:'2025-04-01',days:2},
+    {date:'2025-05-01',zh:'勞動節(MY)',days:1},{date:'2025-05-12',zh:'衛塞節',days:1},
+    {date:'2025-06-02',zh:'最高元首誕辰',days:1},{date:'2025-06-07',zh:'宰牲節(MY)',days:1},
+    {date:'2025-08-31',zh:'獨立日(MY)',days:1},{date:'2025-09-05',zh:'先知誕辰(MY)',days:1},
+    {date:'2025-09-16',zh:'馬來西亞日',days:1},{date:'2025-10-20',zh:'屠妖節',days:1},
+    {date:'2025-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+  2026:[
+    {date:'2026-01-01',zh:'元旦(MY)',days:1},{date:'2026-02-01',zh:'聯邦日',days:1},
+    {date:'2026-02-17',zh:'農曆新年(MY)',enddate:'2026-02-18',days:2},
+    {date:'2026-03-20',zh:'開齋節',enddate:'2026-03-21',days:2},
+    {date:'2026-05-01',zh:'勞動節(MY)',days:1},{date:'2026-05-31',zh:'衛塞節',days:1},
+    {date:'2026-06-01',zh:'最高元首誕辰',days:1},{date:'2026-05-27',zh:'宰牲節(MY)',days:1},
+    {date:'2026-08-26',zh:'先知誕辰(MY)',days:1},{date:'2026-08-31',zh:'獨立日(MY)',days:1},
+    {date:'2026-09-16',zh:'馬來西亞日',days:1},{date:'2026-11-08',zh:'屠妖節',days:1},
+    {date:'2026-12-25',zh:'聖誕節(MY)',days:1},
+  ],
+};
+
+// East Malaysia (Sarawak) School Holidays - approximate dates
+const SCHOOL_DB = {
+  2019:[
+    {date:'2019-02-02',zh:'CNY假期(學校)',enddate:'2019-02-10',days:9},
+    {date:'2019-03-16',zh:'第一學期假(學校)',enddate:'2019-03-24',days:9},
+    {date:'2019-05-25',zh:'年中假期(學校)',enddate:'2019-06-09',days:16},
+    {date:'2019-08-10',zh:'第三學期假(學校)',enddate:'2019-08-18',days:9},
+    {date:'2019-10-19',zh:'年尾學期假(學校)',enddate:'2019-10-27',days:9},
+    {date:'2019-11-16',zh:'學年假期(學校)',enddate:'2019-12-31',days:46},
+  ],
+  2020:[
+    {date:'2020-01-22',zh:'CNY假期(學校)',enddate:'2020-01-30',days:9},
+    {date:'2020-03-14',zh:'第一學期假(學校)',enddate:'2020-03-22',days:9},
+    {date:'2020-05-23',zh:'年中假期(學校)',enddate:'2020-06-07',days:16},
+    {date:'2020-08-08',zh:'第三學期假(學校)',enddate:'2020-08-16',days:9},
+    {date:'2020-10-17',zh:'年尾學期假(學校)',enddate:'2020-10-25',days:9},
+    {date:'2020-11-14',zh:'學年假期(學校)',enddate:'2020-12-31',days:48},
+  ],
+  2021:[
+    {date:'2021-02-12',zh:'CNY假期(學校)',enddate:'2021-02-20',days:9},
+    {date:'2021-03-27',zh:'第一學期假(學校)',enddate:'2021-04-04',days:9},
+    {date:'2021-05-29',zh:'年中假期(學校)',enddate:'2021-06-13',days:16},
+    {date:'2021-08-07',zh:'第三學期假(學校)',enddate:'2021-08-15',days:9},
+    {date:'2021-10-16',zh:'年尾學期假(學校)',enddate:'2021-10-24',days:9},
+    {date:'2021-11-13',zh:'學年假期(學校)',enddate:'2021-12-31',days:49},
+  ],
+  2022:[
+    {date:'2022-01-29',zh:'CNY假期(學校)',enddate:'2022-02-06',days:9},
+    {date:'2022-03-12',zh:'第一學期假(學校)',enddate:'2022-03-20',days:9},
+    {date:'2022-05-28',zh:'年中假期(學校)',enddate:'2022-06-12',days:16},
+    {date:'2022-08-06',zh:'第三學期假(學校)',enddate:'2022-08-14',days:9},
+    {date:'2022-10-15',zh:'年尾學期假(學校)',enddate:'2022-10-23',days:9},
+    {date:'2022-11-12',zh:'學年假期(學校)',enddate:'2022-12-31',days:50},
+  ],
+  2023:[
+    {date:'2023-01-20',zh:'CNY假期(學校)',enddate:'2023-01-28',days:9},
+    {date:'2023-03-11',zh:'第一學期假(學校)',enddate:'2023-03-19',days:9},
+    {date:'2023-05-27',zh:'年中假期(學校)',enddate:'2023-06-11',days:16},
+    {date:'2023-08-12',zh:'第三學期假(學校)',enddate:'2023-08-20',days:9},
+    {date:'2023-10-14',zh:'年尾學期假(學校)',enddate:'2023-10-22',days:9},
+    {date:'2023-11-18',zh:'學年假期(學校)',enddate:'2023-12-31',days:44},
+  ],
+  2024:[
+    {date:'2024-02-09',zh:'CNY假期(學校)',enddate:'2024-02-17',days:9},
+    {date:'2024-03-09',zh:'第一學期假(學校)',enddate:'2024-03-17',days:9},
+    {date:'2024-05-25',zh:'年中假期(學校)',enddate:'2024-06-09',days:16},
+    {date:'2024-08-10',zh:'第三學期假(學校)',enddate:'2024-08-18',days:9},
+    {date:'2024-10-12',zh:'年尾學期假(學校)',enddate:'2024-10-20',days:9},
+    {date:'2024-11-16',zh:'學年假期(學校)',enddate:'2024-12-31',days:46},
+  ],
+  2025:[
+    {date:'2025-01-25',zh:'CNY假期(學校)',enddate:'2025-02-02',days:9},
+    {date:'2025-03-15',zh:'第一學期假(學校)',enddate:'2025-03-23',days:9},
+    {date:'2025-05-31',zh:'年中假期(學校)',enddate:'2025-06-15',days:16},
+    {date:'2025-08-09',zh:'第三學期假(學校)',enddate:'2025-08-17',days:9},
+    {date:'2025-10-11',zh:'年尾學期假(學校)',enddate:'2025-10-19',days:9},
+    {date:'2025-11-15',zh:'學年假期(學校)',enddate:'2025-12-31',days:47},
+  ],
+  2026:[
+    {date:'2026-02-14',zh:'CNY假期(學校)',enddate:'2026-02-22',days:9},
+    {date:'2026-03-14',zh:'第一學期假(學校)',enddate:'2026-03-22',days:9},
+    {date:'2026-05-30',zh:'年中假期(學校)',enddate:'2026-06-14',days:16},
+    {date:'2026-08-08',zh:'第三學期假(學校)',enddate:'2026-08-16',days:9},
+    {date:'2026-10-10',zh:'年尾學期假(學校)',enddate:'2026-10-18',days:9},
+    {date:'2026-11-14',zh:'學年假期(學校)',enddate:'2026-12-31',days:48},
+  ],
+};
+
+// ── Lunar Calendar ──
+// Traditional Chinese calendar lookup (new year dates + month lengths)
+const LUNAR_CNY = {
+  2019:'2019-02-05',2020:'2020-01-25',2021:'2021-02-12',
+  2022:'2022-02-01',2023:'2023-01-22',2024:'2024-02-10',
+  2025:'2025-01-29',2026:'2026-02-17'
+};
+// Month lengths per year [m1,m2,...] (29 or 30 days); leap month marked
+const LUNAR_MONTHS = {
+  2019:{m:[30,29,30,29,29,30,29,30,29,30,30,30,29],leap:4,yn:'己亥',za:'豬'},
+  2020:{m:[30,30,29,30,29,30,29,29,30,29,30,29,30],leap:0,yn:'庚子',za:'鼠'},
+  2021:{m:[29,30,30,29,30,29,30,29,29,30,29,30,29],leap:0,yn:'辛丑',za:'牛'},
+  2022:{m:[30,29,30,30,29,30,29,30,29,29,30,29,30],leap:0,yn:'壬寅',za:'虎'},
+  2023:{m:[29,30,29,30,29,30,29,30,30,29,30,29,30],leap:2,yn:'癸卯',za:'兔'},
+  2024:{m:[30,29,30,29,30,29,30,29,30,30,29,30,29],leap:0,yn:'甲辰',za:'龍'},
+  2025:{m:[30,30,29,30,29,29,30,29,30,29,30,29,30],leap:6,yn:'乙巳',za:'蛇'},
+  2026:{m:[30,29,30,30,29,30,29,29,30,29,30,29,30],leap:0,yn:'丙午',za:'馬'},
+};
+const LUNAR_DAY_NAMES=['初一','初二','初三','初四','初五','初六','初七','初八','初九','初十',
+  '十一','十二','十三','十四','十五','十六','十七','十八','十九','二十',
+  '廿一','廿二','廿三','廿四','廿五','廿六','廿七','廿八','廿九','三十'];
+const LUNAR_MON_NAMES=['正月','二月','三月','四月','五月','六月','七月','八月','九月','十月','冬月','臘月'];
+const LUNAR_FESTIVALS={
+  '1-1':'🎆春節','1-15':'元宵節','2-2':'龍頭節','5-5':'🐉端午節',
+  '7-7':'七夕','7-15':'中元節','8-15':'🥮中秋節','9-9':'重陽節',
+  '12-30':'除夕','12-29':'除夕'
+};
+
+function getLunarDate(ds){
+  const yr = +ds.slice(0,4);
+  // Find the CNY closest to or before this date
+  let cnyYr = yr;
+  let cnyStr = LUNAR_CNY[yr];
+  if(!cnyStr) return null;
+  let cnyDate = parseDate(cnyStr);
+  const thisDate = parseDate(ds);
+  if(thisDate < cnyDate && LUNAR_CNY[yr-1]){
+    cnyYr = yr-1;
+    cnyStr = LUNAR_CNY[yr-1];
+    cnyDate = parseDate(cnyStr);
+  }
+  const mdata = LUNAR_MONTHS[cnyYr];
+  if(!mdata) return null;
+  let dayOff = Math.round((thisDate - cnyDate)/86400000);
+  if(dayOff < 0) return null;
+  let mon=0, dayInMon=0;
+  let rem = dayOff;
+  for(let i=0;i<mdata.m.length;i++){
+    if(rem < mdata.m[i]){ mon=i+1; dayInMon=rem; break; }
+    rem -= mdata.m[i];
+  }
+  if(mon===0) return null;
+  // Adjust for leap month
+  let displayMon=mon, isLeap=false;
+  if(mdata.leap>0 && mon>mdata.leap){ displayMon=mon-1; isLeap=(mon===mdata.leap+1); }
+  const monName=(isLeap?'閏':'')+LUNAR_MON_NAMES[displayMon-1>11?11:displayMon-1];
+  const dayName=LUNAR_DAY_NAMES[dayInMon]||'';
+  const festKey=displayMon+'-'+(dayInMon+1);
+  const fest=LUNAR_FESTIVALS[festKey]||'';
+  return {year:cnyYr, yn:mdata.yn, za:mdata.za, mon:displayMon, day:dayInMon+1, monName, dayName, fest, str:monName+'·'+dayName};
+}
+
+// ── External calendar helpers ──
+function buildExtMap(year){
+  const maps={tw:{},my:{},school:{}};
+  function expand(db,key){
+    (db[year]||[]).forEach(h=>{
+      const st=parseDate(h.date), en=h.enddate?parseDate(h.enddate):st;
+      if(!st) return;
+      for(let d=new Date(st);d<=en;d.setDate(d.getDate()+1)){
+        const k=ymd(d); if(!maps[key][k]) maps[key][k]=[]; maps[key][k].push(h);
+      }
+    });
+  }
+  expand(TW_DB,'tw'); expand(MY_DB,'my'); expand(SCHOOL_DB,'school');
+  return maps;
+}
+
+let _extMapCache={year:null, maps:null};
+function getExtMap(year){
+  if(_extMapCache.year!==year){ _extMapCache={year,maps:buildExtMap(year)}; }
+  return _extMapCache.maps;
+}
+
+function extDotsHtml(ds, extMaps){
+  let h='';
+  if(EXT_LAYERS.tw.enabled && (extMaps.tw[ds]||[]).length){
+    h+=`<span class="ext-dot" style="background:#1565c0" title="${(extMaps.tw[ds]||[]).map(x=>x.zh).join(', ')}"></span>`;
+  }
+  if(EXT_LAYERS.my.enabled && (extMaps.my[ds]||[]).length){
+    h+=`<span class="ext-dot" style="background:#e65100" title="${(extMaps.my[ds]||[]).map(x=>x.zh).join(', ')}"></span>`;
+  }
+  if(EXT_LAYERS.school.enabled && (extMaps.school[ds]||[]).length){
+    h+=`<span class="ext-dot" style="background:#7b1fa2" title="${(extMaps.school[ds]||[]).map(x=>x.zh).join(', ')}"></span>`;
+  }
+  return h?`<div class="ext-dots">${h}</div>`:'';
+}
+
+function lunarCellHtml(ds){
+  if(!EXT_LAYERS.lunar.enabled) return '';
+  const l=getLunarDate(ds); if(!l) return '';
+  const isCNY=(l.mon===1&&l.day===1);
+  const isFest=!!l.fest;
+  const col=isCNY?'#e53935':isFest?'#e91e63':'#e91e63';
+  const txt=isFest?l.fest:l.dayName;
+  return `<div class="lunar-txt" style="color:${col}">${txt}</div>`;
+}
+
+// ── Swap link map ──
+function buildSwapMap(list){
+  // swapMap[refdate] = [{date, id, zh, type}]
+  const m={};
+  list.forEach(h=>{
+    if(h.refdate){
+      if(!m[h.refdate]) m[h.refdate]=[];
+      m[h.refdate].push({date:h.date, id:h.id, zh:h.zh, type:h.type});
+    }
+    if((h.type==='substitute'||h.type==='workday')&&h.refdate){
+      if(!m[h.date]) m[h.date]=[];
+      m[h.date].push({date:h.refdate, id:h.id, zh:'配對假日', type:'paired', reverse:true});
+    }
+  });
+  return m;
+}
+
+function swapLinkHtml(ds, swapMap){
+  const links=swapMap[ds]||[];
+  if(!links.length) return '';
+  return links.map(lk=>{
+    const arrow=lk.reverse?'↩':'↪';
+    const verb=lk.reverse?'換至':'換自';
+    return `<div class="swap-link" onclick="event.stopPropagation();dayClick('${lk.date}')" title="${verb} ${lk.date}">${arrow} 🔗 ${lk.date}</div>`;
+  }).join('');
+}
+
+// ── Overlay toggle ──
+function toggleOverlay(key){
+  EXT_LAYERS[key].enabled = !EXT_LAYERS[key].enabled;
+  _extMapCache={year:null,maps:null};
+  document.getElementById('ovl-'+key).classList.toggle('active', EXT_LAYERS[key].enabled);
+  renderCalendar();
+  if(selDate) renderDayPanel(selDate);
+}
+
+// Holiday data (2019-2026 preloaded; VRT factory records 2019-2024 added per management report)
+let DB = {
   2026: [
-    {d:'01-01',zh:'元旦',en:"New Year's Day",km:'ទិវាចូលឆ្នាំ'},
-    {d:'01-07',zh:'勝利日',en:'Victory Day',km:'ទិវាជ័យជម្នះ'},
-    {d:'03-08',zh:'國際婦女節',en:"International Women's Day",km:'ទិវាស្ត្រីអន្តរជាតិ'},
-    {d:'04-13',zh:'柬埔寨新年',en:'Khmer New Year (Day 1)',km:'ចូលឆ្នាំខ្មែរ'},
-    {d:'04-14',zh:'柬埔寨新年',en:'Khmer New Year (Day 2)',km:'ចូលឆ្នាំខ្មែរ'},
-    {d:'04-15',zh:'柬埔寨新年',en:'Khmer New Year (Day 3)',km:'ចូលឆ្នាំខ្មែរ'},
-    {d:'05-01',zh:'勞動節',en:'International Labour Day',km:'ទិវាពលករអន្តរជាតិ'},
-    {d:'06-01',zh:'兒童節',en:"International Children's Day",km:'ទិវាកុមារអន្តរជាតិ'},
-    {d:'06-18',zh:'王太后壽辰',en:"Queen Mother's Birthday",km:'ព្រះរាជសម្ភពព្រះម្ចាស់'},
-    {d:'09-24',zh:'憲法日',en:'Constitution Day',km:'ទិវារដ្ឋធម្មនុញ្ញ'},
-    {d:'10-23',zh:'巴黎和平協定紀念日',en:'Paris Peace Agreement Day',km:'ទិវាកិច្ចព្រមព្រៀងសន្តិភាព'},
-    {d:'10-29',zh:'西哈莫尼國王誕辰',en:"King's Birthday",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
-    {d:'10-30',zh:'西哈莫尼國王誕辰',en:"King's Birthday",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
-    {d:'10-31',zh:'西哈莫尼國王誕辰',en:"King's Birthday",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
-    {d:'11-09',zh:'獨立日',en:'Independence Day',km:'ទិវាឯករាជ្យជាតិ'},
-    {d:'12-10',zh:'人權日',en:'Human Rights Day',km:'ទិវាសិទ្ធិមនុស្ស'},
+    hol('26-01','2026-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('26-02','2026-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('26-03','2026-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,'Sun → Mon補假'),
+    hol('26-04','2026-04-14','2026-04-16','柬埔寨新年','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
+    hol('26-05','2026-05-01','','國際勞動節+比薩寶焦節','Labor Day & Visak Bochea','ទិវាពលកម្ម+វិសាខបូជា','legal',1,'合併假日'),
+    hol('26-06','2026-05-05','','禦耕節','Royal Ploughing Ceremony','ច្រត់ព្រះនង្គ័ល','legal',1,''),
+    hol('26-07','2026-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('26-08','2026-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('26-09','2026-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('26-10','2026-10-10','2026-10-12','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('26-11','2026-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,'Thu'),
+    hol('26-11m','2026-10-16','','國父去世節補假',"King Father Memorial Makeup",'ទិវាបិតា(សង)','makeup',1,'10/15因星期四，10/16補假','2026-10-15'),
+    hol('26-12','2026-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,''),
+    hol('26-13','2026-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('26-14','2026-11-23','2026-11-25','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    hol('26-15','2026-12-29','','柬埔寨和平日','Cambodia Peace Day','ទិវាសន្តិភាព','legal',1,''),
+  ],
+  2025: [
+    hol('25-01','2025-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('25-02','2025-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('25-03','2025-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('25-04','2025-04-14','2025-04-16','柬埔寨新年','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
+    hol('25-05','2025-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('25-06','2025-05-11','','比薩寶焦節','Visak Bochea','វិសាខបូជា','legal',1,''),
+    hol('25-07','2025-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('25-08','2025-05-15','','禦耕節','Royal Ploughing','ច្រត់ព្រះនង្គ័ល','legal',1,''),
+    hol('25-09','2025-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('25-10','2025-09-21','2025-09-23','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('25-11','2025-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('25-12','2025-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,''),
+    hol('25-13','2025-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,''),
+    hol('25-14','2025-11-04','2025-11-06','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    hol('25-15','2025-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('25-16','2025-12-29','','柬埔寨和平日','Cambodia Peace Day','ទិវាសន្តិភាព','legal',1,''),
+  ],
+  2024: [
+    hol('24-01','2024-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('24-02','2024-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,'週日（2020後無補假）'),
+    hol('24-03','2024-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('24-04','2024-04-13','2024-04-16','柬埔寨新年','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',4,'2024年多放1天'),
+    hol('24-05','2024-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('24-06','2024-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('24-07','2024-05-22','','比薩寶焦節','Visak Bochea','វិសាខបូជា','legal',1,''),
+    hol('24-08','2024-05-26','','禦耕節','Royal Ploughing','ច្រត់ព្រះនង្គ័ល','legal',1,'週日（2020後無補假）'),
+    hol('24-09','2024-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('24-10','2024-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('24-11','2024-10-01','2024-10-03','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('24-12','2024-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,''),
+    hol('24-13','2024-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,''),
+    hol('24-14','2024-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('24-15','2024-11-14','2024-11-16','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    hol('24-16','2024-12-29','','柬埔寨和平日','Cambodia Peace Day','ទិវាសន្តិភាព','legal',1,'週日（2020後無補假）'),
+    // ── VRT工廠記錄（管理部） ──
+    hol('24-vrt-kny','2024-04-13','2024-04-21','VRT柬新年廠假','VRT KNY Factory Holiday','ឈប់ VRT ចូលឆ្នាំ','vrt',9,'Jerry安排4/13~4/21共9天(含周日)，自2019年以來天數最多；借用5&6月年假4.5天；神道建議最佳安排應為4/11~4/18搭配5月調假2天'),
+  ],
+  // ── 2022 ──
+  2022: [
+    hol('22-01','2022-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('22-02','2022-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('22-03','2022-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('22-04','2022-04-14','2022-04-16','柬埔寨新年(國定)','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
+    hol('22-05','2022-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('22-06','2022-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('22-07','2022-05-26','','比薩寶焦節','Visak Bochea','វិសាខបូជា','legal',1,''),
+    hol('22-08','2022-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('22-09','2022-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('22-10','2022-10-03','2022-10-05','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('22-11','2022-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,''),
+    hol('22-12','2022-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,'週日（2020後無補假）'),
+    hol('22-13','2022-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('22-14','2022-11-08','2022-11-10','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    // ── VRT工廠記錄（管理部） ──
+    hol('22-stop1','2022-02-01','2022-03-31','停工（第一批）','Stoppage Batch 1','ផ្អាករោងចក្រ Batch 1','stopwork',59,'景氣衰退：7組217人停工(2&3月)；4/18起全部回廠上班；此為VRT全年停工次數最多的破記錄年'),
+    hol('22-vrt-kny','2022-04-11','2022-04-17','VRT柬新年廠假','VRT KNY Factory Holiday','ឈប់ VRT ចូលឆ្នាំ','vrt',7,'工廠7天(4/11~4/17)，提前國定假3天開始放；柬新年後4/18起安排7組停工至5/19'),
+    hol('22-stop2','2022-04-18','2022-05-19','柬新年後停工（第二批）','Post-KNY Stoppage Batch 2','ផ្អាករោងចក្រក្រោយចូលឆ្នាំ','stopwork',32,'景氣衰退：7組共209人停工；同日原第一批7組217人回廠；全廠約300+人在運作'),
+  ],
+  // ── 2021 ──
+  2021: [
+    hol('21-01','2021-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('21-02','2021-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('21-03','2021-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('21-04','2021-04-14','2021-04-16','柬埔寨新年(國定)','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
+    hol('21-05','2021-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('21-06','2021-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('21-07','2021-05-26','','比薩寶焦節','Visak Bochea','វិសាខបូជា','legal',1,''),
+    hol('21-08','2021-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('21-09','2021-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('21-10','2021-10-06','2021-10-08','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('21-11','2021-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,''),
+    hol('21-12','2021-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,''),
+    hol('21-13','2021-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('21-14','2021-11-19','2021-11-21','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    // ── VRT工廠記錄（管理部） ──
+    hol('21-stop','2021-03-06','2021-03-31','疫情停工','COVID-19 Stoppage','ផ្អាករោងចក្រ COVID','stopwork',26,'12組共379人停工一個月；COVID-19疫情隔離管控期間；工廠隔離措施得當全程未關廠'),
+    hol('21-vrt-kny','2021-04-14','2021-04-18','VRT柬新年廠假','VRT KNY Factory Holiday','ឈប់ VRT ចូលឆ្នាំ','vrt',5,'疫情年；Jerry因2020/12/25生產怠工事件記恨不給多放；疫情蔓延多數工人未返鄉；4月中起多名陸幹相繼離境'),
+  ],
+  // ── 2020 ──
+  2020: [
+    hol('20-01','2020-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('20-02','2020-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('20-03','2020-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('20-04-orig','2020-04-14','2020-04-16','柬埔寨新年(原定→延後)','KNY Postponed','ចូលឆ្នាំ(ពន្យារ)','postponed',3,'洪森宣布因COVID-19疫情將柬新年延後至8月舉行；原4/14~4/16改至8/17~8/21','2020-08-17'),
+    hol('20-04','2020-08-17','2020-08-21','柬埔寨新年(延後至8月)','Khmer New Year (Rescheduled)','ចូលឆ្នាំខ្មែរ(ពន្យារ)','legal',5,'因COVID-19疫情政府改期至8月並加放至5天'),
+    hol('20-05','2020-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('20-06','2020-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('20-07','2020-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('20-08','2020-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('20-09','2020-10-17','2020-10-19','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('20-10','2020-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,''),
+    hol('20-11','2020-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,''),
+    hol('20-12','2020-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('20-13','2020-11-03','2020-11-05','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    // ── VRT工廠記錄（管理部） ──
+    hol('20-vrt-kny','2020-08-17','2020-08-21','VRT柬新年廠假','VRT KNY Factory Holiday','ឈប់ VRT ចូលឆ្នាំ','vrt',5,'政府改期至8月後工廠配合跟進放5天；2020年為VRT遷入新廠年份，也是COVID-19疫情爆發年，整體表現屬VRT開廠以來最佳'),
+    hol('20-incident','2020-12-25','2020-12-25','生產部自行停工事件','Production Unauthorized Stoppage','ឧប្បត្តិហេតុផ្អាកការងារ','stopwork',1,'Jerry不在廠；生產部自行通知員工停工放假導致裁剪及車間大怠工；此事件直接影響2021年柬新年假期安排'),
+  ],
+  // ── 2019 ──
+  2019: [
+    hol('19-01','2019-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
+    hol('19-02','2019-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('19-03','2019-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('19-04','2019-04-14','2019-04-16','柬埔寨新年(國定)','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
+    hol('19-05','2019-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('19-06','2019-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,''),
+    hol('19-07','2019-05-19','','比薩寶焦節','Visak Bochea','វិសាខបូជា','legal',1,''),
+    hol('19-08','2019-05-13','','禦耕節','Royal Ploughing Ceremony','ច្រត់ព្រះនង្គ័ល','legal',1,''),
+    hol('19-09','2019-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,''),
+    hol('19-10','2019-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,''),
+    hol('19-11','2019-10-07','2019-10-09','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,''),
+    hol('19-12','2019-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,''),
+    hol('19-13','2019-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,''),
+    hol('19-14','2019-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('19-15','2019-11-10','2019-11-12','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,''),
+    // ── VRT工廠記錄（管理部） ──
+    hol('19-vrt-kny','2019-04-13','2019-04-19','VRT柬新年廠假','VRT KNY Factory Holiday','ឈប់ VRT ចូលឆ្នាំ','vrt',7,'神道到任首年；工廠安排7天(4/13~4/19)；全年極度繁忙(500+人力)，假日及週日均有車縫組進廠加班趕貨'),
+  ],
+  2023: [
+    hol('23-01','2023-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,'Sun→Mon'),
+    hol('23-02','2023-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
+    hol('23-03','2023-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,''),
+    hol('23-04','2023-04-14','2023-04-16','柬埔寨新年','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
+    hol('23-05','2023-05-01','','國際勞動節','Labor Day','ទិវាពលកម្ម','legal',1,''),
+    hol('23-06','2023-05-04','','比薩寶焦節','Visak Bochea','វិសាខបូជា','legal',1,''),
+    hol('23-07','2023-05-08','','禦耕節','Royal Ploughing','ច្រត់ព្រះនង្គ័ល','legal',1,''),
+    hol('23-08','2023-05-14','','國王華誕',"King's Birthday",'ព្រះរាជសម្ភព','legal',1,'Sun→Mon'),
+    hol('23-09','2023-06-18','','太后華誕',"Queen Mother's Birthday",'ព្រះជន្មចម្រើន','legal',1,'Sun→Mon'),
+    hol('23-10','2023-09-24','','立憲節','Constitution Day','ទិវារដ្ឋធម្មនុញ្ញ','legal',1,'週日（2020後無補假）'),
+    hol('23-11','2023-10-13','2023-10-15','亡人節','Pchum Ben','ភ្ជុំបិណ្ឌ','legal',3,'Sat→Mon makeup'),
+    hol('23-12','2023-10-15','','國父去世節',"King Father's Memorial",'ទិវាបិតា','legal',1,'Sun→Mon'),
+    hol('23-13','2023-10-29','','國王登基日','Coronation Day','ទិវាគ្រងរាជ','legal',1,'週日（2020後無補假）'),
+    hol('23-14','2023-11-09','','柬埔寨獨立節','Independence Day','ទិវាឯករាជ្យ','legal',1,''),
+    hol('23-15','2023-11-26','2023-11-28','送水節','Water Festival','បុណ្យអ៊ុំទូក','legal',3,'Sun makeup'),
+    hol('23-16','2023-12-10','','國際人權節','Human Rights Day','ទិវាសិទ្ធិមនុស្ស','legal',1,''),
+    // ── VRT工廠記錄（管理部） ──
+    hol('23-vrt-kny','2023-04-11','2023-04-17','VRT柬新年廠假','VRT KNY Factory Holiday','ឈប់ VRT ចូលឆ្នាំ','vrt',7,'神道主導：Jerry不在台灣養病；發薪(10號)隔天4/11放起，調5月國定假補假，不借預支年假；各部門事前溝通順暢無異議'),
   ]
 };
 
-// ── Load / Save ──
-function loadData() {
-  try { holidays = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch(e) { holidays = []; }
-}
-function saveData() {
-  localStorage.setItem(STORE_KEY, JSON.stringify(holidays));
-  HRA.Sync.schedPush();
-  render();
+function hol(id, date, enddate, zh, en, km, type, days, note, refdate='', source=''){
+  return {id,date,enddate,zh,en,km,type,days,note,refdate,source};
 }
 
-function getCloudData() {
-  return { records: holidays, summary: { total: holidays.length, public: holidays.filter(h=>h.type==='public').length, factory: holidays.filter(h=>h.type==='factory').length } };
-}
-function onCloudPull(records) {
-  if (!records?.length) return;
-  if (holidays.length && !confirm(`雲端有 ${records.length} 筆假期，覆蓋本地？`)) return;
-  holidays = records;
-  localStorage.setItem(STORE_KEY, JSON.stringify(holidays));
-  render();
-  HRA.UI.toast(`✅ 已載入 ${holidays.length} 筆假期`, 'ok');
-}
+// ═══════════════════ STATE ═══════════════════
+let lang = 'zh';
+let curYear = 2026;
+let calView = 'year';
+let weekOffset = 0; // weeks from today
+let selDate = null;
+let editingId = null;
 
-// ── Load Cambodia built-in holidays ──
-function loadCambodiaHolidays(year) {
-  const data = CAM_HOLIDAYS[year];
-  if (!data) { HRA.UI.toast(`無 ${year} 年資料`, 'warn'); return; }
-  let added = 0;
-  data.forEach(h => {
-    const dateStr = `${year}-${h.d}`;
-    if (!holidays.find(x => x.date === dateStr && x.type === 'public')) {
-      holidays.push({ id:'ch_'+dateStr+'_'+Math.random().toString(36).slice(2), date:dateStr, type:'public', nameZh:h.zh, nameEn:h.en, nameKm:h.km, remark:'', tgRemind:false, custom:false });
-      added++;
+const LANGS = {
+  zh:{ cal:'行事曆',sum:'總表',mgr:'假日管理',ana:'統計對比',exp:'匯出匯入',
+    tab_cal:'行事曆',tab_sum:'總表',tab_mgr:'假日管理',tab_ana:'統計對比',tab_exp:'匯出匯入',
+    view_year:'年視圖',view_month:'月視圖',view_week:'週視圖',view_day:'日視圖',
+    add_hol:'新增假日',print:'列印',cancel:'取消',delete:'刪除',save:'儲存',
+    col_date:'日期',col_end:'結束日',col_type:'類型',col_name:'假日名稱（中）',
+    col_name_en:'English',col_name_km:'ខ្មែរ',col_days:'天數',col_weekday:'星期',col_note:'備注',col_action:'操作',
+    year_stats:'年度統計',type_dist:'類型分佈',month_heat:'月份熱力圖',compare:'年份對比',
+    upcoming:'即將到來的假日',export:'匯出資料',import:'匯入資料',data_overview:'資料總覽',
+    tg_config:'設定',
+    MONTHS:['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
+    WD:['日','一','二','三','四','五','六'],
+    WDF:['星期日','星期一','星期二','星期三','星期四','星期五','星期六'],
+  },
+  en:{ cal:'Calendar',sum:'Summary',mgr:'Manage',ana:'Analysis',exp:'Export/Import',
+    tab_cal:'Calendar',tab_sum:'Summary Table',tab_mgr:'Manage Holidays',tab_ana:'Analysis',tab_exp:'Export/Import',
+    view_year:'Year',view_month:'Month',view_week:'Week',view_day:'Day',
+    add_hol:'Add Holiday',print:'Print',cancel:'Cancel',delete:'Delete',save:'Save',
+    col_date:'Date',col_end:'End Date',col_type:'Type',col_name:'Name (ZH)',
+    col_name_en:'English',col_name_km:'Khmer',col_days:'Days',col_weekday:'Weekday',col_note:'Notes',col_action:'Actions',
+    year_stats:'Year Stats',type_dist:'Type Distribution',month_heat:'Monthly Heatmap',compare:'Year Comparison',
+    upcoming:'Upcoming Holidays',export:'Export Data',import:'Import Data',data_overview:'Data Overview',
+    tg_config:'Configuration',
+    MONTHS:['January','February','March','April','May','June','July','August','September','October','November','December'],
+    WD:['Su','Mo','Tu','We','Th','Fr','Sa'],
+    WDF:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
+  },
+  km:{ cal:'ប្រតិទិន',sum:'តារាង',mgr:'គ្រប់គ្រង',ana:'វិភាគ',exp:'នាំចេញ/ចូល',
+    tab_cal:'ប្រតិទិន',tab_sum:'តារាងសង្ខេប',tab_mgr:'គ្រប់គ្រងថ្ងៃឈប់',tab_ana:'ស្ថិតិ',tab_exp:'នាំចេញ/ចូល',
+    view_year:'ឆ្នាំ',view_month:'ខែ',view_week:'សប្ដាហ៍',view_day:'ថ្ងៃ',
+    add_hol:'បន្ថែមថ្ងៃឈប់',print:'បោះពុម្ព',cancel:'បោះបង់',delete:'លុប',save:'រក្សា',
+    col_date:'កាលបរិច្ឆេទ',col_end:'ថ្ងៃបញ្ចប់',col_type:'ប្រភេទ',col_name:'ឈ្មោះ(ZH)',
+    col_name_en:'English',col_name_km:'ខ្មែរ',col_days:'ថ្ងៃ',col_weekday:'ថ្ងៃ',col_note:'កំណត់ចំណាំ',col_action:'សកម្មភាព',
+    year_stats:'ស្ថិតិ',type_dist:'ប្រភេទ',month_heat:'ផែនទីកំដៅ',compare:'ប្រៀបធៀប',
+    upcoming:'ថ្ងៃឈប់ខាងមុខ',export:'នាំចេញ',import:'នាំចូល',data_overview:'ទិដ្ឋភាព',
+    tg_config:'ការកំណត់',
+    MONTHS:['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'],
+    WD:['អ','ច','អ','ព','ព','ស','ស'],
+    WDF:['អាទិត្យ','ច័ន្ទ','អង្គារ','ពុធ','ព្រហស្បតិ៍','សុក្រ','សៅរ៍'],
+  }
+};
+
+// ═══════════════════ UTILS ═══════════════════
+const L = () => LANGS[lang];
+function t(key){ return L()[key] || key; }
+function pad(n){ return String(n).padStart(2,'0'); }
+function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function parseDate(s){ return s ? new Date(s+'T00:00:00') : null; }
+function dimY(y,m){ return new Date(y,m+1,0).getDate(); }
+function fdow(y,m){ return new Date(y,m,1).getDay(); }
+function isToday(ds){ return ds === ymd(new Date()); }
+function isWE(ds){ const d=parseDate(ds); return d&&(d.getDay()===0||d.getDay()===6); }
+function wdName(ds){ const d=parseDate(ds); return d ? L().WDF[d.getDay()] : ''; }
+function uid(){ return 'h'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function totalHolDays(list){
+  const s=new Set();
+  list.forEach(h=>{
+    const st=parseDate(h.date), en=h.enddate?parseDate(h.enddate):st;
+    if(!st) return;
+    for(let d=new Date(st);d<=en;d.setDate(d.getDate()+1)) s.add(ymd(d));
+  });
+  return s.size;
+}
+function buildDateMap(list){
+  const m={};
+  list.forEach(h=>{
+    const st=parseDate(h.date), en=h.enddate?parseDate(h.enddate):st;
+    if(!st) return;
+    for(let d=new Date(st);d<=en;d.setDate(d.getDate()+1)){
+      const k=ymd(d);
+      if(!m[k]) m[k]=[];
+      m[k].push(h);
     }
   });
-  saveData();
-  HRA.UI.toast(`✅ 已載入 ${added} 筆 ${year} 年柬國假期`, 'ok');
-  HRA.Logger.log('CALENDAR', `Loaded ${added} Cambodia holidays for ${year}`);
+  return m;
 }
-
-// ── Navigation ──
-function goTab(id, el) {
-  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('on'));
-  document.getElementById('tab-'+id).classList.add('on');
-  if(el) el.classList.add('on');
-  if(id==='month')  renderMonth();
-  if(id==='year')   renderYear();
-  if(id==='list')   { renderList(); populateYearFilter(); }
-  if(id==='settings') HRA.Settings.renderForm('settings-form-container');
+function getHols(year){ return DB[year]||[]; }
+function holName(h){ return h[lang]||h.zh||h.en||''; }
+function typeCfg(type){ return TYPE_CFG[type]||TYPE_CFG.legal; }
+function badgeHtml(type){
+  const c=typeCfg(type);
+  return `<span class="badge badge-${type}">${c.icon} ${c[lang]||c.zh}</span>`;
 }
+function saveDB(){ try{ localStorage.setItem('cambodia_hols',JSON.stringify(DB)); }catch(e){} }
+function loadDB(){ try{ const d=localStorage.getItem('cambodia_hols'); if(d) DB=JSON.parse(d); }catch(e){} }
+function countByType(list,type){ return list.filter(h=>h.type===type).reduce((s,h)=>s+(+h.days||1),0); }
 
-function render() {
-  const active = document.querySelector('.tab-page.on')?.id;
-  if(active==='tab-month') renderMonth();
-  if(active==='tab-year')  renderYear();
-  if(active==='tab-list')  renderList();
-}
+// ═══════════════════ INIT ═══════════════════
+loadDB();
 
-// ── Month View ──
-function moveMonth(d) { curMonth+=d; if(curMonth>11){curMonth=0;curYear++;}if(curMonth<0){curMonth=11;curYear--;} renderMonth(); }
-function goToday() { curYear=new Date().getFullYear(); curMonth=new Date().getMonth(); renderMonth(); }
+function init(){
+  // Year selector
+  const yrSel = document.getElementById('yearSel');
+  yrSel.innerHTML = '';
+  [2019,2020,2021,2022,2023,2024,2025,2026,2027].forEach(y=>{
+    const o=document.createElement('option');
+    o.value=y; o.textContent=y+'年';
+    if(y===curYear) o.selected=true;
+    yrSel.appendChild(o);
+  });
+  // Modal year
+  const fy=document.getElementById('f-year');
+  fy.innerHTML=[2019,2020,2021,2022,2023,2024,2025,2026,2027].map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
+  // Filter years
+  ['flt-year','mgr-flt-year','exp-year','ana-yr1','tg-year'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.innerHTML=[2019,2020,2021,2022,2023,2024,2025,2026,2027].map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
+  });
+  // ana-yr2 default to prev year
+  const ay2=document.getElementById('ana-yr2');
+  if(ay2) ay2.innerHTML=[2019,2020,2021,2022,2023,2024,2025,2026].map(y=>`<option value="${y}"${y===2025?' selected':''}>${y}</option>`).join('');
 
-function renderMonth() {
-  document.getElementById('month-title').textContent = `${curYear}年 ${curMonth+1}月`;
-  const today = new Date().toISOString().slice(0,10);
-  const firstDay = new Date(curYear, curMonth, 1).getDay();
-  const daysInMonth = new Date(curYear, curMonth+1, 0).getDate();
-  const daysInPrev  = new Date(curYear, curMonth, 0).getDate();
-  const hMap = {};
-  holidays.forEach(h => { if(!hMap[h.date]) hMap[h.date]=[]; hMap[h.date].push(h); });
-
-  let html = '';
-  // Previous month fill
-  for (let i=firstDay-1;i>=0;i--) {
-    const d = daysInPrev-i;
-    const dateStr = `${curYear}-${String(curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    html += `<div class="cal-day outside"><div class="day-num"><span>${d}</span></div></div>`;
+  // Type filters
+  const allOpt = `<option value="all">全部類型</option>`;
+  ['flt-type','mgr-flt-type'].forEach(id=>{
+    const el=document.getElementById(id); if(!el) return;
+    el.innerHTML=allOpt+Object.entries(TYPE_CFG).map(([k,v])=>`<option value="${k}">${v.icon} ${v[lang]||v.zh}</option>`).join('');
+  });
+  // Month filter
+  const mSel=document.getElementById('flt-month');
+  if(mSel){
+    mSel.innerHTML=`<option value="all">全部月份</option>`+L().MONTHS.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
   }
-  for (let d=1;d<=daysInMonth;d++) {
-    const dateStr = `${curYear}-${String(curMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const dayOfWeek = new Date(curYear,curMonth,d).getDay();
-    const hs = hMap[dateStr] || [];
-    const isToday = dateStr===today;
-    const hasPublic  = hs.some(h=>h.type==='public');
-    const hasFactory = hs.some(h=>h.type==='factory');
-    const hasOt      = hs.some(h=>h.type==='ot');
-    const hasRemind  = hs.some(h=>h.type==='reminder');
-    const cls = [
-      isToday?'today':'',
-      dayOfWeek===0||dayOfWeek===6?'weekend':'',
-      hasPublic?'has-pub':'',
-      hasFactory?'has-factory':'',
-      hasOt?'has-ot':'',
-    ].filter(Boolean).join(' ');
-    const tags = hs.slice(0,2).map(h=>`<div class="day-tag ${tagCls(h.type)}">${hName(h)}</div>`).join('');
-    html += `<div class="cal-day ${cls}" onclick="showDay('${dateStr}')">
-      <div class="day-num"><span>${d}</span>${isToday?'<span style="font-size:9px;background:var(--c-accent);color:#fff;padding:1px 4px;border-radius:3px">今</span>':''}</div>
-      <div class="day-tags">${tags}${hs.length>2?`<div style="font-size:9px;color:var(--c-muted)">+${hs.length-2}</div>`:''}</div>
+
+  renderLegend();
+  renderRibbon();
+  renderCalendar();
+  renderSummary();
+  renderManage();
+  renderAnalysis();
+  renderExpOverview();
+  renderMgrTypeCards();
+  updateLangUI();
+}
+
+function changeYear(y){
+  curYear=+y; weekOffset=0; selDate=null;
+  renderRibbon(); renderCalendar(); renderSummary(); renderManage(); renderAnalysis(); renderExpOverview();
+}
+function setLang(l){
+  lang=l;
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim()===(l==='zh'?'中':l==='en'?'EN':'ខ្មែរ')));
+  init();
+}
+
+// ═══════════════════ TABS ═══════════════════
+function switchTab(tab){
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  event.currentTarget.classList.add('active');
+  document.getElementById('tab-'+tab).classList.add('active');
+  if(tab==='analysis') renderAnalysis();
+  if(tab==='expimp') renderExpOverview();
+}
+
+// ═══════════════════ RIBBON ═══════════════════
+function renderRibbon(){
+  const list=getHols(curYear);
+  const total=totalHolDays(list);
+  const legal=countByType(list,'legal');
+  const makeup=countByType(list,'makeup');
+  const annual=countByType(list,'annual');
+  const sub=countByType(list,'substitute');
+  const chips=[
+    {bg:'#e8f5e9',bc:'#81c784',tc:'#1b5e20',icon:'🗓',label:`${curYear}年`,val:''},
+    {bg:'#ffebee',bc:'#ef9a9a',tc:'#c62828',icon:'🔴',label:'法定假日',val:`${legal}天`},
+    {bg:'#fffde7',bc:'#fff176',tc:'#f57f17',icon:'🟡',label:'補假',val:`${makeup}天`},
+    {bg:'#f3e5f5',bc:'#ce93d8',tc:'#6a1b9a',icon:'🟣',label:'年假',val:`${annual}天`},
+    {bg:'#fff3e0',bc:'#ffcc80',tc:'#e65100',icon:'🟠',label:'調換假',val:`${sub}天`},
+    {bg:'#c8e6c9',bc:'#66bb6a',tc:'#1b5e20',icon:'📊',label:'總假日',val:`${total}天`},
+  ];
+  document.getElementById('ribbon').innerHTML=chips.map(c=>
+    `<div class="stat-chip" style="background:${c.bg};border:1px solid ${c.bc};color:${c.tc}">
+      ${c.icon} <span>${c.label}</span>${c.val?`<strong>${c.val}</strong>`:''}
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════ LEGEND ═══════════════════
+function renderLegend(){
+  document.getElementById('legend').innerHTML=Object.entries(TYPE_CFG).map(([k,v])=>
+    `<div class="legend-item" style="background:${v.bg};border:1px solid ${v.border}">
+      <div class="dot" style="background:${v.dot}"></div>
+      <span style="color:${v.text}">${v[lang]||v.zh}</span>
+    </div>`
+  ).join('');
+}
+
+// ═══════════════════ CALENDAR ═══════════════════
+function setCalView(v){
+  calView=v;
+  ['year','month','week','day'].forEach(x=>{
+    document.getElementById('view-'+x).style.display=v===x?'block':'none';
+    document.getElementById('vb-'+x).classList.toggle('active',v===x);
+  });
+  document.getElementById('day-panel').style.display='none';
+  renderCalendar();
+}
+
+function renderCalendar(){
+  if(calView==='year') renderYearCal();
+  else if(calView==='month') renderMonthCal();
+  else if(calView==='week') renderWeekCal();
+  else renderDayCalNav();
+}
+
+// Year view
+function renderYearCal(){
+  const list=getHols(curYear);
+  const dm=buildDateMap(list);
+  let html=`<div class="cal-year">`;
+  for(let m=0;m<12;m++){
+    const days=dimY(curYear,m), first=fdow(curYear,m);
+    // Count holidays this month
+    const mHols=list.filter(h=>h.date.startsWith(curYear+'-'+pad(m+1)));
+    const mDays=mHols.reduce((s,h)=>s+(+h.days||1),0);
+    html+=`<div class="cal-month-card">
+      <div class="cal-month-head" style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px">
+        <span>${L().MONTHS[m]}</span>
+        ${mDays>0?`<span style="font-size:.65rem;opacity:.85;background:rgba(255,255,255,.25);border-radius:10px;padding:2px 7px">${mDays}天假</span>`:''}
+      </div>
+      <div class="cal-grid">`;
+    // Weekday headers - Sun to Sat
+    L().WD.forEach((w,i)=>html+=`<div class="cal-wd${i===0||i===6?' we':''}" style="font-size:.72rem;padding:5px 2px">${w}</div>`);
+    // Empty cells before 1st
+    for(let i=0;i<first;i++) html+=`<div class="cal-day empty"></div>`;
+    const extM=getExtMap(curYear), swapM=buildSwapMap(list);
+    for(let d=1;d<=days;d++){
+      const ds=`${curYear}-${pad(m+1)}-${pad(d)}`;
+      const hols=dm[ds]||[];
+      const dObjDay=new Date(curYear,m,d).getDay();
+      const we=(dObjDay===0||dObjDay===6), td=isToday(ds), sel=selDate===ds;
+      const mainH=hols[0];
+      // background priority: holiday type > weekend > normal
+      let bgStyle='';
+      if(sel) bgStyle='background:#fffde7;';
+      else if(mainH) bgStyle=`background:${typeCfg(mainH.type).bg};`;
+      else if(we) bgStyle='background:#fff5f5;';
+      html+=`<div class="cal-day${td?' today':''}${we?' weekend':''}${sel?' selected':''}"
+        style="${bgStyle}"
+        onclick="dayClick('${ds}')"
+        title="${[wdName(ds),...hols.map(h=>holName(h))].join(' · ')}">
+        <div class="day-num" style="${we&&!td?'color:'+var_red+';':''}">${d}</div>
+        <div class="day-tags">
+          ${hols.slice(0,2).map(h=>`<div class="day-tag" style="background:${typeCfg(h.type).dot};color:#fff;border-radius:3px">${holName(h)}</div>`).join('')}
+          ${hols.length>2?`<div style="font-size:.52rem;color:#9e9e9e;text-align:center">+${hols.length-2}筆</div>`:''}
+        </div>
+        ${extDotsHtml(ds,extM)}
+        ${lunarCellHtml(ds)}
+        ${swapLinkHtml(ds,swapM)}
+      </div>`;
+    }
+    html+=`</div></div>`;
+  }
+  html+=`</div>`;
+  document.getElementById('view-year').innerHTML=html;
+}
+
+// Month view (bigger single month)
+function renderMonthCal(){
+  const el=document.getElementById('view-month');
+  const list=getHols(curYear);
+  const dm=buildDateMap(list);
+  // Navigation
+  let curMonthView = el.dataset.month !== undefined ? +el.dataset.month : new Date().getMonth();
+  const m=curMonthView, days=dimY(curYear,m), first=fdow(curYear,m);
+  let html=`
+  <div class="week-nav">
+    <button onclick="monthNav(-1)">◀ 上月</button>
+    <div style="font-family:var(--font2);font-size:1rem;font-weight:700;color:var(--green);min-width:140px;text-align:center">${curYear}年 ${L().MONTHS[m]}</div>
+    <button onclick="monthNav(1)">下月 ▶</button>
+    <div style="margin-left:auto;font-size:.75rem;color:var(--text2)">${L().MONTHS[m]} 共 ${list.filter(h=>h.date.startsWith(curYear+'-'+pad(m+1))).length} 個假日</div>
+  </div>
+  <div class="tbl-wrap">
+  <div class="cal-grid" style="border:1px solid var(--border);border-radius:8px;overflow:hidden">`;
+  L().WD.forEach((w,i)=>html+=`<div class="cal-wd${i===0||i===6?' we':''}" style="padding:8px 4px;font-size:.75rem">${w}</div>`);
+  for(let i=0;i<first;i++) html+=`<div class="cal-day empty" style="min-height:80px"></div>`;
+  for(let d=1;d<=days;d++){
+    const ds=`${curYear}-${pad(m+1)}-${pad(d)}`;
+    const hols=dm[ds]||[];
+    const we=isWE(ds), td=isToday(ds), sel=selDate===ds;
+    const mainH=hols[0];
+    const bg=mainH?typeCfg(mainH.type).bg:we?'#fff8f8':'';
+    html+=`<div class="cal-day${td?' today':''}${we?' weekend':''}${sel?' selected':''}"
+      style="min-height:80px;${bg?'background:'+bg+';':''}"
+      onclick="dayClick('${ds}')">
+      <div class="day-num" style="font-size:.85rem">${d}</div>
+      <div class="day-tags">
+        ${hols.map(h=>`<div class="day-tag" style="background:${typeCfg(h.type).bg};color:${typeCfg(h.type).text};border-left:2px solid ${typeCfg(h.type).dot};font-size:.6rem">${holName(h)} (${h.days}天)</div>`).join('')}
+        ${(extMm.tw[ds]||[]).filter(()=>EXT_LAYERS.tw.enabled).map(e=>`<div class="ext-tag" style="background:#e3f2fd;color:#1565c0;border-left:2px solid #1565c0">🇹🇼 ${e.zh}</div>`).join('')}
+        ${(extMm.my[ds]||[]).filter(()=>EXT_LAYERS.my.enabled).map(e=>`<div class="ext-tag" style="background:#fff8e1;color:#e65100;border-left:2px solid #e65100">🇲🇾 ${e.zh}</div>`).join('')}
+        ${(extMm.school[ds]||[]).filter(()=>EXT_LAYERS.school.enabled).map(e=>`<div class="ext-tag" style="background:#f3e5f5;color:#7b1fa2;border-left:2px solid #7b1fa2">📚 ${e.zh}</div>`).join('')}
+        ${swapLinkHtml(ds,swapMm)}
+      </div>
+      ${lunarCellHtml(ds)}
     </div>`;
   }
-  // Next month fill
-  const remaining = 42 - firstDay - daysInMonth;
-  for (let d=1;d<=remaining&&remaining<7;d++) html += `<div class="cal-day outside"><div class="day-num"><span>${d}</span></div></div>`;
-  document.getElementById('cal-grid').innerHTML = html;
-
-  // Upcoming
-  const upcoming = holidays.filter(h=>h.date>=today).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
-  document.getElementById('upcoming-list').innerHTML = upcoming.length===0
-    ? '<div class="empty" style="padding:10px"><p>近期無假期</p></div>'
-    : upcoming.map(h=>{
-        const days=Math.ceil((new Date(h.date)-new Date(today))/86400000);
-        return `<div class="hday-item">
-          <div><span class="badge ${tagBadgeCls(h.type)}" style="font-size:9px;margin-right:6px">${typeIcon(h.type)}</span><b>${hName(h)}</b></div>
-          <div style="text-align:right"><div class="hday-date">${h.date}</div><div style="font-size:10px;color:${days<=3?'#dc2626':days<=7?'#d97706':'var(--c-muted)'}">${days===0?'今天':days+'天後'}</div></div>
-        </div>`;
-      }).join('');
+  html+=`</div></div>`;
+  el.innerHTML=html;
+  el.dataset.month=m;
+}
+function monthNav(dir){
+  const el=document.getElementById('view-month');
+  let m=(el.dataset.month!==undefined?+el.dataset.month:new Date().getMonth())+dir;
+  if(m<0){m=11;curYear--;document.getElementById('yearSel').value=curYear;}
+  if(m>11){m=0;curYear++;document.getElementById('yearSel').value=curYear;}
+  el.dataset.month=m; renderMonthCal();
 }
 
-function showDay(dateStr) {
-  const hs = holidays.filter(h=>h.date===dateStr);
-  document.getElementById('day-modal-title').textContent = `📅 ${dateStr}`;
-  document.getElementById('day-modal-content').innerHTML = hs.length===0
-    ? '<div class="empty" style="padding:16px"><p>無假期記錄</p></div>'
-    : hs.map(h=>`<div style="border:1px solid var(--c-border);border-left:4px solid ${typeColor(h.type)};border-radius:6px;padding:10px;margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <b>${hName(h)}</b>
-          <div style="display:flex;gap:6px">
-            <button class="btn btn-ghost btn-sm" onclick="editHoliday('${h.id}')">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteHoliday('${h.id}')">🗑</button>
+// Week view
+function renderWeekCal(){
+  const today=new Date();
+  const monday=new Date(today);
+  monday.setDate(today.getDate()-today.getDay()+1+weekOffset*7);
+  const list=[...getHols(curYear), ...(getHols(curYear+1)||[]), ...(getHols(curYear-1)||[])];
+  const dm=buildDateMap(list);
+  const days=[];
+  for(let i=0;i<7;i++){const d=new Date(monday);d.setDate(monday.getDate()+i);days.push(d);}
+  const wkLabel=`${ymd(days[0])} ~ ${ymd(days[6])}`;
+  let html=`
+  <div class="week-nav">
+    <button onclick="weekNav(-1)">◀ 上週</button>
+    <div style="font-family:var(--font2);font-size:.9rem;font-weight:700;color:var(--green);text-align:center">${wkLabel}</div>
+    <button onclick="weekNav(1)">下週 ▶</button>
+    <button onclick="weekNav(0)" style="margin-left:8px;background:var(--gold)">今週</button>
+  </div>
+  <div class="week-grid">
+    <div class="week-head" style="border-right:1px solid var(--border)"></div>`;
+  days.forEach((d,i)=>{
+    const ds=ymd(d), we=i===0||i===6, td=isToday(ds);
+    html+=`<div class="week-head${we?' we':''}" style="background:${td?'#e8f5e9':''}">
+      <div>${L().WD[d.getDay()]}</div>
+      <div style="font-size:1rem;font-weight:800;color:${td?'var(--green)':'inherit'}">${d.getDate()}</div>
+      <div style="font-size:.58rem;color:var(--text2)">${L().MONTHS[d.getMonth()].slice(0,3)}</div>
+    </div>`;
+  });
+  // All-day events row
+  html+=`<div class="week-slot" style="background:var(--green4);justify-content:center;font-weight:700;font-size:.65rem">假日</div>`;
+  days.forEach(d=>{
+    const ds=ymd(d), hols=dm[ds]||[], we=d.getDay()===0||d.getDay()===6, td=isToday(ds);
+    html+=`<div class="week-day-slot${td?' today-col':''}" style="background:${we&&!hols.length?'#fff8f8':hols.length?typeCfg(hols[0].type).bg:''}" onclick="dayClick('${ds}')">
+      ${hols.map(h=>`<div class="day-tag" style="background:${typeCfg(h.type).border};color:#fff;border-radius:3px;padding:2px 4px;font-size:.6rem;margin-bottom:1px">${holName(h)}</div>`).join('')}
+    </div>`;
+  });
+  // Time slots
+  const slots=['上午','中午','下午','傍晚'];
+  slots.forEach(sl=>{
+    html+=`<div class="week-slot" style="align-items:center;justify-content:center"><span style="transform:rotate(-90deg);font-size:.6rem;font-weight:600;color:var(--text2)">${sl}</span></div>`;
+    days.forEach(d=>{
+      const ds=ymd(d), we=d.getDay()===0||d.getDay()===6, td=isToday(ds);
+      html+=`<div class="week-day-slot${td?' today-col':''}" style="background:${we?'#fff8f8':''}" onclick="dayClick('${ds}')"></div>`;
+    });
+  });
+  html+=`</div>`;
+  document.getElementById('view-week').innerHTML=html;
+}
+function weekNav(d){ if(d===0) weekOffset=0; else weekOffset+=d; renderWeekCal(); }
+
+// Day view
+function renderDayCalNav(){
+  if(!selDate) selDate=ymd(new Date());
+  renderDayView(selDate);
+}
+function renderDayView(ds){
+  const list=getHols(curYear);
+  const dm=buildDateMap(list);
+  const hols=dm[ds]||[];
+  const d=parseDate(ds);
+  const prevDs=ymd(new Date(d.getTime()-86400000));
+  const nextDs=ymd(new Date(d.getTime()+86400000));
+  let html=`
+  <div class="week-nav">
+    <button onclick="dayNav('${prevDs}')">◀ 上一天</button>
+    <div style="font-family:var(--font2);font-size:1rem;font-weight:700;color:var(--green)">${ds} ${L().WDF[d.getDay()]}</div>
+    <button onclick="dayNav('${nextDs}')">下一天 ▶</button>
+    <button onclick="dayNav('${ymd(new Date())}')" style="margin-left:8px;background:var(--gold)">今天</button>
+  </div>
+  <div class="day-view">
+    <div class="day-view-head">
+      <div style="font-size:1.5rem">📅</div>
+      <div>
+        <div style="font-size:1rem;font-weight:700;font-family:var(--font2)">${ds}</div>
+        <div style="font-size:.75rem;opacity:.85">${L().WDF[d.getDay()]} ${isWE(ds)?'（例假日）':''} ${isToday(ds)?'⭐ 今天':''}</div>
+      </div>
+      <button class="btn btn-gold btn-sm" style="margin-left:auto" onclick="openModal('','${ds}')">＋ 新增此日假日</button>
+    </div>
+    <div class="day-view-body">`;
+  if(hols.length===0){
+    html+=`<div style="text-align:center;color:var(--text3);padding:2rem;font-size:.85rem">
+      ${isWE(ds)?'📅 例假日（週末）':'✅ 正常上班日，無假日安排'}
+      <br><button class="btn btn-green btn-sm" style="margin-top:10px" onclick="openModal('','${ds}')">＋ 新增假日</button>
+    </div>`;
+  } else {
+    hols.forEach(h=>{
+      const tc=typeCfg(h.type);
+      html+=`<div class="hol-row" style="border-color:${tc.border};background:${tc.bg}" onclick="openModal('${h.id}')">
+        <div class="hol-bar" style="background:${tc.dot}"></div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:.9rem;color:${tc.text}">${tc.icon} ${holName(h)}</div>
+          <div style="font-size:.72rem;color:var(--text2);margin-top:3px">
+            ${badgeHtml(h.type)} &nbsp;
+            📅 ${h.date}${h.enddate?' → '+h.enddate:''} &nbsp;
+            ⏱ ${h.days}天
+            ${h.note?` &nbsp; 📝 ${h.note}`:''}
+            ${h.refdate?` &nbsp; 🔄 原日期:${h.refdate}`:''}
+          </div>
+          <div style="font-size:.68rem;color:var(--text3);margin-top:2px">${h.en||''} &nbsp; ${h.km||''}</div>
+        </div>
+        <button class="btn btn-gray btn-xs" onclick="event.stopPropagation();openModal('${h.id}')">✏️</button>
+      </div>`;
+    });
+  }
+  html+=`</div></div>`;
+  document.getElementById('view-day').innerHTML=html;
+}
+function dayNav(ds){ selDate=ds; renderDayCalNav(); }
+
+function dayClick(ds){
+  selDate=ds;
+  if(calView==='year'){ renderDayPanel(ds); renderYearCal(); }
+  else if(calView==='month'){ renderDayPanel(ds); renderMonthCal(); }
+  else if(calView==='week'){ renderDayView(ds); setCalView('day'); }
+  else { renderDayView(ds); }
+}
+
+// ══ QUICK-EDIT STATE ══
+let _qeNewType = null;
+const _qeChg = {}; // {id: selectedNewType}
+const NEED_REASON = ['substitute','cancelled','postponed','workday','makeup','vrt','stopwork'];
+const NEED_REF    = ['substitute','makeup','cancelled','postponed'];
+function QE_NAMES(k){ const v=TYPE_CFG[k]; return v?(v[lang]||v.zh):''; }
+
+function _typeGrid(selType, clickFn, gridId){
+  return `<div class="qe-type-grid" id="${gridId}">`+
+    Object.entries(TYPE_CFG).map(([k,v])=>{
+      const active=selType===k;
+      const st=active?`border-color:${v.dot};background:${v.bg};color:${v.text};`:`color:${v.text};border-color:${v.border};`;
+      return `<button class="qe-type-btn${active?' active':''}" style="${st}" onclick="${clickFn.replace('__K__',k)}">${v.icon}<br>${v[lang]||v.zh}</button>`;
+    }).join('')+`</div>`;
+}
+
+function renderDayPanel(ds){
+  const el=document.getElementById('day-panel');
+  const d=parseDate(ds); if(!d){el.style.display='none';return;}
+  const we=d.getDay()===0||d.getDay()===6;
+  const startHols=getHols(curYear).filter(h=>h.date===ds);
+  _qeNewType=null;
+  el.style.display='block';
+  setTimeout(()=>{
+    el.scrollIntoView({behavior:'smooth',block:'nearest'});
+    const extSec=document.getElementById('qe-ext-section');
+    const extCon=document.getElementById('qe-ext-content');
+    if(extSec&&extCon&&extItems.length){
+      extCon.innerHTML=extItems.join('');
+      extSec.style.display='block';
+    } else if(extSec){
+      extSec.style.display='none';
+    }
+  },50);
+
+  // ── Existing records ──
+  let existHtml='';
+  if(!startHols.length){
+    existHtml=`<div style="color:var(--text3);font-size:.8rem;padding:2px 0">${we?'🟦 週末例假日（週六/日）':'✅ 正常上班日，無假日記錄'}</div>`;
+  } else {
+    existHtml=startHols.map(h=>{
+      const tc=typeCfg(h.type);
+      const grid=_typeGrid(h.type,`qeChgSelect('${h.id}','__K__','${ds}')`,`qeg-${h.id}`);
+      return `<div class="qe-rec-card" style="border:1.5px solid ${tc.border};background:${tc.bg}">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+          <div style="font-weight:700;font-size:.83rem;color:${tc.text};flex:1">${tc.icon} ${holName(h)}</div>
+          ${badgeHtml(h.type)}
+          <span style="font-size:.7rem;color:var(--text2)">${h.days}天</span>
+          <button class="btn btn-blue btn-xs" onclick="openModal('${h.id}')">📝</button>
+          <button class="btn btn-red btn-xs" onclick="qeDelRec('${h.id}','${ds}')">🗑</button>
+        </div>
+        ${h.note?`<div style="font-size:.68rem;color:var(--text2);margin-top:4px">📝 ${h.note}</div>`:''}
+        <div class="qe-chg-area" style="margin-top:7px">
+          <div class="qe-section-title" style="margin-bottom:5px">▼ 直接點選按鈕變更此記錄類型</div>
+          ${grid}
+          <div id="qcr-${h.id}" style="display:${NEED_REASON.includes(h.type)?'block':'none'}">
+            <div class="qe-reason-box">⚠️ 此類型需填寫原因說明</div>
+            <input class="qe-input" id="qcn-${h.id}" placeholder="原因說明（必填）" value="${(h.note||'').replace(/"/g,'&quot;')}" style="margin-bottom:5px">
+          </div>
+          <button class="btn btn-green btn-xs" onclick="qeApplyChg('${h.id}','${ds}')">✓ 確認變更</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── New record section ──
+  const newGrid=_typeGrid(null,`qePickNew('__K__','${ds}')`,`qe-new-grid`);
+
+  // Ext overlay section
+  const extMP=getExtMap(+ds.slice(0,4));
+  const swapMP=buildSwapMap(getHols(+ds.slice(0,4)));
+  let extItems=[];
+  const twEvts=(extMP.tw[ds]||[]);
+  const myEvts=(extMP.my[ds]||[]);
+  const scEvts=(extMP.school[ds]||[]);
+  const lunarD=getLunarDate(ds);
+  if(EXT_LAYERS.tw.enabled&&twEvts.length) extItems.push(`<div style="background:#e3f2fd;border-left:3px solid #1565c0;padding:4px 8px;border-radius:4px">🇹🇼 台灣：${twEvts.map(e=>e.zh).join('、')}</div>`);
+  if(EXT_LAYERS.my.enabled&&myEvts.length) extItems.push(`<div style="background:#fff8e1;border-left:3px solid #e65100;padding:4px 8px;border-radius:4px">🇲🇾 馬來西亞：${myEvts.map(e=>e.zh).join('、')}</div>`);
+  if(EXT_LAYERS.school.enabled&&scEvts.length) extItems.push(`<div style="background:#f3e5f5;border-left:3px solid #7b1fa2;padding:4px 8px;border-radius:4px">📚 東馬學校：${scEvts.map(e=>e.zh).join('、')}</div>`);
+  if(EXT_LAYERS.lunar.enabled&&lunarD) extItems.push(`<div style="background:#fce4ec;border-left:3px solid #e91e63;padding:4px 8px;border-radius:4px">🌙 農曆：${lunarD.yn}（${lunarD.za}年）${lunarD.str}${lunarD.fest?' '+lunarD.fest:''}</div>`);
+  const swapLinks=(swapMP[ds]||[]);
+  if(swapLinks.length) extItems.push(swapLinks.map(lk=>`<div style="background:#fff8e1;border-left:3px solid #f57f17;padding:4px 8px;border-radius:4px;cursor:pointer" onclick="dayClick('${lk.date}')">🔗 調換連結：${lk.reverse?'↩換至':'↪換自'} <strong>${lk.date}</strong>（${lk.zh}）</div>`).join(''));
+
+  el.innerHTML=`<div class="qe-panel">
+    <div class="qe-head">
+      <span style="font-size:1.1rem">📅</span>
+      <div style="flex:1">
+        <div style="font-weight:700;font-family:var(--font2);font-size:.95rem">${ds} ${L().WDF[d.getDay()]}${we?' 〔週末〕':''}${isToday(ds)?' ⭐':''}</div>
+        <div style="font-size:.62rem;opacity:.8">${startHols.length?startHols.length+'筆假日記錄':'無假日記錄'} · 點選下方按鈕快速新增</div>
+      </div>
+      <button onclick="document.getElementById('day-panel').style.display='none'" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:50%;width:26px;height:26px;cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+
+    <div class="qe-section">
+      <div class="qe-section-title">目前狀態</div>
+      ${existHtml}
+    </div>
+
+    <div class="qe-section" id="qe-ext-section" style="display:none">
+      <div class="qe-section-title">🌐 其他行事曆疊加資訊</div>
+      <div id="qe-ext-content" style="font-size:.73rem;display:flex;flex-direction:column;gap:4px"></div>
+    </div>
+
+    <div class="qe-section">
+      <div class="qe-section-title">⚡ 快速新增假日 — 點選類型</div>
+      ${newGrid}
+      <div id="qe-form" style="display:none;margin-top:4px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:7px">
+          <div style="flex:2;min-width:120px;display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:.63rem;font-weight:700;color:var(--text2);text-transform:uppercase">假日名稱（中）</label>
+            <input id="qe-name" class="qe-input" placeholder="假日名稱">
+          </div>
+          <div style="flex:0 0 64px;display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:.63rem;font-weight:700;color:var(--text2);text-transform:uppercase">天數</label>
+            <input id="qe-days" type="number" class="qe-input" value="1" min="1" max="60">
           </div>
         </div>
-        <div style="font-size:11px;color:var(--c-muted)">${h.nameZh}${h.nameEn?' · '+h.nameEn:''}</div>
-        ${h.remark?`<div style="font-size:11px;margin-top:4px">${h.remark}</div>`:''}
-      </div>`).join('');
-  HRA.UI.openModal('modal-day');
-  document.getElementById('m-date').value = dateStr;
+        <div id="qe-note-wrap" style="display:none;margin-bottom:7px">
+          <div class="qe-reason-box">⚠️ 此類型需填寫原因說明</div>
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:.63rem;font-weight:700;color:var(--text2);text-transform:uppercase">原因說明 <span style="color:var(--red)">*必填</span></label>
+            <input id="qe-note" class="qe-input" placeholder="說明原因，例：補X月X日之假、因訂單調整需上班">
+          </div>
+        </div>
+        <div id="qe-ref-wrap" style="display:none;margin-bottom:7px">
+          <div style="display:flex;flex-direction:column;gap:3px">
+            <label style="font-size:.63rem;font-weight:700;color:var(--text2);text-transform:uppercase">參考原日期</label>
+            <input id="qe-ref" type="date" class="qe-input">
+          </div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-green btn-sm" onclick="qeSaveNew('${ds}')">💾 儲存</button>
+          <button class="btn btn-gray btn-sm" onclick="qeResetNew('${ds}')">✕ 取消</button>
+          <button class="btn btn-blue btn-sm" onclick="openModal('','${ds}')" style="margin-left:auto">📝 進階編輯</button>
+        </div>
+      </div>
+      <div id="qe-hint" style="font-size:.7rem;color:var(--text3);text-align:center;padding:6px 0">☝ 點選上方類型按鈕快速填寫</div>
+    </div>
+  </div>`;
 }
 
-// ── Year View ──
-function moveYear(d) { curYear+=d; renderYear(); }
-function renderYear() {
-  document.getElementById('year-title').textContent = `${curYear} 年度視圖`;
-  const today = new Date().toISOString().slice(0,10);
-  const hDates = new Set(holidays.map(h=>h.date));
-  let html='';
-  for(let m=0;m<12;m++){
-    const firstDay=new Date(curYear,m,1).getDay();
-    const days=new Date(curYear,m+1,0).getDate();
-    const mName=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'][m];
-    let mGrid=`<div class="mini-month"><h4>${mName}</h4><div class="mini-grid">`;
-    ['日','一','二','三','四','五','六'].forEach(d=>{ mGrid+=`<div class="mini-dow">${d}</div>`; });
-    for(let i=0;i<firstDay;i++) mGrid+='<div class="mini-d outside-m"></div>';
-    for(let d=1;d<=days;d++){
-      const ds=`${curYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const dow=new Date(curYear,m,d).getDay();
-      const cls=ds===today?'today-m':hDates.has(ds)?'has-ev':dow===0||dow===6?'weekend-m':'';
-      mGrid+=`<div class="mini-d ${cls}">${d}</div>`;
-    }
-    mGrid+='</div></div>';
-    html+=mGrid;
+// ── Pick new type ──
+function qePickNew(type, ds){
+  _qeNewType=type;
+  const tc=TYPE_CFG[type];
+  // Rebuild grid with active state
+  const newGrid=_typeGrid(type,`qePickNew('__K__','${ds}')`,`qe-new-grid`);
+  const gridEl=document.getElementById('qe-new-grid');
+  if(gridEl) gridEl.outerHTML=newGrid;
+  document.getElementById('qe-form').style.display='block';
+  document.getElementById('qe-hint').style.display='none';
+  document.getElementById('qe-note-wrap').style.display=NEED_REASON.includes(type)?'block':'none';
+  document.getElementById('qe-ref-wrap').style.display=NEED_REF.includes(type)?'block':'none';
+  const nm=document.getElementById('qe-name');
+  if(nm){const names=Object.keys(TYPE_CFG).map(k=>TYPE_CFG[k][lang]||TYPE_CFG[k].zh); if(!nm.value||names.includes(nm.value)) nm.value=QE_NAMES(type);}
+}
+
+function qeResetNew(ds){ _qeNewType=null; renderDayPanel(ds); }
+
+function qeSaveNew(ds){
+  if(!_qeNewType){alert('請先選擇假日類型');return;}
+  const zh=(document.getElementById('qe-name').value||'').trim();
+  const note=(document.getElementById('qe-note').value||'').trim();
+  const days=+document.getElementById('qe-days').value||1;
+  const ref=(document.getElementById('qe-ref')&&document.getElementById('qe-ref').value)||'';
+  if(!zh){alert('請填寫假日名稱');return;}
+  if(NEED_REASON.includes(_qeNewType)&&!note){alert('此類型需填寫原因說明');return;}
+  const yr=+ds.slice(0,4);
+  if(!DB[yr]) DB[yr]=[];
+  DB[yr].push({id:uid(),date:ds,enddate:'',zh,en:'',km:'',type:_qeNewType,days,note,refdate:ref,source:'QE'});
+  saveDB(); _qeNewType=null;
+  renderDayPanel(ds); renderRibbon();
+  if(calView==='year') renderYearCal();
+  else if(calView==='month') renderMonthCal();
+}
+
+function qeDelRec(id, ds){
+  if(!confirm('確定刪除此筆記錄？'))return;
+  Object.keys(DB).forEach(y=>{DB[y]=DB[y].filter(h=>h.id!==id);});
+  saveDB(); renderDayPanel(ds); renderRibbon();
+  if(calView==='year') renderYearCal();
+  else if(calView==='month') renderMonthCal();
+}
+
+// ── Change existing record type ──
+function qeChgSelect(id, type, ds){
+  if(!_qeChg[id]) _qeChg[id]={};
+  _qeChg[id].type=type;
+  const grid=document.getElementById('qeg-'+id);
+  if(grid){
+    grid.querySelectorAll('.qe-type-btn').forEach((btn,i)=>{
+      const k=Object.keys(TYPE_CFG)[i];
+      const v=TYPE_CFG[k];
+      const active=k===type;
+      btn.className='qe-type-btn'+(active?' active':'');
+      btn.style.cssText=active?`border-color:${v.dot};background:${v.bg};color:${v.text};`:`color:${v.text};border-color:${v.border};`;
+    });
   }
-  document.getElementById('year-grid').innerHTML=html;
+  const rEl=document.getElementById('qcr-'+id);
+  if(rEl) rEl.style.display=NEED_REASON.includes(type)?'block':'none';
 }
 
-// ── Holiday List ──
-function renderList() {
-  const q  = document.getElementById('search-holidays')?.value?.toLowerCase()||'';
-  const tf = document.getElementById('filter-htype')?.value||'';
-  const yf = document.getElementById('filter-hyear')?.value||'';
-  const list=holidays.filter(h=>
-    (!q||hName(h).toLowerCase().includes(q)||h.nameZh?.toLowerCase().includes(q)||h.date.includes(q))&&
-    (!tf||h.type===tf)&&
-    (!yf||h.date.startsWith(yf))
-  ).sort((a,b)=>a.date.localeCompare(b.date));
-
-  document.getElementById('holiday-list').innerHTML=list.length===0
-    ?'<div class="empty"><div class="empty-ic">📅</div><p>尚無假期資料</p><p style="margin-top:4px">請至設定頁載入柬國假期</p></div>'
-    :`<div class="tbl-wrap"><table><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th>英文</th><th>柬文</th><th>備註</th><th>操作</th></tr></thead><tbody>
-    ${list.map(h=>`<tr>
-      <td class="td-mono">${h.date}</td>
-      <td><span class="badge ${tagBadgeCls(h.type)}" style="font-size:9px">${typeIcon(h.type)} ${typeLabel(h.type)}</span></td>
-      <td>${h.nameZh||'—'}</td>
-      <td style="font-size:11px">${h.nameEn||'—'}</td>
-      <td style="font-size:11px">${h.nameKm||'—'}</td>
-      <td style="font-size:11px;color:var(--c-muted)">${h.remark||'—'}</td>
-      <td><button class="btn btn-ghost btn-sm" onclick="editHoliday('${h.id}')">✏️</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteHoliday('${h.id}')">🗑</button></td>
-    </tr>`).join('')}
-    </tbody></table></div>`;
+function qeApplyChg(id, ds){
+  const newType=(_qeChg[id]||{}).type;
+  if(!newType){alert('請先點選新類型');return;}
+  const noteEl=document.getElementById('qcn-'+id);
+  const note=noteEl?noteEl.value.trim():'';
+  if(NEED_REASON.includes(newType)&&!note){alert('此類型需填寫原因說明');return;}
+  let found=null;
+  Object.values(DB).forEach(list=>{const h=list.find(x=>x.id===id);if(h)found=h;});
+  if(!found){alert('找不到記錄');return;}
+  found.type=newType;
+  if(note) found.note=note;
+  delete _qeChg[id];
+  saveDB(); renderDayPanel(ds); renderRibbon();
+  if(calView==='year') renderYearCal();
+  else if(calView==='month') renderMonthCal();
 }
 
-function populateYearFilter(){
-  const years=[...new Set(holidays.map(h=>h.date.slice(0,4)).filter(Boolean))].sort().reverse();
-  const sel=document.getElementById('filter-hyear');if(!sel)return;
-  sel.innerHTML='<option value="">全部年份</option>'+years.map(y=>`<option>${y}</option>`).join('');
+// ═══════════════════ SUMMARY TABLE ═══════════════════
+function renderSummary(){
+  const yr=+document.getElementById('flt-year').value;
+  const typF=document.getElementById('flt-type').value;
+  const monF=document.getElementById('flt-month').value;
+  const srch=(document.getElementById('flt-search').value||'').toLowerCase();
+  let list=[...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  if(typF!=='all') list=list.filter(h=>h.type===typF);
+  if(monF!=='all') list=list.filter(h=>h.date.startsWith(yr+'-'+pad(+monF)));
+  if(srch) list=list.filter(h=>(h.zh+h.en+h.km+h.note).toLowerCase().includes(srch));
+  document.getElementById('sum-count').textContent=`${list.length} 筆 / 共 ${totalHolDays(list)} 天`;
+
+  // Totals
+  const allList=getHols(yr);
+  const totals=Object.entries(TYPE_CFG).map(([k,v])=>{
+    const cnt=countByType(allList,k);
+    return cnt>0?`<span class="badge badge-${k}" style="font-size:.68rem">${v.icon} ${v[lang]||v.zh}: <strong>${cnt}天</strong></span>`:'' ;
+  }).filter(Boolean).join(' ');
+  document.getElementById('sum-totals').innerHTML=`<div class="tag-row">${totals} 
+    <span class="badge" style="background:var(--green4);border:1px solid var(--green3);color:var(--green)">📊 總計: <strong>${totalHolDays(allList)}天</strong></span>
+  </div>`;
+
+  const tb=document.getElementById('sum-body');
+  if(!list.length){
+    tb.innerHTML=`<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text3)">暫無資料</td></tr>`;
+    return;
+  }
+  tb.innerHTML=list.map((h,i)=>{
+    const tc=typeCfg(h.type);
+    return `<tr class="hol-row-yr" onclick="openModal('${h.id}')">
+      <td style="color:var(--text3);font-size:.7rem">${i+1}</td>
+      <td style="font-weight:600;white-space:nowrap">${h.date}</td>
+      <td style="color:var(--text3);white-space:nowrap">${h.enddate||'-'}</td>
+      <td>${badgeHtml(h.type)}</td>
+      <td style="font-weight:600;color:${tc.text}">${tc.icon} ${h.zh||'-'}</td>
+      <td style="color:var(--text2);font-size:.72rem">${h.en||'-'}</td>
+      <td style="color:var(--text2);font-size:.72rem">${h.km||'-'}</td>
+      <td style="text-align:center;font-weight:700;color:var(--green)">${h.days}</td>
+      <td style="font-size:.72rem;white-space:nowrap">${wdName(h.date)}</td>
+      <td style="font-size:.7rem;color:var(--text3);max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${h.note||''}">${h.note||'-'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-gray btn-xs" onclick="event.stopPropagation();openModal('${h.id}')">✏️</button>
+        <button class="btn btn-red btn-xs" onclick="event.stopPropagation();confirmDelete('${h.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
 }
 
-// ── Add/Edit ──
-function openAddModal() {
-  _editId=null;
-  document.getElementById('modal-title-text').textContent='新增假期';
-  document.getElementById('m-date').value=document.getElementById('m-date').value||new Date().toISOString().slice(0,10);
-  document.getElementById('m-type').value='factory';
-  ['m-name-zh','m-name-en','m-name-km','m-remark'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-  document.getElementById('m-tg-remind').checked=false;
-  HRA.UI.openModal('modal-holiday');
+// ═══════════════════ MANAGE ═══════════════════
+function renderMgrTypeCards(){
+  const container=document.getElementById('mgr-type-cards');
+  if(!container) return;
+  container.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;grid-column:1/-1;margin-bottom:14px';
+  container.innerHTML=Object.entries(TYPE_CFG).map(([k,v])=>{
+    const cnt=countByType(getHols(curYear),k);
+    return `<div style="background:${v.bg};border:1.5px solid ${v.border};border-radius:9px;padding:10px;cursor:pointer;text-align:center" onclick="openModal('','','${k}')">
+      <div style="font-size:1.4rem">${v.icon}</div>
+      <div style="font-weight:700;font-size:.78rem;color:${v.text};margin:3px 0">${v[lang]||v.zh}</div>
+      <div style="font-size:.7rem;color:var(--text2)">${curYear}年: <strong>${cnt}</strong>天</div>
+      <button class="btn btn-xs" style="margin-top:5px;background:${v.dot};color:#fff">＋ 新增</button>
+    </div>`;
+  }).join('');
 }
 
-function editHoliday(id) {
-  const h=holidays.find(x=>x.id===id);if(!h)return;
-  _editId=id;
-  document.getElementById('modal-title-text').textContent='編輯假期';
-  document.getElementById('m-date').value=h.date||'';
-  document.getElementById('m-type').value=h.type||'public';
-  document.getElementById('m-name-zh').value=h.nameZh||'';
-  document.getElementById('m-name-en').value=h.nameEn||'';
-  document.getElementById('m-name-km').value=h.nameKm||'';
-  document.getElementById('m-remark').value=h.remark||'';
-  document.getElementById('m-tg-remind').checked=!!h.tgRemind;
-  HRA.UI.closeModal('modal-day');
-  HRA.UI.openModal('modal-holiday');
+function renderManage(){
+  const typF=document.getElementById('mgr-flt-type')?.value||'all';
+  const yr=+(document.getElementById('mgr-flt-year')?.value||curYear);
+  const srch=(document.getElementById('mgr-search')?.value||'').toLowerCase();
+  let list=[...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  if(typF!=='all') list=list.filter(h=>h.type===typF);
+  if(srch) list=list.filter(h=>(h.zh+h.en+h.km+h.note).toLowerCase().includes(srch));
+
+  const el=document.getElementById('mgr-list');
+  if(!list.length){ el.innerHTML=`<div style="text-align:center;color:var(--text3);padding:2rem">暫無資料</div>`; return; }
+  el.innerHTML=list.map(h=>{
+    const tc=typeCfg(h.type);
+    return `<div class="hol-row" onclick="openModal('${h.id}')" style="border-color:${tc.border}">
+      <div class="hol-bar" style="background:${tc.dot}"></div>
+      <div style="width:28px;text-align:center;font-size:1.1rem">${tc.icon}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:.85rem;color:${tc.text}">${h.zh}</div>
+        <div style="font-size:.7rem;color:var(--text2);margin-top:2px">
+          ${h.date}${h.enddate?' → '+h.enddate:''} | ${h.days}天 | ${wdName(h.date)}
+          ${h.note?` | ${h.note}`:''}
+          ${h.refdate?` | 🔄 原:${h.refdate}`:''}
+        </div>
+        <div style="font-size:.65rem;color:var(--text3)">${h.en||''}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0">
+        <button class="btn btn-gray btn-xs" onclick="event.stopPropagation();openModal('${h.id}')">✏️ 編輯</button>
+        <button class="btn btn-red btn-xs" onclick="event.stopPropagation();confirmDelete('${h.id}')">🗑 刪除</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
-function saveHoliday() {
-  const date=document.getElementById('m-date').value;
-  const nameZh=document.getElementById('m-name-zh').value.trim();
-  if(!date||!nameZh){HRA.UI.toast('請填日期和名稱','warn');return;}
-  const obj={
-    id:_editId||(('h_'+date+'_'+Math.random().toString(36).slice(2))),
-    date,type:document.getElementById('m-type').value,
-    nameZh,nameEn:document.getElementById('m-name-en').value.trim(),
-    nameKm:document.getElementById('m-name-km').value.trim(),
-    remark:document.getElementById('m-remark').value.trim(),
-    tgRemind:document.getElementById('m-tg-remind').checked,
-    custom:true,
+// ═══════════════════ ANALYSIS ═══════════════════
+function renderAnalysis(){
+  const yr=curYear;
+  const list=getHols(yr);
+  const total=totalHolDays(list);
+
+  // Stats cards
+  document.getElementById('ana-stats').innerHTML=[
+    {lbl:'總假期天數',val:total,color:var_green,bg:'#e8f5e9'},
+    {lbl:'法定假日',val:countByType(list,'legal'),color:'#c62828',bg:'#ffebee'},
+    {lbl:'補假天數',val:countByType(list,'makeup'),color:'#f57f17',bg:'#fffde7'},
+    {lbl:'調換假',val:countByType(list,'substitute'),color:'#e65100',bg:'#fff3e0'},
+    {lbl:'年假',val:countByType(list,'annual'),color:'#6a1b9a',bg:'#f3e5f5'},
+    {lbl:'記錄筆數',val:list.length,color:var_green,bg:'#e8f5e9'},
+  ].map(s=>`<div class="stat-card" style="border-color:${s.bg}">
+    <div class="big" style="color:${s.color}">${s.val}</div>
+    <div class="lbl">${s.lbl}</div>
+  </div>`).join('');
+
+  // Bars
+  document.getElementById('ana-bars').innerHTML=Object.entries(TYPE_CFG).map(([k,v])=>{
+    const cnt=countByType(list,k);
+    return cnt>0?`<div class="bar-row">
+      <div class="bar-label">${v[lang]||v.zh}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${total?Math.min(cnt/total*100,100):0}%;background:${v.dot}"></div></div>
+      <div class="bar-val" style="color:${v.dot}">${cnt}天</div>
+    </div>`:'' ;
+  }).join('');
+
+  // Heatmap
+  document.getElementById('ana-heat').innerHTML=L().MONTHS.map((mn,m)=>{
+    const cnt=list.filter(h=>h.date.startsWith(yr+'-'+pad(m+1))).reduce((s,h)=>s+(+h.days||1),0);
+    const opacity=cnt===0?'#f5f5f5':cnt<=2?'#c8e6c9':cnt<=5?'#66bb6a':cnt<=8?'#2e7d32':'#1b5e20';
+    const tc=cnt>2?'#fff':cnt>0?'#1b5e20':'#9e9e9e';
+    return `<div class="heat-cell" style="background:${opacity}" title="${mn}: ${cnt}天">
+      <div class="hm" style="color:${tc}">${mn.slice(0,1)}</div>
+      <div class="hd" style="color:${tc}">${cnt||'·'}</div>
+    </div>`;
+  }).join('');
+
+  // Compare
+  const yr1=+(document.getElementById('ana-yr1')?.value||yr);
+  const yr2=+(document.getElementById('ana-yr2')?.value||yr-1);
+  const l1=getHols(yr1), l2=getHols(yr2);
+  const t1=totalHolDays(l1), t2=totalHolDays(l2);
+  const diff=t1-t2;
+  document.getElementById('ana-compare').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px">
+      ${[{y:yr1,l:l1,t:t1,c:'#c62828',bg:'#ffebee'},{y:yr2,l:l2,t:t2,c:'#1565c0',bg:'#e3f2fd'}].map(x=>`
+      <div style="background:${x.bg};border-radius:8px;padding:10px;text-align:center">
+        <div style="font-size:1.3rem;font-weight:900;color:${x.c};font-family:var(--font2)">${x.y}</div>
+        <div style="font-size:1.5rem;font-weight:800;color:${x.c}">${x.t}<span style="font-size:.7rem">天</span></div>
+        <div style="font-size:.68rem;color:var(--text2)">${x.l.length}筆記錄</div>
+      </div>`).join('')}
+    </div>
+    <div style="text-align:center;padding:8px;border-radius:7px;background:${diff>0?'#e8f5e9':diff<0?'#ffebee':'#f5f5f5'};font-weight:700;font-size:.82rem;color:${diff>0?'#2e7d32':diff<0?'#c62828':'#546e7a'}">
+      ${diff>0?'📈':diff<0?'📉':'➡️'} ${yr1} 比 ${yr2} ${diff>0?'多':'少'} ${Math.abs(diff)} 天
+    </div>`;
+
+  // Upcoming
+  const now=ymd(new Date());
+  const allFuture=[...getHols(curYear),...(getHols(curYear+1)||[])].filter(h=>h.date>=now).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,8);
+  document.getElementById('ana-upcoming').innerHTML=allFuture.map(h=>{
+    const tc=typeCfg(h.type);
+    const daysLeft=Math.ceil((parseDate(h.date)-new Date())/86400000);
+    return `<div style="background:${tc.bg};border:1.5px solid ${tc.border};border-radius:9px;padding:10px">
+      <div style="font-weight:700;font-size:.82rem;color:${tc.text}">${tc.icon} ${holName(h)}</div>
+      <div style="font-size:.7rem;color:var(--text2);margin-top:3px">${h.date}</div>
+      <div style="font-size:.72rem;margin-top:4px;font-weight:700;color:${daysLeft<=7?'#c62828':daysLeft<=30?'#e65100':'#546e7a'}">
+        ${daysLeft<=0?'⭐ 今天':daysLeft===1?'明天':'還有 '+daysLeft+' 天'}
+      </div>
+    </div>`;
+  }).join('') || '<div style="color:var(--text3)">暫無未來假日</div>';
+}
+const var_green='#2e7d32';
+const var_red='#c62828';
+
+// ═══════════════════ EXPORT/IMPORT ═══════════════════
+function renderExpOverview(){
+  const el=document.getElementById('exp-overview'); if(!el) return;
+  el.innerHTML=Object.keys(DB).sort((a,b)=>b-a).map(y=>{
+    const l=getHols(+y), t=totalHolDays(l);
+    return `<div style="background:${+y===curYear?'#e8f5e9':'#fff'};border:1.5px solid ${+y===curYear?'var(--green2)':'var(--border)'};border-radius:8px;padding:10px;cursor:pointer;text-align:center" onclick="changeYear(${y})">
+      <div style="font-weight:800;font-size:.9rem;color:var(--green)">${y}</div>
+      <div style="font-size:1.2rem;font-weight:700;color:var(--text)">${t}<span style="font-size:.68rem">天</span></div>
+      <div style="font-size:.65rem;color:var(--text2)">${l.length}筆記錄</div>
+    </div>`;
+  }).join('');
+}
+
+function exportJSON(){
+  const yr=document.getElementById('exp-year')?.value||curYear;
+  const d={[yr]:DB[yr]||[]};
+  download(`cambodia-holidays-${yr}.json`, JSON.stringify(d,null,2), 'application/json');
+}
+function exportAllJSON(){
+  download('cambodia-holidays-all.json', JSON.stringify(DB,null,2), 'application/json');
+}
+function exportCSV(){
+  const yr=+(document.getElementById('exp-year')?.value||document.getElementById('flt-year')?.value||curYear);
+  const list=[...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  const rows=[['#','日期','結束日期','類型','中文名稱','English','ខ្មែរ','天數','星期','備注','參考日期','資料來源']];
+  list.forEach((h,i)=>rows.push([i+1,h.date,h.enddate||'',h.type,h.zh,h.en,h.km,h.days,wdName(h.date),h.note||'',h.refdate||'',h.source||'']));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  download(`cambodia-holidays-${yr}.csv`,'\ufeff'+csv,'text/csv;charset=utf-8;');
+}
+function exportHTML(){
+  const yr=+(document.getElementById('exp-year')?.value||curYear);
+  const list=[...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  const rows=list.map((h,i)=>`<tr>
+    <td>${i+1}</td><td>${h.date}</td><td>${h.enddate||'-'}</td>
+    <td><span style="background:${typeCfg(h.type).bg};color:${typeCfg(h.type).text};padding:2px 6px;border-radius:4px;font-size:12px">${typeCfg(h.type).zh}</span></td>
+    <td><strong>${h.zh}</strong></td><td>${h.en}</td><td>${h.km}</td>
+    <td style="text-align:center">${h.days}</td><td>${wdName(h.date)}</td><td>${h.note||''}</td>
+  </tr>`).join('');
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>🇰🇭 ${yr}年柬埔寨假日</title>
+  <style>body{font-family:sans-serif;padding:20px;background:#f2faf0}h1{color:#2e7d32}table{width:100%;border-collapse:collapse}th{background:#2e7d32;color:#fff;padding:8px}td{padding:7px;border:1px solid #c8e6c9}tr:nth-child(even){background:#f9fff9}</style>
+  
+<style>
+/* Cloud Sync Widget - Calendar */
+#calCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:.15s}
+#calCloudBtn:hover{background:#292000}
+#calCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#calCloudPanel.show{display:flex}
+.ccp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em}
+.ccp-status{font-size:11px;color:#475569;font-family:monospace;min-height:14px}
+.ccp-status.ok{color:#4ade80}.ccp-status.warn{color:#fbbf24}.ccp-status.err{color:#f87171}
+.ccp-row{display:flex;gap:6px}
+.ccp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.ccp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.ccp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.ccp-btn:disabled{opacity:.4;cursor:not-allowed}
+.ccp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.ccp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.ccp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.ccl-ok{color:#4ade80}.ccl-err{color:#f87171}.ccl-i{color:#60a5fa}
+</style>
+</head><body><h1>🇰🇭 ${yr}年 柬埔寨假日行事曆</h1>
+  <p>共 <strong>${totalHolDays(list)}</strong> 天假日 | <strong>${list.length}</strong> 筆記錄</p>
+  <table><thead><tr><th>#</th><th>日期</th><th>結束日</th><th>類型</th><th>中文</th><th>English</th><th>ខ្មែរ</th><th>天數</th><th>星期</th><th>備注</th></tr></thead>
+  <tbody>${rows}</tbody></table>
+<!-- Cloud Sync Widget -->
+<button id="calCloudBtn" title="☁ 雲端同步" onclick="calCloudToggle()">☁</button>
+<div id="calCloudPanel">
+  <div class="ccp-title">☁ 雲端同步 — 行事曆</div>
+  <div class="ccp-status" id="calCloudStatus">未連線</div>
+  <div class="ccp-row">
+    <button class="ccp-btn ccp-push" onclick="calPush()">☁ 推送</button>
+    <button class="ccp-btn ccp-pull" onclick="calPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="ccp-input" id="calGasInput" placeholder="GAS /exec URL"/>
+    <button class="ccp-save" onclick="calSaveGas()">存</button>
+  </div>
+  <div class="ccp-log" id="calLog"></div>
+</div>
+
+<script>
+(function(){
+  const LS = 'ac_hra_gas_url';
+  const LS_META = 'ac_hra_cal_meta';
+  let gasUrl = localStorage.getItem(LS)||'';
+  let open = false;
+
+  window.calCloudToggle = function(){
+    open=!open;
+    document.getElementById('calCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('calGasInput').value=gasUrl;calShowStatus();}
   };
-  if(_editId){const i=holidays.findIndex(h=>h.id===_editId);if(i>=0)holidays[i]=obj;}
-  else holidays.push(obj);
-  HRA.UI.closeModal('modal-holiday');
-  saveData();
-  HRA.UI.toast((_editId?'✅ 已更新：':'✅ 已新增：')+nameZh,'ok');
-  HRA.Logger.log('CAL',(_editId?'Updated: ':'Added: ')+nameZh);
+  window.calSaveGas = function(){
+    gasUrl=document.getElementById('calGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    calLog('GAS URL 已儲存','i');
+    calShowStatus();
+  };
+  function calShowStatus(){
+    const el=document.getElementById('calCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      const age=mins<60?`${Math.round(mins)}分前`:`${Math.round(mins/60)}小時前`;
+      el.textContent=`${meta.count}筆 · 上次同步 ${age}`;
+      el.className='ccp-status '+(mins<120?'ok':'warn');
+    } else {
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='ccp-status '+(gasUrl?'warn':'err');
+    }
+  }
+  window.calPush = async function(){
+    if(!gasUrl){calLog('請先設定 GAS URL','err');return;}
+    // Read calendar data from localStorage or window
+    let data=[];
+    try{data=JSON.parse(localStorage.getItem('vrt_cal_holidays')||'[]');}catch(e){}
+    // Try to get from window if available
+    if(!data.length && typeof HOLIDAYS!=='undefined') data=HOLIDAYS;
+    if(!data.length && typeof window.calData!=='undefined') data=window.calData;
+    const payload={action:'push',tool:'calendar',records:data,recordCount:data.length,
+      updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:data.length}));
+        calLog('✓ 推送完成 ('+data.length+'筆)','ok');calShowStatus();
+      } else calLog('✗ '+d.error,'err');
+    }catch(e){calLog('✗ '+e.message,'err');}
+  };
+  window.calPull = async function(){
+    if(!gasUrl){calLog('請先設定 GAS URL','err');return;}
+    if(!confirm('拉取雲端行事曆資料？'))return;
+    try{
+      const r=await fetch(gasUrl+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
+      const d=await r.json();
+      if(!d.ok)throw new Error(d.error);
+      const dd=d.data;
+      if(dd.data===null){calLog('雲端尚無資料','i');return;}
+      const recs=dd.records||dd.data?.records||[];
+      localStorage.setItem('vrt_cal_holidays',JSON.stringify(recs));
+      localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+      calLog('✓ 拉取完成 ('+recs.length+'筆)，請重新整理頁面','ok');
+      calShowStatus();
+    }catch(e){calLog('✗ '+e.message,'err');}
+  };
+  function calLog(msg,type){
+    const el=document.getElementById('calLog');if(!el)return;
+    const cls=type==='ok'?'ccl-ok':type==='err'?'ccl-err':'ccl-i';
+    const now=new Date();const t=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
+  }
+  function pad(n){return String(n).padStart(2,'0');}
+  // Init on load
+  document.addEventListener('DOMContentLoaded',calShowStatus);
+})();
+</script>
+</body></html>`;
+  download(`cambodia-${yr}-report.html`,html,'text/html;charset=utf-8;');
+}
+function importJSON(e){
+  const file=e.target.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      let count=0;
+      Object.entries(d).forEach(([y,list])=>{
+        if(!DB[y]) DB[y]=[];
+        const existing=new Set(DB[y].map(h=>h.id));
+        list.forEach(h=>{ if(!existing.has(h.id)){DB[y].push(h);count++;} });
+      });
+      saveDB(); init();
+      document.getElementById('imp-status').innerHTML=`<div class="success-msg">✅ 成功匯入 ${count} 筆假日記錄！</div>`;
+    }catch(err){ document.getElementById('imp-status').innerHTML=`<div class="error-msg">❌ 解析失敗: ${err.message}</div>`; }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+function download(fname,data,type){
+  const blob=new Blob([data],{type});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=fname; document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
-function deleteHoliday(id) {
-  const h=holidays.find(x=>x.id===id);
-  if(!h||!confirm(`確認刪除「${h.nameZh}」？`))return;
-  holidays=holidays.filter(x=>x.id!==id);
-  HRA.UI.closeModal('modal-day');
-  saveData();
-  HRA.UI.toast('🗑 已刪除','warn');
+// ═══════════════════ TELEGRAM ═══════════════════
+// Weekday names for bilingual TG message
+const WD_EN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MON_EN=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function tgDaysLeft(dl){
+  if(dl<=0) return '今天 / Today';
+  if(dl===1) return '明天 / Tomorrow';
+  return `還有 ${dl} 天 / In ${dl} days`;
+}
+function tgDateFmt(ds){
+  const d=parseDate(ds); if(!d) return ds;
+  return `${ds} (${WD_EN[d.getDay()]})`;
 }
 
-// ── Telegram upcoming reminder ──
-function sendUpcomingTg() {
-  const today=new Date().toISOString().slice(0,10);
-  const soon=holidays.filter(h=>h.date>=today).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
-  const SEP='─'.repeat(26);
-  let txt=`【AC HRA 工廠行事曆提醒】\n${SEP}\n近期假期 / Upcoming Holidays:\n${SEP}\n`;
-  soon.forEach((h,i)=>{const d=Math.ceil((new Date(h.date)-new Date(today))/86400000);txt+=`${i+1}. ${hName(h)}\n   📅 ${h.date} (${d===0?'今天':d+'天後'})\n   ${h.nameZh}${h.nameEn?' / '+h.nameEn:''}\n`;});
-  txt+=`${SEP}\n🏭 VRT Sihanoukville`;
-  HRA.TG.push(txt);
-  HRA.UI.toast('📱 已加入 Telegram 佇列','info');
+function buildTgMsg(){
+  const mt=document.getElementById('tg-msgtype')?.value||'upcoming';
+  const yr=+(document.getElementById('tg-year')?.value||curYear);
+  const list=[...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  const now=ymd(new Date());
+  const total=totalHolDays(list);
+  let msg='';
+  const div='┄'.repeat(18)+'\n';
+
+  if(mt==='upcoming'){
+    const fu=list.filter(h=>h.date>=now&&h.type!=='workday'&&h.type!=='stopwork').slice(0,5);
+    msg =`🇰🇭 <b>Cambodia Holiday Notice｜柬埔寨假日通知</b>\n`;
+    msg+=`📅 Year ${yr}  |  Full-year total: <b>${total} days</b>\n`;
+    msg+=div;
+    msg+=`<b>⏰ Upcoming Holidays｜即將到來假日</b>\n\n`;
+    fu.forEach(h=>{
+      const tc=TYPE_CFG[h.type];
+      const dl=Math.ceil((parseDate(h.date)-new Date())/86400000);
+      const enName=h.en||h.zh;
+      msg+=`${tc.icon} <b>${h.zh}</b>  <i>${enName}</i>\n`;
+      msg+=`   📅 ${tgDateFmt(h.date)}${h.enddate?' → '+tgDateFmt(h.enddate):''}\n`;
+      msg+=`   ⏳ ${h.days} day${h.days>1?'s':''}  |  ${tgDaysLeft(dl)}\n`;
+      if(h.note) msg+=`   📝 <i>${h.note}</i>\n`;
+      msg+='\n';
+    });
+    msg+=div;
+    msg+=`<i>🏭 VRT (Vantage River Textiles) HR &amp; GA</i>`;
+
+  } else if(mt==='month'){
+    const mo=new Date().getMonth()+1;
+    const ml=list.filter(h=>h.date.startsWith(yr+'-'+pad(mo)));
+    const moZh=['一','二','三','四','五','六','七','八','九','十','十一','十二'][mo-1];
+    msg =`🇰🇭 <b>${yr} ${MON_EN[mo-1]} Holidays｜${yr}年${moZh}月假日</b>\n`;
+    msg+=div;
+    if(!ml.length){
+      msg+=`No public holidays this month.\n本月無假日安排。\n`;
+    } else {
+      ml.forEach(h=>{
+        const tc=TYPE_CFG[h.type];
+        const enName=h.en||h.zh;
+        msg+=`${tc.icon} <b>${tgDateFmt(h.date)}</b>\n`;
+        msg+=`   ZH: ${h.zh}  |  EN: ${enName}\n`;
+        msg+=`   Duration: ${h.days} day${h.days>1?'s':''}  (${tc.en||tc.zh})\n`;
+        if(h.note) msg+=`   📝 <i>${h.note}</i>\n`;
+        msg+='\n';
+      });
+    }
+    msg+=div;
+    msg+=`<i>🏭 VRT HR &amp; GA  |  ${yr}年${moZh}月假日通知</i>`;
+
+  } else if(mt==='year'){
+    msg =`🇰🇭 <b>${yr} Full Holiday List｜${yr}年假日完整清單</b>\n`;
+    msg+=`📊 Total: <b>${total} days</b>  |  Records: <b>${list.length}</b>\n`;
+    msg+=div;
+    const byType={};
+    list.forEach(h=>{if(!byType[h.type])byType[h.type]=[];byType[h.type].push(h);});
+    Object.entries(byType).forEach(([k,hs])=>{
+      const tc=TYPE_CFG[k];
+      const cnt=hs.reduce((s,h)=>s+(+h.days||1),0);
+      msg+=`${tc.icon} <b>${tc.en||tc.zh}｜${tc.zh}</b> (${cnt}天/days)\n`;
+      hs.forEach(h=>{
+        const enName=h.en||h.zh;
+        msg+=`  • ${h.date}  ${h.zh} / ${enName}  [${h.days}d]\n`;
+      });
+      msg+='\n';
+    });
+    msg+=div;
+    msg+=`<i>🏭 VRT (Vantage River Textiles) — Phnom Penh, Cambodia</i>`;
+
+  } else if(mt==='custom'){
+    msg=document.getElementById('tg-msg')?.value.trim()||'(empty)';
+  }
+  return msg;
+}
+function previewTgMsg(){
+  const custom=document.getElementById('tg-msg').value.trim();
+  const msg=custom||buildTgMsg();
+  document.getElementById('tg-preview').textContent=msg;
+}
+async function sendTelegram(){
+  const token=document.getElementById('tg-token').value.trim();
+  const chatId=document.getElementById('tg-chatid').value.trim();
+  const custom=document.getElementById('tg-msg').value.trim();
+  const msg=custom||buildTgMsg();
+  const stEl=document.getElementById('tg-status');
+  if(!token||!chatId){ stEl.innerHTML='<div class="error-msg">⚠️ 請輸入 Bot Token 和 Chat ID</div>'; return; }
+  stEl.innerHTML='<div class="warn-box">發送中... ✈️</div>';
+  try{
+    const res=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId,text:msg,parse_mode:'HTML'})
+    });
+    const json=await res.json();
+    if(json.ok){ stEl.innerHTML='<div class="success-msg">✅ 發送成功！訊息已送達群組。</div>'; }
+    else { stEl.innerHTML=`<div class="error-msg">❌ 發送失敗: ${json.description||'未知錯誤'}</div>`; }
+  }catch(e){ stEl.innerHTML=`<div class="error-msg">❌ 錯誤: ${e.message}（可能是 CORS 限制，建議使用後端代理）</div>`; }
+  setTimeout(()=>stEl.innerHTML='',8000);
 }
 
-// ── Export ──
-function exportExcel() {
-  if(!holidays.length){HRA.UI.toast('無資料','warn');return;}
-  try {
-    const XLSX=window.XLSX;if(!XLSX){HRA.UI.toast('XLSX not loaded','err');return;}
-    const wb=XLSX.utils.book_new();
-    const ws=XLSX.utils.aoa_to_sheet([
-      ['日期','類型','中文名稱','English','ខ្មែរ','備註'],
-      ...holidays.sort((a,b)=>a.date.localeCompare(b.date)).map(h=>[h.date,typeLabel(h.type),h.nameZh,h.nameEn,h.nameKm,h.remark])
+
+// ═══════════════════ EXCEL + COLOR PRINT EXPORT ═══════════════════
+function exportExcel(){
+  const yr = +document.getElementById('exp-year')?.value || curYear;
+  const list = [...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  const extM = buildExtMap(yr);
+  const swapM = buildSwapMap(list);
+
+  if(typeof XLSXStyle === 'undefined'){
+    alert('xlsx-js-style 尚未載入，請檢查網路連線後重試');
+    return;
+  }
+  const WB = XLSXStyle.utils.book_new();
+
+  // ── Helper: hex to ARGB ──
+  const hexToArgb = hex => 'FF'+hex.replace('#','').toUpperCase();
+
+  // Type color map
+  const typeColors = {
+    legal:    {fgColor:{rgb:'FFC62828'}, bgColor:{rgb:'FFFFEBEE'}},
+    regular:  {fgColor:{rgb:'FF1565C0'}, bgColor:{rgb:'FFE3F2FD'}},
+    substitute:{fgColor:{rgb:'FFE65100'},bgColor:{rgb:'FFFFF3E0'}},
+    annual:   {fgColor:{rgb:'FF6A1B9A'}, bgColor:{rgb:'FFF3E5F5'}},
+    makeup:   {fgColor:{rgb:'FFF57F17'}, bgColor:{rgb:'FFFFFFF9C4'}},
+    workday:  {fgColor:{rgb:'FF2E7D32'}, bgColor:{rgb:'FFE8F5E9'}},
+    halfpay:  {fgColor:{rgb:'FF880E4F'}, bgColor:{rgb:'FFFCE4EC'}},
+    cancelled:{fgColor:{rgb:'FF546E7A'}, bgColor:{rgb:'FFF5F5F5'}},
+    postponed:{fgColor:{rgb:'FF00695C'}, bgColor:{rgb:'FFE0F2F1'}},
+    vrt:      {fgColor:{rgb:'FF4527A0'}, bgColor:{rgb:'FFEDE7F6'}},
+    stopwork: {fgColor:{rgb:'FFBF360C'}, bgColor:{rgb:'FFFFF3E0'}},
+  };
+
+  const hdrStyle = {
+    fill:{patternType:'solid',fgColor:{rgb:'FF1B5E20'}},
+    font:{bold:true,color:{rgb:'FFFFFFFF'},sz:10},
+    alignment:{horizontal:'center',vertical:'center',wrapText:true},
+    border:{bottom:{style:'medium',color:{rgb:'FF81C784'}}}
+  };
+  const headerRow = [
+    {v:'#',s:hdrStyle},{v:'日期',s:hdrStyle},{v:'星期',s:hdrStyle},
+    {v:'類型',s:hdrStyle},{v:'中文名稱',s:hdrStyle},{v:'English',s:hdrStyle},
+    {v:'天數',s:hdrStyle},{v:'備注',s:hdrStyle},{v:'調換連結',s:hdrStyle}
+  ];
+
+  const sheetData = [headerRow];
+  list.forEach((h,i)=>{
+    const tc = typeColors[h.type] || typeColors.legal;
+    const swapLinks = (swapM[h.date]||[]).map(lk=>`${lk.reverse?'↩':'↪'}${lk.date}`).join(' ');
+    const cellStyle = {
+      fill:{patternType:'solid',fgColor:tc.bgColor},
+      font:{color:tc.fgColor,sz:9},
+      alignment:{horizontal:'left',vertical:'center',wrapText:true},
+      border:{
+        top:{style:'thin',color:{rgb:'FFD0E8D0'}},
+        bottom:{style:'thin',color:{rgb:'FFD0E8D0'}},
+        left:{style:'thin',color:{rgb:'FFD0E8D0'}},
+        right:{style:'thin',color:{rgb:'FFD0E8D0'}},
+      }
+    };
+    const numStyle={...cellStyle,alignment:{horizontal:'center',vertical:'center'}};
+    const wcStyle={...cellStyle,font:{...cellStyle.font,bold:true}};
+    sheetData.push([
+      {v:i+1,s:numStyle},
+      {v:h.date+(h.enddate?' → '+h.enddate:''),s:{...cellStyle,font:{...cellStyle.font,bold:true}}},
+      {v:wdName(h.date),s:numStyle},
+      {v:(TYPE_CFG[h.type]?.icon||'')+' '+(TYPE_CFG[h.type]?.zh||h.type),s:wcStyle},
+      {v:h.zh,s:{...cellStyle,font:{...cellStyle.font,bold:true}}},
+      {v:h.en||'',s:cellStyle},
+      {v:h.days,s:numStyle},
+      {v:h.note||'',s:cellStyle},
+      {v:swapLinks||'-',s:{...cellStyle,font:{...cellStyle.font,color:{rgb:'FFE65100'}}}},
     ]);
-    ws['!cols']=[{wch:12},{wch:10},{wch:20},{wch:24},{wch:24},{wch:16}];
-    XLSX.utils.book_append_sheet(wb,ws,'Holidays');
-    XLSX.writeFile(wb,`AC_HRA_Calendar_${curYear}.xlsx`);
-    HRA.UI.toast('⬇ Excel 已下載','ok');
-  } catch(e){HRA.UI.toast('匯出失敗：'+e.message,'err');}
-}
-
-// ── Backup ──
-function backupJSON(){const blob=new Blob([JSON.stringify({holidays,ts:new Date().toISOString()})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`AC_HRA_Calendar_Backup.json`;a.click();HRA.UI.toast('📦 已備份','ok');}
-function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);holidays=d.holidays||d||[];saveData();HRA.UI.toast(`📂 已還原 ${holidays.length} 筆`,'ok');}catch(ex){HRA.UI.toast('❌ '+ex.message,'err');}};r.readAsText(f);}
-function clearCustom(){if(!confirm('確認清除自訂假期（保留柬國假期）？'))return;holidays=holidays.filter(h=>!h.custom);saveData();HRA.UI.toast('🗑 已清除自訂假期','warn');}
-
-// ── Helpers ──
-function tagCls(t){return{public:'tag-public',factory:'tag-factory',ot:'tag-ot',reminder:'tag-reminder'}[t]||'tag-public';}
-function tagBadgeCls(t){return{public:'badge-warn',factory:'badge-info',ot:'badge-purple',reminder:'badge-muted'}[t]||'badge-muted';}
-function typeColor(t){return{public:'#f59e0b',factory:'#3b82f6',ot:'#ec4899',reminder:'#8b5cf6'}[t]||'#9ca3af';}
-function typeIcon(t){return{public:'🇰🇭',factory:'🏭',ot:'⚙️',reminder:'🔔'}[t]||'📅';}
-function typeLabel(t){return{public:'柬國假期',factory:'工廠假期',ot:'加班/補班',reminder:'提醒'}[t]||t;}
-function setLang(l){HRA.I18N.setLang(l);['lb-zh','lb-en','lb-km'].forEach((id,i)=>{document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l);});render();}
-
-// ── Init ──
-window.addEventListener('DOMContentLoaded',()=>{
-  loadData();
-  HRA.I18N.init();HRA.TG.init();HRA.Settings.init();
-  HRA.Sync.init(MODULE,getCloudData,onCloudPull);
-  HRA.UI.syncStatus('idle','');
-  renderMonth();
-  renderUpcomingReminders();
-  HRA.Logger.log('INIT','Calendar v2 loaded');
-  // Daily reminder check
-  checkDailyReminders();
-});
-
-function renderUpcomingReminders(){} // placeholder
-
-function checkDailyReminders(){
-  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
-  const tStr=tomorrow.toISOString().slice(0,10);
-  const reminders=holidays.filter(h=>h.tgRemind&&h.date===tStr);
-  reminders.forEach(h=>{
-    HRA.TG.push(`🔔 AC HRA 假期提醒\n明天：${h.nameZh}\n${h.nameEn||''}\n📅 ${h.date}\n🏭 VRT Sihanoukville`);
   });
+
+  // Summary rows
+  sheetData.push([]);
+  const sumStyle={fill:{patternType:'solid',fgColor:{rgb:'FFE8F5E9'}},font:{bold:true,sz:9,color:{rgb:'FF1B5E20'}},alignment:{horizontal:'left'}};
+  sheetData.push([{v:'統計摘要',s:{...sumStyle,font:{...sumStyle.font,sz:10}}}]);
+  Object.entries(TYPE_CFG).forEach(([k,v])=>{
+    const cnt=countByType(list,k);
+    if(cnt>0) sheetData.push([
+      {v:'',s:sumStyle},{v:v.icon+' '+v.zh,s:sumStyle},{v:'',s:sumStyle},
+      {v:'',s:sumStyle},{v:'',s:sumStyle},{v:'',s:sumStyle},
+      {v:cnt+'天',s:{...sumStyle,font:{...sumStyle.font,bold:true}}},
+    ]);
+  });
+  sheetData.push([
+    {v:'',s:sumStyle},{v:'📊 總計',s:sumStyle},{v:'',s:sumStyle},
+    {v:'',s:sumStyle},{v:'',s:sumStyle},{v:'',s:sumStyle},
+    {v:totalHolDays(list)+'天',s:{...sumStyle,font:{...sumStyle.font,bold:true,sz:11}}},
+  ]);
+
+  // Add TW/MY/School sheets if enabled
+  [
+    {key:'tw',  label:'🇹🇼台灣',db:TW_DB,    color:'FF1565C0',bgc:'FFE3F2FD'},
+    {key:'my',  label:'🇲🇾馬來西亞',db:MY_DB, color:'FFE65100',bgc:'FFFFF8E1'},
+    {key:'school',label:'📚東馬學校',db:SCHOOL_DB,color:'FF7B1FA2',bgc:'FFF3E5F5'},
+  ].forEach(({key,label,db,color,bgc})=>{
+    if(!EXT_LAYERS[key].enabled) return;
+    const eList=db[yr]||[];
+    const eHdr=[
+      {v:'日期',s:{...hdrStyle,fill:{patternType:'solid',fgColor:{rgb:'FF'+color.slice(2)}}}},
+      {v:'結束日',s:hdrStyle},{v:'名稱',s:hdrStyle},{v:'天數',s:hdrStyle}
+    ];
+    const eRows=[eHdr,...eList.map(h=>{
+      const cs={fill:{patternType:'solid',fgColor:{rgb:bgc}},font:{color:{rgb:color},sz:9},alignment:{horizontal:'left'}};
+      return[{v:h.date,s:cs},{v:h.enddate||'-',s:cs},{v:h.zh,s:{...cs,font:{...cs.font,bold:true}}},{v:h.days,s:{...cs,alignment:{horizontal:'center'}}}];
+    })];
+    const eWS=XLSXStyle.utils.aoa_to_sheet(eRows);
+    eWS['!cols']=[{wch:14},{wch:14},{wch:32},{wch:8}];
+    XLSXStyle.utils.book_append_sheet(WB,eWS,label);
+  });
+
+  // Main sheet
+  const WS = XLSXStyle.utils.aoa_to_sheet(sheetData);
+  WS['!cols']=[{wch:5},{wch:24},{wch:8},{wch:14},{wch:28},{wch:22},{wch:6},{wch:32},{wch:20}];
+  WS['!rows']=[{hpt:20},...list.map(()=>({hpt:18}))];
+  XLSXStyle.utils.book_append_sheet(WB,WS,`${yr}年柬埔寨假日`, true);
+
+  // Move main sheet to front
+  WB.SheetNames = WB.SheetNames.filter(s=>s===`${yr}年柬埔寨假日`).concat(WB.SheetNames.filter(s=>s!==`${yr}年柬埔寨假日`));
+
+  XLSXStyle.writeFile(WB, `VRT-Cambodia-Holiday-${yr}.xlsx`);
 }
+
+// ── Colored HTML print ──
+function exportColorPrint(){
+  const yr = +document.getElementById('exp-year')?.value || curYear;
+  const list = [...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
+  const extM = buildExtMap(yr);
+  const swapM = buildSwapMap(list);
+
+  // Build 12-month calendar HTML
+  let monthsHtml = '';
+  for(let m=0;m<12;m++){
+    const days=dimY(yr,m), first=fdow(yr,m);
+    const dm=buildDateMap(list.filter(h=>h.date.startsWith(yr+'-'+pad(m+1))||h.date===`${yr}-${pad(m+1)}-01`));
+    monthsHtml+=`<div class="pm" style="page-break-inside:avoid;margin-bottom:20px">
+      <div class="pm-head">${yr}年 ${['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'][m]}</div>
+      <table class="pc">
+        <tr>${['日','一','二','三','四','五','六'].map((w,i)=>`<th style="${i===0||i===6?'color:#c62828':''}">${w}</th>`).join('')}</tr>
+        <tr>${'<td></td>'.repeat(first)}`;
+    let col=first;
+    for(let d=1;d<=days;d++){
+      const ds=`${yr}-${pad(m+1)}-${pad(d)}`;
+      const hols=buildDateMap(list)[ds]||[];
+      const we=(new Date(yr,m,d).getDay()===0||new Date(yr,m,d).getDay()===6);
+      const tc=hols[0]?typeCfg(hols[0].type):null;
+      const bg=tc?tc.bg:we?'#fff5f5':'#fff';
+      const lunarD=EXT_LAYERS.lunar.enabled?getLunarDate(ds):null;
+      const swapL=(swapM[ds]||[]);
+      const twE=(extM.tw[ds]||[]).filter(()=>EXT_LAYERS.tw.enabled);
+      const myE=(extM.my[ds]||[]).filter(()=>EXT_LAYERS.my.enabled);
+      const scE=(extM.school[ds]||[]).filter(()=>EXT_LAYERS.school.enabled);
+      const isToday_=isToday(ds);
+      monthsHtml+=`<td style="background:${bg};${isToday_?'outline:2px solid #2e7d32;':''}">\
+<div style="font-weight:700;color:${we?'#c62828':'#1b2a1b'};font-size:11px">${d}</div>\
+${lunarD?`<div style="font-size:8px;color:#e91e63">${lunarD.dayName}</div>`:''}\
+${hols.map(h=>`<div style="font-size:8px;background:${typeCfg(h.type).dot};color:#fff;border-radius:2px;padding:0 2px;margin:1px 0">${h.zh}</div>`).join('')}\
+${twE.map(e=>`<div style="font-size:7px;background:#e3f2fd;color:#1565c0;border-radius:2px;padding:0 2px">🇹🇼${e.zh}</div>`).join('')}\
+${myE.map(e=>`<div style="font-size:7px;background:#fff8e1;color:#e65100;border-radius:2px;padding:0 2px">🇲🇾${e.zh}</div>`).join('')}\
+${scE.map(e=>`<div style="font-size:7px;background:#f3e5f5;color:#7b1fa2;border-radius:2px;padding:0 2px">📚學</div>`).join('')}\
+${swapL.map(lk=>`<div style="font-size:7px;background:#fff8e1;color:#f57f17;border-radius:2px;padding:0 2px">🔗${lk.date.slice(5)}</div>`).join('')}\
+</td>`;
+      col++;
+      if(col%7===0 && d<days) monthsHtml+='</tr><tr>';
+    }
+    monthsHtml+=`${'<td></td>'.repeat((7-col%7)%7)}</tr></table></div>`;
+  }
+
+  const typeKey = Object.entries(TYPE_CFG).map(([k,v])=>
+    `<span style="display:inline-flex;align-items:center;gap:4px;margin:2px 6px;font-size:10px"><span style="width:10px;height:10px;background:${v.dot};border-radius:50%;display:inline-block"></span>${v.zh}</span>`
+  ).join('');
+
+  const w=window.open('','_blank');
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+<title>${yr}年柬埔寨假日行事曆</title>
+<style>
+body{font-family:"Noto Sans TC",sans-serif;margin:16px;background:#fff;color:#1b2a1b}
+h1{text-align:center;color:#1b5e20;margin-bottom:4px;font-size:18px}
+.pm-head{background:linear-gradient(135deg,#1b5e20,#2e7d32);color:#fff;padding:6px 10px;border-radius:6px 6px 0 0;font-weight:700;font-size:12px}
+.pc{width:100%;border-collapse:collapse;border:1px solid #c8e6c9}
+.pc th{background:#e8f5e9;padding:3px;text-align:center;font-size:10px;border:1px solid #c8e6c9}
+.pc td{border:1px solid #c8e6c9;padding:2px;vertical-align:top;min-width:36px;height:52px}
+.pm{display:inline-block;width:calc(33.3% - 12px);vertical-align:top;margin:4px}
+.legend{text-align:center;margin:8px 0;padding:6px;background:#f5f5f5;border-radius:6px}
+@media print{
+  body{margin:4px}.pm{width:calc(33.3% - 8px);margin:2px}
+  @page{size:A4 landscape;margin:10mm}
+}
+</style>
+<style>
+/* Cloud Sync Widget - Calendar */
+#calCloudBtn{position:fixed;bottom:20px;right:20px;width:42px;height:42px;
+  background:#1c1500;border:1px solid #92400e;color:#fbbf24;border-radius:50%;
+  font-size:18px;cursor:pointer;z-index:999;display:flex;align-items:center;
+  justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4);transition:.15s}
+#calCloudBtn:hover{background:#292000}
+#calCloudPanel{position:fixed;bottom:70px;right:20px;width:240px;
+  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
+  display:none;flex-direction:column;gap:8px;z-index:998;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);font-family:system-ui,sans-serif}
+#calCloudPanel.show{display:flex}
+.ccp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em}
+.ccp-status{font-size:11px;color:#475569;font-family:monospace;min-height:14px}
+.ccp-status.ok{color:#4ade80}.ccp-status.warn{color:#fbbf24}.ccp-status.err{color:#f87171}
+.ccp-row{display:flex;gap:6px}
+.ccp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;
+  cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.ccp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.ccp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.ccp-btn:disabled{opacity:.4;cursor:not-allowed}
+.ccp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
+  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
+.ccp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
+  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit}
+.ccp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;
+  overflow-y:auto;border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
+.ccl-ok{color:#4ade80}.ccl-err{color:#f87171}.ccl-i{color:#60a5fa}
+</style>
+</head><body>
+<h1>🇰🇭 ${yr}年 柬埔寨假日行事曆（VRT廠）</h1>
+<div class="legend">${typeKey}</div>
+${monthsHtml}
+<script>window.onload=()=>window.print();<\/script>
+
+<!-- Cloud Sync Widget -->
+<button id="calCloudBtn" title="☁ 雲端同步" onclick="calCloudToggle()">☁</button>
+<div id="calCloudPanel">
+  <div class="ccp-title">☁ 雲端同步 — 行事曆</div>
+  <div class="ccp-status" id="calCloudStatus">未連線</div>
+  <div class="ccp-row">
+    <button class="ccp-btn ccp-push" onclick="calPush()">☁ 推送</button>
+    <button class="ccp-btn ccp-pull" onclick="calPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="ccp-input" id="calGasInput" placeholder="GAS /exec URL"/>
+    <button class="ccp-save" onclick="calSaveGas()">存</button>
+  </div>
+  <div class="ccp-log" id="calLog"></div>
+</div>
+
+<script>
+(function(){
+  const LS = 'ac_hra_gas_url';
+  const LS_META = 'ac_hra_cal_meta';
+  let gasUrl = localStorage.getItem(LS)||'';
+  let open = false;
+
+  window.calCloudToggle = function(){
+    open=!open;
+    document.getElementById('calCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('calGasInput').value=gasUrl;calShowStatus();}
+  };
+  window.calSaveGas = function(){
+    gasUrl=document.getElementById('calGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    calLog('GAS URL 已儲存','i');
+    calShowStatus();
+  };
+  function calShowStatus(){
+    const el=document.getElementById('calCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      const age=mins<60?`${Math.round(mins)}分前`:`${Math.round(mins/60)}小時前`;
+      el.textContent=`${meta.count}筆 · 上次同步 ${age}`;
+      el.className='ccp-status '+(mins<120?'ok':'warn');
+    } else {
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='ccp-status '+(gasUrl?'warn':'err');
+    }
+  }
+  window.calPush = async function(){
+    if(!gasUrl){calLog('請先設定 GAS URL','err');return;}
+    // Read calendar data from localStorage or window
+    let data=[];
+    try{data=JSON.parse(localStorage.getItem('vrt_cal_holidays')||'[]');}catch(e){}
+    // Try to get from window if available
+    if(!data.length && typeof HOLIDAYS!=='undefined') data=HOLIDAYS;
+    if(!data.length && typeof window.calData!=='undefined') data=window.calData;
+    const payload={action:'push',tool:'calendar',records:data,recordCount:data.length,
+      updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:data.length}));
+        calLog('✓ 推送完成 ('+data.length+'筆)','ok');calShowStatus();
+      } else calLog('✗ '+d.error,'err');
+    }catch(e){calLog('✗ '+e.message,'err');}
+  };
+  window.calPull = async function(){
+    if(!gasUrl){calLog('請先設定 GAS URL','err');return;}
+    if(!confirm('拉取雲端行事曆資料？'))return;
+    try{
+      const r=await fetch(gasUrl+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
+      const d=await r.json();
+      if(!d.ok)throw new Error(d.error);
+      const dd=d.data;
+      if(dd.data===null){calLog('雲端尚無資料','i');return;}
+      const recs=dd.records||dd.data?.records||[];
+      localStorage.setItem('vrt_cal_holidays',JSON.stringify(recs));
+      localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+      calLog('✓ 拉取完成 ('+recs.length+'筆)，請重新整理頁面','ok');
+      calShowStatus();
+    }catch(e){calLog('✗ '+e.message,'err');}
+  };
+  function calLog(msg,type){
+    const el=document.getElementById('calLog');if(!el)return;
+    const cls=type==='ok'?'ccl-ok':type==='err'?'ccl-err':'ccl-i';
+    const now=new Date();const t=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
+  }
+  function pad(n){return String(n).padStart(2,'0');}
+  // Init on load
+  document.addEventListener('DOMContentLoaded',calShowStatus);
+})();
+</script>
+</body></html>`);
+  w.document.close();
+}
+
+// ═══════════════════ MODAL ═══════════════════
+function openModal(id='', defaultDate='', defaultType=''){
+  editingId=id||null;
+  const overlay=document.getElementById('modal-overlay');
+  overlay.classList.add('show');
+  if(id){
+    // Edit mode: find holiday
+    let found=null, foundYear=null;
+    Object.entries(DB).forEach(([y,list])=>{ const h=list.find(x=>x.id===id); if(h){found=h;foundYear=y;} });
+    if(!found){ closeModal(); return; }
+    document.getElementById('modal-title').textContent='編輯假日';
+    document.getElementById('del-btn').style.display='inline-flex';
+    document.getElementById('f-id').value=found.id;
+    document.getElementById('f-year').value=foundYear;
+    document.getElementById('f-type').value=found.type;
+    document.getElementById('f-date').value=found.date;
+    document.getElementById('f-enddate').value=found.enddate||'';
+    document.getElementById('f-days').value=found.days||1;
+    document.getElementById('f-zh').value=found.zh||'';
+    document.getElementById('f-en').value=found.en||'';
+    document.getElementById('f-km').value=found.km||'';
+    document.getElementById('f-note').value=found.note||'';
+    document.getElementById('f-refdate').value=found.refdate||'';
+    document.getElementById('f-source').value=found.source||'';
+  } else {
+    // Add mode
+    document.getElementById('modal-title').textContent='新增假日';
+    document.getElementById('del-btn').style.display='none';
+    document.getElementById('f-id').value='';
+    document.getElementById('f-year').value=curYear;
+    document.getElementById('f-type').value=defaultType||'legal';
+    document.getElementById('f-date').value=defaultDate||'';
+    document.getElementById('f-enddate').value='';
+    document.getElementById('f-days').value=1;
+    document.getElementById('f-zh').value='';
+    document.getElementById('f-en').value='';
+    document.getElementById('f-km').value='';
+    document.getElementById('f-note').value='';
+    document.getElementById('f-refdate').value='';
+    document.getElementById('f-source').value='';
+  }
+  onTypeChange();
+}
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('show');
+  editingId=null;
+}
+function onTypeChange(){
+  const type=document.getElementById('f-type').value;
+  const hint=document.getElementById('type-hint');
+  const rfg=document.getElementById('fg-ref');
+  hint.innerHTML=`<div class="info-box" style="margin:0">${TYPE_HINTS[type]||''}</div>`;
+  rfg.style.display=(type==='substitute'||type==='makeup'||type==='cancelled'||type==='postponed')?'flex':'none';
+}
+function calcDays(){
+  const s=document.getElementById('f-date').value;
+  const e=document.getElementById('f-enddate').value;
+  if(s&&e){
+    const diff=Math.round((new Date(e)-new Date(s))/86400000)+1;
+    if(diff>0) document.getElementById('f-days').value=diff;
+  }
+}
+function saveHol(){
+  const yr=+document.getElementById('f-year').value;
+  const type=document.getElementById('f-type').value;
+  const date=document.getElementById('f-date').value;
+  const zh=document.getElementById('f-zh').value.trim();
+  if(!date||!zh){ alert('請填寫日期和中文名稱'); return; }
+  const h={
+    id: document.getElementById('f-id').value||uid(),
+    date, enddate:document.getElementById('f-enddate').value,
+    zh, en:document.getElementById('f-en').value.trim(),
+    km:document.getElementById('f-km').value.trim(),
+    type, days:+document.getElementById('f-days').value||1,
+    note:document.getElementById('f-note').value.trim(),
+    refdate:document.getElementById('f-refdate').value,
+    source:document.getElementById('f-source').value.trim(),
+  };
+  if(!DB[yr]) DB[yr]=[];
+  const idx=DB[yr].findIndex(x=>x.id===h.id);
+  if(idx>=0) DB[yr][idx]=h;
+  else DB[yr].push(h);
+  saveDB(); closeModal(); init();
+}
+function confirmDelete(id){
+  if(confirm('確定要刪除這筆假日記錄嗎？')) deleteHolById(id);
+}
+function deleteHol(){
+  if(confirm('確定要刪除這筆假日記錄嗎？')) deleteHolById(document.getElementById('f-id').value);
+}
+function deleteHolById(id){
+  Object.keys(DB).forEach(y=>{ DB[y]=DB[y].filter(h=>h.id!==id); });
+  saveDB(); closeModal(); init();
+}
+
+// ═══════════════════ LANG UI UPDATES ═══════════════════
+function updateLangUI(){
+  document.querySelectorAll('[data-t]').forEach(el=>{ const k=el.getAttribute('data-t'); if(L()[k]) el.textContent=L()[k]; });
+  // Modal type options
+  const ftype=document.getElementById('f-type');
+  if(ftype) ftype.innerHTML=Object.entries(TYPE_CFG).map(([k,v])=>`<option value="${k}">${v.icon} ${v[lang]||v.zh}</option>`).join('');
+}
+
+// ═══════════════════ CLICK OUTSIDE MODAL ═══════════════════
+document.getElementById('modal-overlay').addEventListener('click',function(e){ if(e.target===this) closeModal(); });
+
+// ═══════════════════ KEYBOARD ═══════════════════
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeModal(); });
+
+// ═══════════════════ START ═══════════════════
+init();
+</script>
+
+<!-- Cloud Sync Widget -->
+<button id="calCloudBtn" title="☁ 雲端同步" onclick="calCloudToggle()">☁</button>
+<div id="calCloudPanel">
+  <div class="ccp-title">☁ 雲端同步 — 行事曆</div>
+  <div class="ccp-status" id="calCloudStatus">未連線</div>
+  <div class="ccp-row">
+    <button class="ccp-btn ccp-push" onclick="calPush()">☁ 推送</button>
+    <button class="ccp-btn ccp-pull" onclick="calPull()">⬇ 拉取</button>
+  </div>
+  <div style="display:flex;gap:5px;align-items:center">
+    <input class="ccp-input" id="calGasInput" placeholder="GAS /exec URL"/>
+    <button class="ccp-save" onclick="calSaveGas()">存</button>
+  </div>
+  <div class="ccp-log" id="calLog"></div>
+</div>
+
+<script>
+(function(){
+  const LS = 'ac_hra_gas_url';
+  const LS_META = 'ac_hra_cal_meta';
+  let gasUrl = localStorage.getItem(LS)||'';
+  let open = false;
+
+  window.calCloudToggle = function(){
+    open=!open;
+    document.getElementById('calCloudPanel').classList.toggle('show',open);
+    if(open){document.getElementById('calGasInput').value=gasUrl;calShowStatus();}
+  };
+  window.calSaveGas = function(){
+    gasUrl=document.getElementById('calGasInput').value.trim();
+    if(!gasUrl)return;
+    localStorage.setItem(LS,gasUrl);
+    calLog('GAS URL 已儲存','i');
+    calShowStatus();
+  };
+  function calShowStatus(){
+    const el=document.getElementById('calCloudStatus');
+    const meta=JSON.parse(localStorage.getItem(LS_META)||'null');
+    if(meta){
+      const mins=(Date.now()-new Date(meta.ts))/60000;
+      const age=mins<60?`${Math.round(mins)}分前`:`${Math.round(mins/60)}小時前`;
+      el.textContent=`${meta.count}筆 · 上次同步 ${age}`;
+      el.className='ccp-status '+(mins<120?'ok':'warn');
+    } else {
+      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
+      el.className='ccp-status '+(gasUrl?'warn':'err');
+    }
+  }
+  window.calPush = async function(){
+    if(!gasUrl){calLog('請先設定 GAS URL','err');return;}
+    // Read calendar data from localStorage or window
+    let data=[];
+    try{data=JSON.parse(localStorage.getItem('vrt_cal_holidays')||'[]');}catch(e){}
+    // Try to get from window if available
+    if(!data.length && typeof HOLIDAYS!=='undefined') data=HOLIDAYS;
+    if(!data.length && typeof window.calData!=='undefined') data=window.calData;
+    const payload={action:'push',tool:'calendar',records:data,recordCount:data.length,
+      updatedAt:new Date().toISOString()};
+    try{
+      const r=await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const d=await r.json();
+      if(d.ok){
+        localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:data.length}));
+        calLog('✓ 推送完成 ('+data.length+'筆)','ok');calShowStatus();
+      } else calLog('✗ '+d.error,'err');
+    }catch(e){calLog('✗ '+e.message,'err');}
+  };
+  window.calPull = async function(){
+    if(!gasUrl){calLog('請先設定 GAS URL','err');return;}
+    if(!confirm('拉取雲端行事曆資料？'))return;
+    try{
+      const r=await fetch(gasUrl+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
+      const d=await r.json();
+      if(!d.ok)throw new Error(d.error);
+      const dd=d.data;
+      if(dd.data===null){calLog('雲端尚無資料','i');return;}
+      const recs=dd.records||dd.data?.records||[];
+      localStorage.setItem('vrt_cal_holidays',JSON.stringify(recs));
+      localStorage.setItem(LS_META,JSON.stringify({ts:Date.now(),count:recs.length}));
+      calLog('✓ 拉取完成 ('+recs.length+'筆)，請重新整理頁面','ok');
+      calShowStatus();
+    }catch(e){calLog('✗ '+e.message,'err');}
+  };
+  function calLog(msg,type){
+    const el=document.getElementById('calLog');if(!el)return;
+    const cls=type==='ok'?'ccl-ok':type==='err'?'ccl-err':'ccl-i';
+    const now=new Date();const t=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    el.innerHTML+=`<span class="${cls}">[${t}] ${msg}</span>
+`;
+    el.scrollTop=el.scrollHeight;
+  }
+  function pad(n){return String(n).padStart(2,'0');}
+  // Init on load
+  document.addEventListener('DOMContentLoaded',calShowStatus);
+})();
 </script>
 </body>
 </html>
