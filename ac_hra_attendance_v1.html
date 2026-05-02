@@ -1560,7 +1560,7 @@ async function testConnection() {
   if (btn) { btn.textContent = '⏳ 測試中…'; btn.disabled = true; }
   setSyncStatus('syncing', '連線測試中…');
   try {
-    const r = await fetch(GAS_URL + '?action=heartbeat');
+    const r = await fetch(GAS_URL + '?action=heartbeat', { method:'GET', redirect:'follow' });
     const d = await r.json();
     if (d.ok) {
       setSyncStatus('synced', 'GAS 連線正常');
@@ -1579,7 +1579,7 @@ async function testConnection() {
 async function checkCloudVersion() {
   if (!GAS_URL || !DB.length) return;
   try {
-    const r = await fetch(GAS_URL + '?action=status');
+    const r = await fetch(GAS_URL + '?action=status', { method:'GET', redirect:'follow' });
     const d = await r.json();
     if (!d.ok || !d.attendance) return;
     cloudSnap = d.attendance;
@@ -1635,7 +1635,8 @@ async function pushCloud() {
 
       const r = await fetch(GAS_URL, {
         method      : 'POST',
-        headers     : { 'Content-Type': 'application/json' },
+        redirect    : 'follow',
+        headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
         body        : JSON.stringify(payload),
       });
       const d = await r.json();
@@ -1670,7 +1671,7 @@ async function pullCloud(silent) {
 
   try {
     // Step 1: Get meta
-    const r1 = await fetch(GAS_URL + '?action=pull&meta=1');
+    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
     const d1 = await r1.json();
 
     if (!d1.ok) { setSyncStatus('failed', '拉取失敗'); toast('❌ 拉取失敗', 'err'); return; }
@@ -1709,7 +1710,7 @@ async function pullCloud(silent) {
 
       for (let i = 0; i < chunks; i++) {
         setProgress((i / chunks) * 80);
-        const r = await fetch(`${GAS_URL}?action=pull&chunk=${i}`);
+        const r = await fetch(`${GAS_URL}?action=pull&tool=attendance&chunk=${i}`, { method:'GET', redirect:'follow' });
         const d = await r.json();
         pullDB.push(...(d.records || []));
       }
@@ -1754,7 +1755,8 @@ async function sendTgMsg(text) {
   try {
     await fetch(GAS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'telegram', text }),
     });
   } catch(e) { console.warn('sendTgMsg error:', e); }
@@ -1770,7 +1772,8 @@ async function sendViaTg() {
   try {
     const r = await fetch(GAS_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ action: 'telegram', text }),
     });
     const d = await r.json();
