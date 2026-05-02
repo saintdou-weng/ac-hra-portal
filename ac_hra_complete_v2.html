@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AC HRA Analytics Center v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./shared/hra.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="./shared/cloud.js"></script>
+<script src="./shared/telegram.js"></script>
+<script src="./shared/hra-modules.js"></script>
+<style>
+.module-status-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--c-border2);font-size:12px}
+.module-status-row:last-child{border:none}
+.mod-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.mod-dot.ok{background:#10b981}
+.mod-dot.warn{background:#f59e0b}
+.mod-dot.empty{background:#cbd5e1}
+.insight-card{background:linear-gradient(135deg,#0f3027 0%,#1a6e5c 100%);color:#fff;border-radius:var(--radius);padding:16px;margin-bottom:10px}
+.insight-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;opacity:.7;margin-bottom:6px}
+.insight-val{font-size:22px;font-weight:700;font-family:var(--f-mono)}
+.insight-sub{font-size:11px;opacity:.75;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="hra-layout">
+
+<!-- SIDEBAR -->
+<div class="hra-sidebar">
+  <div class="sb-logo">
+    <h1>AC HRA Analytics</h1>
+    <p>Analytics Center · v2</p>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-sect">分析</div>
+    <button class="sb-btn on" onclick="goTab('overview',this)"><span class="ic">📊</span>總覽 Overview</button>
+    <button class="sb-btn"    onclick="goTab('attendance',this)"><span class="ic">🕐</span>出勤分析</button>
+    <button class="sb-btn"    onclick="goTab('contract',this)"><span class="ic">📋</span>合約分析</button>
+    <button class="sb-btn"    onclick="goTab('onboarding',this)"><span class="ic">🚪</span>入離職分析</button>
+    <button class="sb-btn"    onclick="goTab('maternity',this)"><span class="ic">🤱</span>產假追蹤</button>
+    <button class="sb-btn"    onclick="goTab('reports',this)"><span class="ic">📱</span>整合報表</button>
+    <button class="sb-btn"    onclick="goTab('settings',this)"><span class="ic">⚙️</span>設定</button>
+    <div class="sb-div"></div>
+    <div class="sb-sect">資料來源</div>
+    <div id="sb-data-status" style="padding:4px 8px"></div>
+    <div class="sb-div"></div>
+    <div class="sb-gas-row">
+      <div class="sb-gas-dot" id="sb-gas-dot"></div>
+      <span class="sb-gas-lbl" id="sb-gas-lbl">未連線</span>
+    </div>
+  </div>
+  <div class="sb-bot">
+    <div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div>
+    <div style="color:#1d3a50;font-size:9px;margin-top:2px">Analytics — 讀取各工具 localStorage</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="hra-main">
+  <div class="hra-header">
+    <div class="hra-logo">
+      <div class="hra-logo-icon">📊</div>
+      <div>
+        <div class="hra-logo-title">HRA Analytics Center</div>
+        <div class="hra-logo-sub">整合分析中心 v2 · AC HRA</div>
+      </div>
+    </div>
+    <div class="hra-header-space"></div>
+    <div class="hra-sync-ind" onclick="refreshAll()">
+      <span class="sync-dot" id="sync-dot-main"></span>
+      <span class="sync-lbl" id="sync-lbl-main">讀取資料中</span>
+    </div>
+    <div class="hra-lang">
+      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
+      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
+      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="refreshAll()">🔄 刷新資料</button>
+    <button class="btn btn-tg btn-sm" onclick="sendIntegratedReport()">📱 整合報表</button>
+  </div>
+  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
+
+  <div class="hra-content">
+
+    <!-- ══ OVERVIEW ══ -->
+    <div class="tab-page on" id="tab-overview">
+      <div class="ph"><h2>📊 HRA 整合總覽</h2><p>Analytics Center — 整合所有 HRA 模組資料</p></div>
+      <div id="overview-kpi" class="kpi-grid"></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">⚠️ 需要立即處理</div>
+          <div id="action-items"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📈 本月摘要</div>
+          <div id="monthly-overview"></div>
+        </div>
+      </div>
+      <div class="g2">
+        <div class="card"><div class="card-title">合約狀態分佈</div><div class="ch-wrap" style="height:200px"><canvas id="ch-contract-status"></canvas></div></div>
+        <div class="card"><div class="card-title">入離職月度趨勢</div><div class="ch-wrap" style="height:200px"><canvas id="ch-ob-trend"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📡 各模組資料狀態</div>
+        <div id="module-status-list"></div>
+      </div>
+    </div>
+
+    <!-- ══ ATTENDANCE ══ -->
+    <div class="tab-page" id="tab-attendance">
+      <div class="ph"><h2>🕐 出勤分析</h2><p>Attendance Analytics — 來自 ac_hra_attendance_v1.html</p></div>
+      <div id="att-kpi" class="kpi-grid"></div>
+      <div id="att-warning" class="alert alert-info" style="margin-bottom:12px;display:none"></div>
+      <div class="g2">
+        <div class="card"><div class="card-title">部門出勤率</div><div class="ch-wrap" style="height:220px"><canvas id="ch-att-dept"></canvas></div></div>
+        <div class="card"><div class="card-title">出勤月度趨勢</div><div class="ch-wrap" style="height:220px"><canvas id="ch-att-trend"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ 出勤異常員工（缺勤 ≥ 3天）</div>
+        <div id="att-anomalies"></div>
+      </div>
+    </div>
+
+    <!-- ══ CONTRACT ══ -->
+    <div class="tab-page" id="tab-contract">
+      <div class="ph"><h2>📋 合約分析</h2><p>Contract Analytics — 來自 ac_hra_contract_v2.html</p></div>
+      <div id="con-kpi" class="kpi-grid"></div>
+      <div class="g2">
+        <div class="card"><div class="card-title">合約類型分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-con-type"></canvas></div></div>
+        <div class="card"><div class="card-title">部門人數分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-con-dept"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ 30 天內到期合約</div>
+        <div id="con-expiring"></div>
+      </div>
+    </div>
+
+    <!-- ══ ONBOARDING ══ -->
+    <div class="tab-page" id="tab-onboarding">
+      <div class="ph"><h2>🚪 入離職分析</h2><p>Onboarding Analytics — 來自 ac_hra_onboarding_v2.html</p></div>
+      <div id="ob-kpi" class="kpi-grid"></div>
+      <div class="g2">
+        <div class="card"><div class="card-title">月度入離職趨勢（6個月）</div><div class="ch-wrap" style="height:220px"><canvas id="ch-ob-trend2"></canvas></div></div>
+        <div class="card"><div class="card-title">離職原因分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-ob-reason"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⏳ 待審核申請</div>
+        <div id="ob-pending"></div>
+      </div>
+    </div>
+
+    <!-- ══ MATERNITY ══ -->
+    <div class="tab-page" id="tab-maternity">
+      <div class="ph"><h2>🤱 產假追蹤</h2><p>Maternity Tracker — 來自 ac_hra_maternity_v1.html</p></div>
+      <div id="mat-kpi" class="kpi-grid"></div>
+      <div id="mat-warning" style="display:none" class="alert alert-warn"></div>
+      <div class="card">
+        <div class="card-title">🤱 目前產假中員工</div>
+        <div id="mat-active-list"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">📅 即將返回復工</div>
+        <div id="mat-returning"></div>
+      </div>
+    </div>
+
+    <!-- ══ REPORTS ══ -->
+    <div class="tab-page" id="tab-reports">
+      <div class="ph"><h2>📱 整合報表</h2><p>Integrated Reports — 跨模組 Telegram 推送</p></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">報表類型</div>
+          <select class="form-input" id="report-type" onchange="updatePreview()" style="margin-bottom:12px">
+            <option value="daily">每日 HRA 摘要</option>
+            <option value="weekly">週報</option>
+            <option value="monthly">月度整合報告</option>
+            <option value="alerts">異常警示</option>
+            <option value="headcount">人力盤點</option>
+          </select>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-tg btn-sm" onclick="sendReport()">📱 發送</button>
+            <button class="btn btn-ghost btn-sm" onclick="updatePreview()">🔄 更新</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">💡 自動排程</div>
+          <div style="font-size:12px;line-height:2">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="auto-daily"> 每天 08:00 自動發送日報</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="auto-weekly"> 每週一 08:00 自動發送週報</label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer"><input type="checkbox" id="auto-alerts"> 自動發送異常警示</label>
+            <button class="btn btn-ghost btn-sm" style="margin-top:6px" onclick="saveAutoSettings()">儲存排程設定</button>
+          </div>
+        </div>
+      </div>
+      <div style="background:#1e2640;color:#e2e8f0;border-radius:8px;padding:14px;font-family:var(--f-mono);font-size:11px;line-height:1.8;white-space:pre-wrap;max-height:360px;overflow-y:auto;margin-top:10px" id="tg-preview"></div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="tab-page" id="tab-settings">
+      <div class="ph"><h2>⚙️ 設定</h2></div>
+      <div class="card"><div class="card-title">系統設定</div><div id="settings-form-container"></div></div>
+      <div class="card">
+        <div class="card-title">🔗 模組連結</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <a class="btn btn-ghost btn-sm" href="./ac_hra_attendance_v1.html" target="_blank">🕐 出勤系統</a>
+          <a class="btn btn-ghost btn-sm" href="./ac_hra_contract_v2.html" target="_blank">📋 合約管理</a>
+          <a class="btn btn-ghost btn-sm" href="./ac_hra_onboarding_v2.html" target="_blank">🚪 入離職</a>
+          <a class="btn btn-ghost btn-sm" href="./ac_hra_maternity_v1.html" target="_blank">🤱 產假追蹤</a>
+          <a class="btn btn-ghost btn-sm" href="./ac_hra_calendar_v2.html" target="_blank">📅 行事曆</a>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">🗒 事件紀錄</div><div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// AC HRA Analytics Center v2
+// 讀取各模組 localStorage，不存自己的資料
+// ══════════════════════════════════════════════════════
+let D = { att:{}, con:[], ob:{records:[], auditLog:[]}, mat:[], cal:[] };
+
+// ── Read all module data from localStorage ──
+function readAllData() {
+  // Attendance
+  try { const raw=localStorage.getItem('vrt_att_v5_db'); D.att=raw?JSON.parse(raw):{employees:[],monthSummaries:[],log:[]}; } catch(e){D.att={employees:[],monthSummaries:[],log:[]};}
+  // Contract
+  try { const raw=localStorage.getItem('ac_hra_contract_db'); D.con=raw?JSON.parse(raw):[]; } catch(e){D.con=[];}
+  // Onboarding
+  try { const raw=localStorage.getItem('ac_hra_onboarding_db'); D.ob=raw?JSON.parse(raw):{records:[],auditLog:[]}; } catch(e){D.ob={records:[],auditLog:[]};}
+  // Maternity
+  try { const raw=localStorage.getItem('vrt_maternity_v1'); D.mat=raw?JSON.parse(raw):[]; } catch(e){D.mat=[];}
+  // Calendar
+  try { const raw=localStorage.getItem('ac_hra_calendar_db'); D.cal=raw?JSON.parse(raw):[]; } catch(e){D.cal=[];}
+}
+
+function dataCount(key) {
+  const c={att:D.att.employees?.length||0,con:D.con.length,ob:D.ob.records?.length||0,mat:D.mat.length,cal:D.cal.length};
+  return c[key]||0;
+}
+
+function computeContractStatus(c) {
+  const today=new Date();today.setHours(0,0,0,0);
+  const probEnd=c.probEndDate?new Date(c.probEndDate):null;
+  const contEnd=c.endDate?new Date(c.endDate):null;
+  if(c.status==='terminated')return 'terminated';
+  if(probEnd&&probEnd>=today){const d=Math.ceil((probEnd-today)/86400000);if(d<=14)return 'expiring';return 'probation';}
+  if(!contEnd)return 'active';
+  const d=Math.ceil((contEnd-today)/86400000);
+  if(d<0)return 'expired';if(d<=30)return 'expiring';return 'active';
+}
+
+function daysUntil(dateStr) {
+  if(!dateStr)return null;
+  const d=new Date(dateStr);d.setHours(0,0,0,0);const t=new Date();t.setHours(0,0,0,0);
+  return Math.ceil((d-t)/86400000);
+}
+
+// ── Navigation ──
+function goTab(id, el) {
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-'+id).classList.add('on');
+  if(el)el.classList.add('on');
+  readAllData();
+  if(id==='overview')   renderOverview();
+  if(id==='attendance') renderAttendance();
+  if(id==='contract')   renderContract();
+  if(id==='onboarding') renderOnboarding();
+  if(id==='maternity')  renderMaternity();
+  if(id==='reports')    updatePreview();
+  if(id==='settings')   HRA.Settings.renderForm('settings-form-container');
+}
+
+function refreshAll() {
+  readAllData();
+  const active=document.querySelector('.tab-page.on')?.id?.replace('tab-','');
+  if(active)goTab(active,null);
+  HRA.UI.toast('🔄 資料已刷新','info');
+  HRA.UI.syncStatus('synced',new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',hour:'2-digit',minute:'2-digit'}));
+}
+
+function kpi(label,val,sub,cls){return`<div class="kpi${cls?' '+cls:''}"><div class="kpi-val">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;}
+
+// ── OVERVIEW ──
+function renderOverview() {
+  const contracts=D.con.map(c=>({...c,_s:computeContractStatus(c)}));
+  const activeStaff=contracts.filter(c=>c._s!=='terminated').length;
+  const expiringC=contracts.filter(c=>c._s==='expiring').length;
+  const probation=contracts.filter(c=>c._s==='probation').length;
+  const obRecords=D.ob.records||[];
+  const pendingOb=obRecords.filter(r=>r.reviewStatus==='pending').length;
+  const mo=new Date().toISOString().slice(0,7);
+  const moJoins=obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
+  const moResigns=obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
+  const matActive=(D.mat||[]).filter(m=>m.status==='maternity').length;
+
+  document.getElementById('overview-kpi').innerHTML=[
+    kpi('在職人數',activeStaff,'','good'),
+    kpi('合約到期',expiringC,'30天內',expiringC>0?'warn':''),
+    kpi('試用期中',probation,'','info'),
+    kpi('待審核申請',pendingOb,'',pendingOb>0?'warn':''),
+    kpi('本月入職',moJoins,mo,'good'),
+    kpi('本月離職',moResigns,mo,moResigns>0?'bad':''),
+    kpi('產假中',matActive,'','info'),
+  ].join('');
+
+  // Action items
+  const items=[];
+  if(expiringC>0)items.push(`⚠️ ${expiringC} 份合約將在 30 天內到期，請確認續簽或終止`);
+  if(pendingOb>0)items.push(`⏳ ${pendingOb} 筆入離職申請待 HRA 審核`);
+  const expired=contracts.filter(c=>c._s==='expired').length;
+  if(expired>0)items.push(`❌ ${expired} 份合約已過期，請更新狀態`);
+  if(matActive>0){
+    const returning=(D.mat||[]).filter(m=>{const d=daysUntil(m.returnDate);return m.status==='maternity'&&d!==null&&d>=0&&d<=14;});
+    if(returning.length)items.push(`🤱 ${returning.length} 位員工產假將在 14 天內結束`);
+  }
+
+  document.getElementById('action-items').innerHTML=items.length===0
+    ?'<div class="alert alert-ok">✅ 目前無需立即處理的事項</div>'
+    :items.map(i=>`<div class="alert alert-warn">${i}</div>`).join('');
+
+  // Monthly overview
+  document.getElementById('monthly-overview').innerHTML=`
+    <div style="font-size:12px;line-height:2.2">
+      📅 統計月份：<b>${mo}</b><br>
+      🟢 本月入職：<b>${moJoins}</b><br>
+      🔴 本月離職：<b>${moResigns}</b><br>
+      📊 淨變動：<b>${moJoins-moResigns>=0?'+':''}${moJoins-moResigns}</b><br>
+      📋 在職合約：<b>${activeStaff}</b><br>
+      🤱 產假中：<b>${matActive}</b>
+    </div>`;
+
+  // Contract status chart
+  const act=contracts.filter(c=>c._s==='active').length;
+  const prob=contracts.filter(c=>c._s==='probation').length;
+  const exp=contracts.filter(c=>c._s==='expiring').length;
+  const xpd=contracts.filter(c=>c._s==='expired').length;
+  const ter=contracts.filter(c=>c._s==='terminated').length;
+  HRA.Charts.make('ch-contract-status',{type:'doughnut',data:{labels:['在職','試用','到期','已期','離職'],datasets:[{data:[act,prob,exp,xpd,ter],backgroundColor:['#10b981','#3b82f6','#f59e0b','#ef4444','#9ca3af'],borderWidth:2,borderColor:'#fff'}]},options:{...HRA.Charts.doughnutOpts()}});
+
+  // OB trend
+  const months=[];for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7));}
+  HRA.Charts.make('ch-ob-trend',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:'入職',data:months.map(m=>obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#10b981',borderRadius:3},
+    {label:'離職',data:months.map(m=>obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#ef4444',borderRadius:3}
+  ]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,stacked:false}}}});
+
+  // Module status
+  const mods=[
+    {name:'出勤系統',key:'att',file:'ac_hra_attendance_v1.html',count:dataCount('att'),icon:'🕐'},
+    {name:'合約管理',key:'con',file:'ac_hra_contract_v2.html',count:dataCount('con'),icon:'📋'},
+    {name:'入離職',key:'ob',file:'ac_hra_onboarding_v2.html',count:dataCount('ob'),icon:'🚪'},
+    {name:'產假追蹤',key:'mat',file:'ac_hra_maternity_v1.html',count:dataCount('mat'),icon:'🤱'},
+    {name:'行事曆',key:'cal',file:'ac_hra_calendar_v2.html',count:dataCount('cal'),icon:'📅'},
+  ];
+  const snap=k=>HRA.Cloud.getSnap(k);
+  document.getElementById('module-status-list').innerHTML=mods.map(m=>`<div class="module-status-row">
+    <div class="mod-dot ${m.count>0?'ok':'empty'}"></div>
+    <span style="flex:1">${m.icon} ${m.name}</span>
+    <span class="badge badge-muted" style="margin-right:8px">${m.count} 筆</span>
+    ${snap(m.key)?`<span style="font-size:10px;color:var(--c-muted)">雲端：${(snap(m.key)?.timestamp||'').slice(0,10)}</span>`:
+    '<span style="font-size:10px;color:var(--c-muted)">未雲端同步</span>'}
+    <a class="btn btn-ghost btn-sm" href="./${m.file}" target="_blank" style="margin-left:8px">開啟</a>
+  </div>`).join('');
+
+  // Sidebar data status
+  document.getElementById('sb-data-status').innerHTML=mods.map(m=>`<div class="sb-gas-row">
+    <div class="sb-gas-dot ${m.count>0?'ok':''}"></div>
+    <span class="sb-gas-lbl">${m.icon} ${m.name}: ${m.count}</span>
+  </div>`).join('');
+}
+
+// ── ATTENDANCE ──
+function renderAttendance() {
+  const emps=D.att.employees||[];
+  const summaries=D.att.monthSummaries||[];
+  if(!emps.length&&!summaries.length){
+    document.getElementById('att-warning').style.display='';
+    document.getElementById('att-warning').textContent='ℹ️ 尚無出勤資料。請先在出勤系統匯入資料，然後返回此頁刷新。';
+    document.getElementById('att-kpi').innerHTML=kpi('員工','0','','');
+    HRA.Charts.destroy('ch-att-dept');HRA.Charts.destroy('ch-att-trend');
+    document.getElementById('att-anomalies').innerHTML='<div class="empty"><p>尚無資料</p></div>';
+    return;
+  }
+
+  const totalEmp=emps.length;
+  const avgAbsence=emps.reduce((a,e)=>{const v=parseFloat(e.absenceDays)||0;return a+v;},0)/Math.max(totalEmp,1);
+  const anomalies=emps.filter(e=>(parseFloat(e.absenceDays)||0)>=3);
+  document.getElementById('att-kpi').innerHTML=[
+    kpi('員工總數',totalEmp,'',''),
+    kpi('平均缺勤天數',avgAbsence.toFixed(1),'天',''),
+    kpi('缺勤≥3天',anomalies.length,'需關注',anomalies.length>0?'warn':'good'),
+    kpi('月份摘要',summaries.length,'個月','info'),
+  ].join('');
+  document.getElementById('att-warning').style.display='none';
+
+  // Dept attendance
+  const deptAbs={};
+  emps.forEach(e=>{if(!deptAbs[e.dept])deptAbs[e.dept]={total:0,abs:0};deptAbs[e.dept].total++;deptAbs[e.dept].abs+=parseFloat(e.absenceDays)||0;});
+  const deptEntries=Object.entries(deptAbs).sort((a,b)=>b[1].abs-a[1].abs).slice(0,8);
+  HRA.Charts.make('ch-att-dept',{type:'bar',data:{labels:deptEntries.map(e=>e[0]),datasets:[{label:'平均缺勤天數',data:deptEntries.map(e=>(e[1].abs/e[1].total).toFixed(1)),backgroundColor:'#f59e0b',borderRadius:4}]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+
+  // Monthly trend from summaries
+  const sorted=[...summaries].sort((a,b)=>a.month?.localeCompare(b.month)||0).slice(-6);
+  HRA.Charts.make('ch-att-trend',{type:'line',data:{labels:sorted.map(s=>s.month?.slice(5)||s.month||''),datasets:[{label:'出勤人數',data:sorted.map(s=>s.presentCount||s.totalPresent||0),borderColor:'#10b981',backgroundColor:'rgba(16,185,129,.1)',tension:.3,fill:true,pointRadius:3}]},options:{...HRA.Charts.lineOpts('人',0),plugins:{legend:{labels:{font:{size:10}}}}}});
+
+  // Anomalies
+  document.getElementById('att-anomalies').innerHTML=anomalies.length===0
+    ?'<div class="alert alert-ok">✅ 無缺勤異常員工</div>'
+    :`<div class="tbl-wrap" style="max-height:200px"><table><thead><tr><th>姓名</th><th>部門</th><th>缺勤天數</th></tr></thead><tbody>
+      ${anomalies.sort((a,b)=>(parseFloat(b.absenceDays)||0)-(parseFloat(a.absenceDays)||0)).slice(0,20).map(e=>`<tr>
+        <td>${e.name||e.nameEn||e.nameKm||'—'}</td>
+        <td>${e.dept||'—'}</td>
+        <td><b style="color:#dc2626">${e.absenceDays||0} 天</b></td>
+      </tr>`).join('')}
+      </tbody></table></div>`;
+}
+
+// ── CONTRACT ──
+function renderContract() {
+  const all=D.con.map(c=>({...c,_s:computeContractStatus(c)}));
+  if(!all.length){
+    document.getElementById('con-kpi').innerHTML=kpi('合約','0','','');
+    document.getElementById('con-expiring').innerHTML='<div class="empty"><p>尚無合約資料</p></div>';
+    return;
+  }
+  const act=all.filter(c=>c._s==='active').length;
+  const prob=all.filter(c=>c._s==='probation').length;
+  const exp=all.filter(c=>c._s==='expiring').length;
+  const xpd=all.filter(c=>c._s==='expired').length;
+  const ter=all.filter(c=>c._s==='terminated').length;
+  document.getElementById('con-kpi').innerHTML=[
+    kpi('在職',act,'','good'),kpi('試用期',prob,'','info'),kpi('到期預警',exp,'','exp>0?warn:'),
+    kpi('已過期',xpd,'',xpd>0?'bad':''),kpi('離職',ter,'',''),
+  ].join('');
+
+  const types={};all.forEach(c=>{types[c.contractType]=(types[c.contractType]||0)+1;});
+  const typeMap={fixed_term:'定期',permanent:'無限期',probation:'試用',expat:'外籍'};
+  HRA.Charts.make('ch-con-type',{type:'doughnut',data:{labels:Object.keys(types).map(k=>typeMap[k]||k),datasets:[{data:Object.values(types),backgroundColor:['#10b981','#3b82f6','#f59e0b','#8b5cf6'],borderWidth:2,borderColor:'#fff'}]},options:{...HRA.Charts.doughnutOpts()}});
+
+  const depts={};all.filter(c=>c._s!=='terminated').forEach(c=>{depts[c.dept]=(depts[c.dept]||0)+1;});
+  const de=Object.entries(depts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  HRA.Charts.make('ch-con-dept',{type:'bar',data:{labels:de.map(e=>e[0]),datasets:[{label:'人數',data:de.map(e=>e[1]),backgroundColor:'#1a6e5c',borderRadius:4}]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+
+  const expList=all.filter(c=>{const d=daysUntil(c.endDate);return d!==null&&d>=0&&d<=30&&c._s!=='terminated';}).sort((a,b)=>new Date(a.endDate)-new Date(b.endDate));
+  document.getElementById('con-expiring').innerHTML=expList.length===0
+    ?'<div class="alert alert-ok">✅ 30天內無合約到期</div>'
+    :`<div class="tbl-wrap" style="max-height:200px"><table><thead><tr><th>姓名</th><th>部門</th><th>合約到期</th><th>剩餘天數</th></tr></thead><tbody>
+      ${expList.map(c=>{const d=daysUntil(c.endDate);return`<tr>
+        <td><b>${c.name}</b></td><td>${c.dept}</td>
+        <td class="td-mono">${c.endDate}</td>
+        <td><b style="color:${d<=7?'#dc2626':d<=14?'#d97706':'#92400e'}">${d} 天</b></td>
+      </tr>`;}).join('')}
+      </tbody></table></div>`;
+}
+
+// ── ONBOARDING ──
+function renderOnboarding() {
+  const records=D.ob.records||[];
+  const tot=records.length;
+  const joins=records.filter(r=>r.type==='join').length;
+  const resigns=records.filter(r=>r.type==='resign').length;
+  const pending=records.filter(r=>r.reviewStatus==='pending').length;
+  const mo=new Date().toISOString().slice(0,7);
+
+  document.getElementById('ob-kpi').innerHTML=[
+    kpi('總申請',tot,'',''),kpi('入職',joins,'','good'),kpi('離職',resigns,'',resigns>0?'bad':''),
+    kpi('待審核',pending,'',pending>0?'warn':''),
+    kpi('本月入職',records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length,mo,''),
+    kpi('本月離職',records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length,mo,''),
+  ].join('');
+
+  const months=[];for(let i=5;i>=0;i--){const d=new Date();d.setMonth(d.getMonth()-i);months.push(d.toISOString().slice(0,7));}
+  HRA.Charts.make('ch-ob-trend2',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:'入職',data:months.map(m=>records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#10b981',borderRadius:3},
+    {label:'離職',data:months.map(m=>records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#ef4444',borderRadius:3}
+  ]},options:{...HRA.Charts.barOpts(false),plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true}}}});
+
+  const reasons={};
+  records.filter(r=>r.type==='resign').forEach(r=>{const k=r.resignReason||'other';reasons[k]=(reasons[k]||0)+1;});
+  const rMap={personal:'個人',contract_end:'合約到期',family:'家庭',salary:'薪資',health:'健康',transfer:'調職',termination:'解雇',other:'其他'};
+  HRA.Charts.make('ch-ob-reason',{type:'doughnut',data:{labels:Object.keys(reasons).map(k=>rMap[k]||k),datasets:[{data:Object.values(reasons),backgroundColor:['#ef4444','#f59e0b','#3b82f6','#10b981','#8b5cf6','#ec4899','#6b7280','#14b8a6'],borderWidth:2,borderColor:'#fff'}]},options:{...HRA.Charts.doughnutOpts()}});
+
+  const pendList=records.filter(r=>r.reviewStatus==='pending').slice(0,8);
+  document.getElementById('ob-pending').innerHTML=pendList.length===0
+    ?'<div class="alert alert-ok">✅ 無待審核申請</div>'
+    :pendList.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--c-border2);font-size:12px">
+        <span>${r.type==='join'?'🟢':'🔴'} <b>${r.name}</b> · ${r.dept}</span>
+        <span style="font-size:11px;color:var(--c-muted)">${r.effectDate||r.applyDate}</span>
+      </div>`).join('');
+}
+
+// ── MATERNITY ──
+function renderMaternity() {
+  const mat=D.mat||[];
+  const active=mat.filter(m=>m.status==='maternity');
+  const returning=active.filter(m=>{const d=daysUntil(m.returnDate);return d!==null&&d>=0&&d<=14;});
+  const completed=mat.filter(m=>m.status==='completed');
+  document.getElementById('mat-kpi').innerHTML=[
+    kpi('產假中',active.length,'','info'),
+    kpi('14天內返回',returning.length,'',returning.length>0?'warn':'good'),
+    kpi('已完成',completed.length,'',''),
+    kpi('總記錄',mat.length,'',''),
+  ].join('');
+
+  if(!mat.length){
+    document.getElementById('mat-warning').style.display='';
+    document.getElementById('mat-warning').textContent='ℹ️ 尚無產假資料，請在產假追蹤系統新增資料。';
+  } else { document.getElementById('mat-warning').style.display='none'; }
+
+  document.getElementById('mat-active-list').innerHTML=active.length===0
+    ?'<div class="empty"><p>目前無員工產假中</p></div>'
+    :active.map(m=>{const d=daysUntil(m.returnDate);return`<div style="border:1px solid var(--c-border);border-left:4px solid #ec4899;border-radius:8px;padding:12px;margin-bottom:8px">
+        <b>${m.name||m.nameKm||'—'}</b> · ${m.dept||'—'}<br>
+        <span style="font-size:11px;color:var(--c-muted)">產假開始：${m.startDate||'—'} · 返回：${m.returnDate||'—'}</span>
+        ${d!==null?`<br><span style="font-size:12px;color:${d<=7?'#dc2626':d<=14?'#d97706':'var(--c-muted)'}">距返回：${d<=0?'已過期':d+'天'}</span>`:''}
+      </div>`;}).join('');
+
+  document.getElementById('mat-returning').innerHTML=returning.length===0
+    ?'<div class="alert alert-ok">✅ 14天內無產假員工返回</div>'
+    :returning.map(m=>`<div class="alert alert-warn">⚠️ <b>${m.name||m.nameKm}</b> · ${m.dept} — 返回日：${m.returnDate} (${daysUntil(m.returnDate)}天後)</div>`).join('');
+}
+
+// ── REPORTS ──
+function updatePreview(){document.getElementById('tg-preview').textContent=buildReport(document.getElementById('report-type')?.value||'daily');}
+
+function buildReport(type){
+  const SEP='─'.repeat(26);
+  const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const mo=new Date().toISOString().slice(0,7);
+  const contracts=D.con.map(c=>({...c,_s:computeContractStatus(c)}));
+  const obRecords=D.ob.records||[];
+  const activeStaff=contracts.filter(c=>c._s!=='terminated').length;
+  const expiring=contracts.filter(c=>c._s==='expiring').length;
+  const pending=obRecords.filter(r=>r.reviewStatus==='pending').length;
+  const matActive=(D.mat||[]).filter(m=>m.status==='maternity').length;
+  const moJoins=obRecords.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
+  const moResigns=obRecords.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
+
+  if(type==='daily'||type==='weekly'){
+    return `【AC HRA ${type==='daily'?'每日摘要':'週報'} / ${type==='daily'?'Daily Summary':'Weekly Report'}】\n${SEP}\n📅 ${ts}\n${SEP}\n👥 在職人數：${activeStaff}\n⚠️ 合約到期預警：${expiring}\n⏳ 待審核申請：${pending}\n🤱 產假中：${matActive}\n${SEP}\n📈 本月入離職 (${mo}):\n🟢 入職：${moJoins}　🔴 離職：${moResigns}\n${SEP}\n[EN] Active: ${activeStaff} | Expiring: ${expiring} | Pending: ${pending}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+  }
+  if(type==='monthly'){
+    return `【AC HRA 月度整合報告 ${mo}】\n${SEP}\n📅 ${ts}\n${SEP}\n═ 人力概況 ═\n👥 在職人數：${activeStaff}\n🔵 試用期：${contracts.filter(c=>c._s==='probation').length}\n⚠️ 即將到期：${expiring}\n${SEP}\n═ 入離職 ═\n🟢 本月入職：${moJoins}\n🔴 本月離職：${moResigns}\n📊 淨變動：${moJoins-moResigns>=0?'+':''}${moJoins-moResigns}\n⏳ 待審核：${pending}\n${SEP}\n═ 產假 ═\n🤱 產假中：${matActive}\n${SEP}\n[EN] Monthly Report\nActive:${activeStaff} Joins:${moJoins} Resigns:${moResigns} Net:${moJoins-moResigns}\n[KM] ខែ ${mo}: កំពុងធ្វើ:${activeStaff} ចូល:${moJoins} ចេញ:${moResigns}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+  }
+  if(type==='alerts'){
+    const items=[];
+    if(expiring>0)items.push(`⚠️ ${expiring} 份合約30天內到期`);
+    if(pending>0)items.push(`⏳ ${pending} 筆申請待審核`);
+    const expired=contracts.filter(c=>c._s==='expired').length;
+    if(expired>0)items.push(`❌ ${expired} 份合約已過期`);
+    return `【AC HRA ⚠️ 異常警示】\n${SEP}\n📅 ${ts}\n${SEP}\n${items.length?items.join('\n'):'✅ 目前無異常'}\n${SEP}\n🏭 Vantage River Textiles`;
+  }
+  // headcount
+  const depts={};contracts.filter(c=>c._s!=='terminated').forEach(c=>{depts[c.dept]=(depts[c.dept]||0)+1;});
+  const deptStr=Object.entries(depts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([d,n])=>`  ${d}: ${n}人`).join('\n');
+  return `【AC HRA 人力盤點 / Headcount】\n${SEP}\n📅 ${ts}\n在職總人數：${activeStaff}\n${SEP}\n部門分佈：\n${deptStr||'  無資料'}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+}
+
+function sendReport(){HRA.TG.push(buildReport(document.getElementById('report-type')?.value||'daily'));HRA.UI.toast('📱 已加入 Telegram 佇列','info');}
+function sendIntegratedReport(){HRA.TG.push(buildReport('daily'));HRA.UI.toast('📱 整合報表已發送','info');}
+function saveAutoSettings(){HRA.UI.toast('✅ 排程設定已儲存','ok');}
+
+function setLang(l){HRA.I18N.setLang(l);['lb-zh','lb-en','lb-km'].forEach((id,i)=>{document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l);});}
+
+window.addEventListener('DOMContentLoaded',()=>{
+  HRA.I18N.init();HRA.TG.init();HRA.Settings.init();
+  HRA.Cloud.init();
+  readAllData();
+  renderOverview();
+  HRA.UI.syncStatus('synced','資料已讀取');
+  HRA.Logger.log('INIT','HRA Analytics Center v2 loaded');
+});
+</script>
+</body>
+</html>

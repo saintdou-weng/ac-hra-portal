@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AC HRA 入職離職管理 v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./shared/hra.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="./shared/cloud.js"></script>
+<script src="./shared/telegram.js"></script>
+<script src="./shared/hra-modules.js"></script>
+<style>
+.type-join{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.type-resign{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.review-pending{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.review-approved{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.review-rejected{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.checklist-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--c-border2);font-size:12px}
+.checklist-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:var(--c-accent)}
+.audit-item{padding:8px 12px;border-left:3px solid var(--c-accent);margin-bottom:6px;background:#f7fbf9;border-radius:0 6px 6px 0;font-size:11px}
+.audit-item.resign{border-left-color:#ef4444;background:#fff5f5}
+</style>
+</head>
+<body>
+<div class="hra-layout">
+
+<!-- SIDEBAR -->
+<div class="hra-sidebar">
+  <div class="sb-logo">
+    <h1>AC HRA 入職離職</h1>
+    <p>Onboarding / Offboarding · v2</p>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-sect">功能</div>
+    <button class="sb-btn on" onclick="goTab('dashboard',this)"><span class="ic">📊</span>儀表板</button>
+    <button class="sb-btn"    onclick="goTab('records',this)"><span class="ic">📋</span>申請記錄</button>
+    <button class="sb-btn"    onclick="goTab('pending',this)"><span class="ic">⏳</span>待處理 <span id="pending-count" class="sb-badge" style="display:none">0</span></button>
+    <button class="sb-btn"    onclick="goTab('import',this)"><span class="ic">📥</span>批次匯入</button>
+    <button class="sb-btn"    onclick="goTab('audit',this)"><span class="ic">📜</span>審計紀錄</button>
+    <button class="sb-btn"    onclick="goTab('reports',this)"><span class="ic">📱</span>報表通報</button>
+    <button class="sb-btn"    onclick="goTab('settings',this)"><span class="ic">⚙️</span>設定</button>
+    <div class="sb-div"></div>
+    <div class="sb-gas-row">
+      <div class="sb-gas-dot" id="sb-gas-dot"></div>
+      <span class="sb-gas-lbl" id="sb-gas-lbl">未連線</span>
+    </div>
+  </div>
+  <div class="sb-bot"><div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div></div>
+</div>
+
+<!-- MAIN -->
+<div class="hra-main">
+  <div class="hra-header">
+    <div class="hra-logo">
+      <div class="hra-logo-icon">🚪</div>
+      <div>
+        <div class="hra-logo-title">入職離職管理</div>
+        <div class="hra-logo-sub">Onboarding / Offboarding v2 · AC HRA</div>
+      </div>
+    </div>
+    <div class="hra-header-space"></div>
+    <div class="hra-sync-ind" onclick="HRA.Sync.push()">
+      <span class="sync-dot" id="sync-dot-main"></span>
+      <span class="sync-lbl" id="sync-lbl-main">雲端未設定</span>
+    </div>
+    <div class="hra-lang">
+      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
+      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
+      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal('join')">＋ 入職申請</button>
+    <button class="btn btn-ghost btn-sm"   onclick="openAddModal('resign')">− 離職申請</button>
+    <button class="btn btn-ghost btn-sm"   onclick="HRA.Sync.push()">⬆</button>
+    <button class="btn btn-ghost btn-sm"   onclick="HRA.Sync.pull()">⬇</button>
+  </div>
+  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
+
+  <div class="hra-content">
+
+    <!-- DASHBOARD -->
+    <div class="tab-page on" id="tab-dashboard">
+      <div class="ph"><h2>📊 儀表板</h2><p>入職離職管理總覽</p></div>
+      <div class="kpi-grid" id="kpi-strip"></div>
+      <div class="g2" style="margin-bottom:14px">
+        <div class="card"><div class="card-title">月度入離職趨勢</div><div class="ch-wrap" style="height:220px"><canvas id="ch-trend"></canvas></div></div>
+        <div class="card"><div class="card-title">離職原因分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-reason"></canvas></div></div>
+      </div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">⏳ 待審核申請</div>
+          <div id="pending-preview"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📋 最近 10 筆記錄</div>
+          <div id="recent-preview"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECORDS -->
+    <div class="tab-page" id="tab-records">
+      <div class="ph"><h2>📋 申請記錄</h2><p>All Onboarding / Offboarding Records</p></div>
+      <div class="frow">
+        <input class="search-box" id="search-records" placeholder="搜尋姓名/編號/部門…" oninput="renderRecords()">
+        <select class="form-input" id="filter-type" onchange="renderRecords()" style="min-width:100px">
+          <option value="">全部類型</option>
+          <option value="join">入職</option>
+          <option value="resign">離職</option>
+        </select>
+        <select class="form-input" id="filter-review" onchange="renderRecords()" style="min-width:100px">
+          <option value="">全部狀態</option>
+          <option value="pending">待審核</option>
+          <option value="approved">已核准</option>
+          <option value="rejected">已拒絕</option>
+        </select>
+        <select class="form-input" id="filter-month" onchange="renderRecords()" style="min-width:110px">
+          <option value="">全部月份</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="exportExcel()">⬇ Excel</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>類型</th><th>編號</th><th>姓名</th><th>部門</th><th>職位</th>
+            <th>申請日期</th><th>生效日期</th><th>離職原因</th><th>審核狀態</th>
+            <th>HRA備註</th><th>操作</th>
+          </tr></thead>
+          <tbody id="records-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PENDING -->
+    <div class="tab-page" id="tab-pending">
+      <div class="ph"><h2>⏳ 待處理申請</h2><p>Pending Applications — 待 HRA 審核</p></div>
+      <div id="pending-list"></div>
+    </div>
+
+    <!-- IMPORT -->
+    <div class="tab-page" id="tab-import">
+      <div class="ph"><h2>📥 批次匯入</h2><p>Batch Import — Excel 批次匯入</p></div>
+      <div class="card">
+        <div class="card-title">Excel 範本格式</div>
+        <div style="font-size:11px;color:var(--c-muted);margin-bottom:10px;line-height:1.8">
+          標題列：<code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">類型(join/resign), 編號, 英文姓名, 柬文姓名, 部門, 職位, 申請日期, 生效日期, 離職原因, 備註</code>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()">⬇ 下載範本</button>
+      </div>
+      <div class="card">
+        <div class="card-title">上傳 Excel</div>
+        <div class="drop-zone" id="dz-import" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dzDrop(event)">
+          <input type="file" accept=".xlsx,.xls" onchange="dzSelect(event)">
+          <div style="font-size:32px;margin-bottom:8px">📥</div>
+          <div style="font-weight:600;margin-bottom:4px">拖放 Excel 到這裡</div>
+          <div style="font-size:11px;color:var(--c-muted)">.xlsx / .xls</div>
+        </div>
+        <div id="import-list" style="margin-top:10px"></div>
+        <div id="import-preview" style="display:none;margin-top:12px">
+          <div class="card-title">解析預覽</div>
+          <div id="preview-content"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-primary btn-sm" onclick="confirmImport()">✓ 確認匯入</button>
+            <button class="btn btn-ghost btn-sm"   onclick="cancelImport()">取消</button>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" id="btn-parse" onclick="parseFiles()" disabled>🔍 解析</button>
+          <span id="parse-msg" style="font-size:12px;color:var(--c-muted)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIT -->
+    <div class="tab-page" id="tab-audit">
+      <div class="ph"><h2>📜 審計紀錄</h2><p>Audit Trail — 操作紀錄</p></div>
+      <div class="frow">
+        <input class="search-box" id="search-audit" placeholder="搜尋…" oninput="renderAudit()">
+        <select class="form-input" id="audit-month" onchange="renderAudit()" style="min-width:120px">
+          <option value="">全部月份</option>
+        </select>
+      </div>
+      <div id="audit-list"></div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="tab-page" id="tab-reports">
+      <div class="ph"><h2>📱 報表通報</h2><p>Reports — Telegram 推送</p></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">報表設定</div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label">報表類型</label>
+            <select class="form-input" id="report-type" onchange="updatePreview()">
+              <option value="daily">今日入離職</option>
+              <option value="weekly">本週匯總</option>
+              <option value="monthly">月度報告</option>
+              <option value="pending">待審核清單</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-tg btn-sm" onclick="sendReport()">📱 發送 Telegram</button>
+            <button class="btn btn-ghost btn-sm" onclick="updatePreview()">🔄 更新</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">📊 本月摘要</div>
+          <div id="monthly-summary"></div>
+        </div>
+      </div>
+      <div style="background:#1e2640;color:#e2e8f0;border-radius:8px;padding:14px;font-family:var(--f-mono);font-size:11px;line-height:1.8;white-space:pre-wrap;max-height:300px;overflow-y:auto;margin-top:10px" id="tg-preview"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-page" id="tab-settings">
+      <div class="ph"><h2>⚙️ 設定</h2><p>System Settings</p></div>
+      <div class="card"><div class="card-title">系統設定</div><div id="settings-form-container"></div></div>
+      <div class="card">
+        <div class="card-title">💾 資料管理</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="backupJSON()">📦 備份 JSON</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restore-file').click()">📂 還原 JSON</button>
+          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(event)">
+          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearAll()">🗑 清除</button>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">🗒 事件紀錄</div><div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-bg" id="modal-record">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-title-text">新增入職申請</span>
+      <button onclick="HRA.UI.closeModal('modal-record')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
+    </div>
+    <div class="form-grid cols3">
+      <div class="form-group"><label class="form-label">類型 *</label>
+        <select class="form-input" id="m-type" onchange="onTypeChange()">
+          <option value="join">入職 Joining</option>
+          <option value="resign">離職 Resigning</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">員工編號</label><input class="form-input" id="m-empid"></div>
+      <div class="form-group"><label class="form-label">英文姓名 *</label><input class="form-input" id="m-name"></div>
+      <div class="form-group"><label class="form-label">柬文姓名</label><input class="form-input" id="m-namekm"></div>
+      <div class="form-group"><label class="form-label">部門 *</label>
+        <select class="form-input" id="m-dept">
+          <option>Line 1</option><option>Line 2</option><option>Line 3</option><option>Line 4</option>
+          <option>Line 5</option><option>Line 6</option><option>Line 7</option><option>Line 8</option>
+          <option>LINE 09</option><option>LINE 10</option><option>LINE 11</option>
+          <option>Cutting</option><option>Packing</option><option>QC</option><option>Warehouse</option>
+          <option>Maintenance</option><option>HRA</option><option>Admin</option><option>Management</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">職位</label><input class="form-input" id="m-position"></div>
+      <div class="form-group"><label class="form-label">申請日期 *</label><input class="form-input" type="date" id="m-applydate"></div>
+      <div class="form-group"><label class="form-label">生效日期 *</label><input class="form-input" type="date" id="m-effectdate"></div>
+      <div class="form-group" id="group-reason"><label class="form-label">離職原因</label>
+        <select class="form-input" id="m-reason">
+          <option value="personal">個人原因</option>
+          <option value="contract_end">合約到期</option>
+          <option value="family">家庭因素</option>
+          <option value="salary">薪資不符</option>
+          <option value="health">健康因素</option>
+          <option value="transfer">調職</option>
+          <option value="termination">解雇</option>
+          <option value="other">其他</option>
+        </select>
+      </div>
+      <div class="form-group" id="group-checklist">
+        <label class="form-label">入職文件清單</label>
+        <div style="font-size:11px">
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer"><input type="checkbox" id="doc-id"> 身份證/護照</label>
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer"><input type="checkbox" id="doc-photo"> 照片</label>
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer"><input type="checkbox" id="doc-contract"> 合約簽署</label>
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer"><input type="checkbox" id="doc-nssf"> NSSF 登記</label>
+          <label style="display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer"><input type="checkbox" id="doc-bank"> 銀行帳戶</label>
+        </div>
+      </div>
+      <div class="form-group full"><label class="form-label">HRA 備註</label><textarea class="form-input" id="m-remark" rows="2"></textarea></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-record')">取消</button>
+      <button class="btn btn-primary" onclick="saveRecord()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- REVIEW MODAL -->
+<div class="modal-bg" id="modal-review">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">
+      <span id="review-title">審核申請</span>
+      <button onclick="HRA.UI.closeModal('modal-review')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
+    </div>
+    <div id="review-detail" style="font-size:12px;line-height:2;margin-bottom:14px"></div>
+    <div class="form-group">
+      <label class="form-label">審核備註</label>
+      <textarea class="form-input" id="review-remark" rows="2"></textarea>
+    </div>
+    <div class="modal-acts">
+      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-review')">取消</button>
+      <button class="btn btn-danger" onclick="doReview('rejected')">❌ 拒絕</button>
+      <button class="btn btn-primary" onclick="doReview('approved')">✅ 核准</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// AC HRA Onboarding / Offboarding v2
+// ══════════════════════════════════════════════════════
+const MODULE    = 'onboarding';
+const STORE_KEY = 'ac_hra_onboarding_db';
+
+let records  = [];
+let auditLog = [];
+let _editId  = null;
+let _reviewId= null;
+let _importBuf= [];
+let _pendingFiles= [];
+
+function loadData() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+    records  = d.records  || [];
+    auditLog = d.auditLog || [];
+  } catch(e) { records = []; auditLog = []; }
+}
+
+function saveData() {
+  localStorage.setItem(STORE_KEY, JSON.stringify({ records, auditLog }));
+  HRA.Sync.schedPush();
+  updatePendingBadge();
+  renderAll();
+}
+
+function getCloudData() {
+  const mo = new Date().toISOString().slice(0,7);
+  const joins   = records.filter(r=>r.type==='join').length;
+  const resigns = records.filter(r=>r.type==='resign').length;
+  const pending = records.filter(r=>r.reviewStatus==='pending').length;
+  return { records: { records, auditLog }, summary: { total:records.length, joins, resigns, pending, thisMonth:mo } };
+}
+
+function onCloudPull(data) {
+  if (!data) return;
+  const rec = data.records || data;
+  const aud = data.auditLog || [];
+  if ((records.length > 0) && !confirm(`雲端有 ${rec.length} 筆，覆蓋本地 ${records.length} 筆？`)) return;
+  records  = Array.isArray(rec) ? rec : [];
+  auditLog = Array.isArray(aud) ? aud : [];
+  localStorage.setItem(STORE_KEY, JSON.stringify({ records, auditLog }));
+  renderAll();
+  HRA.UI.toast(`✅ 已載入 ${records.length} 筆記錄`, 'ok');
+}
+
+function updatePendingBadge() {
+  const n = records.filter(r => r.reviewStatus === 'pending').length;
+  const el = document.getElementById('pending-count');
+  if (el) { el.textContent = n; el.style.display = n ? '' : 'none'; }
+}
+
+function goTab(id, el) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.sb-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('tab-' + id).classList.add('on');
+  if (el) el.classList.add('on');
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'records')   { renderRecords(); populateMonthFilter(); }
+  if (id === 'pending')   renderPending();
+  if (id === 'audit')     { renderAudit(); populateAuditMonthFilter(); }
+  if (id === 'reports')   { updatePreview(); renderMonthlySummary(); }
+  if (id === 'settings')  HRA.Settings.renderForm('settings-form-container');
+}
+
+function renderAll() {
+  renderDashboard();
+  renderRecords();
+  renderPending();
+  updatePendingBadge();
+  populateMonthFilter();
+}
+
+// ── DASHBOARD ──
+function renderDashboard() {
+  const tot   = records.length;
+  const joins = records.filter(r=>r.type==='join').length;
+  const res   = records.filter(r=>r.type==='resign').length;
+  const pend  = records.filter(r=>r.reviewStatus==='pending').length;
+  const mo    = new Date().toISOString().slice(0,7);
+  const moJ   = records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
+  const moR   = records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
+
+  document.getElementById('kpi-strip').innerHTML = [
+    kpi('總申請', tot, '', ''),
+    kpi('入職 Join', joins, '', 'good'),
+    kpi('離職 Resign', res, '', res>0?'bad':''),
+    kpi('待審核', pend, '', pend>0?'warn':''),
+    kpi('本月入職', moJ, mo, 'good'),
+    kpi('本月離職', moR, mo, moR>0?'bad':''),
+  ].join('');
+
+  // Trend chart (last 6 months)
+  const months = [];
+  for (let i=5;i>=0;i--) { const d=new Date(); d.setMonth(d.getMonth()-i); months.push(d.toISOString().slice(0,7)); }
+  HRA.Charts.make('ch-trend',{type:'bar',data:{
+    labels:months.map(m=>m.slice(5)),
+    datasets:[
+      {label:'入職',data:months.map(m=>records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#10b981',borderRadius:4},
+      {label:'離職',data:months.map(m=>records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(m)).length),backgroundColor:'#ef4444',borderRadius:4}
+    ]
+  },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10}}}}}});
+
+  // Reason chart
+  const reasons={};
+  records.filter(r=>r.type==='resign').forEach(r=>{const k=r.resignReason||'other';reasons[k]=(reasons[k]||0)+1;});
+  const rMap={personal:'個人',contract_end:'合約到期',family:'家庭',salary:'薪資',health:'健康',transfer:'調職',termination:'解雇',other:'其他'};
+  const rEntries=Object.entries(reasons);
+  HRA.Charts.make('ch-reason',{type:'doughnut',data:{
+    labels:rEntries.map(e=>rMap[e[0]]||e[0]),
+    datasets:[{data:rEntries.map(e=>e[1]),backgroundColor:['#ef4444','#f59e0b','#3b82f6','#10b981','#8b5cf6','#ec4899','#6b7280','#14b8a6'],borderWidth:2,borderColor:'#fff'}]
+  },options:{...HRA.Charts.doughnutOpts()}});
+
+  // Pending preview
+  const pendList = records.filter(r=>r.reviewStatus==='pending').slice(0,5);
+  document.getElementById('pending-preview').innerHTML = pendList.length===0
+    ? '<div class="alert alert-ok">✅ 無待審核申請</div>'
+    : pendList.map(r=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border2);font-size:12px">
+        <span>${typeBadge(r.type)} <b>${r.name}</b> · ${r.dept}</span>
+        <button class="btn btn-ghost btn-sm" onclick="openReview('${r.id}')">審核</button>
+      </div>`).join('');
+
+  // Recent
+  const recent = [...records].sort((a,b)=>new Date(b.applyDate)-new Date(a.applyDate)).slice(0,10);
+  document.getElementById('recent-preview').innerHTML = recent.length===0
+    ? '<div class="empty"><p>尚無記錄</p></div>'
+    : recent.map(r=>`<div class="audit-item${r.type==='resign'?' resign':''}">
+        ${typeBadge(r.type)} <b>${r.name}</b> · ${r.dept}<br>
+        <span style="color:var(--c-muted)">${r.effectDate||r.applyDate} · ${reviewBadge(r.reviewStatus)}</span>
+      </div>`).join('');
+}
+
+// ── RECORDS TABLE ──
+function renderRecords() {
+  const q  = document.getElementById('search-records')?.value?.toLowerCase() || '';
+  const tf = document.getElementById('filter-type')?.value || '';
+  const rf = document.getElementById('filter-review')?.value || '';
+  const mf = document.getElementById('filter-month')?.value || '';
+
+  const rows = records.filter(r =>
+    (!q  || r.name?.toLowerCase().includes(q) || r.empId?.toLowerCase().includes(q) || r.dept?.toLowerCase().includes(q)) &&
+    (!tf || r.type === tf) &&
+    (!rf || r.reviewStatus === rf) &&
+    (!mf || r.effectDate?.startsWith(mf) || r.applyDate?.startsWith(mf))
+  ).sort((a,b) => new Date(b.applyDate) - new Date(a.applyDate));
+
+  const reasonMap = {personal:'個人',contract_end:'合約到期',family:'家庭',salary:'薪資',health:'健康',transfer:'調職',termination:'解雇',other:'其他'};
+
+  document.getElementById('records-tbody').innerHTML = rows.length===0
+    ? '<tr><td colspan="11" class="empty">尚無記錄</td></tr>'
+    : rows.map(r=>`<tr>
+      <td>${typeBadge(r.type)}</td>
+      <td class="td-mono">${r.empId||'—'}</td>
+      <td><b>${r.name}</b>${r.nameKm?`<br><span style="font-size:10px;color:var(--c-muted)">${r.nameKm}</span>`:''}</td>
+      <td>${r.dept}</td>
+      <td>${r.position||'—'}</td>
+      <td class="td-mono">${r.applyDate||'—'}</td>
+      <td class="td-mono">${r.effectDate||'—'}</td>
+      <td>${r.type==='resign'?(reasonMap[r.resignReason]||r.resignReason||'—'):'—'}</td>
+      <td>${reviewBadge(r.reviewStatus)}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--c-muted)">${r.hrRemark||'—'}</td>
+      <td style="white-space:nowrap">
+        ${r.reviewStatus==='pending'?`<button class="btn btn-ghost btn-sm" onclick="openReview('${r.id}')">審核</button>`:''}
+        <button class="btn btn-ghost btn-sm" onclick="editRecord('${r.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRecord('${r.id}')">🗑</button>
+      </td>
+    </tr>`).join('');
+}
+
+// ── PENDING ──
+function renderPending() {
+  const pend = records.filter(r=>r.reviewStatus==='pending').sort((a,b)=>new Date(a.applyDate)-new Date(b.applyDate));
+  const el = document.getElementById('pending-list');
+  if (!pend.length) { el.innerHTML = '<div class="alert alert-ok">✅ 目前無待審核申請</div>'; return; }
+  el.innerHTML = pend.map(r=>`<div style="border:1px solid var(--c-border);border-radius:var(--radius);padding:16px;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div>${typeBadge(r.type)} <b style="font-size:14px">${r.name}</b> <span style="font-size:11px;color:var(--c-muted)">${r.empId||''}</span>
+        <br><span style="font-size:12px">${r.dept} · ${r.position||''}</span></div>
+      <div style="text-align:right"><div style="font-size:10px;color:var(--c-muted)">申請日：${r.applyDate}</div><div style="font-size:10px;color:var(--c-muted)">生效日：${r.effectDate}</div></div>
+    </div>
+    ${r.type==='resign'?`<div style="font-size:11px;color:var(--c-muted);margin-bottom:8px">離職原因：${({personal:'個人',contract_end:'合約到期',family:'家庭',salary:'薪資',health:'健康',transfer:'調職',termination:'解雇',other:'其他'})[r.resignReason]||r.resignReason||'—'}</div>`:''}
+    ${r.hrRemark?`<div style="font-size:11px;color:var(--c-muted);margin-bottom:8px">備註：${r.hrRemark}</div>`:''}
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary btn-sm" onclick="doReviewDirect('${r.id}','approved')">✅ 核准</button>
+      <button class="btn btn-danger btn-sm"  onclick="doReviewDirect('${r.id}','rejected')">❌ 拒絕</button>
+      <button class="btn btn-ghost btn-sm"   onclick="openReview('${r.id}')">📝 審核備註</button>
+    </div>
+  </div>`).join('');
+}
+
+// ── AUDIT ──
+function renderAudit() {
+  const q  = document.getElementById('search-audit')?.value?.toLowerCase() || '';
+  const mf = document.getElementById('audit-month')?.value || '';
+  const list = auditLog.filter(a =>
+    (!q  || a.name?.toLowerCase().includes(q) || a.action?.toLowerCase().includes(q)) &&
+    (!mf || a.ts?.startsWith(mf))
+  ).sort((a,b)=>new Date(b.ts)-new Date(a.ts)).slice(0,50);
+  document.getElementById('audit-list').innerHTML = list.length===0
+    ? '<div class="empty"><div class="empty-ic">📜</div><p>尚無審計記錄</p></div>'
+    : list.map(a=>`<div class="audit-item${a.type==='resign'?' resign':''}">
+        <b>${a.action}</b> · ${a.name||'—'} · ${a.dept||'—'}<br>
+        <span style="color:var(--c-muted)">${HRA.UI.fmtTs(a.ts,true)} · 操作人：${a.operator||'HRA'}</span>
+        ${a.remark?`<br><span style="color:var(--c-muted)">${a.remark}</span>`:''}
+      </div>`).join('');
+}
+
+function addAudit(action, record, remark, status) {
+  auditLog.push({ id: Date.now()+Math.random(), action, name:record.name, dept:record.dept, type:record.type, remark, status, operator:'HRA', ts:new Date().toISOString() });
+}
+
+// ── ADD / EDIT ──
+function openAddModal(type) {
+  _editId = null;
+  document.getElementById('m-type').value = type || 'join';
+  document.getElementById('modal-title-text').textContent = type === 'resign' ? '新增離職申請' : '新增入職申請';
+  ['empid','name','namekm','position','remark'].forEach(f => { const el=document.getElementById('m-'+f); if(el) el.value=''; });
+  document.getElementById('m-applydate').value  = new Date().toISOString().slice(0,10);
+  document.getElementById('m-effectdate').value = '';
+  ['doc-id','doc-photo','doc-contract','doc-nssf','doc-bank'].forEach(id => { const el=document.getElementById(id); if(el) el.checked=false; });
+  onTypeChange();
+  HRA.UI.openModal('modal-record');
+}
+
+function editRecord(id) {
+  const r = records.find(x=>x.id===id); if(!r) return;
+  _editId = id;
+  document.getElementById('modal-title-text').textContent = '編輯記錄';
+  document.getElementById('m-type').value        = r.type || 'join';
+  document.getElementById('m-empid').value       = r.empId || '';
+  document.getElementById('m-name').value        = r.name || '';
+  document.getElementById('m-namekm').value      = r.nameKm || '';
+  document.getElementById('m-dept').value        = r.dept || 'Line 1';
+  document.getElementById('m-position').value    = r.position || '';
+  document.getElementById('m-applydate').value   = r.applyDate || '';
+  document.getElementById('m-effectdate').value  = r.effectDate || '';
+  document.getElementById('m-reason').value      = r.resignReason || 'personal';
+  document.getElementById('m-remark').value      = r.hrRemark || '';
+  const docs = r.docs || {};
+  ['id','photo','contract','nssf','bank'].forEach(k => { const el=document.getElementById('doc-'+k); if(el) el.checked=!!docs[k]; });
+  onTypeChange();
+  HRA.UI.openModal('modal-record');
+}
+
+function onTypeChange() {
+  const t = document.getElementById('m-type')?.value;
+  document.getElementById('group-reason').style.display    = t==='resign'?'':'none';
+  document.getElementById('group-checklist').style.display = t==='join' ?'':'none';
+}
+
+function saveRecord() {
+  const name = document.getElementById('m-name').value.trim();
+  const applyDate = document.getElementById('m-applydate').value;
+  if (!name || !applyDate) { HRA.UI.toast('請填寫必填欄位', 'warn'); return; }
+  const type = document.getElementById('m-type').value;
+  const obj = {
+    id           : _editId || ('ob_'+Date.now()+'_'+Math.random().toString(36).slice(2)),
+    type,
+    empId        : document.getElementById('m-empid').value.trim(),
+    name, nameKm : document.getElementById('m-namekm').value.trim(),
+    dept         : document.getElementById('m-dept').value,
+    position     : document.getElementById('m-position').value.trim(),
+    applyDate,
+    effectDate   : document.getElementById('m-effectdate').value || '',
+    resignReason : type==='resign' ? document.getElementById('m-reason').value : null,
+    docs         : type==='join' ? { id:!!document.getElementById('doc-id')?.checked, photo:!!document.getElementById('doc-photo')?.checked, contract:!!document.getElementById('doc-contract')?.checked, nssf:!!document.getElementById('doc-nssf')?.checked, bank:!!document.getElementById('doc-bank')?.checked } : null,
+    hrRemark     : document.getElementById('m-remark').value.trim(),
+    reviewStatus : _editId ? (records.find(r=>r.id===_editId)?.reviewStatus||'pending') : 'pending',
+    reviewRemark : _editId ? (records.find(r=>r.id===_editId)?.reviewRemark||'') : '',
+    createdAt    : _editId ? (records.find(r=>r.id===_editId)?.createdAt||new Date().toISOString()) : new Date().toISOString(),
+    updatedAt    : new Date().toISOString(),
+  };
+  if (_editId) { const i=records.findIndex(r=>r.id===_editId); if(i>=0) records[i]=obj; }
+  else { records.push(obj); }
+  addAudit(_editId?'EDIT':'CREATE', obj, '', obj.reviewStatus);
+  HRA.UI.closeModal('modal-record');
+  saveData();
+  HRA.UI.toast((_editId?'✅ 已更新：':'✅ 已新增：')+name, 'ok');
+  HRA.Logger.log('RECORD', (_editId?'Updated: ':'Added: ')+name+' ('+type+')');
+  if (!_editId) sendNewRecordTg(obj);
+}
+
+function sendNewRecordTg(r) {
+  const icon = r.type==='join'?'🟢':'🔴';
+  HRA.TG.push(`${icon} AC HRA ${r.type==='join'?'入職':'離職'}申請\n👤 ${r.name} · ${r.dept} · ${r.position||'—'}\n📅 生效日：${r.effectDate||'—'}\n⏳ 狀態：待審核\n🏭 VRT Sihanoukville`);
+}
+
+function deleteRecord(id) {
+  const r = records.find(x=>x.id===id); if(!r||!confirm(`確認刪除 ${r.name} 的申請？`)) return;
+  addAudit('DELETE', r, '', r.reviewStatus);
+  records = records.filter(x=>x.id!==id);
+  saveData();
+  HRA.UI.toast('🗑 已刪除', 'warn');
+}
+
+// ── REVIEW ──
+function openReview(id) {
+  _reviewId = id;
+  const r = records.find(x=>x.id===id); if(!r) return;
+  document.getElementById('review-title').textContent = `審核：${r.name} (${r.type==='join'?'入職':'離職'})`;
+  document.getElementById('review-detail').innerHTML = `
+    <b>${typeBadge(r.type)} ${r.name}</b> · ${r.empId||'—'}<br>
+    部門：${r.dept} · 職位：${r.position||'—'}<br>
+    申請日：${r.applyDate} · 生效日：${r.effectDate||'—'}<br>
+    ${r.type==='resign'?`離職原因：${r.resignReason||'—'}<br>`:''}
+    備註：${r.hrRemark||'—'}`;
+  document.getElementById('review-remark').value = '';
+  HRA.UI.openModal('modal-review');
+}
+
+function doReview(decision) {
+  if (!_reviewId) return;
+  const r = records.find(x=>x.id===_reviewId); if (!r) return;
+  const remark = document.getElementById('review-remark')?.value.trim() || '';
+  r.reviewStatus = decision;
+  r.reviewRemark = remark;
+  r.reviewedAt   = new Date().toISOString();
+  r.updatedAt    = new Date().toISOString();
+  addAudit(`REVIEW_${decision.toUpperCase()}`, r, remark, decision);
+  HRA.UI.closeModal('modal-review');
+  saveData();
+  HRA.UI.toast(`${decision==='approved'?'✅ 已核准':'❌ 已拒絕'}：${r.name}`, decision==='approved'?'ok':'warn');
+  HRA.TG.push(`${decision==='approved'?'✅':'❌'} AC HRA 申請審核\n👤 ${r.name} · ${r.dept}\n${r.type==='join'?'🟢 入職':'🔴 離職'}\n狀態：${decision==='approved'?'已核准 Approved':'已拒絕 Rejected'}\n${remark?'備註：'+remark+'\n':''}🏭 VRT Sihanoukville`);
+  _reviewId = null;
+}
+
+function doReviewDirect(id, decision) {
+  _reviewId = id;
+  document.getElementById('review-remark').value = '';
+  doReview(decision);
+}
+
+// ── IMPORT ──
+function dzDrop(e) { e.preventDefault(); document.getElementById('dz-import').classList.remove('drag'); addFiles(e.dataTransfer.files); }
+function dzSelect(e) { addFiles(e.target.files); }
+function addFiles(fs) { _pendingFiles=[...fs]; document.getElementById('btn-parse').disabled=!_pendingFiles.length; document.getElementById('parse-msg').textContent=_pendingFiles.length?`${_pendingFiles.length}個檔案`:''; }
+
+async function parseFiles() {
+  if (!_pendingFiles.length) return;
+  const f = _pendingFiles[0];
+  try {
+    const { headers, rows } = await HRA.Upload.parseExcel(f, 0);
+    const g = (r, h) => { const i=headers.findIndex(x=>x?.includes?.(h)); return i>=0?(r[i]||''):''; };
+    _importBuf = rows.map(r=>({
+      id:'ob_'+Date.now()+'_'+Math.random().toString(36).slice(2),
+      type: g(r,'類型')||g(r,'type')||'join',
+      empId: g(r,'編號')||g(r,'ID'),
+      name: g(r,'英文')||g(r,'Name')||g(r,'姓名'),
+      nameKm: g(r,'柬文')||g(r,'Khmer'),
+      dept: g(r,'部門')||g(r,'Dept'),
+      position: g(r,'職位')||g(r,'Position'),
+      applyDate: g(r,'申請')||g(r,'Apply'),
+      effectDate: g(r,'生效')||g(r,'Effect'),
+      resignReason: g(r,'原因')||g(r,'Reason')||'other',
+      hrRemark: g(r,'備註')||g(r,'Remark'),
+      reviewStatus:'pending', createdAt:new Date().toISOString(), updatedAt:new Date().toISOString(),
+    })).filter(r=>r.name);
+    document.getElementById('import-preview').style.display='';
+    document.getElementById('preview-content').innerHTML=`<div class="alert alert-info">找到 ${_importBuf.length} 筆記錄</div>
+    <div class="tbl-wrap" style="max-height:200px"><table><thead><tr><th>類型</th><th>姓名</th><th>部門</th><th>生效日</th></tr></thead>
+    <tbody>${_importBuf.slice(0,10).map(r=>`<tr><td>${r.type}</td><td>${r.name}</td><td>${r.dept}</td><td>${r.effectDate}</td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById('parse-msg').textContent=`✅ ${_importBuf.length} 筆可匯入`;
+  } catch(e) { document.getElementById('parse-msg').textContent='❌ 解析失敗：'+e.message; }
+}
+
+function confirmImport() {
+  if(!_importBuf.length) return;
+  records.push(..._importBuf);
+  _importBuf.forEach(r => addAudit('IMPORT', r, '', 'pending'));
+  saveData();
+  document.getElementById('import-preview').style.display='none';
+  _importBuf=[]; _pendingFiles=[];
+  HRA.UI.toast(`✅ 已匯入 ${records.length} 筆`, 'ok');
+}
+function cancelImport() { _importBuf=[]; document.getElementById('import-preview').style.display='none'; }
+
+function downloadTemplate() {
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([
+    ['類型(join/resign)','員工編號','英文姓名','柬文姓名','部門','職位','申請日期','生效日期','離職原因','備註'],
+    ['join','AC001','Sok Panha','សុខ បញ្ញា','Line 1','Operator','2024-01-15','2024-01-15','',''],
+    ['resign','AC002','Chan Dara','ចាន់ ដារ៉ា','Cutting','Cutter','2024-01-20','2024-01-31','personal',''],
+  ]);
+  ws['!cols']=Array(10).fill({wch:14});
+  XLSX.utils.book_append_sheet(wb,ws,'Template');
+  XLSX.writeFile(wb,'AC_HRA_Onboarding_Template.xlsx');
+}
+
+// ── REPORTS ──
+function updatePreview() {
+  const type = document.getElementById('report-type')?.value || 'daily';
+  document.getElementById('tg-preview').textContent = buildReport(type);
+}
+
+function buildReport(type) {
+  const SEP = '─'.repeat(26);
+  const ts  = new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const today = new Date().toISOString().slice(0,10);
+  const mo    = today.slice(0,7);
+  const moStart= new Date(); moStart.setDate(1); moStart.setHours(0,0,0,0);
+  const monStr = moStart.toISOString().slice(0,10);
+  const weekStart = new Date(); weekStart.setDate(weekStart.getDate()-(weekStart.getDay()||7)+1); const ws2=weekStart.toISOString().slice(0,10);
+
+  if (type==='daily') {
+    const j=records.filter(r=>r.type==='join'&&r.effectDate===today);
+    const r=records.filter(r=>r.type==='resign'&&r.effectDate===today);
+    return `【AC HRA 今日入離職】\n${SEP}\n📅 ${today}\n${SEP}\n🟢 今日入職 (${j.length}人):\n${j.map((x,i)=>`${i+1}. ${x.name} · ${x.dept}`).join('\n')||'  無'}\n🔴 今日離職 (${r.length}人):\n${r.map((x,i)=>`${i+1}. ${x.name} · ${x.dept}`).join('\n')||'  無'}\n${SEP}\n🏭 VRT Sihanoukville`;
+  }
+  if (type==='weekly') {
+    const j=records.filter(r=>r.type==='join'&&r.effectDate>=ws2);
+    const rr=records.filter(r=>r.type==='resign'&&r.effectDate>=ws2);
+    return `【AC HRA 週報】\n${SEP}\n📅 ${ws2} ~ ${today}\n${SEP}\n🟢 本週入職: ${j.length}人\n🔴 本週離職: ${rr.length}人\n⏳ 待審核: ${records.filter(r=>r.reviewStatus==='pending').length}筆\n${SEP}\n🏭 VRT Sihanoukville`;
+  }
+  if (type==='monthly') {
+    const j=records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
+    const rr=records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
+    return `【AC HRA 月度報告 ${mo}】\n${SEP}\n📅 ${ts}\n${SEP}\n🟢 入職 / Joins: ${j}\n🔴 離職 / Resigns: ${rr}\n📊 淨變動 / Net: ${j-rr>=0?'+':''}${j-rr}\n⏳ 待審核 / Pending: ${records.filter(r=>r.reviewStatus==='pending').length}\n${SEP}\n[EN] Monthly Report ${mo}: Joins:${j} Resigns:${rr}\n[KM] ខែ ${mo}: ចូល:${j} ចេញ:${rr}\n${SEP}\n🏭 VRT Sihanoukville`;
+  }
+  // pending
+  const pend = records.filter(r=>r.reviewStatus==='pending');
+  return `【AC HRA 待審核清單】\n${SEP}\n📅 ${ts}\n共 ${pend.length} 筆待審核：\n${SEP}\n${pend.slice(0,10).map((r,i)=>`${i+1}. ${r.type==='join'?'🟢':'🔴'} ${r.name} · ${r.dept}\n   生效日：${r.effectDate||'—'}`).join('\n')||'無待審核'}\n${SEP}\n🏭 VRT Sihanoukville`;
+}
+
+function sendReport() {
+  HRA.TG.push(buildReport(document.getElementById('report-type')?.value||'monthly'));
+  HRA.UI.toast('📱 已加入 Telegram 佇列', 'info');
+}
+
+function renderMonthlySummary() {
+  const mo = new Date().toISOString().slice(0,7);
+  const j=records.filter(r=>r.type==='join'&&r.effectDate?.startsWith(mo)).length;
+  const rr=records.filter(r=>r.type==='resign'&&r.effectDate?.startsWith(mo)).length;
+  document.getElementById('monthly-summary').innerHTML=`<div style="font-size:12px;line-height:2">📅 ${mo}<br>🟢 入職：<b>${j}</b><br>🔴 離職：<b>${rr}</b><br>📊 淨變動：<b>${j-rr>=0?'+':''}${j-rr}</b></div>`;
+}
+
+// ── MONTH FILTERS ──
+function populateMonthFilter() {
+  const months=[...new Set(records.map(r=>r.effectDate?.slice(0,7)||r.applyDate?.slice(0,7)).filter(Boolean))].sort().reverse();
+  const sel=document.getElementById('filter-month'); if(!sel) return;
+  sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+function populateAuditMonthFilter() {
+  const months=[...new Set(auditLog.map(a=>a.ts?.slice(0,7)).filter(Boolean))].sort().reverse();
+  const sel=document.getElementById('audit-month'); if(!sel) return;
+  sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option value="${m}">${m}</option>`).join('');
+}
+
+// ── EXPORT ──
+function exportExcel() {
+  if (!records.length) { HRA.UI.toast('無資料', 'warn'); return; }
+  const wb=XLSX.utils.book_new();
+  const hdr=['類型','員工編號','英文姓名','柬文姓名','部門','職位','申請日','生效日','離職原因','審核狀態','備註'];
+  const rMap={personal:'個人',contract_end:'合約到期',family:'家庭',salary:'薪資',health:'健康',transfer:'調職',termination:'解雇',other:'其他'};
+  const ws=XLSX.utils.aoa_to_sheet([hdr,...records.map(r=>[r.type==='join'?'入職':'離職',r.empId,r.name,r.nameKm,r.dept,r.position,r.applyDate,r.effectDate,rMap[r.resignReason]||r.resignReason||'',r.reviewStatus,r.hrRemark])]);
+  XLSX.utils.book_append_sheet(wb,ws,'Records');
+  XLSX.writeFile(wb,`AC_HRA_Onboarding_${new Date().toISOString().slice(0,10)}.xlsx`);
+  HRA.UI.toast('⬇ Excel 已下載','ok');
+}
+
+// ── BACKUP ──
+function backupJSON() {
+  const blob=new Blob([JSON.stringify({records,auditLog,ts:new Date().toISOString()})],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`AC_HRA_Onboarding_Backup_${new Date().toISOString().slice(0,10)}.json`;a.click();
+  HRA.UI.toast('📦 已備份','ok');
+}
+function restoreJSON(e) {
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);records=d.records||[];auditLog=d.auditLog||[];saveData();HRA.UI.toast(`📂 已還原 ${records.length} 筆`,'ok');}catch(ex){HRA.UI.toast('❌ '+ex.message,'err');}};r.readAsText(f);
+}
+function clearAll(){if(!confirm('確認清除所有資料？'))return;records=[];auditLog=[];localStorage.removeItem(STORE_KEY);renderAll();HRA.UI.toast('🗑 已清除','warn');}
+
+// ── HELPERS ──
+function typeBadge(t) { return t==='join'?'<span class="badge type-join">🟢 入職</span>':'<span class="badge type-resign">🔴 離職</span>'; }
+function reviewBadge(s) { const map={pending:'<span class="badge review-pending">⏳ 待審核</span>',approved:'<span class="badge review-approved">✅ 已核准</span>',rejected:'<span class="badge review-rejected">❌ 已拒絕</span>'}; return map[s]||s; }
+function kpi(label,val,sub,cls){return `<div class="kpi${cls?' '+cls:''}"><div class="kpi-val">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;}
+function setLang(l){HRA.I18N.setLang(l);['lb-zh','lb-en','lb-km'].forEach((id,i)=>{document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l);}); }
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', () => {
+  loadData();
+  HRA.I18N.init();
+  HRA.TG.init();
+  HRA.Settings.init();
+  HRA.Sync.init(MODULE, getCloudData, onCloudPull);
+  HRA.UI.syncStatus('idle', '');
+  renderAll();
+  HRA.Logger.log('INIT', 'Onboarding v2 loaded');
+});
+</script>
+</body>
+</html>

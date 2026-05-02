@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AC HRA 行事曆 v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./shared/hra.css"/>
+<script src="./shared/cloud.js"></script>
+<script src="./shared/telegram.js"></script>
+<script src="./shared/hra-modules.js"></script>
+<style>
+/* Calendar specific */
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:6px}
+.cal-dow{text-align:center;font-size:9px;font-weight:700;color:var(--c-muted);padding:6px 0;text-transform:uppercase;letter-spacing:.5px}
+.cal-day{min-height:72px;border:1px solid var(--c-border2);border-radius:5px;padding:4px 5px;cursor:pointer;background:#fff;position:relative;font-size:11px;transition:.15s}
+.cal-day:hover{border-color:var(--c-accent);z-index:1}
+.cal-day.today{border:2px solid var(--c-accent);background:#f0fdf8}
+.cal-day.outside{background:#f7f8fa;opacity:.5}
+.cal-day.weekend{background:#fef9f7}
+.cal-day.has-pub{background:#fef3c7!important}
+.cal-day.has-factory{background:#dbeafe!important}
+.cal-day.has-ot{background:#fce7f3!important}
+.cal-day.has-pub.has-factory{background:linear-gradient(135deg,#fef3c7 50%,#dbeafe 50%)!important}
+.day-num{font-weight:700;font-size:13px;margin-bottom:2px;display:flex;align-items:center;justify-content:space-between}
+.day-tags{display:flex;flex-direction:column;gap:2px;overflow:hidden}
+.day-tag{font-size:9px;padding:1px 4px;border-radius:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4}
+.tag-public{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.tag-factory{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.tag-ot{background:#fce7f3;color:#9d174d;border:1px solid #fbcfe8}
+.tag-reminder{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+/* Year view */
+.year-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.mini-month{background:#fff;border:1px solid var(--c-border);border-radius:8px;padding:10px;font-size:10px}
+.mini-month h4{text-align:center;margin-bottom:6px;font-size:11px;font-weight:700;color:var(--c-primary)}
+.mini-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.mini-dow{text-align:center;font-size:8px;color:var(--c-muted);padding:2px 0}
+.mini-d{text-align:center;padding:2px;border-radius:3px;font-size:9px;cursor:default;line-height:1.4}
+.mini-d.today-m{background:var(--c-accent);color:#fff;font-weight:700}
+.mini-d.has-ev{background:#fef3c7;color:#92400e}
+.mini-d.outside-m{color:var(--c-border)}
+.mini-d.weekend-m{color:#9ca3af}
+.legend-row{display:flex;align-items:center;gap:6px;font-size:11px;margin-bottom:4px}
+.legend-dot{width:12px;height:12px;border-radius:2px;flex-shrink:0}
+/* Holiday list */
+.hday-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--c-border2);font-size:12px}
+.hday-item:last-child{border:none}
+.hday-date{font-family:var(--f-mono);color:var(--c-muted);font-size:11px;min-width:80px}
+/* Mobile year view */
+@media(max-width:768px){.year-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:480px){.year-grid{grid-template-columns:1fr}.cal-day{min-height:50px}.day-num{font-size:11px}}
+</style>
+</head>
+<body>
+<div class="hra-layout">
+
+<!-- SIDEBAR -->
+<div class="hra-sidebar">
+  <div class="sb-logo">
+    <h1>AC HRA 行事曆</h1>
+    <p>Factory Calendar · v2</p>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-sect">視圖</div>
+    <button class="sb-btn on" onclick="goTab('month',this)"><span class="ic">📅</span>月份視圖</button>
+    <button class="sb-btn"    onclick="goTab('year',this)"><span class="ic">📆</span>年度視圖</button>
+    <button class="sb-btn"    onclick="goTab('list',this)"><span class="ic">📋</span>假期列表</button>
+    <button class="sb-btn"    onclick="goTab('settings',this)"><span class="ic">⚙️</span>設定</button>
+    <div class="sb-div"></div>
+    <div class="sb-sect">圖例</div>
+    <div style="padding:4px 8px">
+      <div class="legend-row"><div class="legend-dot" style="background:#fef3c7;border:1px solid #fde68a"></div><span style="font-size:10px;color:var(--c-sb-txt)">柬國假期</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:#dbeafe;border:1px solid #bfdbfe"></div><span style="font-size:10px;color:var(--c-sb-txt)">工廠假期</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:#fce7f3;border:1px solid #fbcfe8"></div><span style="font-size:10px;color:var(--c-sb-txt)">加班/補班</span></div>
+      <div class="legend-row"><div class="legend-dot" style="background:#ede9fe;border:1px solid #c4b5fd"></div><span style="font-size:10px;color:var(--c-sb-txt)">提醒</span></div>
+    </div>
+    <div class="sb-div"></div>
+    <div class="sb-gas-row">
+      <div class="sb-gas-dot" id="sb-gas-dot"></div>
+      <span class="sb-gas-lbl" id="sb-gas-lbl">未連線</span>
+    </div>
+  </div>
+  <div class="sb-bot"><div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div></div>
+</div>
+
+<!-- MAIN -->
+<div class="hra-main">
+  <div class="hra-header">
+    <div class="hra-logo">
+      <div class="hra-logo-icon">📅</div>
+      <div>
+        <div class="hra-logo-title">工廠行事曆</div>
+        <div class="hra-logo-sub">Factory Calendar v2 · AC HRA</div>
+      </div>
+    </div>
+    <div class="hra-header-space"></div>
+    <div class="hra-sync-ind" onclick="HRA.Sync.push()">
+      <span class="sync-dot" id="sync-dot-main"></span>
+      <span class="sync-lbl" id="sync-lbl-main">雲端未設定</span>
+    </div>
+    <div class="hra-lang">
+      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
+      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
+      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="openAddModal()">＋ 新增假期</button>
+    <button class="btn btn-tg btn-sm" onclick="sendUpcomingTg()">📱 提醒</button>
+    <button class="btn btn-ghost btn-sm" onclick="HRA.Sync.push()">⬆</button>
+    <button class="btn btn-ghost btn-sm" onclick="HRA.Sync.pull()">⬇</button>
+  </div>
+  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
+
+  <div class="hra-content">
+
+    <!-- MONTH VIEW -->
+    <div class="tab-page on" id="tab-month">
+      <div class="ph">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="moveMonth(-1)">← <span data-i18n="prev">上個月</span></button>
+          <h2 id="month-title" style="margin:0;font-size:18px"></h2>
+          <button class="btn btn-ghost btn-sm" onclick="moveMonth(1)"><span data-i18n="next">下個月</span> →</button>
+          <button class="btn btn-ghost btn-sm" onclick="goToday()">今天</button>
+        </div>
+      </div>
+      <div class="cal-grid" id="cal-dow-row">
+        <div class="cal-dow">日 Sun</div><div class="cal-dow">一 Mon</div><div class="cal-dow">二 Tue</div>
+        <div class="cal-dow">三 Wed</div><div class="cal-dow">四 Thu</div><div class="cal-dow">五 Fri</div><div class="cal-dow">六 Sat</div>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <!-- Right: upcoming list -->
+      <div class="card" style="margin-top:14px">
+        <div class="card-title">📅 近期假期 / Upcoming Holidays</div>
+        <div id="upcoming-list"></div>
+      </div>
+    </div>
+
+    <!-- YEAR VIEW -->
+    <div class="tab-page" id="tab-year">
+      <div class="ph">
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="btn btn-ghost btn-sm" onclick="moveYear(-1)">←</button>
+          <h2 id="year-title" style="margin:0;font-size:18px"></h2>
+          <button class="btn btn-ghost btn-sm" onclick="moveYear(1)">→</button>
+        </div>
+      </div>
+      <div class="year-grid" id="year-grid"></div>
+    </div>
+
+    <!-- HOLIDAY LIST -->
+    <div class="tab-page" id="tab-list">
+      <div class="ph"><h2>📋 假期列表</h2><p>Holiday List — 柬國及工廠假期</p></div>
+      <div class="frow">
+        <input class="search-box" id="search-holidays" placeholder="搜尋…" oninput="renderList()">
+        <select class="form-input" id="filter-htype" onchange="renderList()" style="min-width:120px">
+          <option value="">全部類型</option>
+          <option value="public">柬國假期</option>
+          <option value="factory">工廠假期</option>
+          <option value="ot">加班/補班日</option>
+          <option value="reminder">提醒</option>
+        </select>
+        <select class="form-input" id="filter-hyear" onchange="renderList()" style="min-width:90px">
+          <option value="">全部年份</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="exportExcel()">⬇ Excel</button>
+      </div>
+      <div id="holiday-list"></div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="tab-page" id="tab-settings">
+      <div class="ph"><h2>⚙️ 設定</h2></div>
+      <div class="card"><div class="card-title">系統設定</div><div id="settings-form-container"></div></div>
+      <div class="card">
+        <div class="card-title">📋 柬國法定假期預設資料</div>
+        <p style="font-size:11px;color:var(--c-muted);margin-bottom:10px">載入柬國 2025 年法定假期（26天）</p>
+        <button class="btn btn-primary btn-sm" onclick="loadCambodiaHolidays(2025)">載入 2025 年假期</button>
+        <button class="btn btn-ghost btn-sm" style="margin-left:8px" onclick="loadCambodiaHolidays(2026)">載入 2026 年假期</button>
+      </div>
+      <div class="card">
+        <div class="card-title">💾 資料管理</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="backupJSON()">📦 備份</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restore-file').click()">📂 還原</button>
+          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(event)">
+          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearCustom()">🗑 清除自訂假期</button>
+        </div>
+      </div>
+      <div class="card"><div class="card-title">🗒 事件紀錄</div><div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div></div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-bg" id="modal-holiday">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">
+      <span id="modal-title-text">新增假期</span>
+      <button onclick="HRA.UI.closeModal('modal-holiday')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group"><label class="form-label">日期 *</label><input class="form-input" type="date" id="m-date"></div>
+      <div class="form-group"><label class="form-label">類型</label>
+        <select class="form-input" id="m-type">
+          <option value="public">🇰🇭 柬國假期</option>
+          <option value="factory">🏭 工廠假期</option>
+          <option value="ot">⚙️ 加班/補班</option>
+          <option value="reminder">🔔 提醒</option>
+        </select>
+      </div>
+      <div class="form-group full"><label class="form-label">名稱（中文）*</label><input class="form-input" id="m-name-zh"></div>
+      <div class="form-group full"><label class="form-label">名稱（English）</label><input class="form-input" id="m-name-en"></div>
+      <div class="form-group full"><label class="form-label">名稱（ខ្មែរ）</label><input class="form-input" id="m-name-km"></div>
+      <div class="form-group full"><label class="form-label">備註</label><input class="form-input" id="m-remark"></div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+          <input type="checkbox" id="m-tg-remind"> Telegram 提醒（前一天）
+        </label>
+      </div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-holiday')">取消</button>
+      <button class="btn btn-primary" onclick="saveHoliday()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Day detail modal -->
+<div class="modal-bg" id="modal-day">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-title">
+      <span id="day-modal-title"></span>
+      <button onclick="HRA.UI.closeModal('modal-day')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
+    </div>
+    <div id="day-modal-content"></div>
+    <div class="modal-acts">
+      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-day')">關閉</button>
+      <button class="btn btn-primary btn-sm" onclick="HRA.UI.closeModal('modal-day');openAddModal()">＋ 新增假期</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════
+// AC HRA Calendar v2
+// ══════════════════════════════════════════════════════
+const MODULE    = 'calendar';
+const STORE_KEY = 'ac_hra_calendar_db';
+
+let holidays = [];       // { id, date, type, nameZh, nameEn, nameKm, remark, tgRemind, custom }
+let _editId  = null;
+let curYear  = new Date().getFullYear();
+let curMonth = new Date().getMonth();
+
+const LANG = () => HRA.I18N.getLang();
+function hName(h) { return LANG()==='en'?(h.nameEn||h.nameZh):LANG()==='km'?(h.nameKm||h.nameZh):h.nameZh; }
+
+// ── Cambodia Public Holidays data ──
+const CAM_HOLIDAYS = {
+  2025: [
+    {d:'01-01',zh:'元旦',en:"New Year's Day",km:'ទិវាចូលឆ្នាំ'},
+    {d:'01-07',zh:'勝利日',en:'Victory Day',km:'ទិវាជ័យជម្នះ'},
+    {d:'02-12',zh:'麥卜恰節（農曆）',en:'Meak Bochea Day',km:'ទិវាមាឃបូជា'},
+    {d:'03-08',zh:'國際婦女節',en:"International Women's Day",km:'ទិវាស្ត្រីអន្តរជាតិ'},
+    {d:'04-13',zh:'柬埔寨新年',en:'Khmer New Year (Day 1)',km:'ចូលឆ្នាំខ្មែរ'},
+    {d:'04-14',zh:'柬埔寨新年',en:'Khmer New Year (Day 2)',km:'ចូលឆ្នាំខ្មែរ'},
+    {d:'04-15',zh:'柬埔寨新年',en:'Khmer New Year (Day 3)',km:'ចូលឆ្នាំខ្មែរ'},
+    {d:'05-01',zh:'勞動節',en:'International Labour Day',km:'ទិវាពលករអន្តរជាតិ'},
+    {d:'05-14',zh:'國王耕田節',en:'Royal Ploughing Ceremony',km:'ព្រះរាជពិធីបុណ្យចំការ'},
+    {d:'05-15',zh:'國王耕田節',en:'Royal Ploughing Ceremony',km:'ព្រះរាជពិធីបុណ្យចំការ'},
+    {d:'05-21',zh:'維薩卡節',en:'Visak Bochea Day',km:'ទិវាវិសាខបូជា'},
+    {d:'06-01',zh:'兒童節',en:"International Children's Day",km:'ទិវាកុមារអន្តរជាតិ'},
+    {d:'06-18',zh:'王太后壽辰',en:"Queen Mother's Birthday",km:'ព្រះរាជសម្ភពព្រះម្ចាស់'},
+    {d:'09-24',zh:'憲法日',en:'Constitution Day',km:'ទិវារដ្ឋធម្មនុញ្ញ'},
+    {d:'10-02',zh:'普欽本節（祭祖節）',en:'Pchum Ben Day 1',km:'ព្រះរាជពិធីបុណ្យភ្ជុំបិណ្ឌ'},
+    {d:'10-03',zh:'普欽本節（祭祖節）',en:'Pchum Ben Day 2',km:'ព្រះរាជពិធីបុណ្យភ្ជុំបិណ្ឌ'},
+    {d:'10-04',zh:'普欽本節（祭祖節）',en:'Pchum Ben Day 3',km:'ព្រះរាជពិធីបុណ្យភ្ជុំបិណ្ឌ'},
+    {d:'10-23',zh:'巴黎和平協定紀念日',en:'Paris Peace Agreement Day',km:'ទិវាកិច្ចព្រមព្រៀងសន្តិភាព'},
+    {d:'10-29',zh:'西哈莫尼國王誕辰',en:"King's Birthday Day 1",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
+    {d:'10-30',zh:'西哈莫尼國王誕辰',en:"King's Birthday Day 2",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
+    {d:'10-31',zh:'西哈莫尼國王誕辰',en:"King's Birthday Day 3",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
+    {d:'11-09',zh:'獨立日',en:'Independence Day',km:'ទិវាឯករាជ្យជាតិ'},
+    {d:'11-10',zh:'水燈節',en:'Water Festival Day 1',km:'ព្រះរាជពិធីបុណ្យអុំទូក'},
+    {d:'11-11',zh:'水燈節',en:'Water Festival Day 2',km:'ព្រះរាជពិធីបុណ្យអុំទូក'},
+    {d:'11-12',zh:'水燈節',en:'Water Festival Day 3',km:'ព្រះរាជពិធីបុណ្យអុំទូក'},
+    {d:'12-10',zh:'人權日',en:'Human Rights Day',km:'ទិវាសិទ្ធិមនុស្ស'},
+  ],
+  2026: [
+    {d:'01-01',zh:'元旦',en:"New Year's Day",km:'ទិវាចូលឆ្នាំ'},
+    {d:'01-07',zh:'勝利日',en:'Victory Day',km:'ទិវាជ័យជម្នះ'},
+    {d:'03-08',zh:'國際婦女節',en:"International Women's Day",km:'ទិវាស្ត្រីអន្តរជាតិ'},
+    {d:'04-13',zh:'柬埔寨新年',en:'Khmer New Year (Day 1)',km:'ចូលឆ្នាំខ្មែរ'},
+    {d:'04-14',zh:'柬埔寨新年',en:'Khmer New Year (Day 2)',km:'ចូលឆ្នាំខ្មែរ'},
+    {d:'04-15',zh:'柬埔寨新年',en:'Khmer New Year (Day 3)',km:'ចូលឆ្នាំខ្មែរ'},
+    {d:'05-01',zh:'勞動節',en:'International Labour Day',km:'ទិវាពលករអន្តរជាតិ'},
+    {d:'06-01',zh:'兒童節',en:"International Children's Day",km:'ទិវាកុមារអន្តរជាតិ'},
+    {d:'06-18',zh:'王太后壽辰',en:"Queen Mother's Birthday",km:'ព្រះរាជសម្ភពព្រះម្ចាស់'},
+    {d:'09-24',zh:'憲法日',en:'Constitution Day',km:'ទិវារដ្ឋធម្មនុញ្ញ'},
+    {d:'10-23',zh:'巴黎和平協定紀念日',en:'Paris Peace Agreement Day',km:'ទិវាកិច្ចព្រមព្រៀងសន្តិភាព'},
+    {d:'10-29',zh:'西哈莫尼國王誕辰',en:"King's Birthday",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
+    {d:'10-30',zh:'西哈莫尼國王誕辰',en:"King's Birthday",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
+    {d:'10-31',zh:'西哈莫尼國王誕辰',en:"King's Birthday",km:'ព្រះរាជសម្ភព​ព្រះករុណា'},
+    {d:'11-09',zh:'獨立日',en:'Independence Day',km:'ទិវាឯករាជ្យជាតិ'},
+    {d:'12-10',zh:'人權日',en:'Human Rights Day',km:'ទិវាសិទ្ធិមនុស្ស'},
+  ]
+};
+
+// ── Load / Save ──
+function loadData() {
+  try { holidays = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch(e) { holidays = []; }
+}
+function saveData() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(holidays));
+  HRA.Sync.schedPush();
+  render();
+}
+
+function getCloudData() {
+  return { records: holidays, summary: { total: holidays.length, public: holidays.filter(h=>h.type==='public').length, factory: holidays.filter(h=>h.type==='factory').length } };
+}
+function onCloudPull(records) {
+  if (!records?.length) return;
+  if (holidays.length && !confirm(`雲端有 ${records.length} 筆假期，覆蓋本地？`)) return;
+  holidays = records;
+  localStorage.setItem(STORE_KEY, JSON.stringify(holidays));
+  render();
+  HRA.UI.toast(`✅ 已載入 ${holidays.length} 筆假期`, 'ok');
+}
+
+// ── Load Cambodia built-in holidays ──
+function loadCambodiaHolidays(year) {
+  const data = CAM_HOLIDAYS[year];
+  if (!data) { HRA.UI.toast(`無 ${year} 年資料`, 'warn'); return; }
+  let added = 0;
+  data.forEach(h => {
+    const dateStr = `${year}-${h.d}`;
+    if (!holidays.find(x => x.date === dateStr && x.type === 'public')) {
+      holidays.push({ id:'ch_'+dateStr+'_'+Math.random().toString(36).slice(2), date:dateStr, type:'public', nameZh:h.zh, nameEn:h.en, nameKm:h.km, remark:'', tgRemind:false, custom:false });
+      added++;
+    }
+  });
+  saveData();
+  HRA.UI.toast(`✅ 已載入 ${added} 筆 ${year} 年柬國假期`, 'ok');
+  HRA.Logger.log('CALENDAR', `Loaded ${added} Cambodia holidays for ${year}`);
+}
+
+// ── Navigation ──
+function goTab(id, el) {
+  document.querySelectorAll('.tab-page').forEach(p=>p.classList.remove('on'));
+  document.querySelectorAll('.sb-btn').forEach(b=>b.classList.remove('on'));
+  document.getElementById('tab-'+id).classList.add('on');
+  if(el) el.classList.add('on');
+  if(id==='month')  renderMonth();
+  if(id==='year')   renderYear();
+  if(id==='list')   { renderList(); populateYearFilter(); }
+  if(id==='settings') HRA.Settings.renderForm('settings-form-container');
+}
+
+function render() {
+  const active = document.querySelector('.tab-page.on')?.id;
+  if(active==='tab-month') renderMonth();
+  if(active==='tab-year')  renderYear();
+  if(active==='tab-list')  renderList();
+}
+
+// ── Month View ──
+function moveMonth(d) { curMonth+=d; if(curMonth>11){curMonth=0;curYear++;}if(curMonth<0){curMonth=11;curYear--;} renderMonth(); }
+function goToday() { curYear=new Date().getFullYear(); curMonth=new Date().getMonth(); renderMonth(); }
+
+function renderMonth() {
+  document.getElementById('month-title').textContent = `${curYear}年 ${curMonth+1}月`;
+  const today = new Date().toISOString().slice(0,10);
+  const firstDay = new Date(curYear, curMonth, 1).getDay();
+  const daysInMonth = new Date(curYear, curMonth+1, 0).getDate();
+  const daysInPrev  = new Date(curYear, curMonth, 0).getDate();
+  const hMap = {};
+  holidays.forEach(h => { if(!hMap[h.date]) hMap[h.date]=[]; hMap[h.date].push(h); });
+
+  let html = '';
+  // Previous month fill
+  for (let i=firstDay-1;i>=0;i--) {
+    const d = daysInPrev-i;
+    const dateStr = `${curYear}-${String(curMonth).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    html += `<div class="cal-day outside"><div class="day-num"><span>${d}</span></div></div>`;
+  }
+  for (let d=1;d<=daysInMonth;d++) {
+    const dateStr = `${curYear}-${String(curMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayOfWeek = new Date(curYear,curMonth,d).getDay();
+    const hs = hMap[dateStr] || [];
+    const isToday = dateStr===today;
+    const hasPublic  = hs.some(h=>h.type==='public');
+    const hasFactory = hs.some(h=>h.type==='factory');
+    const hasOt      = hs.some(h=>h.type==='ot');
+    const hasRemind  = hs.some(h=>h.type==='reminder');
+    const cls = [
+      isToday?'today':'',
+      dayOfWeek===0||dayOfWeek===6?'weekend':'',
+      hasPublic?'has-pub':'',
+      hasFactory?'has-factory':'',
+      hasOt?'has-ot':'',
+    ].filter(Boolean).join(' ');
+    const tags = hs.slice(0,2).map(h=>`<div class="day-tag ${tagCls(h.type)}">${hName(h)}</div>`).join('');
+    html += `<div class="cal-day ${cls}" onclick="showDay('${dateStr}')">
+      <div class="day-num"><span>${d}</span>${isToday?'<span style="font-size:9px;background:var(--c-accent);color:#fff;padding:1px 4px;border-radius:3px">今</span>':''}</div>
+      <div class="day-tags">${tags}${hs.length>2?`<div style="font-size:9px;color:var(--c-muted)">+${hs.length-2}</div>`:''}</div>
+    </div>`;
+  }
+  // Next month fill
+  const remaining = 42 - firstDay - daysInMonth;
+  for (let d=1;d<=remaining&&remaining<7;d++) html += `<div class="cal-day outside"><div class="day-num"><span>${d}</span></div></div>`;
+  document.getElementById('cal-grid').innerHTML = html;
+
+  // Upcoming
+  const upcoming = holidays.filter(h=>h.date>=today).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6);
+  document.getElementById('upcoming-list').innerHTML = upcoming.length===0
+    ? '<div class="empty" style="padding:10px"><p>近期無假期</p></div>'
+    : upcoming.map(h=>{
+        const days=Math.ceil((new Date(h.date)-new Date(today))/86400000);
+        return `<div class="hday-item">
+          <div><span class="badge ${tagBadgeCls(h.type)}" style="font-size:9px;margin-right:6px">${typeIcon(h.type)}</span><b>${hName(h)}</b></div>
+          <div style="text-align:right"><div class="hday-date">${h.date}</div><div style="font-size:10px;color:${days<=3?'#dc2626':days<=7?'#d97706':'var(--c-muted)'}">${days===0?'今天':days+'天後'}</div></div>
+        </div>`;
+      }).join('');
+}
+
+function showDay(dateStr) {
+  const hs = holidays.filter(h=>h.date===dateStr);
+  document.getElementById('day-modal-title').textContent = `📅 ${dateStr}`;
+  document.getElementById('day-modal-content').innerHTML = hs.length===0
+    ? '<div class="empty" style="padding:16px"><p>無假期記錄</p></div>'
+    : hs.map(h=>`<div style="border:1px solid var(--c-border);border-left:4px solid ${typeColor(h.type)};border-radius:6px;padding:10px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <b>${hName(h)}</b>
+          <div style="display:flex;gap:6px">
+            <button class="btn btn-ghost btn-sm" onclick="editHoliday('${h.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteHoliday('${h.id}')">🗑</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--c-muted)">${h.nameZh}${h.nameEn?' · '+h.nameEn:''}</div>
+        ${h.remark?`<div style="font-size:11px;margin-top:4px">${h.remark}</div>`:''}
+      </div>`).join('');
+  HRA.UI.openModal('modal-day');
+  document.getElementById('m-date').value = dateStr;
+}
+
+// ── Year View ──
+function moveYear(d) { curYear+=d; renderYear(); }
+function renderYear() {
+  document.getElementById('year-title').textContent = `${curYear} 年度視圖`;
+  const today = new Date().toISOString().slice(0,10);
+  const hDates = new Set(holidays.map(h=>h.date));
+  let html='';
+  for(let m=0;m<12;m++){
+    const firstDay=new Date(curYear,m,1).getDay();
+    const days=new Date(curYear,m+1,0).getDate();
+    const mName=['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'][m];
+    let mGrid=`<div class="mini-month"><h4>${mName}</h4><div class="mini-grid">`;
+    ['日','一','二','三','四','五','六'].forEach(d=>{ mGrid+=`<div class="mini-dow">${d}</div>`; });
+    for(let i=0;i<firstDay;i++) mGrid+='<div class="mini-d outside-m"></div>';
+    for(let d=1;d<=days;d++){
+      const ds=`${curYear}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const dow=new Date(curYear,m,d).getDay();
+      const cls=ds===today?'today-m':hDates.has(ds)?'has-ev':dow===0||dow===6?'weekend-m':'';
+      mGrid+=`<div class="mini-d ${cls}">${d}</div>`;
+    }
+    mGrid+='</div></div>';
+    html+=mGrid;
+  }
+  document.getElementById('year-grid').innerHTML=html;
+}
+
+// ── Holiday List ──
+function renderList() {
+  const q  = document.getElementById('search-holidays')?.value?.toLowerCase()||'';
+  const tf = document.getElementById('filter-htype')?.value||'';
+  const yf = document.getElementById('filter-hyear')?.value||'';
+  const list=holidays.filter(h=>
+    (!q||hName(h).toLowerCase().includes(q)||h.nameZh?.toLowerCase().includes(q)||h.date.includes(q))&&
+    (!tf||h.type===tf)&&
+    (!yf||h.date.startsWith(yf))
+  ).sort((a,b)=>a.date.localeCompare(b.date));
+
+  document.getElementById('holiday-list').innerHTML=list.length===0
+    ?'<div class="empty"><div class="empty-ic">📅</div><p>尚無假期資料</p><p style="margin-top:4px">請至設定頁載入柬國假期</p></div>'
+    :`<div class="tbl-wrap"><table><thead><tr><th>日期</th><th>類型</th><th>名稱</th><th>英文</th><th>柬文</th><th>備註</th><th>操作</th></tr></thead><tbody>
+    ${list.map(h=>`<tr>
+      <td class="td-mono">${h.date}</td>
+      <td><span class="badge ${tagBadgeCls(h.type)}" style="font-size:9px">${typeIcon(h.type)} ${typeLabel(h.type)}</span></td>
+      <td>${h.nameZh||'—'}</td>
+      <td style="font-size:11px">${h.nameEn||'—'}</td>
+      <td style="font-size:11px">${h.nameKm||'—'}</td>
+      <td style="font-size:11px;color:var(--c-muted)">${h.remark||'—'}</td>
+      <td><button class="btn btn-ghost btn-sm" onclick="editHoliday('${h.id}')">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteHoliday('${h.id}')">🗑</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+function populateYearFilter(){
+  const years=[...new Set(holidays.map(h=>h.date.slice(0,4)).filter(Boolean))].sort().reverse();
+  const sel=document.getElementById('filter-hyear');if(!sel)return;
+  sel.innerHTML='<option value="">全部年份</option>'+years.map(y=>`<option>${y}</option>`).join('');
+}
+
+// ── Add/Edit ──
+function openAddModal() {
+  _editId=null;
+  document.getElementById('modal-title-text').textContent='新增假期';
+  document.getElementById('m-date').value=document.getElementById('m-date').value||new Date().toISOString().slice(0,10);
+  document.getElementById('m-type').value='factory';
+  ['m-name-zh','m-name-en','m-name-km','m-remark'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  document.getElementById('m-tg-remind').checked=false;
+  HRA.UI.openModal('modal-holiday');
+}
+
+function editHoliday(id) {
+  const h=holidays.find(x=>x.id===id);if(!h)return;
+  _editId=id;
+  document.getElementById('modal-title-text').textContent='編輯假期';
+  document.getElementById('m-date').value=h.date||'';
+  document.getElementById('m-type').value=h.type||'public';
+  document.getElementById('m-name-zh').value=h.nameZh||'';
+  document.getElementById('m-name-en').value=h.nameEn||'';
+  document.getElementById('m-name-km').value=h.nameKm||'';
+  document.getElementById('m-remark').value=h.remark||'';
+  document.getElementById('m-tg-remind').checked=!!h.tgRemind;
+  HRA.UI.closeModal('modal-day');
+  HRA.UI.openModal('modal-holiday');
+}
+
+function saveHoliday() {
+  const date=document.getElementById('m-date').value;
+  const nameZh=document.getElementById('m-name-zh').value.trim();
+  if(!date||!nameZh){HRA.UI.toast('請填日期和名稱','warn');return;}
+  const obj={
+    id:_editId||(('h_'+date+'_'+Math.random().toString(36).slice(2))),
+    date,type:document.getElementById('m-type').value,
+    nameZh,nameEn:document.getElementById('m-name-en').value.trim(),
+    nameKm:document.getElementById('m-name-km').value.trim(),
+    remark:document.getElementById('m-remark').value.trim(),
+    tgRemind:document.getElementById('m-tg-remind').checked,
+    custom:true,
+  };
+  if(_editId){const i=holidays.findIndex(h=>h.id===_editId);if(i>=0)holidays[i]=obj;}
+  else holidays.push(obj);
+  HRA.UI.closeModal('modal-holiday');
+  saveData();
+  HRA.UI.toast((_editId?'✅ 已更新：':'✅ 已新增：')+nameZh,'ok');
+  HRA.Logger.log('CAL',(_editId?'Updated: ':'Added: ')+nameZh);
+}
+
+function deleteHoliday(id) {
+  const h=holidays.find(x=>x.id===id);
+  if(!h||!confirm(`確認刪除「${h.nameZh}」？`))return;
+  holidays=holidays.filter(x=>x.id!==id);
+  HRA.UI.closeModal('modal-day');
+  saveData();
+  HRA.UI.toast('🗑 已刪除','warn');
+}
+
+// ── Telegram upcoming reminder ──
+function sendUpcomingTg() {
+  const today=new Date().toISOString().slice(0,10);
+  const soon=holidays.filter(h=>h.date>=today).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,5);
+  const SEP='─'.repeat(26);
+  let txt=`【AC HRA 工廠行事曆提醒】\n${SEP}\n近期假期 / Upcoming Holidays:\n${SEP}\n`;
+  soon.forEach((h,i)=>{const d=Math.ceil((new Date(h.date)-new Date(today))/86400000);txt+=`${i+1}. ${hName(h)}\n   📅 ${h.date} (${d===0?'今天':d+'天後'})\n   ${h.nameZh}${h.nameEn?' / '+h.nameEn:''}\n`;});
+  txt+=`${SEP}\n🏭 VRT Sihanoukville`;
+  HRA.TG.push(txt);
+  HRA.UI.toast('📱 已加入 Telegram 佇列','info');
+}
+
+// ── Export ──
+function exportExcel() {
+  if(!holidays.length){HRA.UI.toast('無資料','warn');return;}
+  try {
+    const XLSX=window.XLSX;if(!XLSX){HRA.UI.toast('XLSX not loaded','err');return;}
+    const wb=XLSX.utils.book_new();
+    const ws=XLSX.utils.aoa_to_sheet([
+      ['日期','類型','中文名稱','English','ខ្មែរ','備註'],
+      ...holidays.sort((a,b)=>a.date.localeCompare(b.date)).map(h=>[h.date,typeLabel(h.type),h.nameZh,h.nameEn,h.nameKm,h.remark])
+    ]);
+    ws['!cols']=[{wch:12},{wch:10},{wch:20},{wch:24},{wch:24},{wch:16}];
+    XLSX.utils.book_append_sheet(wb,ws,'Holidays');
+    XLSX.writeFile(wb,`AC_HRA_Calendar_${curYear}.xlsx`);
+    HRA.UI.toast('⬇ Excel 已下載','ok');
+  } catch(e){HRA.UI.toast('匯出失敗：'+e.message,'err');}
+}
+
+// ── Backup ──
+function backupJSON(){const blob=new Blob([JSON.stringify({holidays,ts:new Date().toISOString()})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`AC_HRA_Calendar_Backup.json`;a.click();HRA.UI.toast('📦 已備份','ok');}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);holidays=d.holidays||d||[];saveData();HRA.UI.toast(`📂 已還原 ${holidays.length} 筆`,'ok');}catch(ex){HRA.UI.toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function clearCustom(){if(!confirm('確認清除自訂假期（保留柬國假期）？'))return;holidays=holidays.filter(h=>!h.custom);saveData();HRA.UI.toast('🗑 已清除自訂假期','warn');}
+
+// ── Helpers ──
+function tagCls(t){return{public:'tag-public',factory:'tag-factory',ot:'tag-ot',reminder:'tag-reminder'}[t]||'tag-public';}
+function tagBadgeCls(t){return{public:'badge-warn',factory:'badge-info',ot:'badge-purple',reminder:'badge-muted'}[t]||'badge-muted';}
+function typeColor(t){return{public:'#f59e0b',factory:'#3b82f6',ot:'#ec4899',reminder:'#8b5cf6'}[t]||'#9ca3af';}
+function typeIcon(t){return{public:'🇰🇭',factory:'🏭',ot:'⚙️',reminder:'🔔'}[t]||'📅';}
+function typeLabel(t){return{public:'柬國假期',factory:'工廠假期',ot:'加班/補班',reminder:'提醒'}[t]||t;}
+function setLang(l){HRA.I18N.setLang(l);['lb-zh','lb-en','lb-km'].forEach((id,i)=>{document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l);});render();}
+
+// ── Init ──
+window.addEventListener('DOMContentLoaded',()=>{
+  loadData();
+  HRA.I18N.init();HRA.TG.init();HRA.Settings.init();
+  HRA.Sync.init(MODULE,getCloudData,onCloudPull);
+  HRA.UI.syncStatus('idle','');
+  renderMonth();
+  renderUpcomingReminders();
+  HRA.Logger.log('INIT','Calendar v2 loaded');
+  // Daily reminder check
+  checkDailyReminders();
+});
+
+function renderUpcomingReminders(){} // placeholder
+
+function checkDailyReminders(){
+  const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);
+  const tStr=tomorrow.toISOString().slice(0,10);
+  const reminders=holidays.filter(h=>h.tgRemind&&h.date===tStr);
+  reminders.forEach(h=>{
+    HRA.TG.push(`🔔 AC HRA 假期提醒\n明天：${h.nameZh}\n${h.nameEn||''}\n📅 ${h.date}\n🏭 VRT Sihanoukville`);
+  });
+}
+</script>
+</body>
+</html>

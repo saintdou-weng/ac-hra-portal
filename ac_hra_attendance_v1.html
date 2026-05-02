@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRT 考勤分析系統 Cloud v1</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Noto Sans TC","Inter",sans-serif;background:#f0f2f7;color:#1e2640;font-size:13px}
+.header{background:linear-gradient(135deg,#0f3027,#1a5c4a);padding:13px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:35px;height:35px;background:linear-gradient(135deg,#2dd4a8,#1a6e5c);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;flex-shrink:0}
+.h-title{font-size:16px;font-weight:600;color:#fff}
+.h-sub{font-size:11px;color:#8bc5b5;margin-top:1px}
+.h-stats{margin-left:auto;display:flex;gap:18px}
+.hstat{text-align:right}
+.hstat-v{font-size:17px;font-weight:700;color:#5eead4;font-family:monospace}
+.hstat-l{font-size:10px;color:#8bc5b5}
+.tabs{background:#fff;border-bottom:2px solid #e2e6f0;display:flex;padding:0 20px;overflow-x:auto;gap:0}
+.tab{padding:12px 15px;font-size:13px;cursor:pointer;color:#6b7a9e;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-weight:500;transition:all .15s;user-select:none}
+.tab:hover{color:#1a6e5c;background:#f0fdf8}
+.tab.on{color:#1a6e5c;border-bottom-color:#1a6e5c;background:#f0fdf8}
+.sec{display:none;padding:18px 20px}
+.sec.on{display:block}
+.card{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 4px rgba(30,38,64,.05)}
+.ct{font-size:11px;font-weight:700;color:#6b7a9e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.ct::before{content:'';width:3px;height:11px;background:#1a6e5c;border-radius:2px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid #e2e6f0;border-radius:8px;padding:11px;text-align:center;box-shadow:0 1px 3px rgba(30,38,64,.04)}
+.kpi-n{font-size:24px;font-weight:700;font-family:monospace;line-height:1;color:#1e2640}
+.kpi-u{font-size:11px;color:#6b7a9e;margin-left:2px;font-weight:400}
+.kpi-l{font-size:10px;color:#6b7a9e;margin-top:4px}
+.kpi-sub{font-size:9px;color:#8b95b8;margin-top:2px}
+.kpi.good{border-left:3px solid #10b981}.kpi.warn{border-left:3px solid #f59e0b}.kpi.bad{border-left:3px solid #ef4444}
+.drop{border:3px dashed #c5c9d8;border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:#fafbfc}
+.drop:hover,.drop.drag{border-color:#1a6e5c;background:#f0fdf8}
+.drop.done{border-color:#10b981;border-style:solid;background:#ecfdf5}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:all .15s}
+.btn-p{background:#1a6e5c;color:#fff}.btn-p:hover{background:#14574a}
+.btn-g{background:#fff;color:#4a5578;border:1px solid #d0d5e8}.btn-g:hover{background:#f7f8fc}
+.btn-d{background:#ef4444;color:#fff}.btn-d:hover{background:#dc2626}
+.btn-t{background:#0088cc;color:#fff}.btn-t:hover{background:#006da3}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.frow{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer}
+.badge{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.bg{background:#d1fae5;color:#065f46}.bw{background:#fef3c7;color:#92400e}.bb{background:#fee2e2;color:#991b1b}.bi{background:#dbeafe;color:#1e40af}
+/* Table */
+.dtbl{width:100%;border-collapse:collapse;font-size:11px}
+.dtbl th,.dtbl td{border:1px solid #e2e6f0;padding:5px 8px;text-align:center;white-space:nowrap}
+.dtbl th{background:#e8f4f1;color:#1a6e5c;font-weight:700;font-size:10px;position:sticky;top:0;z-index:2}
+.dtbl .dept-cell{text-align:left;font-weight:700;color:#1a6e5c;background:#e8f4f1;min-width:120px}
+.dtbl .sect-cell{text-align:left;color:#2d8fb8;background:#f0f8ff;min-width:100px}
+.dtbl .line-cell{text-align:left;min-width:180px}
+.dtbl .sub td{background:#d5f5e3;font-weight:700;color:#1e8449}
+.dtbl .grand td{background:#a9dfbf;font-weight:700;color:#14573a;font-size:12px}
+.dtbl .ml-h{background:#fde8e8!important}
+.dtbl .idle-h{background:#eceff1!important;color:#607d8b!important}
+.rg{color:#10b981;font-weight:700}.rw{color:#f59e0b;font-weight:700}.rb{color:#ef4444;font-weight:700}
+.twrap{overflow-x:auto;max-height:600px;overflow-y:auto;border:1px solid #e2e6f0;border-radius:8px}
+/* Chart */
+.ch{position:relative}
+.ch canvas{width:100%!important}
+/* File list */
+.fl-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef0f6;font-size:13px}
+.tips{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.tip{border-radius:8px;padding:12px;border:1px solid;font-size:12px;line-height:1.8}
+/* Toast */
+#toasts{position:fixed;bottom:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{background:#fff;border:1px solid #e2e6f0;border-radius:8px;padding:10px 15px;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);animation:sUp .25s}
+.toast-ok{border-left:3px solid #10b981}.toast-err{border-left:3px solid #ef4444}.toast-info{border-left:3px solid #3b82f6}
+@keyframes sUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* Tg preview */
+.tg-preview{background:#1e2640;color:#e2e6f0;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;max-height:400px;overflow-y:auto;margin-top:12px}
+@media(max-width:900px){.g2,.g3,.tips{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.h-stats{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+
+/* ── Cloud Sync Bar ── */
+.cloud-bar{background:#fff;border-bottom:2px solid #e2e6f0;padding:7px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:40px}
+.cloud-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#9ca3af;transition:background .3s}
+.cloud-dot.synced{background:#10b981;box-shadow:0 0 6px #10b981}
+.cloud-dot.syncing{background:#f59e0b;animation:pulse .8s infinite}
+.cloud-dot.failed{background:#ef4444;box-shadow:0 0 5px #ef4444}
+.cloud-dot.offline{background:#9ca3af}
+.cloud-lbl{font-size:11px;color:#6b7a9e;font-weight:600}
+.cloud-ts{font-size:10px;color:#9ca3af;font-family:monospace}
+.cloud-btns{display:flex;gap:6px;margin-left:auto}
+.btn-cloud{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s;display:inline-flex;align-items:center;gap:4px}
+.btn-push{background:#1a6e5c;color:#fff}.btn-push:hover{background:#14574a}
+.btn-pull{background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd}.btn-pull:hover{background:#bae6fd}
+.btn-cfg{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb}.btn-cfg:hover{background:#e5e7eb}
+.cloud-cfg-row{background:#f7f8fc;border-bottom:1px solid #e2e6f0;padding:8px 20px;display:none;align-items:center;gap:8px;flex-wrap:wrap}
+.cloud-cfg-row.open{display:flex}
+.cloud-cfg-row input{flex:1;min-width:240px;border:1px solid #d0d5e8;border-radius:6px;padding:5px 10px;font-size:12px;font-family:monospace;outline:none;color:#1e2640}
+.cloud-cfg-row input:focus{border-color:#1a6e5c}
+.cloud-prog{height:3px;background:#e2e6f0;position:relative;overflow:hidden;display:none}
+.cloud-prog.active{display:block}
+.cloud-prog-fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#1a6e5c,#2dd4a8);width:0%;transition:width .25s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Cloud status badge in header */
+.hstat.cloud-stat .hstat-v{font-size:12px;cursor:pointer}
+
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">VRT</div>
+  <div><div class="h-title">考勤分析系統</div><div class="h-sub">ATTENDANCE ANALYTICS · Cloud v1</div></div>
+  <div class="h-stats">
+    <div class="hstat"><div class="hstat-v" id="hRecs">0</div><div class="hstat-l" data-zh="總記錄" data-en="Records">總記錄</div></div>
+    <div class="hstat"><div class="hstat-v" id="hDays">0</div><div class="hstat-l" data-zh="天數" data-en="Days">天數</div></div>
+    <div class="hstat"><div class="hstat-v" id="hSize" style="font-size:12px">-</div><div class="hstat-l" data-zh="儲存" data-en="Storage">儲存</div></div>
+    <div style="display:flex;border:1px solid rgba(255,255,255,.3);border-radius:5px;overflow:hidden;margin-left:8px">
+      <button onclick="setLang('zh')" class="lbtn lbtn-on" id="lbZh" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:#2dd4a8;color:#0f3027">中文</button>
+      <button onclick="setLang('en')" class="lbtn" id="lbEn" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:transparent;color:#8bc5b5">EN</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ CLOUD SYNC BAR ══ -->
+<div class="cloud-bar">
+  <div class="cloud-dot" id="cloudDot"></div>
+  <span class="cloud-lbl" id="cloudLbl">雲端未設定</span>
+  <span class="cloud-ts" id="cloudTs"></span>
+  <div class="cloud-btns">
+    <button class="btn-cloud btn-push" onclick="pushCloud()" id="btnPush" disabled title="上傳至雲端 / Push to Cloud">⬆ Push</button>
+    <button class="btn-cloud btn-pull" onclick="pullCloud()" id="btnPull" disabled title="從雲端拉取 / Pull from Cloud">⬇ Pull</button>
+    <button class="btn-cloud btn-cfg"  onclick="toggleCloudCfg()">🔧 設定</button>
+  </div>
+</div>
+<div class="cloud-cfg-row" id="cloudCfgRow">
+  <label style="font-size:11px;font-weight:700;color:#6b7a9e;white-space:nowrap">GAS URL</label>
+  <input id="gasUrlInput" type="text" placeholder="https://script.google.com/macros/s/…/exec" />
+  <button class="btn-cloud btn-push" onclick="saveGasUrl()">儲存</button>
+  <button class="btn-cloud btn-cfg"  onclick="testConnection()" id="btnTest">🔌 測試</button>
+</div>
+<div class="cloud-prog" id="cloudProg"><div class="cloud-prog-fill" id="cloudProgFill"></div></div>
+
+<div class="tabs">
+  <div class="tab on" onclick="goTab('upload',this)">📥 <span data-zh="上傳考勤" data-en="Import">上傳考勤</span></div>
+  <div class="tab" onclick="goTab('daily',this)">📊 <span data-zh="每日報告" data-en="Daily">每日報告</span></div>
+  <div class="tab" onclick="goTab('weekly',this)">📅 <span data-zh="週統計" data-en="Weekly">週統計</span></div>
+  <div class="tab" onclick="goTab('monthly',this)">📆 <span data-zh="月趨勢" data-en="Monthly">月趨勢</span></div>
+  <div class="tab" onclick="goTab('yearly',this)">📈 <span data-zh="年度分析" data-en="Yearly">年度分析</span></div>
+  <div class="tab" onclick="goTab('dept',this)">🏢 <span data-zh="部門分析" data-en="Dept">部門分析</span></div>
+  <div class="tab" onclick="goTab('group',this)">📊 <span data-zh="組別分析" data-en="Group">組別分析</span></div>
+  <div class="tab" onclick="goTab('records',this)">📋 <span data-zh="所有記錄" data-en="Records">所有記錄</span></div>
+</div>
+
+<!-- ══ UPLOAD ══ -->
+<div class="sec on" id="sec-upload">
+  <div class="card">
+    <div class="ct"><span data-zh="📧 拖放考勤 Excel 或 Email 檔案" data-en="📧 Drop Attendance File Here">📧 拖放考勤 Excel 或 Email 檔案</span></div>
+    <div class="tips">
+      <div class="tip" style="background:#f0fdf4;border-color:#bbf7d0"><b style="color:#059669">✅ 每日更新方式</b><br>只需拖入<b>最新那封</b> .msg 或 .eml<br>它已包含整月所有日期的 Sheet<br><span style="color:#059669;font-size:11px">✓ 系統自動跳過已匯入日期，只解析新增的</span></div>
+      <div class="tip" style="background:#f0f9ff;border-color:#bae6fd"><b style="color:#0369a1">📊 直接拖 .xlsx</b><br>考勤 Excel 每天佔一個 Sheet<br>拖入後自動讀取 Date: 儲存格<br><span style="color:#0369a1;font-size:11px">✓ 不需每天拖，拖最新的就好</span></div>
+      <div class="tip" style="background:#fff1f2;border-color:#fca5a5"><b style="color:#991b1b">⚠️ 不要一次拖多封 .msg</b><br>每封 .msg 都包含之前所有日期<br>一次拖多封會重複掃描導致卡頓<br><span style="color:#991b1b;font-size:11px">✗ 只拖最新那封即可</span></div>
+    </div>
+    <div class="drop" id="dz" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dzDrop(event)">
+      <input type="file" multiple accept=".xlsx,.xls,.eml,.msg" onchange="dzSelect(event)">
+      <div style="font-size:36px;margin-bottom:10px">📥</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px">拖放考勤檔案到這裡</div>
+      <div style="font-size:12px;color:#6b7a9e">.eml .msg 自動提取附件 · .xlsx 解析所有 Sheet · 防重複匯入</div>
+    </div>
+    <div id="fileList" style="margin-top:10px"></div>
+    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p" id="btnImport" onclick="doImport()" disabled><span data-zh="🔍 解析匯入" data-en="🔍 Import">🔍 解析匯入</span></button>
+      <button class="btn btn-g" onclick="clearFiles()"><span data-zh="清除列表" data-en="Clear">清除列表</span></button>
+      <label style="font-size:11px;color:#6b7a9e;display:flex;align-items:center;gap:4px;cursor:pointer" title="勾選後會覆蓋已匯入日期的資料（重新解析）">
+        <input type="checkbox" id="chkOverwrite"> 覆蓋已匯入日期
+      </label>
+      <span id="importMsg" style="font-size:13px"></span>
+    </div>
+    <div id="progressBar" style="display:none;margin-top:10px">
+      <div style="background:#e2e6f0;border-radius:4px;height:8px;overflow:hidden"><div id="progressFill" style="height:100%;background:linear-gradient(90deg,#1a6e5c,#2dd4a8);width:0%;transition:width .2s"></div></div>
+      <div id="progressText" style="font-size:11px;color:#6b7a9e;margin-top:4px"></div>
+    </div>
+    </div>
+    <div id="dedupLog" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:11px;color:#92400e;max-height:120px;overflow-y:auto"></div>
+    <div id="importPreview" style="display:none;margin-top:12px"></div>
+  </div>
+  <div class="card">
+    <div class="ct"><span data-zh="💾 資料管理" data-en="💾 Data Management">💾 資料管理</span></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-g" onclick="backupJSON()"><span data-zh="📦 備份 JSON" data-en="📦 Backup JSON">📦 備份 JSON</span></button>
+      <button class="btn btn-g" onclick="document.getElementById('restoreFile').click()"><span data-zh="📂 還原 JSON" data-en="📂 Restore JSON">📂 還原 JSON</span></button>
+      <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreJSON(event)">
+      <button class="btn btn-g" onclick="exportAllCSV()"><span data-zh="⬇ 匯出全部 CSV" data-en="⬇ Export CSV">⬇ 匯出全部 CSV</span></button>
+      <button class="btn btn-d" onclick="clearAllData()" style="margin-left:auto"><span data-zh="🗑 清除所有資料" data-en="🗑 Clear All">🗑 清除所有資料</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ DAILY ══ -->
+<div class="sec" id="sec-daily">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navDay(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e">日期</label>
+    <select id="dsel" onchange="renderDaily()"></select>
+    <button class="btn btn-g" onclick="navDay(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <span id="dayMeta" style="font-size:12px;color:#8b95b8;margin-left:auto"></span>
+    <button class="btn btn-t" onclick="genTelegram('daily')"><span data-zh='📱 Telegram 摘要' data-en='📱 Telegram'>📱 Telegram 摘要</span></button>
+    <button class="btn btn-g" onclick="exportDayExcel()">⬇ Excel</button>
+  </div>
+  <div id="dayKpi" class="kpi-strip"></div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card"><div class="ct"><span data-zh="假別佔比" data-en="Leave Types">假別佔比</span></div><div class="ch" style="height:150px"><canvas id="cLeave"></canvas></div></div>
+    <div class="card"><div class="ct"><span data-zh="部門出勤率" data-en="Dept Att.Rate">部門出勤率</span></div><div class="ch" style="height:150px"><canvas id="cDeptRate"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct">考勤日報表 Daily Attendance Report</div><div class="twrap" id="dayTable"></div></div>
+</div>
+
+<!-- ══ WEEKLY ══ -->
+<div class="sec" id="sec-weekly">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navWeek(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e">週次</label>
+    <select id="wsel" onchange="renderWeekly()"></select>
+    <button class="btn btn-g" onclick="navWeek(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('weekly')" style="margin-left:auto">📱 Telegram</button>
+  </div>
+  <div id="weekKpi" class="kpi-strip"></div>
+  <div class="card"><div class="ct">週內逐日出勤率趨勢</div><div class="ch" style="height:240px"><canvas id="cWeekTrend"></canvas></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">新進 vs 離職</div><div class="ch" style="height:200px"><canvas id="cWeekJR"></canvas></div></div>
+    <div class="card"><div class="ct">假別分布</div><div class="ch" style="height:200px"><canvas id="cWeekLeave"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:4px">
+    <div class="ct"><span data-zh="各組出勤率 (週)" data-en="Section Att. Rate (Week)">各組出勤率 (週)</span></div>
+    <div id="weekGrpCards" class="g3" style="gap:10px"></div>
+  </div>
+</div>
+
+<!-- ══ MONTHLY ══ -->
+<div class="sec" id="sec-monthly">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navMonth(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e">月份</label>
+    <select id="msel" onchange="renderMonthly()"></select>
+    <button class="btn btn-g" onclick="navMonth(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('monthly')" style="margin-left:auto">📱 Telegram</button>
+  </div>
+  <div id="monthKpi" class="kpi-strip"></div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct"><span data-zh="各組出勤率 (月)" data-en="Section Att. Rate (Month)">各組出勤率 (月)</span></div>
+    <div id="monthGrpCards" class="g3" style="gap:10px"></div>
+  </div>
+  <div class="card"><div class="ct">月內出勤率趨勢</div><div class="ch" style="height:260px"><canvas id="cMonthTrend"></canvas></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct">人數變動（在職 / 出勤）</div><div class="ch" style="height:220px"><canvas id="cMonthHead"></canvas></div></div>
+    <div class="card"><div class="ct">流失率趨勢</div><div class="ch" style="height:220px"><canvas id="cMonthTurnover"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ══ DEPT ══ -->
+<div class="sec" id="sec-yearly">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navYear(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e"><span data-zh="年度" data-en="Year">年度</span></label>
+    <select id="ysel" onchange="renderYearly()"></select>
+    <button class="btn btn-g" onclick="navYear(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('yearly')" style="margin-left:auto">📱 Telegram</button>
+  </div>
+  <div id="yearKpi" class="kpi-strip"></div>
+  <div class="card"><div class="ct"><span data-zh="月度出勤率走勢" data-en="Monthly Att. Rate Trend">月度出勤率走勢</span></div><div class="ch" style="height:280px"><canvas id="cYearRate"></canvas></div></div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card"><div class="ct"><span data-zh="月度人數變動" data-en="Monthly Headcount">月度人數變動</span></div><div class="ch" style="height:240px"><canvas id="cYearHead"></canvas></div></div>
+    <div class="card"><div class="ct"><span data-zh="月度流失率" data-en="Monthly Turnover Rate">月度流失率</span></div><div class="ch" style="height:240px"><canvas id="cYearTurnover"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><div class="ct"><span data-zh="新進 vs 離職 月度對比" data-en="Join vs Resign Monthly">新進 vs 離職 月度對比</span></div><div class="ch" style="height:220px"><canvas id="cYearJR"></canvas></div></div>
+</div>
+
+<!-- ══ DEPT ══ -->
+<div class="sec" id="sec-dept">
+  <div class="frow"><label style="color:#6b7a9e"><span data-zh="選擇日期" data-en="Date">選擇日期</span></label><select id="deptSel" onchange="renderDept()"></select></div>
+  <div id="deptCards"></div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card"><div class="ct"><span data-zh="各部門男女比例" data-en="Gender Ratio by Dept">各部門男女比例</span></div><div id="genderBars"></div></div>
+    <div class="card"><div class="ct"><span data-zh="部門出勤率對比" data-en="Dept Att. Rate Comparison">部門出勤率對比</span></div><div class="ch" style="height:200px"><canvas id="cDeptCompare"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ══ GROUP ══ -->
+<div class="sec" id="sec-group">
+  <div class="frow" style="flex-wrap:wrap;gap:10px;align-items:center">
+    <label style="color:#6b7a9e;font-size:12px"><span data-zh="模式" data-en="Mode">模式</span></label>
+    <select id="grpMode" onchange="grpModeChange()">
+      <option value="day"><span data-zh="單日" data-en="Day">單日</span></option>
+      <option value="week"><span data-zh="週" data-en="Week">週</span></option>
+      <option value="month" selected><span data-zh="月" data-en="Month">月</span></option>
+      <option value="year"><span data-zh="年" data-en="Year">年</span></option>
+    </select>
+    <button class="btn btn-g" onclick="navGrp(-1)" style="padding:5px 10px">◀</button>
+    <select id="grpSel" onchange="renderGroupAnalysis()" style="min-width:120px"></select>
+    <button class="btn btn-g" onclick="navGrp(1)" style="padding:5px 10px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('group')" style="margin-left:auto">📱 Telegram</button>
+  </div>
+  <div id="grpAlerts" style="margin-bottom:10px"></div>
+  <div id="grpCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:14px"></div>
+  <!-- Sewing Line Detail Section -->
+  <div id="sewingSection" style="display:none;margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><span data-zh="車縫各組詳細分析" data-en="Sewing Line Detail">🧵 車縫各組詳細分析 / Sewing Line Detail</span></div>
+      <div id="sewingCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px"></div>
+      <div style="overflow-x:auto"><table id="sewingTable" style="width:100%;border-collapse:collapse;font-size:11px"></table></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct"><span data-zh="各組出勤率對比" data-en="Section Att. Rate">各組出勤率對比</span></div><div style="position:relative;height:260px"><canvas id="cGrpRate"></canvas></div></div>
+    <div class="card"><div class="ct"><span data-zh="各組假別佔比" data-en="Leave Type Breakdown">各組假別佔比</span></div><div id="grpLeaveTable" style="overflow-x:auto"></div></div>
+  </div>
+</div>
+
+<!-- ══ RECORDS ══ -->
+<div class="sec" id="sec-records">
+  <div class="frow"><span style="font-size:13px;color:#6b7a9e" id="recInfo"></span>
+    <button class="btn btn-g" onclick="exportAllCSV()" style="margin-left:auto">⬇ CSV</button></div>
+  <div class="twrap" id="recTable"></div>
+</div>
+
+<!-- Telegram modal -->
+<div id="tgModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:560px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-size:15px"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary">📱 Telegram 摘要</span></h3>
+      <button onclick="document.getElementById('tgModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer">✕</button>
+    </div>
+    <div class="tg-preview" id="tgContent"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-t" onclick="sendViaTg()" id="btnTgSend"><span data-zh="📤 發送至群組" data-en="📤 Send">📤 發送至群組</span></button>
+      <button class="btn btn-t" onclick="copyTg()"><span data-zh="📋 複製到剪貼簿" data-en="📋 Copy">📋 複製到剪貼簿</span></button>
+      <span id="tgCopyOk" style="display:none;color:#10b981;font-size:12px;font-weight:600">✅ 已複製！</span>
+    </div>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// VRT Attendance Analytics v5 — sewing_v5 style
+// ═══════════════════════════════════════════════════════════
+const DB_KEY='vrt_att_v5';
+const LS={get:k=>JSON.parse(localStorage.getItem(DB_KEY+'_'+k)||'null'),set:(k,v)=>localStorage.setItem(DB_KEY+'_'+k,JSON.stringify(v))};
+function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))return 0;if(n>0&&n<1)return 0;return Math.round(n);}
+
+// ── Data store ──
+let DB=LS.get('db')||[];// Array of parsed row objects
+let IMPORT_LOG=LS.get('log')||[];
+function saveDB(){LS.set('db',DB);LS.set('log',IMPORT_LOG);updateHeader();scheduleAutoSave();}
+function updateHeader(){
+  document.getElementById('hRecs').textContent=DB.length;
+  const dates=[...new Set(DB.map(r=>r.date))];
+  document.getElementById('hDays').textContent=dates.length;
+  const sz=JSON.stringify(DB).length;
+  document.getElementById('hSize').textContent=sz>1048576?(sz/1048576).toFixed(1)+'MB':(sz/1024).toFixed(0)+'KB';
+}
+
+// ── calc ──
+function calc(r){const ttl=r.m+r.f,absent=r.al+r.pl+r.sl+r.np+r.bus+r.fl+r.ml,report=ttl-r.resign+r.join+r.ti-r.to,rate=r.att>0&&report>0?r.att/report:null;return{ttl,absent,report,rate};}
+function allDates(){return[...new Set(DB.map(r=>r.date))].filter(d=>d).sort();}
+function allMonths(){return[...new Set(allDates().map(d=>d.slice(0,7)))].sort();}
+function grandForDate(d){return DB.find(r=>r.isGrand&&r.date===d);}
+function rowsForDate(d){return DB.filter(r=>r.date===d);}
+function subtotalsForDate(d){return DB.filter(r=>r.isSubtotal&&r.date===d);}
+
+// ═══════ LANGUAGE ═══════
+let LANG='zh';
+function setLang(l){
+  LANG=l;
+  document.getElementById('lbZh').style.background=l==='zh'?'#2dd4a8':'transparent';
+  document.getElementById('lbZh').style.color=l==='zh'?'#0f3027':'#8bc5b5';
+  document.getElementById('lbEn').style.background=l==='en'?'#2dd4a8':'transparent';
+  document.getElementById('lbEn').style.color=l==='en'?'#0f3027':'#8bc5b5';
+  document.querySelectorAll('[data-zh]').forEach(el=>{const v=el.getAttribute('data-'+l);if(v)el.textContent=v;});
+}
+
+// ═══════ TABS ═══════
+function goTab(name,el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  if(el)el.classList.add('on');
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.getElementById('sec-'+name).classList.add('on');
+  if(name==='daily'){populateDateSel('dsel');renderDaily();}
+  if(name==='weekly'){populateWeekSel();renderWeekly();}
+  if(name==='monthly'){populateMonthSel();renderMonthly();}
+  if(name==='yearly'){populateYearSel();renderYearly();}
+  if(name==='dept'){populateDateSel('deptSel');renderDept();}
+  if(name==='group')renderGroupAnalysis();
+  if(name==='records')renderRecords();
+}
+
+// ═══════ NAV ═══════
+function populateDateSel(id){const s=document.getElementById(id),d=allDates().reverse(),c=s.value;s.innerHTML=d.map(v=>`<option>${v}</option>`).join('');if(d.includes(c))s.value=c;}
+function populateWeekSel(){
+  const dates=allDates(),weeks=new Map();
+  dates.forEach(d=>{const dt=new Date(d),mon=new Date(dt);mon.setDate(mon.getDate()-(mon.getDay()||7)+1);const k=mon.toISOString().slice(0,10);if(!weeks.has(k))weeks.set(k,[]);weeks.get(k).push(d);});
+  const s=document.getElementById('wsel');s.innerHTML=[...weeks.keys()].sort().reverse().map(k=>`<option value="${k}">W ${k}</option>`).join('');}
+function populateMonthSel(){const s=document.getElementById('msel');s.innerHTML=allMonths().reverse().map(m=>`<option>${m}</option>`).join('');}
+function populateYearSel(){const yrs=[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse();const s=document.getElementById('ysel');s.innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');}
+function nav(selId,dir){const s=document.getElementById(selId),o=[...s.options].map(x=>x.value),i=o.indexOf(s.value),n=i-dir;if(n>=0&&n<o.length){s.value=o[n];}}
+function navDay(d){nav('dsel',d);renderDaily();}
+function navWeek(d){nav('wsel',d);renderWeekly();}
+function navMonth(d){nav('msel',d);renderMonthly();}
+function navYear(d){nav('ysel',d);renderYearly();}
+
+// ═══════ KPI BUILDER ═══════
+function kpiHtml(label,value,sub,cls){return`<div class="kpi ${cls||''}"><div class="kpi-n">${value}</div><div class="kpi-l">${label}</div>${sub?'<div class="kpi-sub">'+sub+'</div>':''}</div>`;}
+function rateClass(r){return r>=0.92?'good':r>=0.85?'warn':'bad';}
+function rateBadge(r){if(r==null)return'—';const p=(r*100).toFixed(1)+'%';return`<span class="badge ${r>=0.92?'bg':r>=0.85?'bw':'bb'}">${p}</span>`;}
+
+// ═══════ DAILY ═══════
+const CH={};function mk(id,cfg){if(CH[id])CH[id].destroy();const el=document.getElementById(id);if(!el)return;CH[id]=new Chart(el,cfg);}
+
+function renderDaily(){
+  const d=document.getElementById('dsel')?.value;if(!d)return;
+  const g=grandForDate(d),rows=rowsForDate(d),subs=subtotalsForDate(d);
+  const c=g?calc(g):null;
+  const wday=['日','一','二','三','四','五','六'][new Date(d).getDay()];
+  document.getElementById('dayMeta').textContent=`${d} (${wday}) · ${rows.length} ${LANG==='zh'?'筆':'rows'}`;
+
+  // KPIs
+  const ttl=c?c.ttl:0,att=g?g.att:0,rate=c?c.rate:null,absent=c?c.absent:0;
+  document.getElementById('dayKpi').innerHTML=
+    kpiHtml('在職人數 Headcount',ttl,g?`M:${g.m} F:${g.f}`:'')+
+    kpiHtml('出勤率 Att.Rate',rate!=null?(rate*100).toFixed(1)+'%':'—',`出勤:${att}`,rateClass(rate||0))+
+    kpiHtml('缺勤 Absent',absent,`ML:${g?g.ml:0}`)+
+    kpiHtml('新進 Join',g?g.join:0)+kpiHtml('離職 Resign',g?g.resign:0,(g&&ttl>0)?'流失率:'+(g.resign/ttl*100).toFixed(2)+'%':'')+
+    kpiHtml('停工 Idle',g?g.idle:0);
+
+  // Leave pie — smaller with person count labels
+  if(g){
+    const lv=[g.al,g.pl,g.sl,g.np,g.bus,g.fl,g.ml];
+    const ll=['AL','PL','SL','NP','Bus','FL','ML'];
+    const lc=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
+    // Build labels with counts
+    const labelsWithCount=ll.map((l,i)=>lv[i]>0?`${l}:${lv[i]}人`:l);
+    mk('cLeave',{type:'doughnut',data:{labels:labelsWithCount,datasets:[{data:lv,backgroundColor:lc,borderWidth:2,borderColor:'#fff'}]},options:{cutout:'50%',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:9},generateLabels:function(chart){return chart.data.labels.map((l,i)=>{const v=chart.data.datasets[0].data[i];return{text:v>0?l:'',fillStyle:lc[i],hidden:v===0,index:i};}).filter(x=>x.text);}}}}}});
+  }
+  // Dept rate bar
+  const zh=LANG==='zh';
+  const deptSubs=DB.filter(r=>r.isSubtotal&&r.date===d&&r.dept&&(r.m+r.f)>0);
+  if(deptSubs.length){
+    mk('cDeptRate',{type:'bar',data:{labels:deptSubs.map(r=>(r.sect||r.dept||'').replace(/小計|subtotal/gi,'').trim()||r.dept),datasets:[{label:zh?'出勤率%':'Att.Rate%',data:deptSubs.map(r=>{const c=calc(r);return c.rate!=null?(c.rate*100).toFixed(1):0;}),backgroundColor:deptSubs.map(r=>{const c=calc(r);return c.rate>=0.92?'#10b981':c.rate>=0.85?'#f59e0b':'#ef4444';}),borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{min:70,max:105,ticks:{callback:v=>v+'%'}}}}});
+  }
+
+  // Table
+  renderAttTable(rows,d,'dayTable');
+}
+
+// ═══════ WEEKLY ═══════
+function renderWeekly(){
+  const zh=LANG==='zh';
+  const wk=document.getElementById('wsel')?.value;if(!wk)return;
+  const mon=new Date(wk),sun=new Date(mon);sun.setDate(sun.getDate()+6);
+  const dates=allDates().filter(d=>d>=wk&&d<=sun.toISOString().slice(0,10));
+  const grands=dates.map(grandForDate).filter(Boolean);
+  if(!grands.length){document.getElementById('weekKpi').innerHTML=`<div style="color:#8b95b8">${zh?'本週無資料':'No data this week'}</div>`;return;}
+
+  // Weighted avg rate
+  const totalRep=grands.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+  const totalAtt=grands.reduce((s,g)=>s+g.att,0);
+  const avgRate=totalRep>0?totalAtt/totalRep:null;
+  const totalJoin=grands.reduce((s,g)=>s+g.join,0);
+  const totalResign=grands.reduce((s,g)=>s+g.resign,0);
+  const avgTtl=Math.round(grands.reduce((s,g)=>s+(g.m+g.f),0)/grands.length);
+
+  document.getElementById('weekKpi').innerHTML=
+    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length} ${zh?'天':'days'}`)+
+    kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${zh?'總出勤':'Att'}:${totalAtt}`,rateClass(avgRate||0))+
+    kpiHtml(zh?'總新進':'Total Join',totalJoin,'',totalJoin>0?'good':'')+
+    kpiHtml(zh?'總離職':'Total Resign',totalResign,'',totalResign>0?'bad':'')+
+    kpiHtml(zh?'平均流失率':'Avg Turnover',avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
+
+  // Trend
+  mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'出勤率%',data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
+
+  // Join vs Resign
+  mk('cWeekJR',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'新進',data:grands.map(g=>g.join),backgroundColor:'rgba(16,185,129,.7)',borderRadius:4},{label:'離職',data:grands.map(g=>-g.resign),backgroundColor:'rgba(239,68,68,.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
+
+  // Leave
+  const lSum=grands.reduce((a,g)=>({al:a.al+g.al,pl:a.pl+g.pl,sl:a.sl+g.sl,np:a.np+g.np,bus:a.bus+g.bus,fl:a.fl+g.fl,ml:a.ml+g.ml}),{al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0});
+  renderSectionCards(dates,'weekGrpCards');
+  mk('cWeekLeave',{type:'doughnut',data:{labels:['AL','PL','SL','NP','Bus','FL','ML'],datasets:[{data:[lSum.al,lSum.pl,lSum.sl,lSum.np,lSum.bus,lSum.fl,lSum.ml],backgroundColor:['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'],borderWidth:2,borderColor:'#fff'}]},options:{cutout:'55%',plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
+}
+
+// ═══════ MONTHLY ═══════
+function renderMonthly(){
+  const zh=LANG==='zh';
+  const m=document.getElementById('msel')?.value;if(!m)return;
+  const dates=allDates().filter(d=>d.startsWith(m));
+  const grands=dates.map(grandForDate).filter(Boolean);
+  if(!grands.length){document.getElementById('monthKpi').innerHTML=`<div style="color:#8b95b8">${zh?'本月無資料':'No data this month'}</div>`;return;}
+
+  const totalRep=grands.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+  const totalAtt=grands.reduce((s,g)=>s+g.att,0);
+  const avgRate=totalRep>0?totalAtt/totalRep:null;
+  const totalJoin=grands.reduce((s,g)=>s+g.join,0);
+  const totalResign=grands.reduce((s,g)=>s+g.resign,0);
+  const avgTtl=Math.round(grands.reduce((s,g)=>s+(g.m+g.f),0)/grands.length);
+  const avgTurnover=avgTtl>0?(totalResign/grands.length/avgTtl*100).toFixed(2):'0';
+
+  document.getElementById('monthKpi').innerHTML=
+    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length} ${zh?'天':'days'}`)+
+    kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
+    kpiHtml(zh?'總新進':'Total Join',totalJoin)+kpiHtml(zh?'總離職':'Total Resign',totalResign,'',totalResign>0?'bad':'')+
+    kpiHtml(zh?'月均流失率':'Avg Turnover',avgTurnover+'%');
+
+  // Daily rate trend
+  mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'出勤率%',data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:'目標92%',data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
+
+  // Headcount
+  mk('cMonthHead',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'在職',data:grands.map(g=>g.m+g.f),borderColor:'#3b82f6',fill:true,backgroundColor:'rgba(59,130,246,.08)',tension:.3,pointRadius:3},{label:'出勤',data:grands.map(g=>g.att),borderColor:'#10b981',tension:.3,pointRadius:3,borderDash:[4,3]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:350}}}});
+
+  // Section breakdown for month
+  renderSectionCards(dates,'monthGrpCards');
+
+  // Turnover
+  mk('cMonthTurnover',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'流失率%',data:grands.map(g=>{const t=g.m+g.f;return t>0?(g.resign/t*100).toFixed(3):0;}),backgroundColor:'rgba(239,68,68,.6)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'}}}}});
+}
+
+// ═══════ DEPT ═══════
+function renderDept(){
+  const d=document.getElementById('deptSel')?.value;if(!d)return;
+  const subs=subtotalsForDate(d);
+  const zh=LANG==='zh';
+  const el=document.getElementById('deptCards');
+  el.innerHTML=subs.filter(r=>r.dept).map(r=>{
+    const c=calc(r);const ttl=c.ttl;const rateP=c.rate!=null?(c.rate*100).toFixed(1):0;const ratePct=Math.min(rateP,100);
+    const absentP=ttl>0?((c.absent/ttl)*100).toFixed(0):0;
+    return`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>${r.dept}</b>${rateBadge(c.rate)}</div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;text-align:center;font-size:10px;color:#6b7a9e;margin-bottom:8px">
+        <div>👥<br><b style="font-size:14px;color:#1e2640">${ttl}</b><br>${zh?'在職':'TTL'}</div>
+        <div>✅<br><b style="font-size:14px;color:#10b981">${r.att}</b><br>${zh?'出勤':'Att'}</div>
+        <div>⚠️<br><b style="font-size:14px;color:#f59e0b">${c.absent}</b><br>${zh?'缺勤':'Abs'}</div>
+        <div>🤰<br><b style="font-size:14px;color:#ec4899">${r.ml}</b><br>ML</div>
+        <div>🟢<br><b style="font-size:14px;color:#10b981">${r.join}</b><br>${zh?'新進':'Join'}</div>
+        <div>🔴<br><b style="font-size:14px;color:#ef4444">${r.resign}</b><br>${zh?'離職':'Res'}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#6b7a9e">
+        <span>${zh?'出勤率':'Rate'}</span>
+        <div style="flex:1;height:8px;background:#e2e6f0;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${ratePct}%;background:${c.rate>=0.92?'#10b981':c.rate>=0.85?'#f59e0b':'#ef4444'};border-radius:4px"></div>
+        </div>
+        <span style="font-weight:700;color:${c.rate>=0.92?'#10b981':'#ef4444'}">${rateP}%</span>
+      </div>
+    </div>`;}).join('');
+
+  // Gender bars
+  const gd=subs.filter(r=>r.dept&&!r.dept.includes('管理部+'));
+  document.getElementById('genderBars').innerHTML=gd.map(r=>{const t=r.m+r.f,p=t?r.m/t*100:0;
+    return`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:140px;font-size:11px;color:#6b7a9e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.dept.split('/')[0]}</div>
+      <div style="flex:1;height:14px;border-radius:4px;overflow:hidden;display:flex">
+        <div style="width:${p}%;background:#3b82f6"></div><div style="width:${100-p}%;background:#ec4899"></div>
+      </div>
+      <div style="font-size:10px;color:#8b95b8;white-space:nowrap">♂${r.m} ♀${r.f}</div>
+    </div>`;}).join('');
+
+  // Dept comparison bar chart
+  const filteredSubs=subs.filter(r=>r.dept&&r.dept.includes('小計'));
+  if(filteredSubs.length){
+    mk('cDeptCompare',{type:'bar',data:{
+      labels:filteredSubs.map(r=>{const s=r.dept.replace(/小計/,'').trim();return s.length>8?s.slice(0,8)+'…':s;}),
+      datasets:[
+        {label:zh?'在職':'TTL',data:filteredSubs.map(r=>r.m+r.f),backgroundColor:'rgba(59,130,246,.5)',borderRadius:3},
+        {label:zh?'出勤':'Att',data:filteredSubs.map(r=>r.att),backgroundColor:'rgba(16,185,129,.7)',borderRadius:3}
+      ]
+    },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true}}}});
+  }
+}
+
+// ═══════ RECORDS ═══════
+function renderRecords(){
+  const zh_r=LANG==='zh';document.getElementById('recInfo').textContent=zh_r?`共 ${DB.length} 筆記錄，${allDates().length} 天`:`${DB.length} records · ${allDates().length} days`;
+  const dates=allDates().reverse();
+  let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
+  // Show latest 500 rows
+  const show=DB.filter(r=>dates.slice(0,5).includes(r.date)).slice(0,500);
+  show.forEach(r=>{const c=calc(r);const rc=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
+    html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
+  html+='</tbody></table>';document.getElementById('recTable').innerHTML=html;
+}
+
+// ═══════ ATT TABLE ═══════
+function renderAttTable(rows,date,containerId){
+  let html=`<table class="dtbl"><thead><tr>
+  <th rowspan="2" style="min-width:120px">部門 Dept.</th><th rowspan="2" style="min-width:100px">分區 Section</th><th rowspan="2" style="min-width:180px">組別/職稱</th>
+  <th colspan="3">在職</th><th>Join</th><th>T-In</th><th>Train</th><th>T-Out</th><th>Resign</th><th>Report</th>
+  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>Idle</th><th>Absent</th><th>Attend</th><th style="background:#14574a;color:#fff">Rate%</th></tr>
+  <tr><th>M</th><th>F</th><th>TTL</th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const c=calc(r),rc=c.rate===null?'':c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb',rs=c.rate===null?'—':(c.rate*100).toFixed(1)+'%';
+    const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
+    html+=`<tr class="${cls}"><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td>
+    <td>${r.m}</td><td>${r.f}</td><td><b>${c.ttl}</b></td><td>${r.join}</td><td>${r.ti}</td><td>${r.tr}</td><td>${r.to}</td><td>${r.resign}</td><td>${c.report}</td>
+    <td>${r.al}</td><td>${r.pl}</td><td>${r.sl}</td><td>${r.np}</td><td>${r.bus}</td><td>${r.fl}</td><td class="${r.ml>0?'ml-h':''}">${r.ml}</td><td class="${r.idle>0?'idle-h':''}">${r.idle}</td><td>${c.absent}</td><td><b>${r.att}</b></td><td class="${rc}"><b>${rs}</b></td></tr>`;});
+  html+='</tbody></table>';document.getElementById(containerId).innerHTML=html;
+}
+
+// ═══════ YEARLY ═══════
+function renderYearly(){
+  const zh=LANG==='zh';
+  const yr=document.getElementById('ysel')?.value;if(!yr)return;
+  const months=allMonths().filter(m=>m.startsWith(yr));
+  if(!months.length){document.getElementById('yearKpi').innerHTML=`<div style="color:#8b95b8">${zh?'無資料':'No data'}</div>`;return;}
+
+  // Per-month aggregates
+  const mData=months.map(m=>{
+    const dates=allDates().filter(d=>d.startsWith(m));
+    const gs=dates.map(grandForDate).filter(Boolean);
+    const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+    const tAtt=gs.reduce((s,g)=>s+g.att,0);
+    const avgRate=tRep>0?tAtt/tRep:null;
+    const avgTtl=gs.length?Math.round(gs.reduce((s,g)=>s+(g.m+g.f),0)/gs.length):0;
+    const totalJ=gs.reduce((s,g)=>s+g.join,0);
+    const totalR=gs.reduce((s,g)=>s+g.resign,0);
+    const turnover=avgTtl>0?(totalR/gs.length/avgTtl*100):0;
+    return{month:m,days:dates.length,avgRate,avgTtl,totalAtt:tAtt,totalJ,totalR,turnover};
+  });
+
+  // Year totals
+  const yDays=mData.reduce((s,m)=>s+m.days,0);
+  const yTtl=Math.round(mData.reduce((s,m)=>s+m.avgTtl,0)/mData.length);
+  const allGs=allDates().filter(d=>d.startsWith(yr)).map(grandForDate).filter(Boolean);
+  const yRep=allGs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+  const yAtt=allGs.reduce((s,g)=>s+g.att,0);
+  const yRate=yRep>0?yAtt/yRep:null;
+  const yJ=mData.reduce((s,m)=>s+m.totalJ,0);
+  const yR=mData.reduce((s,m)=>s+m.totalR,0);
+  const yTurnover=yTtl>0?(yR/yDays/yTtl*100):0;
+
+  document.getElementById('yearKpi').innerHTML=
+    kpiHtml(zh?'年度天數':'Days',yDays,`${months.length} ${zh?'個月':'months'}`)+
+    kpiHtml(zh?'平均在職':'Avg HC',yTtl)+
+    kpiHtml(zh?'加權出勤率':'Wtd Rate',yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
+    kpiHtml(zh?'年度新進':'Year Join',yJ,'',yJ>0?'good':'')+
+    kpiHtml(zh?'年度離職':'Year Resign',yR,'',yR>0?'bad':'')+
+    kpiHtml(zh?'日均流失率':'Avg Turnover',yTurnover.toFixed(3)+'%');
+
+  // Monthly rate trend
+  mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'出勤率%':'Rate%',data:mData.map(m=>m.avgRate!=null?(m.avgRate*100).toFixed(1):null),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.06)',tension:.3,fill:true,pointRadius:6,pointBackgroundColor:'#1a6e5c'},
+    {label:zh?'目標92%':'Target 92%',data:months.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:11}}}}}});
+
+  // Monthly headcount
+  mk('cYearHead',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'平均在職':'Avg HC',data:mData.map(m=>m.avgTtl),backgroundColor:'rgba(59,130,246,.5)',borderRadius:4},
+    {label:zh?'月總出勤':'Total Att',data:mData.map(m=>m.totalAtt),backgroundColor:'rgba(16,185,129,.5)',borderRadius:4,hidden:true}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:false}}}});
+
+  // Monthly turnover
+  mk('cYearTurnover',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'月均流失率%':'Turnover%',data:mData.map(m=>m.turnover.toFixed(3)),backgroundColor:mData.map(m=>m.turnover>1?'rgba(239,68,68,.7)':'rgba(245,158,11,.5)'),borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'}}}}});
+
+  // Join vs Resign
+  mk('cYearJR',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'新進':'Join',data:mData.map(m=>m.totalJ),backgroundColor:'rgba(16,185,129,.7)',borderRadius:4},
+    {label:zh?'離職':'Resign',data:mData.map(m=>-m.totalR),backgroundColor:'rgba(239,68,68,.7)',borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
+}
+
+// ═══════ TELEGRAM SUMMARY (ZH+EN Bilingual) ═══════
+function genTelegram(mode){
+  let text='';
+  const SEP='─'.repeat(28);
+  const SEP2='═'.repeat(28);
+
+  if(mode==='daily'){
+    const d=document.getElementById('dsel')?.value;if(!d)return;
+    const g=grandForDate(d),c=g?calc(g):null,subs=subtotalsForDate(d);
+    const wday=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d).getDay()];
+    const wdayzh=['日','一','二','三','四','五','六'][new Date(d).getDay()];
+    const rate=c&&c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';
+    const rateIcon=c&&c.rate!=null?(c.rate>=0.96?'🌟':c.rate>=0.93?'✅':c.rate>=0.90?'⚠️':'🔴'):'';
+    text=`📊 VRT 考勤日報 / Daily Attendance\n${d} (${wdayzh}/${wday})\n${SEP}\n`;
+    text+=`👥 在職/Headcount: ${c?c.ttl:0}  ✅ 出勤/Attend: ${g?g.att:0}\n`;
+    text+=`📈 出勤率/Att.Rate: ${rate} ${rateIcon}\n`;
+    text+=`🟢 新進/Join: ${g?g.join:0}  🔴 離職/Resign: ${g?g.resign:0}  🏭 停工/Idle: ${g?g.idle:0}\n`;
+    text+=`${SEP}\n📋 缺勤/Leave Breakdown:\n`;
+    if(g)text+=`  AL年假:${g.al}  PL事假:${g.pl}  SL病假:${g.sl}  NP曠工:${g.np}\n  Bus出差:${g.bus}  FL特假:${g.fl}  ML產假:${g.ml}\n`;
+    text+=`${SEP}\n📌 部門出勤 / Dept Att.:\n`;
+    subs.filter(r=>r.dept&&r.dept.includes('小計')).forEach(r=>{
+      const c=calc(r);const rp=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';
+      const icon=c.rate!=null?(c.rate>=0.96?'🌟':c.rate>=0.93?'✅':c.rate>=0.90?'⚠️':'🔴'):'';
+      text+=`  ${r.dept.replace(/小計/,'').trim()}: ${r.att}/${c.ttl} ${icon} ${rp}\n`;
+    });
+    // Section analysis
+    const sects=aggregateSections([d]);
+    if(sects.length){
+      text+=`${SEP}\n📊 組別 / Group:\n`;
+      sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const icon=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
+        const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;
+        text+=`  ${s.name}: ${icon} ${rp}${parseFloat(npPct)>=3?' NP⚠️'+npPct+'%':''}\n`;});
+    }
+  }
+  else if(mode==='weekly'){
+    const wk=document.getElementById('wsel')?.value;if(!wk)return;
+    const sun=new Date(wk);sun.setDate(sun.getDate()+6);const endD=sun.toISOString().slice(0,10);
+    const dates=allDates().filter(d=>d>=wk&&d<=endD);
+    const gs=dates.map(grandForDate).filter(Boolean);
+    const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+    const tAtt=gs.reduce((s,g)=>s+g.att,0);
+    const avgR=tRep>0?tAtt/tRep:null;
+    const icon=avgR!=null?(avgR>=0.96?'🌟':avgR>=0.93?'✅':avgR>=0.90?'⚠️':'🔴'):'';
+    text=`📅 VRT 週報 / Weekly Report\n${wk} ~ ${endD}\n${SEP}\n`;
+    text+=`📈 加權出勤率 / Wtd Att.Rate: ${avgR!=null?(avgR*100).toFixed(1)+'%':'—'} ${icon}\n`;
+    text+=`👥 平均在職 / Avg Headcount: ${gs.length?Math.round(gs.reduce((s,g)=>s+(g.m+g.f),0)/gs.length):0}\n`;
+    text+=`🟢 新進/Join: ${gs.reduce((s,g)=>s+g.join,0)}  🔴 離職/Resign: ${gs.reduce((s,g)=>s+g.resign,0)}\n`;
+    text+=`${SEP}\n📋 逐日 / Daily:\n`;
+    dates.forEach(d=>{const g=grandForDate(d);if(!g)return;const c=calc(g);const r=c.rate;const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
+      text+=`  ${d.slice(5)}: ${g.att}/${c.ttl} ${ic} ${r!=null?(r*100).toFixed(1)+'%':'—'}\n`;});
+    const sects=aggregateSections(dates);
+    if(sects.length){
+      text+=`${SEP}\n📊 組別 / Group Breakdown:\n`;
+      sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
+        const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
+        text+=`  ${s.name}: ${ic} ${rp}${parseFloat(npPct)>=3?' NP⚠️':''}${parseFloat(mlPct)>=5?' ML🤰':''}\n`;});
+    }
+  }
+  else if(mode==='monthly'){
+    const m=document.getElementById('msel')?.value;if(!m)return;
+    const dates=allDates().filter(d=>d.startsWith(m));
+    const gs=dates.map(grandForDate).filter(Boolean);
+    const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+    const tAtt=gs.reduce((s,g)=>s+g.att,0);
+    const avgR=tRep>0?tAtt/tRep:null;
+    const icon=avgR!=null?(avgR>=0.96?'🌟':avgR>=0.93?'✅':avgR>=0.90?'⚠️':'🔴'):'';
+    text=`📆 VRT 月報 / Monthly Report — ${m}\n${SEP}\n`;
+    text+=`📈 加權出勤率 / Wtd Att.Rate: ${avgR!=null?(avgR*100).toFixed(1)+'%':'—'} ${icon}\n`;
+    text+=`📊 ${dates.length} 天 / Days\n`;
+    text+=`🟢 新進/Join: ${gs.reduce((s,g)=>s+g.join,0)}  🔴 離職/Resign: ${gs.reduce((s,g)=>s+g.resign,0)}\n`;
+    const sects=aggregateSections(dates);
+    if(sects.length){
+      text+=`${SEP}\n📊 組別 / Group Breakdown:\n`;
+      sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
+        const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
+        text+=`  ${s.name}: ${ic} ${rp}  AL:${s.report>0?(s.al/s.report*100).toFixed(1):0}% NP:${npPct}%${parseFloat(npPct)>=3?' ⚠️':''} ML:${mlPct}%${parseFloat(mlPct)>=5?' 🤰':''}\n`;});
+    }
+  }
+  else if(mode==='yearly'){
+    const yr=document.getElementById('ysel')?.value;if(!yr)return;
+    const months=allMonths().filter(m=>m.startsWith(yr));
+    const allGs=allDates().filter(d=>d.startsWith(yr)).map(grandForDate).filter(Boolean);
+    const yRep=allGs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+    const yAtt=allGs.reduce((s,g)=>s+g.att,0);
+    const yRate=yRep>0?yAtt/yRep:null;
+    const icon=yRate!=null?(yRate>=0.96?'🌟':yRate>=0.93?'✅':yRate>=0.90?'⚠️':'🔴'):'';
+    const yJ=allGs.reduce((s,g)=>s+g.join,0),yR=allGs.reduce((s,g)=>s+g.resign,0);
+    text=`📈 VRT 年度報告 / Annual Report — ${yr}\n${SEP2}\n`;
+    text+=`📊 ${allGs.length} 天/${months.length} 月 · Days/Months\n`;
+    text+=`📈 加權出勤率 / Wtd Att.Rate: ${yRate!=null?(yRate*100).toFixed(1)+'%':'—'} ${icon}\n`;
+    text+=`🟢 新進/Join: ${yJ}  🔴 離職/Resign: ${yR}\n`;
+    text+=`${SEP}\n📋 月度明細 / Monthly Detail:\n`;
+    months.forEach(m=>{
+      const ds=allDates().filter(d=>d.startsWith(m));const gs=ds.map(grandForDate).filter(Boolean);
+      const tR=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);const tA=gs.reduce((s,g)=>s+g.att,0);
+      const r=tR>0?tA/tR:null;const j=gs.reduce((s,g)=>s+g.join,0);const re=gs.reduce((s,g)=>s+g.resign,0);
+      const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
+      text+=`  ${m}: ${ic} ${r!=null?(r*100).toFixed(1)+'%':'—'}  J:+${j} R:-${re}\n`;
+    });
+  }
+  else if(mode==='group'){
+    const sel=document.getElementById('grpSel');const mode2=document.getElementById('grpMode')?.value||'month';
+    const label=sel?.options[sel.selectedIndex]?.text||sel?.value||'';
+    const dates=allDates().filter(d=>d.startsWith(sel?.value||''));
+    const sects=aggregateSections(dates);
+    text=`📊 VRT 組別分析 / Group Analysis — ${label}\n${SEP}\n`;
+    sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
+      const grade=rateGradeLabel(rateGrade(r),'zh')+'/'+rateGradeLabel(rateGrade(r),'en');
+      const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;const alPct=s.report>0?(s.al/s.report*100).toFixed(1):0;
+      text+=`${ic} ${s.name}: ${rp} [${grade}]\n`;
+      text+=`   AL:${alPct}% NP:${npPct}%${parseFloat(npPct)>=3?' ⚠️':''} ML:${mlPct}%${parseFloat(mlPct)>=5?' 🤰':''}\n`;});
+    text+=`${SEP}\n📌 標準 / Benchmark: 🌟≥96% ✅93% ⚠️90% 🔴<90%\n`;
+  }
+  document.getElementById('tgContent').textContent=text;
+  document.getElementById('tgModal').style.display='flex';
+}
+
+function copyTg(){const t=document.getElementById('tgContent').textContent;navigator.clipboard.writeText(t).then(()=>{const ok=document.getElementById('tgCopyOk');ok.style.display='inline';setTimeout(()=>ok.style.display='none',2500);toast('📋 已複製','ok');}).catch(()=>toast('複製失敗','err'));}
+
+// ═══════ PARSER — Dynamic column detection (supports 2020+ Excel layouts) ═══════
+// Fallback COL used only if header detection fails
+const COL_FALLBACK={dept:1,sect:2,line:3,m:4,f:5,ttl:6,join:7,ti:8,tr:9,to:10,resign:11,report:12,al:13,pl:14,sl:15,np:16,bus:17,fl:18,ml:19,absTotal:20,att:21,rate:22,idle:23};
+
+// Cell normalizer: strips newlines, collapse spaces, lowercase for matching
+function normCell(c){return String(c||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
+
+// Header keyword matchers — use loose substring matching to handle multi-line/long headers
+const COL_MATCHERS={
+  dept: c=>/^(部門|dept\.?|department)/i.test(c),
+  sect: c=>/^(分區|section|sect\.?)/i.test(c),
+  line: c=>/^(組別|組别|line$|職稱|title|group$)/i.test(c),
+  m:    c=>/^(男\/?m|^m$)/i.test(c),
+  f:    c=>/^(女\/?f|^f$)/i.test(c),
+  join: c=>/新進|新进|newly.join|^join/i.test(c),
+  ti:   c=>/^(t[-\s]?in|trans.?in|transfer.?in)/i.test(c),
+  tr:   c=>/^(train|培訓|受訓)/i.test(c),
+  to:   c=>/^(t[-\s]?out|trans.?out|transfer.?out)/i.test(c),
+  resign:c=>/^(resign|離職|辭職|本日離職)|本日離職/i.test(c),
+  // Report: "應到人數" or "number of report" but NOT 缺勤人數
+  report:c=>/應到|number.of.rep|report.num/i.test(c)&&!/缺勤|absent/i.test(c),
+  al:   c=>/年假|\bal\b/i.test(c),
+  pl:   c=>/事假|\bpl\b/i.test(c),
+  sl:   c=>/病假|\bsl\b/i.test(c),
+  np:   c=>/曠工|\bnp\b/i.test(c),
+  bus:  c=>/出差|\bbus\b/i.test(c)&&!/業務|加班/.test(c),
+  fl:   c=>/特假|\bfl\b/i.test(c),
+  ml:   c=>/產假|maternity|\bml\b/i.test(c)&&!/出勤率|rate/i.test(c),
+  idle: c=>/停工|suspend|\bidle\b/i.test(c),
+  // att: "出勤人數/Actual Attend" - MUST contain 出勤 or attend but NOT 出勤率/rate
+  att:  c=>((/出勤.{0,8}人數|actual.{0,5}attend/i.test(c))||(/^att\.?$/i.test(c)))&&!/率|rate/i.test(c),
+  rate: c=>/出勤率|attendance.rate|rate%/i.test(c),
+};
+
+function buildColMap(headerRows){
+  const map={};
+  for(const[key,matcher] of Object.entries(COL_MATCHERS)){
+    outer:for(const row of headerRows){
+      const cells=(row||[]).map(c=>normCell(c));
+      for(let ci=0;ci<cells.length;ci++){
+        if(cells[ci]&&matcher(cells[ci])){map[key]=ci;break outer;}
+      }
+    }
+  }
+  if(map.dept==null)map.dept=1;
+  if(map.sect==null)map.sect=2;
+  if(map.line==null)map.line=3;
+  return map;
+}
+
+function findHeaderRow(data){
+  for(let r=0;r<Math.min(10,data.length);r++){
+    const row=(data[r]||[]).map(c=>String(c||'').trim());
+    const hasM=row.some(c=>/^(男\/m|m)$/i.test(c));
+    const hasF=row.some(c=>/^(女\/f|f)$/i.test(c));
+    if(hasM&&hasF)return r;
+  }
+  return 4;
+}
+
+function parseSheet(data,dateStr){
+  const rows=[];
+  const hdrIdx=findHeaderRow(data);
+  // Scan up to 2 rows for merged headers (row hdrIdx-1 might have "Attend" label above)
+  const hdrRows=[data[hdrIdx]||[]];
+  if(hdrIdx>0)hdrRows.unshift(data[hdrIdx-1]||[]);
+  if(hdrIdx+1<data.length)hdrRows.push(data[hdrIdx+1]||[]);
+  const dynCOL=buildColMap(hdrRows);
+  // Merge: dynamic wins, fallback fills gaps
+  const COL=Object.assign({},COL_FALLBACK,dynCOL);
+
+  const start=hdrIdx+1;
+  const gn=(row,key)=>{
+    const i=COL[key];
+    if(i==null||i>=(row||[]).length)return 0;
+    const v=row[i];if(v==null||v==='')return 0;
+    const n=Number(v);
+    if(!isFinite(n)||n<0)return 0;
+    if(key!=='rate'&&n>0&&n<1)return 0;
+    return Math.round(n);
+  };
+  const gs=(row,key)=>{const i=COL[key];if(i==null||i>=(row||[]).length)return'';return String(row[i]||'').trim();};
+
+  for(let r=start;r<data.length;r++){
+    const row=data[r];if(!row||row.length<4)continue;
+    const dept=gs(row,'dept'),sect=gs(row,'sect'),line=gs(row,'line');
+    if(line.match(/attendance/i)&&line.match(/20\d{2}/))break;
+    if(line.includes('部門/dept'))break;
+    const combined=(dept+' '+sect+' '+line).toLowerCase();
+    const isGrand=combined.includes('總人數');
+    const isSubtotal=!isGrand&&combined.includes('小計');
+    const m=gn(row,'m'),f=gn(row,'f');
+    if(!dept&&!sect&&!line&&m===0&&f===0&&!isSubtotal&&!isGrand)continue;
+    rows.push({date:dateStr,dept,sect,line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),isSubtotal,isGrand});
+    if(isGrand)break;
+  }
+  return rows;
+}
+
+// Fast date check: directly read cells (NOT sheet_to_json which parses ALL rows)
+function quickDateCheck(wb,sheetName){
+  const ws=wb.Sheets[sheetName];if(!ws)return null;
+  for(let R=0;R<6;R++){
+    for(let C=0;C<30;C++){
+      const addr=XLSX.utils.encode_cell({r:R,c:C});
+      const cell=ws[addr];if(!cell)continue;
+      const v=String(cell.v||'').trim();
+      if(!/^date:?$/i.test(v))continue;
+      for(let off=1;off<=2;off++){
+        const nAddr=XLSX.utils.encode_cell({r:R,c:C+off});
+        const nCell=ws[nAddr];if(!nCell)continue;
+        const nv=nCell.v;
+        if(nv instanceof Date){if(nv.getFullYear()<2000)return null;return nv.toISOString().slice(0,10);}
+        if(typeof nv==='number'&&nv>40000&&nv<60000){const d=new Date((nv-25569)*86400000);if(d.getFullYear()>=2000)return d.toISOString().slice(0,10);}
+        const s=String(nv||'');
+        const m=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
+        if(m){if(+m[1]<2000)return null;return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;}
+      }
+    }
+  }
+  return null;
+}
+
+// Async workbook parser — yields between sheets to prevent UI freeze
+async function parseWorkbook(wb, progressFn, overwrite){
+  const results=[],dedupLog=[],newDates=[],skippedDates=[];
+  const total=wb.SheetNames.length;
+
+  // Phase 1: Quick scan all sheets for dates (fast — only reads cells directly, no full decode)
+  const sheetDates=[];
+  for(const sn of wb.SheetNames){
+    const dateStr=quickDateCheck(wb,sn);
+    const alreadyHave=dateStr&&IMPORT_LOG.includes(dateStr);
+    sheetDates.push({sn,dateStr,alreadyHave});
+  }
+
+  // Phase 2: Only fully parse sheets with NEW dates (or all if overwrite=true)
+  let processed=0;
+  for(const{sn,dateStr,alreadyHave} of sheetDates){
+    processed++;
+    if(progressFn)progressFn(processed,total,sn,dateStr);
+
+    if(!dateStr){continue;}// Skip template/summary sheets
+
+    if(alreadyHave&&!overwrite){
+      skippedDates.push(dateStr);
+      continue;// ★ Key optimization: skip without full parse
+    }
+
+    // If overwrite mode, remove existing data for this date first
+    if(alreadyHave&&overwrite){
+      DB=DB.filter(r=>r.date!==dateStr);
+      IMPORT_LOG=IMPORT_LOG.filter(d=>d!==dateStr);
+    }
+
+    // Full parse only for new/updated dates
+    const ws=wb.Sheets[sn];if(!ws)continue;
+    const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    const parsed=parseSheet(data,dateStr);
+    if(parsed.length>0){
+      results.push(...parsed);
+      IMPORT_LOG.push(dateStr);
+      newDates.push(dateStr);
+    }
+
+    // Yield to UI every 2 sheets
+    if(processed%2===0)await new Promise(r=>setTimeout(r,0));
+  }
+
+  if(skippedDates.length)dedupLog.push(`⏭ 跳過 ${skippedDates.length} 個已匯入日期`);
+  return{results,dedupLog,newDates,skippedDates};
+}
+
+// ═══════ .eml / .msg extractors ═══════
+async function extractEML(file){const text=await file.text();const results=[];const bRe=/boundary=["']?([^"'\r\n;\s]+)["']?/gi;const bs=[];let bm;while((bm=bRe.exec(text))!==null)bs.push(bm[1]);
+  for(const b of[...new Set(bs)]){for(const p of text.split('--'+b)){if(!/filename[^"'\r\n]*\.xlsx?/i.test(p)&&!/content-type:[^\r\n]*(spreadsheet|excel)/i.test(p))continue;let fn='att.xlsx';const fm=p.match(/filename[^"'\r\n;]*?["']?([^"'\r\n;]+\.xlsx?)["']?/i);if(fm)fn=fm[1].trim();const bm=p.match(/\r?\n\r?\n([\s\S]+?)(?:--|\s*$)/);if(!bm)continue;const b64=bm[1].replace(/[\r\n\s]/g,'');if(b64.length<100)continue;try{const bin=atob(b64);const by=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)by[i]=bin.charCodeAt(i);if(by[0]===0x50&&by[1]===0x4B)results.push({name:fn.split(/[/\\]/).pop(),data:by});}catch(e){}}}return results;}
+
+async function extractMSG(file){
+  const buf=await file.arrayBuffer();
+  const results=[];
+
+  // ── Method A: OLE/CFB walk (proper MSG parsing via XLSX.CFB) ──
+  try{
+    const cfb=XLSX.CFB.read(new Uint8Array(buf),{type:'array'});
+    const attachStorages=[...new Set(
+      cfb.FileIndex
+        .filter(e=>e.name&&e.name.startsWith('__attach_version1.0'))
+        .map(e=>e.name)
+    )];
+    for(const storageName of attachStorages){
+      const streamNames=['__substg1.0_37010102','AttachDataW','__substg1.0_3701000D'];
+      for(const sn of streamNames){
+        const entry=cfb.FileIndex.find(e=>e.name===sn&&e.storage===storageName);
+        if(!entry||!entry.content||entry.content.length<50)continue;
+        const bytes=entry.content;
+        const m0=bytes[0],m1=bytes[1];
+        const isXlsx=m0===0x50&&m1===0x4B;
+        const isXls =m0===0xD0&&m1===0xCF;
+        if(!isXlsx&&!isXls)continue;
+        try{
+          const wb=XLSX.read(bytes,{type:'array',cellDates:true});
+          if(wb.SheetNames.length>0){results.push({name:`att_cfb_${results.length}.${isXlsx?'xlsx':'xls'}`,data:bytes,wb});break;}
+        }catch(e){}
+      }
+    }
+    if(results.length)return results;
+  }catch(e){}
+
+  // ── Method B: Brute-force PK scan fallback ──
+  const all=new Uint8Array(buf);const r16=(b,o)=>b[o]|(b[o+1]<<8);let sf=0;
+  while(sf<all.length-4){
+    let pk=-1;
+    for(let i=sf;i<all.length-3;i++){
+      if(all[i]===0x50&&all[i+1]===0x4B&&all[i+2]===0x03&&all[i+3]===0x04){pk=i;break;}
+      if((i-sf)%524288===0&&i>sf)await new Promise(r=>setTimeout(r,0));
+    }
+    if(pk===-1)break;
+    let end=-1;const lim=Math.min(pk+128*1024*1024,all.length-21);
+    for(let j=pk+22;j<lim;j++){if(all[j]===0x50&&all[j+1]===0x4B&&all[j+2]===0x05&&all[j+3]===0x06){end=j+22+r16(all,j+20);break;}}
+    if(end>pk+50){const zd=all.slice(pk,end);try{const wb=XLSX.read(zd,{type:'array',cellDates:true});if(wb.SheetNames.length>0){results.push({name:`att_pk_${results.length}.xlsx`,data:zd,wb});sf=end;continue;}}catch(e){}}
+    sf=pk+4;
+  }
+  return results;
+}
+
+// ═══════ FILE HANDLING ═══════
+let pendingFiles=[];
+function dzDrop(e){e.preventDefault();document.getElementById('dz').classList.remove('drag');addFiles(e.dataTransfer.files);}
+function dzSelect(e){addFiles(e.target.files);}
+function addFiles(fs){Array.from(fs).forEach(f=>{if(!pendingFiles.find(x=>x.name===f.name&&x.size===f.size))pendingFiles.push(f);});renderFL();document.getElementById('btnImport').disabled=!pendingFiles.length;}
+function clearFiles(){pendingFiles=[];renderFL();document.getElementById('btnImport').disabled=true;document.getElementById('dedupLog').style.display='none';document.getElementById('importPreview').style.display='none';}
+function renderFL(){const el=document.getElementById('fileList'),dz=document.getElementById('dz');if(!pendingFiles.length){el.innerHTML='';dz.classList.remove('done');return;}dz.classList.add('done');
+  el.innerHTML=pendingFiles.map((f,i)=>{const e=/\.(eml|msg)$/i.test(f.name);return`<div class="fl-item"><span style="color:${e?'#7c3aed':'#059669'}">${e?'📧':'📊'} ${f.name}</span><button onclick="pendingFiles.splice(${i},1);renderFL();document.getElementById('btnImport').disabled=!pendingFiles.length;" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:18px">×</button></div>`;}).join('');}
+
+async function doImport(){
+  const btn=document.getElementById('btnImport'),msg=document.getElementById('importMsg');
+  const overwrite=document.getElementById('chkOverwrite').checked;
+  const pBar=document.getElementById('progressBar'),pFill=document.getElementById('progressFill'),pText=document.getElementById('progressText');
+
+  // Warn if multiple .msg files
+  const msgCount=pendingFiles.filter(f=>/\.msg$/i.test(f.name)).length;
+  if(msgCount>1){
+    if(!confirm(`⚠️ 你選了 ${msgCount} 個 .msg 檔案。\n\n每封 .msg 都包含整月所有日期的 Sheet，\n一次拖多封會重複掃描。\n\n建議：只拖最新那封 .msg！\n\n確定要繼續嗎？`))return;
+  }
+
+  btn.disabled=true;msg.innerHTML=`<b>${LANG==='zh'?'提取附件中...':'Extracting...'}</b>`;msg.style.color='#6b7a9e';
+  pBar.style.display='block';pFill.style.width='0%';
+  const allR=[],allE=[],allD=[];
+  const totalFiles=pendingFiles.length;
+
+  const progress=(i,total,sn,dateStr)=>{
+    const pct=Math.round(i/total*100);
+    pFill.style.width=pct+'%';
+    const skip=dateStr&&IMPORT_LOG.includes(dateStr)&&!overwrite?'⏭ 已存在':'🔍 解析';
+    pText.textContent=`Sheet ${i}/${total}：${sn} → ${dateStr||'(模板)'} ${skip}`;
+    msg.innerHTML=`Sheet ${i}/${total}：<b>${sn}</b> → ${dateStr||'(跳過)'} ${skip}`;
+  };
+
+  for(let fi=0;fi<pendingFiles.length;fi++){
+    const f=pendingFiles[fi];
+    const ext=f.name.split('.').pop().toLowerCase();
+    msg.innerHTML=`📄 檔案 ${fi+1}/${totalFiles}：<b>${f.name}</b> 提取中...`;
+    pFill.style.width='0%';
+    await new Promise(r=>setTimeout(r,0));// yield to render
+
+    try{
+      if(ext==='eml'){
+        const at=await extractEML(f);
+        if(!at.length){allE.push(f.name+': 無附件');continue;}
+        for(const a of at){try{const wb=XLSX.read(a.data,{type:'array',cellDates:true});const{results,dedupLog}=await parseWorkbook(wb,progress,overwrite);allR.push(...results);allD.push(...dedupLog);}catch(e){allE.push(a.name+': '+e.message);}}
+      }else if(ext==='msg'){
+        const at=await extractMSG(f);
+        if(!at.length){allE.push(f.name+': 無法提取（建議改用 .eml）');continue;}
+        for(const a of at){try{const wb=a.wb||XLSX.read(a.data,{type:'array',cellDates:true});
+          msg.innerHTML=`📧 <b>${f.name}</b> → ${wb.SheetNames.length} 個 Sheet，快速掃描日期中...`;
+          await new Promise(r=>setTimeout(r,0));
+          const{results,dedupLog,newDates,skippedDates}=await parseWorkbook(wb,progress,overwrite);
+          allR.push(...results);allD.push(...dedupLog);
+          if(newDates.length)allD.push(`✅ 新增日期: ${newDates.join(', ')}`);
+        }catch(e){allE.push(f.name+': '+e.message);}}
+      }else{
+        const buf=await f.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+        msg.innerHTML=`📊 <b>${f.name}</b> → ${wb.SheetNames.length} 個 Sheet`;
+        await new Promise(r=>setTimeout(r,0));
+        const{results,dedupLog,newDates}=await parseWorkbook(wb,progress,overwrite);allR.push(...results);allD.push(...dedupLog);
+        if(newDates.length)allD.push(`✅ 新增日期: ${newDates.join(', ')}`);
+      }
+    }catch(e){allE.push(f.name+': '+e.message);}
+  }
+
+  pFill.style.width='100%';
+  if(allR.length){DB.push(...allR);saveDB();
+    msg.innerHTML=`✅ ${LANG==='zh'?'成功匯入':'Imported'} <b>${allR.length}</b> ${LANG==='zh'?'筆記錄':'records'}`;msg.style.color='#059669';toast(`✅ 匯入 ${allR.length} 筆`,'ok');
+    const ds=[...new Set(allR.map(r=>r.date))].sort();
+    document.getElementById('importPreview').style.display='block';
+    document.getElementById('importPreview').innerHTML=`<div class="card"><div class="ct">✅ 新匯入 ${ds.length} 天資料</div><table class="dtbl"><thead><tr><th>日期</th><th>筆數</th><th>Grand TTL</th><th>出勤</th><th>出勤率</th></tr></thead><tbody>${ds.map(d=>{const day=allR.filter(r=>r.date===d);const g=day.find(r=>r.isGrand);const c=g?calc(g):null;return`<tr><td>${d}</td><td>${day.length}</td><td>${g?(g.m+g.f):'—'}</td><td>${g?g.att:'—'}</td><td>${c&&c.rate!=null?'<span class="badge '+(c.rate>=0.92?'bg':'bb')+'">'+(c.rate*100).toFixed(1)+'%</span>':'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
+    setTimeout(()=>{const tabs=document.querySelectorAll('.tab');tabs.forEach(t=>{if(t.textContent.includes('每日報告')||t.textContent.includes('Daily'))t.click();});},1500);
+  }else{msg.innerHTML=allE.length?'❌ '+allE[0]:(LANG==='zh'?'ℹ️ 未識別到新數據（可能都已匯入過）':'ℹ️ No new data found (may already be imported)');msg.style.color=allR.length?'#059669':'#6b7a9e';}
+  if(allD.length){const dl=document.getElementById('dedupLog');dl.style.display='block';dl.innerHTML='<b>處理紀錄：</b><br>'+allD.join('<br>');}
+  if(allE.length&&allR.length)toast('⚠️ 部分錯誤','err');
+  btn.disabled=false;
+  setTimeout(()=>{pBar.style.display='none';},3000);
+}
+
+// ═══════ RATING THRESHOLDS ═══════
+// 96%+ = excellent, 93-96% = good, 90-93% = below, <90% = poor
+function rateGrade(r){
+  if(r==null)return null;
+  if(r>=0.95)return'excellent';  // ≥95% 優良
+  if(r>=0.90)return'good';       // 90-94% 正常
+  if(r>=0.87)return'below';      // 87-89% 偏低
+  return'poor';                  // <87% 嚴重偏低
+}
+function rateGradeStyle(g){
+  const map={excellent:{bg:'#d1fae5',border:'#059669',text:'#065f46',icon:'🌟'},good:{bg:'#e0f2fe',border:'#0ea5e9',text:'#0c4a6e',icon:'✅'},below:{bg:'#fef3c7',border:'#f59e0b',text:'#92400e',icon:'⚠️'},poor:{bg:'#fee2e2',border:'#ef4444',text:'#991b1b',icon:'🔴'}};
+  return map[g]||{bg:'#f3f4f6',border:'#9ca3af',text:'#6b7280',icon:'—'};
+}
+function rateGradeLabel(g,lang){
+  const zh={excellent:'優良 ≥95%',good:'正常 90–95%',below:'偏低 87–90%',poor:'嚴重偏低 <87%'};
+  const en={excellent:'Excellent ≥95%',good:'Normal 90–95%',below:'Below 87–90%',poor:'Poor <87%'};
+  return lang==='en'?(en[g]||'—'):(zh[g]||'—');
+}
+
+// ═══════ SECTION HELPERS ═══════
+// Extract section name from subtotal row (removes 小計 suffix)
+function sectName(r){
+  const raw=(r.sect||r.dept||'').replace(/小計|subtotal/gi,'').trim();
+  return raw||'(其他)';
+}
+
+// Aggregate subtotal rows across multiple dates by section name
+function aggregateSections(dates){
+  const map={};
+  dates.forEach(d=>{
+    DB.filter(r=>r.isSubtotal&&r.date===d).forEach(r=>{
+      const nm=sectName(r);
+      if(!map[nm])map[nm]={name:nm,att:0,ttl:0,report:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0};
+      const c=calc(r);
+      map[nm].att+=r.att;
+      map[nm].ttl+=(r.m+r.f);
+      map[nm].report+=c.report;
+      map[nm].al+=r.al;map[nm].pl+=r.pl;map[nm].sl+=r.sl;map[nm].np+=r.np;
+      map[nm].bus+=r.bus;map[nm].fl+=r.fl;map[nm].ml+=r.ml;
+      map[nm].join+=r.join;map[nm].resign+=r.resign;
+      map[nm].absent+=c.absent;
+      map[nm].days++;
+    });
+  });
+  return Object.values(map).filter(s=>s.report>0).sort((a,b)=>b.report-a.report);
+}
+
+// ═══════ SECTION BREAKDOWN MINI-CARDS (used in weekly/monthly) ═══════
+function renderSectionCards(dates,containerId){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const sects=aggregateSections(dates);
+  if(!sects.length){el.innerHTML='<div style="color:#8b95b8;font-size:12px;padding:8px">無分區資料</div>';return;}
+  const zh=LANG==='zh';
+  el.innerHTML=sects.map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const g=rateGrade(rate);
+    const st=rateGradeStyle(g);
+    const rateP=rate!=null?(rate*100).toFixed(1):'—';
+    const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;
+    const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
+    const alPct=s.report>0?(s.al/s.report*100).toFixed(1):0;
+    const alertNP=parseFloat(npPct)>=3?'🔴':'';
+    const alertML=parseFloat(mlPct)>=5?'🤰':'';
+    return`<div style="border:1px solid ${st.border};border-left:4px solid ${st.border};border-radius:8px;padding:11px;background:${st.bg}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+        <div style="font-size:12px;font-weight:700;color:${st.text}">${s.name}</div>
+        <div style="font-size:11px;font-weight:700;color:${st.text}">${st.icon} ${rateP}%</div>
+      </div>
+      <div style="height:6px;background:#e2e6f0;border-radius:3px;margin-bottom:7px;overflow:hidden">
+        <div style="height:100%;width:${Math.min(parseFloat(rateP)||0,100)}%;background:${st.border};border-radius:3px"></div>
+      </div>
+      <div style="font-size:10px;color:${st.text};font-weight:600;margin-bottom:5px">${rateGradeLabel(g,zh?'zh':'en')}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;font-size:9px;color:#6b7a9e">
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#1e2640">${alPct}%</div>AL</div>
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#ef4444">${npPct}% ${alertNP}</div>NP</div>
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#ec4899">${mlPct}% ${alertML}</div>ML</div>
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#1e2640">${s.report>0?(s.absent/s.report*100).toFixed(1):0}%</div>${zh?'缺勤':'Abs'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════ GROUP ANALYSIS TAB ═══════
+// Nav helper for group selector
+function navGrp(dir){
+  const sel=document.getElementById('grpSel');
+  const opts=[...sel.options].map(o=>o.value);
+  const i=opts.indexOf(sel.value);
+  const n=i-dir;// reverse order so -1=newer, +1=older
+  if(n>=0&&n<opts.length){sel.value=opts[n];renderGroupAnalysis();}
+}
+function grpModeChange(){
+  const sel=document.getElementById('grpSel');
+  sel.dataset.mode='';// force repopulate
+  renderGroupAnalysis();
+}
+
+// ─── Sewing line detector: rows with line names like L1/A1/Line1/車縫 1組 etc ───
+// Detect individual Sewing production line rows
+// Supports multiple year formats:
+//   2020-2023: "Garment Line A1 /成衣1組", "Apron A1 /圍裙1組" (A/B factory)
+//   2024-2025: "Line 1", "Line 01", "L1", "L2" abbreviated format
+function isSewingLine(r){
+  if(r.isSubtotal||r.isGrand) return false;
+  const line=(r.line||'').trim();
+  const sect=(r.sect||'');
+  const lineLo=line.toLowerCase();
+  const sectLo=sect.toLowerCase();
+  const ttl=(r.m||0)+(r.f||0);
+  if(ttl<1) return false;// must have at least 1 worker (even 1-person lines)
+
+  // ── Hard exclusion: these are definitely NOT sewing production lines ──
+  if(/cutting|裁剪|qc|品管|quality.control|packing|包裝|成品|finishing|warehouse|倉庫|mechanic|機修|sample|樣品|marker|馬克|supervisor|組長|班長|line.leader|team.leader|leader|inspector|檢驗|pc|生管|ie|admin|行政|hr|ga|electrician|工務|others|其它|其他|cutter/i.test(lineLo)) return false;
+  if(/cutting|裁剪|qc|packing|包裝|warehouse|倉庫|mechanic|機修|sample|樣品|marker|品管/i.test(sectLo)) return false;
+
+  // ── Positive match — any of the following ──
+
+  // 2020-2023: "Garment Line A1", "Garment  Line A22", "Garment Line A1 /成衣1組"
+  if(/garment\s+(line\s*)?[a-z]?\d+/i.test(lineLo)) return true;
+  // 2020-2023: "Apron A1 /圍裙1組", "Apron A10" (must start with Apron + letter+digit)
+  if(/^apron\s+[a-z]\d+/i.test(lineLo)) return true;
+  // Chinese: "成衣1組", "圍裙3組"
+  if(/^(成衣|圍裙)\s*\d+\s*組/.test(line)) return true;
+  // 2024-2025: "Line 1", "Line 01", "Line1" (strip /chinese suffix first)
+  if(/^line\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim())) return true;
+  // 2024-2025 abbreviated: "L1", "L2", "L01", "L 1", "L 01"
+  if(/^l\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim())) return true;
+
+  // Fallback: sect explicitly says sewing AND line has any digit (covers merged-cell empty-sect rows)
+  if(/sewing|garment|apron|車縫|成衣|圍裙/i.test(sectLo) && /\d/.test(line)) return true;
+
+  return false;
+}
+
+function aggregateSewingLines(dates){
+  const map={};
+  dates.forEach(d=>{
+    DB.filter(r=>isSewingLine(r)&&r.date===d).forEach(r=>{
+      // Normalize line name: strip chinese after /
+      const raw=r.line||r.sect||'?';
+      const nm=raw.replace(/[/／].*/,'').trim().replace(/\s+/,' ');
+      if(!map[nm])map[nm]={name:nm,sect:r.sect,dept:r.dept,att:0,ttl:0,report:0,
+        al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0,attDays:0};
+      const c=calc(r);
+      const ttl=(r.m||0)+(r.f||0);
+      // Use att if available; otherwise estimate as report - absent
+      const absTotal=(r.al||0)+(r.pl||0)+(r.sl||0)+(r.np||0)+(r.bus||0)+(r.fl||0)+(r.ml||0);
+      const attEst=r.att>0?r.att:(c.report>absTotal?c.report-absTotal:c.report);
+      map[nm].att+=attEst;
+      map[nm].ttl+=ttl;
+      map[nm].report+=c.report||ttl;
+      map[nm].al+=r.al||0; map[nm].pl+=r.pl||0; map[nm].sl+=r.sl||0;
+      map[nm].np+=r.np||0; map[nm].bus+=r.bus||0; map[nm].fl+=r.fl||0;
+      map[nm].ml+=r.ml||0; map[nm].join+=r.join||0; map[nm].resign+=r.resign||0;
+      map[nm].absent+=absTotal; map[nm].days++;
+      if(r.att>0) map[nm].attDays++;
+    });
+  });
+  return Object.values(map)
+    .filter(s=>s.ttl>0)
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+}
+
+function renderGroupAnalysis(){
+  const mode=document.getElementById('grpMode')?.value||'month';
+  const sel=document.getElementById('grpSel');
+
+  // Populate selector based on mode
+  let dates=[];
+  if(mode==='day'){
+    const opts=allDates().reverse();
+    if(sel.dataset.mode!=='day'){sel.innerHTML=opts.map(v=>`<option>${v}</option>`).join('');sel.dataset.mode='day';}
+    dates=[sel.value];
+  } else if(mode==='week'){
+    const allD=allDates();const weeks=new Map();
+    allD.forEach(d=>{const dt=new Date(d),mon=new Date(dt);mon.setDate(dt.getDate()-(dt.getDay()||7)+1);const k=mon.toISOString().slice(0,10);if(!weeks.has(k))weeks.set(k,[]);weeks.get(k).push(d);});
+    const wks=[...weeks.keys()].sort().reverse();
+    if(sel.dataset.mode!=='week'){sel.innerHTML=wks.map(k=>`<option value="${k}">W ${k}</option>`).join('');sel.dataset.mode='week';}
+    const wk=sel.value;const sun=new Date(wk);sun.setDate(sun.getDate()+6);
+    dates=allDates().filter(d=>d>=wk&&d<=sun.toISOString().slice(0,10));
+  } else if(mode==='year'){
+    const yrs=[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse();
+    if(sel.dataset.mode!=='year'){sel.innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');sel.dataset.mode='year';}
+    dates=allDates().filter(d=>d.startsWith(sel.value));
+  } else {
+    const months=allMonths().reverse();
+    if(sel.dataset.mode!=='month'){sel.innerHTML=months.map(m=>`<option>${m}</option>`).join('');sel.dataset.mode='month';}
+    dates=allDates().filter(d=>d.startsWith(sel.value));
+  }
+
+  const sects=aggregateSections(dates);
+  const alertsEl=document.getElementById('grpAlerts');
+  const cardsEl=document.getElementById('grpCards');
+  if(!sects.length){alertsEl.innerHTML='';cardsEl.innerHTML='<div style="color:#8b95b8;padding:20px">此期間無分區資料</div>';return;}
+
+  const zh=LANG==='zh';
+
+  // ── Auto-commentary alerts ──
+  const poor=sects.filter(s=>rateGrade(s.report>0?s.att/s.report:null)==='poor');
+  const below=sects.filter(s=>rateGrade(s.report>0?s.att/s.report:null)==='below');
+  const excellent=sects.filter(s=>rateGrade(s.report>0?s.att/s.report:null)==='excellent');
+  const npHigh=sects.filter(s=>s.report>0&&s.np/s.report>=0.03);
+  const mlHigh=sects.filter(s=>s.report>0&&s.ml/s.report>=0.05);
+
+  let alerts='';
+  poor.forEach(s=>{const r=(s.att/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fee2e2;border:1px solid #fca5a5;border-left:4px solid #ef4444;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#991b1b">
+      🔴 <b>${s.name}</b> ${zh?'出勤率':'Att. Rate'} <b>${r}%</b> — ${zh?'嚴重偏低（低於 87%，需立即關注）':'Critical — below 87%, immediate attention required'}</div>`;});
+  below.forEach(s=>{const r=(s.att/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fef3c7;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#92400e">
+      ⚠️ <b>${s.name}</b> ${zh?'出勤率':'Att. Rate'} <b>${r}%</b> — ${zh?'偏低（87–90%，建議追蹤）':'Below target (87–90%), follow-up advised'}</div>`;});
+  excellent.forEach(s=>{const r=(s.att/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#d1fae5;border:1px solid #6ee7b7;border-left:4px solid #10b981;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#065f46">
+      🌟 <b>${s.name}</b> ${zh?'出勤率':'Att. Rate'} <b>${r}%</b> — ${zh?'優良（≥95%）':'Excellent (≥95%)'}</div>`;});
+  npHigh.forEach(s=>{const p=(s.np/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fff1f2;border:1px solid #fca5a5;border-left:4px solid #dc2626;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#991b1b">
+      🔴 <b>${s.name}</b> ${zh?'曠工率':'Absence (NP)'} <b>${p}%</b> — ${zh?'偏高（>3%，需關注）':'High absence rate (>3%)'}</div>`;});
+  mlHigh.forEach(s=>{const p=(s.ml/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fdf2f8;border:1px solid #f9a8d4;border-left:4px solid #ec4899;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#9d174d">
+      🤰 <b>${s.name}</b> ${zh?'產假佔比':'Maternity (ML)'} <b>${p}%</b> — ${zh?'偏高（>5%）':'High ratio (>5%)'}</div>`;});
+  if(!alerts)alerts=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:9px 13px;font-size:12px;color:#065f46">✅ ${zh?'所有組別出勤率均在正常範圍（90–95%）':'All sections within normal range (90–95%)'}</div>`;
+  alertsEl.innerHTML=alerts;
+
+  // ── Big group cards ──
+  cardsEl.innerHTML=sects.map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const g=rateGrade(rate);const st=rateGradeStyle(g);
+    const rateP=rate!=null?(rate*100).toFixed(1):'—';
+    const lv=[s.al,s.pl,s.sl,s.np,s.bus,s.fl,s.ml];
+    const lNames=['AL','PL','SL','NP','Bus','FL','ML'];
+    const lColors=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
+    const lTotal=lv.reduce((a,b)=>a+b,0);
+    const leaveBar=lTotal>0?lv.map((v,i)=>`<div style="height:100%;width:${v/lTotal*100}%;background:${lColors[i]};display:inline-block" title="${lNames[i]}:${v}人"></div>`).join(''):'';
+    const lDetails=lv.map((v,i)=>v>0?`<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${lColors[i]}22;color:${lColors[i]}">${lNames[i]}:${(s.report>0?v/s.report*100:0).toFixed(1)}%</span>`:'').filter(Boolean).join(' ');
+    // Threshold reference line display
+    const thresholds=[{t:0.95,label:'95%',color:'#059669'},{t:0.90,label:'90%',color:'#0ea5e9'},{t:0.87,label:'87%',color:'#f59e0b'}];
+    const tLines=thresholds.map(th=>{const passed=rate!=null&&rate>=th.t;return`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${passed?th.color+'22':'#f3f4f6'};color:${passed?th.color:'#9ca3af'};font-weight:600">${th.label}${passed?' ✓':''}</span>`;}).join(' ');
+    return`<div style="border:1px solid ${st.border};border-top:4px solid ${st.border};border-radius:10px;padding:14px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:#1e2640">${s.name}</div>
+        <div style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px;background:${st.bg};color:${st.text}">${st.icon} ${rateP}%</div>
+      </div>
+      <div style="height:10px;background:#e2e6f0;border-radius:5px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${Math.min(parseFloat(rateP)||0,100)}%;background:${st.border};border-radius:5px;transition:width .3s"></div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">${tLines}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:10px;text-align:center;margin-bottom:10px">
+        <div style="background:#f7f8fc;border-radius:5px;padding:5px"><div style="font-size:14px;font-weight:700;color:#1e2640">${s.report>0?Math.round(s.ttl/s.days):0}</div><div style="color:#6b7a9e">${zh?'均在職':'Avg HC'}</div></div>
+        <div style="background:#f7f8fc;border-radius:5px;padding:5px"><div style="font-size:14px;font-weight:700;color:#10b981">${s.report>0?Math.round(s.att/s.days):0}</div><div style="color:#6b7a9e">${zh?'均出勤':'Avg Att'}</div></div>
+        <div style="background:#f7f8fc;border-radius:5px;padding:5px"><div style="font-size:14px;font-weight:700;color:#f59e0b">${s.report>0?Math.round(s.absent/s.days):0}</div><div style="color:#6b7a9e">${zh?'均缺勤':'Avg Abs'}</div></div>
+      </div>
+      ${lTotal>0?`<div style="font-size:10px;color:#6b7a9e;margin-bottom:4px">${zh?'假別分布：':'Leave breakdown:'}</div>
+      <div style="height:8px;border-radius:4px;overflow:hidden;background:#f3f4f6;display:flex;margin-bottom:5px">${leaveBar}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${lDetails}</div>`:''}
+    </div>`;
+  }).join('');
+
+  // ── Sewing Line Detail Section ──
+  // Debug: type window._sewDbg=true in console then re-render to see line data
+  if(window._sewDbg){
+    const cands=DB.filter(r=>!r.isSubtotal&&!r.isGrand&&dates.includes(r.date));
+    console.table(cands.slice(0,30).map(r=>({dept:r.dept,sect:r.sect,line:r.line,m:r.m,f:r.f,att:r.att})));
+    console.log('[SewDebug] sewingLines found:',sewingLines.length,sewingLines.map(s=>s.name));
+  }
+  const sewingLines=aggregateSewingLines(dates);
+  const sewingSec=document.getElementById('sewingSection');
+  if(sewingLines.length>=2){
+    sewingSec.style.display='block';
+    // Mini line cards (sewing_v5 style)
+    document.getElementById('sewingCards').innerHTML=sewingLines.map(s=>{
+      const rate=s.report>0?s.att/s.report:null;
+      const g2=rateGrade(rate);const st2=rateGradeStyle(g2);
+      const rp=rate!=null?(rate*100).toFixed(1):'—';
+      const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;
+      const alPct=s.report>0?(s.al/s.report*100).toFixed(1):0;
+      const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
+      const avgHC=s.days>0?Math.round(s.ttl/s.days):0;
+      const secLabel=s.sect?s.sect.replace(/\(.*\)/,'').replace(/Sewing\s*/i,'').trim():'';
+      return`<div style="border:1px solid ${st2.border};border-top:4px solid ${st2.border};border-radius:10px;padding:12px;background:#fff;min-width:150px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:700;color:#1e2640">${s.name}</span>
+          ${secLabel?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#e0f2fe;color:#0369a1;font-weight:700">${secLabel}</span>`:''}
+        </div>
+        <div style="font-size:22px;font-weight:700;font-family:monospace;color:${st2.text};padding:4px 9px;background:${st2.bg};border-radius:8px;display:inline-block;margin-bottom:7px">${rp}%</div>
+        <div style="font-size:9px;color:${st2.text};margin-bottom:8px">${st2.icon} ${rateGradeLabel(g2,zh?'zh':'en')}</div>
+        <div style="height:6px;background:#e2e6f0;border-radius:3px;margin-bottom:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(parseFloat(rp)||0,100)}%;background:${st2.border};border-radius:3px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:10px">
+          <div style="background:#f7f8fc;border-radius:5px;padding:5px;text-align:center">
+            <div style="font-size:15px;font-weight:700;color:#1e2640">${avgHC}</div>
+            <div style="color:#6b7a9e">${zh?'均在職':'Avg HC'}</div>
+          </div>
+          <div style="background:#f7f8fc;border-radius:5px;padding:5px;text-align:center">
+            <div style="font-size:15px;font-weight:700;color:#f59e0b">${s.days>0?Math.round(s.absent/s.days):0}</div>
+            <div style="color:#6b7a9e">${zh?'均缺勤':'Avg Abs'}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:7px">
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#fef3c722;color:#92400e">AL ${alPct}%</span>
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;${parseFloat(npPct)>=3?'background:#fee2e2;color:#991b1b;font-weight:700':'background:#f3f4f6;color:#6b7280'}">NP ${npPct}%${parseFloat(npPct)>=3?' ⚠️':''}</span>
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;${parseFloat(mlPct)>=5?'background:#fdf2f8;color:#9d174d;font-weight:700':'background:#f3f4f6;color:#6b7280'}">ML ${mlPct}%${parseFloat(mlPct)>=5?' 🤰':''}</span>
+        </div>
+      </div>`;
+    }).join('');
+    // Detailed table
+    const hdr2=`<thead><tr style="background:#1a6e5c;color:#fff">
+      <th style="text-align:left;padding:6px 10px;font-size:11px">${zh?'組別/線別':'Line'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'Section':'Section'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'均在職':'Avg HC'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'出勤率':'Att.Rate'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'評等':'Grade'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">AL%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">PL%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">SL%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">NP%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">ML%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'新進':'Join'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'離職':'Resign'}</th>
+    </tr></thead>`;
+    const tbody2=sewingLines.map((s,i)=>{
+      const rate=s.report>0?s.att/s.report:null;
+      const g2=rateGrade(rate);const st2=rateGradeStyle(g2);
+      const rp=rate!=null?(rate*100).toFixed(1)+'%':'—';
+      const pct=f=>s.report>0?(s[f]/s.report*100).toFixed(1):0;
+      const npP=parseFloat(pct('np')),mlP=parseFloat(pct('ml')),alP=parseFloat(pct('al'));
+      const bg=i%2===0?'#fff':'#f7fbf9';
+      const secClean=(s.sect||'').replace(/\(.*\)/,'').replace(/Sewing\s*/i,'').trim();
+      return`<tr style="background:${bg}">
+        <td style="padding:6px 10px;font-weight:700;color:#1e2640;font-size:12px">${s.name}</td>
+        <td style="padding:6px 8px;text-align:center;color:#0369a1;font-size:11px">${secClean||'—'}</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace">${s.days>0?Math.round(s.ttl/s.days):0}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;color:${st2.text};font-family:monospace">${rp}</td>
+        <td style="padding:6px 8px;text-align:center"><span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${st2.bg};color:${st2.text};font-weight:600">${st2.icon} ${rateGradeLabel(g2,zh?'zh':'en')}</span></td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;${alP>=5?'color:#d97706;font-weight:700':'color:#4a5578'}">${pct('al')}%</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;color:#4a5578">${pct('pl')}%</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;color:#4a5578">${pct('sl')}%</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;${npP>=3?'background:#fee2e2;color:#991b1b;font-weight:700':'color:#4a5578'}">${pct('np')}%${npP>=3?' ⚠️':''}</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;${mlP>=5?'color:#ec4899;font-weight:700':'color:#4a5578'}">${pct('ml')}%${mlP>=5?' 🤰':''}</td>
+        <td style="padding:6px 8px;text-align:center;color:#10b981;font-weight:600">+${s.join}</td>
+        <td style="padding:6px 8px;text-align:center;${s.resign>0?'color:#ef4444;font-weight:700':'color:#4a5578'}">${s.resign>0?'🔴 ':''}-${s.resign}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('sewingTable').innerHTML=hdr2+'<tbody>'+tbody2+'</tbody>';
+  } else {
+    sewingSec.style.display='none';
+  }
+
+  // ── Rate comparison bar chart ──
+  const labels=sects.map(s=>s.name.length>8?s.name.slice(0,8)+'…':s.name);
+  const rateVals=sects.map(s=>s.report>0?(s.att/s.report*100).toFixed(1):0);
+  const bgColors=sects.map(s=>{const r=s.report>0?s.att/s.report:0;return r>=0.95?'#059669':r>=0.90?'#0ea5e9':r>=0.87?'#f59e0b':'#ef4444';});
+  mk('cGrpRate',{type:'bar',data:{labels,datasets:[
+    {label:zh?'出勤率%':'Att. Rate %',data:rateVals,backgroundColor:bgColors,borderRadius:5},
+    {label:'95%',data:labels.map(()=>95),type:'line',borderColor:'#059669',borderDash:[4,3],pointRadius:0,borderWidth:1.5},
+    {label:'90%',data:labels.map(()=>90),type:'line',borderColor:'#0ea5e9',borderDash:[4,3],pointRadius:0,borderWidth:1.5},
+    {label:'87%',data:labels.map(()=>87),type:'line',borderColor:'#f59e0b',borderDash:[4,3],pointRadius:0,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:70,max:102,ticks:{callback:v=>v+'%'}}}}});
+
+  // ── Leave breakdown table ──
+  const leaveHdr=['AL','PL','SL','NP','Bus','FL','ML'];
+  let tbl=`<table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr><th style="text-align:left;padding:5px 8px;background:#f7f8fc;color:#6b7a9e">${zh?'組別':'Section'}</th>${leaveHdr.map(h=>`<th style="padding:5px 6px;background:#f7f8fc;color:#6b7a9e;text-align:center">${h}</th>`).join('')}</tr></thead><tbody>`;
+  sects.forEach((s,i)=>{
+    const bg=i%2===0?'#fff':'#fafbfc';
+    const lv=[s.al,s.pl,s.sl,s.np,s.bus,s.fl,s.ml];
+    const lColors=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
+    tbl+=`<tr style="background:${bg}"><td style="padding:5px 8px;font-weight:600;color:#1e2640">${s.name}</td>`;
+    lv.forEach((v,j)=>{const pct=s.report>0?(v/s.report*100).toFixed(1):'0';const hi=(j===3&&parseFloat(pct)>=3)||(j===6&&parseFloat(pct)>=5);
+      tbl+=`<td style="padding:5px 6px;text-align:center;${hi?'background:#fee2e2;color:#991b1b;font-weight:700':'color:#4a5578'}">${pct}%</td>`;});
+    tbl+=`</tr>`;
+  });
+  tbl+='</tbody></table>';
+  document.getElementById('grpLeaveTable').innerHTML=tbl;
+}
+
+// ═══════ BACKUP / RESTORE ═══════
+function backupJSON(){const data={db:DB,log:IMPORT_LOG,ts:new Date().toISOString()};const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vrt_att_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('📦 已備份','ok');}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB();toast('🗑 已清除','ok');}
+function exportAllCSV(){if(!DB.length){toast('無資料','err');return;}
+  const h=['date','dept','sect','line','m','f','ttl','join','resign','report','al','pl','sl','np','bus','fl','ml','idle','absent','att','rate','isSubtotal','isGrand'];
+  const rows=DB.map(r=>{const c=calc(r);return[r.date,r.dept,r.sect,r.line,r.m,r.f,c.ttl,r.join,r.resign,c.report,r.al,r.pl,r.sl,r.np,r.bus,r.fl,r.ml,r.idle,c.absent,r.att,c.rate!=null?(c.rate*100).toFixed(1):'',r.isSubtotal?'Y':'',r.isGrand?'Y':''].map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',');});
+  const csv='\uFEFF'+[h.join(','),...rows].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`vrt_att_all_${new Date().toISOString().slice(0,10)}.csv`;a.click();toast('⬇ CSV','ok');}
+
+function exportDayExcel(){
+  const d=document.getElementById('dsel')?.value;if(!d)return;
+  const rows=rowsForDate(d),wb=XLSX.utils.book_new();
+  const hdr=['部門','分區','組別','M','F','TTL','Join','T-In','Train','T-Out','Resign','Report','AL','PL','SL','NP','Bus','FL','ML','Idle','Absent','Attend','Rate%'];
+  const aoa=[['Vantage River Textiles'],['考勤日報表','','','','','','','','','','','','Date:',d],hdr];
+  rows.forEach(r=>{const c=calc(r);aoa.push([r.dept,r.sect,r.line,r.m,r.f,c.ttl,r.join,r.ti,r.tr,r.to,r.resign,c.report,r.al,r.pl,r.sl,r.np,r.bus,r.fl,r.ml,r.idle,c.absent,r.att,c.rate!=null?parseFloat((c.rate*100).toFixed(1)):null]);});
+  const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:28},{wch:22},{wch:35},...Array(20).fill({wch:8})];
+  // Apply cell styles
+  const rng=XLSX.utils.decode_range(ws['!ref']||'A1');
+  for(let R=0;R<=rng.e.r;R++){for(let C=0;C<=rng.e.c;C++){const a=XLSX.utils.encode_cell({r:R,c:C});if(!ws[a])ws[a]={t:'z',v:''};if(!ws[a].s)ws[a].s={};
+    if(R<=1)ws[a].s={fill:{fgColor:{rgb:'1A6E5C'}},font:{color:{rgb:'FFFFFF'},bold:true}};
+    else if(R===2)ws[a].s={fill:{fgColor:{rgb:'E8F4F1'}},font:{bold:true,color:{rgb:'1A6E5C'}}};
+    else{const di=R-3;if(di>=0&&di<rows.length){const row=rows[di];
+      if(row.isGrand)ws[a].s={fill:{fgColor:{rgb:'A9DFBF'}},font:{bold:true}};
+      else if(row.isSubtotal)ws[a].s={fill:{fgColor:{rgb:'D5F5E3'}},font:{bold:true}};
+      if(C===18&&row.ml>0)ws[a].s.fill={fgColor:{rgb:'FDE8E8'}};
+      if(C===22&&ws[a].v!=null){const v=ws[a].v;ws[a].s.font={color:{rgb:v>=92?'1E8449':v>=85?'D68910':'C0392B'},bold:true};}}}}}
+  XLSX.utils.book_append_sheet(wb,ws,'日報');XLSX.writeFile(wb,`VRT_Attendance_${d}.xlsx`);toast('🟢 Excel 已下載','ok');}
+
+// ═══════ UTILS ═══════
+function toast(m,t='info'){const e=document.createElement('div');e.className=`toast toast-${t}`;e.textContent=m;document.getElementById('toasts').appendChild(e);setTimeout(()=>e.remove(),4000);}
+
+// ═══════ INIT ═══════
+updateHeader();
+
+// ═══════════════════════════════════════════════════════════════════
+// CLOUD SYNC LAYER — VRT HR CloudSync v1
+// ═══════════════════════════════════════════════════════════════════
+const CLOUD_CFG_KEY = 'vrt_att_cloud_v1';
+const CHUNK_SIZE    = 200; // records per chunk
+let GAS_URL     = '';
+let syncStatus  = 'idle';   // idle | syncing | synced | failed | offline
+let lastSyncTs  = null;
+let autoSaveTimer = null;
+let cloudSnap   = null;     // last known cloud snapshot
+
+// ── Init cloud on load ──
+(function initCloud() {
+  GAS_URL = localStorage.getItem(CLOUD_CFG_KEY + '_url') || '';
+  if (GAS_URL) {
+    document.getElementById('gasUrlInput').value = GAS_URL;
+    document.getElementById('btnPush').disabled = false;
+    document.getElementById('btnPull').disabled = false;
+    setSyncStatus('idle', '');
+    // Auto-pull if local DB is empty
+    if (DB.length === 0) {
+      setTimeout(() => pullCloud(true), 1200);
+    } else {
+      // Silently check cloud version
+      setTimeout(() => checkCloudVersion(), 2000);
+    }
+  }
+})();
+
+// ── Save GAS URL ──
+function saveGasUrl() {
+  const url = document.getElementById('gasUrlInput').value.trim();
+  if (!url.startsWith('https://')) { toast('❌ 請輸入有效的 GAS URL', 'err'); return; }
+  GAS_URL = url;
+  localStorage.setItem(CLOUD_CFG_KEY + '_url', url);
+  document.getElementById('btnPush').disabled = false;
+  document.getElementById('btnPull').disabled = false;
+  document.getElementById('cloudCfgRow').classList.remove('open');
+  setSyncStatus('idle', '已設定 GAS');
+  toast('✅ GAS URL 已儲存', 'ok');
+  testConnection();
+}
+
+function toggleCloudCfg() {
+  const row = document.getElementById('cloudCfgRow');
+  row.classList.toggle('open');
+  if (GAS_URL) document.getElementById('gasUrlInput').value = GAS_URL;
+}
+
+// ── Connection test ──
+async function testConnection() {
+  if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); return; }
+  const btn = document.getElementById('btnTest');
+  if (btn) { btn.textContent = '⏳ 測試中…'; btn.disabled = true; }
+  setSyncStatus('syncing', '連線測試中…');
+  try {
+    const r = await fetch(GAS_URL + '?action=heartbeat');
+    const d = await r.json();
+    if (d.ok) {
+      setSyncStatus('synced', 'GAS 連線正常');
+      toast('✅ GAS 連線正常', 'ok');
+    } else {
+      setSyncStatus('failed', 'GAS 回應錯誤');
+    }
+  } catch(e) {
+    setSyncStatus('offline', '無法連線');
+    toast('❌ 無法連線到 GAS', 'err');
+  }
+  if (btn) { btn.textContent = '🔌 測試'; btn.disabled = false; }
+}
+
+// ── Check cloud version vs local ──
+async function checkCloudVersion() {
+  if (!GAS_URL || !DB.length) return;
+  try {
+    const r = await fetch(GAS_URL + '?action=status');
+    const d = await r.json();
+    if (!d.ok || !d.attendance) return;
+    cloudSnap = d.attendance;
+    const cloudTs = new Date(d.attendance.timestamp);
+    const localTs = new Date(localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || 0);
+    if (cloudTs > localTs && d.attendance.recordCount > DB.length) {
+      // Cloud is newer — show banner
+      showCloudUpdateBanner(d.attendance);
+    }
+    setSyncStatus('synced', '');
+    document.getElementById('cloudTs').textContent = formatTs(d.attendance.timestamp);
+  } catch(e) {}
+}
+
+function showCloudUpdateBanner(snap) {
+  const existing = document.getElementById('cloudUpdateBanner');
+  if (existing) return;
+  const div = document.createElement('div');
+  div.id = 'cloudUpdateBanner';
+  div.style.cssText = 'background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 15px;margin:10px 20px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+  div.innerHTML = `☁️ <b>雲端有更新資料</b> — ${snap.recordCount} 筆 (${formatTs(snap.timestamp)})<button class="btn btn-cloud btn-pull" style="padding:4px 12px;font-size:11px" onclick="pullCloud(false);this.parentElement.remove()">⬇ 立即拉取</button><button style="background:none;border:none;cursor:pointer;color:#9ca3af;margin-left:auto" onclick="this.parentElement.remove()">✕</button>`;
+  const tabs = document.querySelector('.tabs');
+  if (tabs) tabs.parentNode.insertBefore(div, tabs);
+}
+
+// ── PUSH to Cloud ──
+async function pushCloud() {
+  if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); return; }
+  if (!DB.length) { toast('尚無資料可上傳', 'err'); return; }
+
+  setSyncStatus('syncing', '上傳中…');
+  setProgress(0, true);
+  const summary = buildCloudSummary();
+  const totalChunks = Math.ceil(DB.length / CHUNK_SIZE);
+  let allOk = true;
+
+  try {
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = DB.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      setProgress((i / totalChunks) * 100);
+
+      const payload = {
+        action      : 'push',
+        tool        : 'attendance',
+        chunk       : i,
+        totalChunks,
+        records     : chunk,
+        recordCount : DB.length,
+        importLog   : IMPORT_LOG,
+        summary,
+        pushedBy    : 'attendance_cloud_v1',
+      };
+
+      const r = await fetch(GAS_URL, {
+        method      : 'POST',
+        headers     : { 'Content-Type': 'application/json' },
+        body        : JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!d.ok) { allOk = false; break; }
+    }
+
+    setProgress(100);
+    if (allOk) {
+      lastSyncTs = new Date().toISOString();
+      localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
+      setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
+      toast(`✅ 上傳成功 — ${DB.length} 筆 / ${totalChunks} 批`, 'ok');
+      // Send upload success to Telegram
+      sendTgMsg(`✅ <b>VRT 考勤雲端上傳成功</b>\n📋 記錄數: ${DB.length}\n📦 批次數: ${totalChunks}\n⏱ ${formatTs(lastSyncTs)}`);
+    } else {
+      setSyncStatus('failed', '上傳失敗');
+      toast('❌ 部分上傳失敗，請重試', 'err');
+    }
+  } catch(e) {
+    setSyncStatus('offline', '連線失敗');
+    toast('❌ 連線失敗：' + e.message, 'err');
+  }
+  setTimeout(() => setProgress(0, false), 2000);
+}
+
+// ── PULL from Cloud ──
+async function pullCloud(silent) {
+  if (!GAS_URL) { if (!silent) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); } return; }
+
+  setSyncStatus('syncing', '拉取中…');
+  setProgress(0, true);
+
+  try {
+    // Step 1: Get meta
+    const r1 = await fetch(GAS_URL + '?action=pull&meta=1');
+    const d1 = await r1.json();
+
+    if (!d1.ok) { setSyncStatus('failed', '拉取失敗'); toast('❌ 拉取失敗', 'err'); return; }
+    if (d1.data === null) {
+      setSyncStatus('idle', '雲端尚無資料');
+      if (!silent) toast('☁️ 雲端尚無資料', 'info');
+      setProgress(0, false); return;
+    }
+
+    // Step 2: Confirm if local DB is not empty
+    if (!silent && DB.length > 0) {
+      const cloudRecs = d1.chunked ? (d1.meta?.recordCount || 0) : (d1.data?.recordCount || 0);
+      const cloudTs   = d1.chunked ? (d1.meta?.timestamp || '') : '';
+      if (!confirm(`雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs)})\n本地有 ${DB.length} 筆。\n\n拉取後會合併（不重複日期）。\n確定拉取？`)) {
+        setSyncStatus('idle', ''); setProgress(0, false); return;
+      }
+    }
+
+    let pullDB    = [];
+    let pullLog   = [];
+    let recordCount = 0;
+
+    if (!d1.chunked) {
+      // Non-chunked
+      const data = d1.data || {};
+      pullDB  = data.records || [];
+      pullLog = data.importLog || [];
+      recordCount = pullDB.length;
+      setProgress(100);
+    } else {
+      // Chunked
+      const meta   = d1.meta;
+      const chunks = meta.totalChunks || 1;
+      pullLog = meta.importLog || [];
+      recordCount = meta.recordCount || 0;
+
+      for (let i = 0; i < chunks; i++) {
+        setProgress((i / chunks) * 80);
+        const r = await fetch(`${GAS_URL}?action=pull&chunk=${i}`);
+        const d = await r.json();
+        pullDB.push(...(d.records || []));
+      }
+      setProgress(90);
+    }
+
+    // Step 3: Merge (avoid duplicate dates)
+    const existingDates = new Set(IMPORT_LOG);
+    const newRecs = pullDB.filter(r => r.date && !existingDates.has(r.date));
+    const newDates = [...new Set(newRecs.map(r => r.date))];
+
+    if (newRecs.length > 0) {
+      DB.push(...newRecs);
+      newDates.forEach(d => { if (!IMPORT_LOG.includes(d)) IMPORT_LOG.push(d); });
+      saveDB();
+      toast(`✅ 拉取完成 — 新增 ${newRecs.length} 筆 / ${newDates.length} 天`, 'ok');
+    } else {
+      if (!silent) toast('☁️ 本地已是最新，無新資料', 'info');
+    }
+
+    lastSyncTs = new Date().toISOString();
+    setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
+    setProgress(100);
+
+    // Auto-navigate to daily tab if new data
+    if (newRecs.length > 0) {
+      setTimeout(() => {
+        const t = [...document.querySelectorAll('.tab')].find(x => x.textContent.includes('每日報告') || x.textContent.includes('Daily'));
+        if (t) t.click();
+      }, 1000);
+    }
+  } catch(e) {
+    setSyncStatus('offline', '連線失敗');
+    toast('❌ 拉取失敗：' + e.message, 'err');
+  }
+  setTimeout(() => setProgress(0, false), 2000);
+}
+
+// ── Send Telegram via GAS (CORS bypass) ──
+async function sendTgMsg(text) {
+  if (!GAS_URL) return;
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'telegram', text }),
+    });
+  } catch(e) { console.warn('sendTgMsg error:', e); }
+}
+
+// ── Send via GAS (from Telegram modal) ──
+async function sendViaTg() {
+  const text = document.getElementById('tgContent')?.textContent;
+  if (!text) { toast('無內容', 'err'); return; }
+  if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); return; }
+  const btn = document.getElementById('btnTgSend');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ 傳送中…'; }
+  try {
+    const r = await fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'telegram', text }),
+    });
+    const d = await r.json();
+    if (d.ok) { toast('✅ 已發送到 Telegram 群組', 'ok'); }
+    else       { toast('❌ 傳送失敗：' + (d.error || ''), 'err'); }
+  } catch(e) {
+    toast('❌ 連線失敗：' + e.message, 'err');
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = '<span data-zh="📤 發送至群組" data-en="📤 Send">📤 發送至群組</span>'; }
+}
+
+// ── Cloud summary for push metadata ──
+function buildCloudSummary() {
+  const dates  = allDates();
+  const grands = dates.map(grandForDate).filter(Boolean);
+  const totalRep = grands.reduce((s,g) => { const c = calc(g); return s + c.report; }, 0);
+  const totalAtt = grands.reduce((s,g) => s + g.att, 0);
+  const avgRate  = totalRep > 0 ? (totalAtt / totalRep * 100).toFixed(1) + '%' : '—';
+  const totalJoin   = grands.reduce((s,g) => s + g.join, 0);
+  const totalResign = grands.reduce((s,g) => s + g.resign, 0);
+  return {
+    recordCount : DB.length,
+    latestDate  : dates[dates.length - 1] || '',
+    totalDays   : dates.length,
+    avgRate,
+    totalJoin,
+    totalResign,
+  };
+}
+
+// ── Auto-save (debounced 45s after each import) ──
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  if (!GAS_URL) return;
+  autoSaveTimer = setTimeout(() => {
+    pushCloud();
+  }, 45000);
+}
+
+// ── UI helpers ──
+function setSyncStatus(status, label) {
+  syncStatus = status;
+  const dot = document.getElementById('cloudDot');
+  const lbl = document.getElementById('cloudLbl');
+  if (dot) { dot.className = 'cloud-dot ' + status; }
+  if (lbl) {
+    const statusLabels = {
+      idle    : GAS_URL ? 'GAS 已設定' : '雲端未設定',
+      syncing : '同步中…',
+      synced  : '✅ 已同步',
+      failed  : '❌ 同步失敗',
+      offline : '📴 離線',
+    };
+    lbl.textContent = label || statusLabels[status] || status;
+  }
+}
+
+function setProgress(pct, show) {
+  const bar  = document.getElementById('cloudProg');
+  const fill = document.getElementById('cloudProgFill');
+  if (!bar || !fill) return;
+  if (show !== undefined) bar.classList[show ? 'add' : 'remove']('active');
+  fill.style.width = pct + '%';
+}
+
+function formatTs(ts) {
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Phnom_Penh', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+  catch(e) { return ts.slice(0, 16); }
+}
+
+// ── Override saveDB to trigger auto-push ──
+const _saveDB_orig = saveDB;
+// (Already patched below to call scheduleAutoSave)
+
+</script>
+</body>
+</html>

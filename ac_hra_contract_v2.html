@@ -1,0 +1,943 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AC HRA 合約管理 v2</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Lora:wght@600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="./shared/hra.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="./shared/cloud.js"></script>
+<script src="./shared/telegram.js"></script>
+<script src="./shared/hra-modules.js"></script>
+<style>
+/* Module-specific additions */
+.status-active{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+.status-probation{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}
+.status-expiring{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
+.status-expired{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+.status-terminated{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb}
+.status-extended{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
+.exp-row-30{background:#fff7ed!important}
+.exp-row-7{background:#fff1f2!important}
+.tg-preview{background:#1e2640;color:#e2e8f0;border-radius:8px;padding:14px;font-family:var(--f-mono);font-size:11px;line-height:1.8;white-space:pre-wrap;max-height:300px;overflow-y:auto;margin-top:10px}
+</style>
+</head>
+<body>
+<div class="hra-layout">
+
+<!-- SIDEBAR -->
+<div class="hra-sidebar">
+  <div class="sb-logo">
+    <h1>AC HRA 合約管理</h1>
+    <p>Contract Tracker · v2</p>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-sect">功能</div>
+    <button class="sb-btn on" onclick="goTab('dashboard',this)"><span class="ic">📊</span>儀表板</button>
+    <button class="sb-btn"    onclick="goTab('contracts',this)"><span class="ic">📋</span>合約列表</button>
+    <button class="sb-btn"    onclick="goTab('probation',this)"><span class="ic">🔍</span>試用期</button>
+    <button class="sb-btn"    onclick="goTab('expiring',this)"><span class="ic">⚠️</span>到期預警</button>
+    <button class="sb-btn"    onclick="goTab('import',this)"><span class="ic">📥</span>匯入</button>
+    <button class="sb-btn"    onclick="goTab('reports',this)"><span class="ic">📱</span>報表通報</button>
+    <button class="sb-btn"    onclick="goTab('settings',this)"><span class="ic">⚙️</span>設定</button>
+    <div class="sb-div"></div>
+    <div class="sb-sect">系統</div>
+    <div class="sb-gas-row">
+      <div class="sb-gas-dot" id="sb-gas-dot"></div>
+      <span class="sb-gas-lbl" id="sb-gas-lbl">未連線</span>
+    </div>
+    <div class="sb-gas-lbl" id="sb-tg-lbl" style="font-size:9px;color:#3d5a70;margin-top:2px">TG Queue: 0</div>
+  </div>
+  <div class="sb-bot">
+    <div style="color:#3d5a70;font-size:9px">AC HRA · VRT Sihanoukville</div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="hra-main">
+  <!-- Header -->
+  <div class="hra-header">
+    <div class="hra-logo">
+      <div class="hra-logo-icon">📋</div>
+      <div>
+        <div class="hra-logo-title">合約管理系統</div>
+        <div class="hra-logo-sub">Contract Tracker v2 · AC HRA</div>
+      </div>
+    </div>
+    <div class="hra-header-space"></div>
+    <div class="hra-sync-ind" onclick="HRA.Sync.push()">
+      <span class="sync-dot" id="sync-dot-main"></span>
+      <span class="sync-lbl" id="sync-lbl-main">雲端未設定</span>
+    </div>
+    <div class="hra-lang">
+      <button class="hra-lb on" id="lb-zh" onclick="setLang('zh')">中</button>
+      <button class="hra-lb" id="lb-en" onclick="setLang('en')">EN</button>
+      <button class="hra-lb" id="lb-km" onclick="setLang('km')">ខ្មែរ</button>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="HRA.Sync.push()">⬆ Push</button>
+    <button class="btn btn-ghost btn-sm"   onclick="HRA.Sync.pull()">⬇ Pull</button>
+  </div>
+  <!-- Progress -->
+  <div class="hra-prog" id="hra-prog"><div class="hra-prog-fill" id="hra-prog-fill"></div></div>
+
+  <!-- Content -->
+  <div class="hra-content">
+
+    <!-- ══ DASHBOARD ══ -->
+    <div class="tab-page on" id="tab-dashboard">
+      <div class="ph"><h2>📊 儀表板</h2><p>合約及試用期管理總覽 · Contract & Probation Overview</p></div>
+      <div class="kpi-grid" id="kpi-strip"></div>
+      <div class="g2">
+        <div class="card"><div class="card-title">合約狀態分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-status"></canvas></div></div>
+        <div class="card"><div class="card-title">部門合約分佈</div><div class="ch-wrap" style="height:220px"><canvas id="ch-dept"></canvas></div></div>
+      </div>
+      <div class="card">
+        <div class="card-title">⚠️ 30天內到期合約</div>
+        <div id="exp-preview-list"></div>
+      </div>
+    </div>
+
+    <!-- ══ CONTRACTS ══ -->
+    <div class="tab-page" id="tab-contracts">
+      <div class="ph"><h2>📋 合約列表</h2><p>Contract List — 員工合約追蹤</p></div>
+      <div class="frow">
+        <input class="search-box" id="search-contracts" placeholder="搜尋姓名/編號/部門…" oninput="renderContracts()">
+        <select class="form-input" id="filter-status" onchange="renderContracts()" style="min-width:110px">
+          <option value="">全部狀態</option>
+          <option value="active">在職</option>
+          <option value="probation">試用期</option>
+          <option value="expiring">即將到期</option>
+          <option value="expired">已到期</option>
+          <option value="terminated">離職</option>
+        </select>
+        <select class="form-input" id="filter-dept" onchange="renderContracts()" style="min-width:110px">
+          <option value="">全部部門</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="openAddModal()">＋ 新增合約</button>
+        <button class="btn btn-ghost btn-sm"   onclick="exportExcel()">⬇ Excel</button>
+      </div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>編號</th><th>姓名</th><th>部門</th><th>職位</th>
+            <th>合約類型</th><th>入職日</th><th>合約到期</th>
+            <th>試用到期</th><th>剩餘天數</th><th>狀態</th><th>備註</th><th>操作</th>
+          </tr></thead>
+          <tbody id="contract-tbody"></tbody>
+        </table>
+      </div>
+      <div id="contract-empty" class="empty" style="display:none">
+        <div class="empty-ic">📋</div><p>尚無合約資料，請新增或從雲端拉取</p>
+      </div>
+    </div>
+
+    <!-- ══ PROBATION ══ -->
+    <div class="tab-page" id="tab-probation">
+      <div class="ph"><h2>🔍 試用期追蹤</h2><p>Probation Tracking — 試用期狀態監控</p></div>
+      <div class="frow">
+        <input class="search-box" id="search-prob" placeholder="搜尋…" oninput="renderProbation()">
+        <select class="form-input" id="filter-prob-status" onchange="renderProbation()" style="min-width:120px">
+          <option value="">全部</option>
+          <option value="probation">試用中</option>
+          <option value="expiring">即將到期</option>
+          <option value="overdue">逾期未評估</option>
+        </select>
+      </div>
+      <div class="kpi-grid" id="prob-kpi" style="margin-bottom:14px"></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>編號</th><th>姓名</th><th>部門</th><th>職位</th>
+            <th>類別</th><th>試用開始</th><th>試用到期</th>
+            <th>剩餘天數</th><th>狀態</th><th>備註</th><th>操作</th>
+          </tr></thead>
+          <tbody id="prob-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ══ EXPIRING ══ -->
+    <div class="tab-page" id="tab-expiring">
+      <div class="ph"><h2>⚠️ 到期預警</h2><p>Expiry Alerts — 合約及試用期到期提醒</p></div>
+      <div class="frow">
+        <select class="form-input" id="exp-window" onchange="renderExpiring()" style="min-width:130px">
+          <option value="7">7 天內</option>
+          <option value="14">14 天內</option>
+          <option value="30" selected>30 天內</option>
+          <option value="60">60 天內</option>
+          <option value="90">90 天內</option>
+        </select>
+        <button class="btn btn-tg btn-sm" onclick="sendExpiryAlert()">📱 發送 Telegram 預警</button>
+      </div>
+      <div id="expiring-cards"></div>
+    </div>
+
+    <!-- ══ IMPORT ══ -->
+    <div class="tab-page" id="tab-import">
+      <div class="ph"><h2>📥 匯入資料</h2><p>Import — Excel 批次匯入員工合約</p></div>
+      <div class="card">
+        <div class="card-title">Excel 範本格式</div>
+        <div style="font-size:11px;color:var(--c-muted);margin-bottom:12px;line-height:1.8">
+          第一列為標題：<code style="background:#f3f4f6;padding:1px 5px;border-radius:3px">編號, 姓名, 部門, 職位, 類別, 入職日, 合約到期, 試用到期, 合約類型, 備註</code>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()">⬇ 下載範本</button>
+      </div>
+      <div class="card">
+        <div class="card-title">上傳 Excel 檔案</div>
+        <div class="drop-zone" id="dz-import" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dzDrop(event)">
+          <input type="file" accept=".xlsx,.xls" onchange="dzSelect(event)">
+          <div style="font-size:32px;margin-bottom:8px">📥</div>
+          <div style="font-weight:600;margin-bottom:4px">拖放 Excel 檔案到這裡</div>
+          <div style="font-size:11px;color:var(--c-muted)">.xlsx / .xls · 支援批次匯入</div>
+        </div>
+        <div id="import-list" style="margin-top:10px"></div>
+        <div id="import-preview" style="display:none;margin-top:12px">
+          <div class="card-title">解析預覽</div>
+          <div id="preview-content"></div>
+          <div style="display:flex;gap:8px;margin-top:10px">
+            <button class="btn btn-primary btn-sm" onclick="confirmImport()">✓ 確認匯入</button>
+            <button class="btn btn-ghost btn-sm"   onclick="cancelImport()">取消</button>
+          </div>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-primary btn-sm" id="btn-parse" onclick="parseFiles()" disabled>🔍 解析預覽</button>
+          <span id="parse-msg" style="font-size:12px;color:var(--c-muted)"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ REPORTS ══ -->
+    <div class="tab-page" id="tab-reports">
+      <div class="ph"><h2>📱 報表通報</h2><p>Reports — Telegram 推送報表</p></div>
+      <div class="g2">
+        <div class="card">
+          <div class="card-title">生成報表</div>
+          <div class="form-group" style="margin-bottom:10px">
+            <label class="form-label">報表類型</label>
+            <select class="form-input" id="report-type" onchange="updateTgPreview()">
+              <option value="summary">合約總覽</option>
+              <option value="expiring">到期預警（30天）</option>
+              <option value="probation">試用期狀態</option>
+              <option value="monthly">月度報告</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-tg btn-sm" onclick="sendReport()">📱 發送 Telegram</button>
+            <button class="btn btn-ghost btn-sm" onclick="updateTgPreview()">🔄 刷新預覽</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">📊 本月摘要</div>
+          <div id="monthly-stats"></div>
+        </div>
+      </div>
+      <div class="tg-preview" id="tg-preview"></div>
+    </div>
+
+    <!-- ══ SETTINGS ══ -->
+    <div class="tab-page" id="tab-settings">
+      <div class="ph"><h2>⚙️ 設定</h2><p>Settings — 系統設定</p></div>
+      <div class="card">
+        <div class="card-title">⚙️ 系統設定</div>
+        <div id="settings-form-container"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">💾 資料管理</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="backupJSON()">📦 備份 JSON</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restore-file').click()">📂 還原 JSON</button>
+          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(event)">
+          <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearAll()">🗑 清除所有資料</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">🗒 事件紀錄</div>
+        <div class="log-box" id="hra-event-log"><div class="ll info">— 等待事件 —</div></div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+</div><!-- /layout -->
+
+<!-- ADD/EDIT MODAL -->
+<div class="modal-bg" id="modal-contract">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-title-text">新增合約記錄</span>
+      <button onclick="HRA.UI.closeModal('modal-contract')" style="background:none;border:none;font-size:20px;cursor:pointer;color:var(--c-muted)">✕</button>
+    </div>
+    <div class="form-grid cols3">
+      <div class="form-group"><label class="form-label">員工編號 *</label><input class="form-input" id="m-empid"></div>
+      <div class="form-group"><label class="form-label">英文姓名 *</label><input class="form-input" id="m-name"></div>
+      <div class="form-group"><label class="form-label">柬文姓名</label><input class="form-input" id="m-namekm"></div>
+      <div class="form-group"><label class="form-label">部門 *</label>
+        <select class="form-input" id="m-dept">
+          <option>Line 1</option><option>Line 2</option><option>Line 3</option><option>Line 4</option>
+          <option>Line 5</option><option>Line 6</option><option>Line 7</option><option>Line 8</option>
+          <option>LINE 09</option><option>LINE 10</option><option>LINE 11</option>
+          <option>Cutting</option><option>Packing</option><option>QC</option><option>Warehouse</option>
+          <option>Maintenance</option><option>HRA</option><option>Admin</option><option>Management</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">職位 *</label><input class="form-input" id="m-position"></div>
+      <div class="form-group"><label class="form-label">職位類別</label>
+        <select class="form-input" id="m-category">
+          <option value="worker">普工 Worker</option>
+          <option value="technical">技術 Technical</option>
+          <option value="management">管理 Management</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">合約類型</label>
+        <select class="form-input" id="m-ctype" onchange="onCtypeChange()">
+          <option value="fixed_term">定期合約 Fixed-term</option>
+          <option value="permanent">無限期 Permanent (UDC)</option>
+          <option value="probation">試用期 Probation Only</option>
+          <option value="expat">外籍主管 Expat</option>
+        </select>
+      </div>
+      <div class="form-group"><label class="form-label">入職日期 *</label><input class="form-input" type="date" id="m-joindate" onchange="calcProbEnd()"></div>
+      <div class="form-group"><label class="form-label">合約到期日</label><input class="form-input" type="date" id="m-enddate"></div>
+      <div class="form-group"><label class="form-label">試用期（天）</label><input class="form-input" type="number" id="m-probdays" value="90" onchange="calcProbEnd()" min="30" max="180"></div>
+      <div class="form-group"><label class="form-label">試用到期（自動）</label><input class="form-input" type="date" id="m-probend" readonly style="background:#f7f8fa"></div>
+      <div class="form-group"><label class="form-label">月薪 (USD)</label><input class="form-input" type="number" id="m-salary" step="0.01"></div>
+      <div class="form-group full"><label class="form-label">HRA 備註</label><textarea class="form-input" id="m-remark" rows="2"></textarea></div>
+    </div>
+    <div class="modal-acts">
+      <button class="btn btn-ghost" onclick="HRA.UI.closeModal('modal-contract')">取消</button>
+      <button class="btn btn-primary" onclick="saveContract()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// AC HRA Contract Tracker v2
+// ══════════════════════════════════════════════════════════
+const MODULE     = 'contract';
+const STORE_KEY  = 'ac_hra_contract_db';
+const DEPT_KEY   = 'ac_hra_contract_depts';
+
+let contracts = [];
+let _editId   = null;
+let _importBuf= [];
+let _pendingFiles = [];
+
+// ── Load / Save ──
+function loadData() {
+  try { contracts = JSON.parse(localStorage.getItem(STORE_KEY) || '[]'); } catch(e) { contracts = []; }
+}
+function saveData() {
+  localStorage.setItem(STORE_KEY, JSON.stringify(contracts));
+  HRA.Sync.schedPush();
+  renderAll();
+}
+
+// ── Sync helpers ──
+function getCloudData() {
+  const summary = {
+    total    : contracts.length,
+    active   : contracts.filter(c => c.status === 'active').length,
+    probation: contracts.filter(c => c.status === 'probation').length,
+    expiring : contracts.filter(c => c.status === 'expiring').length,
+    expired  : contracts.filter(c => c.status === 'expired').length,
+  };
+  return { records: contracts, summary };
+}
+
+function onCloudPull(records) {
+  if (!records || !records.length) return;
+  if (contracts.length > 0 && !confirm(`雲端有 ${records.length} 筆資料，覆蓋本地 ${contracts.length} 筆？`)) return;
+  contracts = Array.isArray(records) ? records : (records.contracts || records.records || []);
+  localStorage.setItem(STORE_KEY, JSON.stringify(contracts));
+  renderAll();
+  HRA.UI.toast(`✅ 已載入 ${contracts.length} 筆合約`, 'ok');
+}
+
+// ── Status compute ──
+function computeStatus(c) {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const probEnd = c.probEndDate ? new Date(c.probEndDate) : null;
+  const contEnd = c.endDate ? new Date(c.endDate) : null;
+  if (c.status === 'terminated') return 'terminated';
+  // Check probation first
+  if (probEnd && probEnd >= today) {
+    const days = Math.ceil((probEnd - today) / 86400000);
+    if (days <= 14) return 'expiring';
+    return 'probation';
+  }
+  if (!contEnd) return 'active';
+  const daysToContEnd = Math.ceil((contEnd - today) / 86400000);
+  if (daysToContEnd < 0) return 'expired';
+  if (daysToContEnd <= 30) return 'expiring';
+  return 'active';
+}
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null;
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const t = new Date(); t.setHours(0,0,0,0);
+  return Math.ceil((d - t) / 86400000);
+}
+
+function statusBadge(status) {
+  const map = {
+    active    : ['在職 Active',      'status-active'],
+    probation : ['試用期 Probation', 'status-probation'],
+    expiring  : ['即將到期 Expiring','status-expiring'],
+    expired   : ['已到期 Expired',   'status-expired'],
+    terminated: ['離職 Terminated',  'status-terminated'],
+    extended  : ['已續約 Extended',  'status-extended'],
+  };
+  const [label, cls] = map[status] || ['—', 'badge-muted'];
+  return `<span class="badge ${cls}" style="font-size:9px">${label}</span>`;
+}
+
+// ── NAVIGATION ──
+function goTab(id, el) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.sb-btn').forEach(b => b.classList.remove('on'));
+  document.getElementById('tab-' + id).classList.add('on');
+  if (el) el.classList.add('on');
+  if (id === 'dashboard') renderDashboard();
+  if (id === 'contracts') renderContracts();
+  if (id === 'probation') renderProbation();
+  if (id === 'expiring')  renderExpiring();
+  if (id === 'reports')   { updateTgPreview(); renderMonthlyStats(); }
+  if (id === 'settings')  { HRA.Settings.renderForm('settings-form-container'); }
+}
+
+// ── RENDER ALL ──
+function renderAll() {
+  renderDashboard();
+  renderContracts();
+  renderProbation();
+  populateDeptFilter();
+}
+
+// ── DASHBOARD ──
+function renderDashboard() {
+  const all  = contracts.map(c => ({ ...c, _status: computeStatus(c) }));
+  const tot  = all.length;
+  const act  = all.filter(c => c._status === 'active').length;
+  const prob = all.filter(c => c._status === 'probation').length;
+  const exp  = all.filter(c => c._status === 'expiring').length;
+  const xpd  = all.filter(c => c._status === 'expired').length;
+  const ter  = all.filter(c => c._status === 'terminated').length;
+
+  document.getElementById('kpi-strip').innerHTML = [
+    kpi('總合約', tot, '', ''),
+    kpi('在職', act, '', 'good'),
+    kpi('試用期', prob, '', 'info'),
+    kpi('30天到期', exp, '', exp > 0 ? 'warn' : ''),
+    kpi('已到期', xpd, '', xpd > 0 ? 'bad' : ''),
+    kpi('離職', ter, '', ''),
+  ].join('');
+
+  // Status chart
+  HRA.Charts.make('ch-status', {
+    type: 'doughnut',
+    data: { labels:['在職','試用期','即將到期','已到期','離職'], datasets:[{ data:[act,prob,exp,xpd,ter], backgroundColor:['#10b981','#3b82f6','#f59e0b','#ef4444','#9ca3af'], borderWidth:2, borderColor:'#fff' }] },
+    options: { ...HRA.Charts.doughnutOpts(), plugins:{ legend:{ position:'right', labels:{ font:{ size:10 } } } } }
+  });
+
+  // Dept chart
+  const depts = {};
+  all.filter(c => c._status !== 'terminated').forEach(c => { depts[c.dept] = (depts[c.dept]||0)+1; });
+  const deptEntries = Object.entries(depts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  HRA.Charts.make('ch-dept', {
+    type:'bar',
+    data:{ labels:deptEntries.map(e=>e[0]), datasets:[{ label:'人數', data:deptEntries.map(e=>e[1]), backgroundColor:'#1a6e5c', borderRadius:4 }] },
+    options:{ ...HRA.Charts.barOpts(false), plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true }, x:{ ticks:{ font:{ size:10 } } } } }
+  });
+
+  // 30-day expiry preview
+  const soon = all.filter(c => {
+    const du = daysUntil(c.endDate);
+    return du !== null && du >= 0 && du <= 30 && c._status !== 'terminated';
+  }).sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
+  document.getElementById('exp-preview-list').innerHTML = soon.length === 0
+    ? '<div class="empty" style="padding:20px"><p>✅ 30天內無合約到期</p></div>'
+    : `<table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr><th>編號</th><th>姓名</th><th>部門</th><th>合約到期</th><th>剩餘天數</th><th>狀態</th></tr></thead>
+        <tbody>${soon.map(c=>{
+          const d=daysUntil(c.endDate);
+          return `<tr class="${d<=7?'exp-row-7':d<=30?'exp-row-30':''}">
+            <td class="td-mono">${c.empId||'—'}</td><td>${c.name}</td><td>${c.dept}</td>
+            <td class="td-mono">${c.endDate||'—'}</td>
+            <td><b style="color:${d<=7?'#dc2626':d<=14?'#d97706':'#92400e'}">${d} 天</b></td>
+            <td>${statusBadge(c._status)}</td></tr>`;
+        }).join('')}</tbody>
+      </table>`;
+}
+
+// ── CONTRACTS TABLE ──
+function renderContracts() {
+  const q   = document.getElementById('search-contracts')?.value?.toLowerCase() || '';
+  const sf  = document.getElementById('filter-status')?.value || '';
+  const df  = document.getElementById('filter-dept')?.value || '';
+  const rows = contracts
+    .map(c => ({ ...c, _status: computeStatus(c) }))
+    .filter(c =>
+      (!q || c.name?.toLowerCase().includes(q) || c.empId?.toLowerCase().includes(q) || c.dept?.toLowerCase().includes(q)) &&
+      (!sf || c._status === sf) &&
+      (!df || c.dept === df)
+    );
+
+  const tbody = document.getElementById('contract-tbody');
+  const empty = document.getElementById('contract-empty');
+  if (!rows.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = rows.map(c => {
+    const du  = daysUntil(c.endDate);
+    const pdu = daysUntil(c.probEndDate);
+    const cls = du !== null && du <= 7 ? 'exp-row-7' : du !== null && du <= 30 ? 'exp-row-30' : '';
+    return `<tr class="${cls}">
+      <td class="td-mono">${c.empId||'—'}</td>
+      <td><b>${c.name}</b>${c.nameKm?`<br><span style="font-size:10px;color:var(--c-muted)">${c.nameKm}</span>`:''}</td>
+      <td>${c.dept}</td>
+      <td style="max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.position}</td>
+      <td>${ctypeLabel(c.contractType)}</td>
+      <td class="td-mono">${c.joinDate||'—'}</td>
+      <td class="td-mono">${c.endDate||'—'}${du!==null?`<br><span style="font-size:10px;color:${du<=7?'#dc2626':du<=30?'#d97706':'var(--c-muted)'}">${du}天</span>`:''}</td>
+      <td class="td-mono">${c.probEndDate||'—'}${pdu!==null&&pdu>=0?`<br><span style="font-size:10px;color:var(--c-muted)">${pdu}天</span>`:''}</td>
+      <td class="td-mono"><b style="color:${du!==null&&du<=7?'#dc2626':du!==null&&du<=30?'#d97706':'var(--c-text)'}">${du!==null?du+'天':'—'}</b></td>
+      <td>${statusBadge(c._status)}</td>
+      <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px;color:var(--c-muted)" title="${c.hrRemark||''}">${c.hrRemark||'—'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="editContract('${c.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteContract('${c.id}')">🗑</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function ctypeLabel(t) {
+  return { fixed_term:'定期', permanent:'無限期', probation:'試用', expat:'外籍' }[t] || t || '—';
+}
+
+// ── PROBATION ──
+function renderProbation() {
+  const q   = document.getElementById('search-prob')?.value?.toLowerCase() || '';
+  const sf  = document.getElementById('filter-prob-status')?.value || '';
+  const prob = contracts
+    .map(c => ({ ...c, _status: computeStatus(c) }))
+    .filter(c => {
+      const isProbOrExp = c.probEndDate && (c._status === 'probation' || (c._status === 'expiring' && daysUntil(c.probEndDate) !== null));
+      if (!isProbOrExp) return false;
+      if (q && !c.name?.toLowerCase().includes(q) && !c.empId?.toLowerCase().includes(q)) return false;
+      if (sf === 'probation' && c._status !== 'probation') return false;
+      if (sf === 'expiring'  && !(c._status === 'expiring' && daysUntil(c.probEndDate) !== null && daysUntil(c.probEndDate) >= 0)) return false;
+      if (sf === 'overdue'   && !(c.probEndDate && daysUntil(c.probEndDate) < 0 && c._status !== 'terminated')) return false;
+      return true;
+    });
+
+  const pending = prob.filter(c => c._status === 'probation').length;
+  const expiring = prob.filter(c => c._status === 'expiring').length;
+  document.getElementById('prob-kpi').innerHTML = [
+    kpi('試用中', pending, '', 'info'),
+    kpi('即將到期（14天）', expiring, '', expiring > 0 ? 'warn' : ''),
+  ].join('');
+
+  document.getElementById('prob-tbody').innerHTML = prob.length === 0
+    ? `<tr><td colspan="11" class="empty">尚無試用期資料</td></tr>`
+    : prob.map(c => {
+        const pdu = daysUntil(c.probEndDate);
+        const catMap = { worker:'普工', technical:'技術', management:'管理' };
+        return `<tr class="${pdu!==null&&pdu<=7?'exp-row-7':pdu!==null&&pdu<=14?'exp-row-30':''}">
+          <td class="td-mono">${c.empId||'—'}</td>
+          <td><b>${c.name}</b></td>
+          <td>${c.dept}</td>
+          <td>${c.position}</td>
+          <td><span class="badge badge-muted">${catMap[c.category]||c.category||'—'}</span></td>
+          <td class="td-mono">${c.joinDate||'—'}</td>
+          <td class="td-mono">${c.probEndDate||'—'}</td>
+          <td><b style="color:${pdu!==null&&pdu<=7?'#dc2626':pdu!==null&&pdu<=14?'#d97706':'var(--c-text)'}">${pdu!==null?pdu+'天':'—'}</b></td>
+          <td>${statusBadge(c._status)}</td>
+          <td style="font-size:11px;color:var(--c-muted)">${c.hrRemark||'—'}</td>
+          <td><button class="btn btn-ghost btn-sm" onclick="editContract('${c.id}')">✏️</button></td>
+        </tr>`;
+      }).join('');
+}
+
+// ── EXPIRING ──
+function renderExpiring() {
+  const days = parseInt(document.getElementById('exp-window')?.value) || 30;
+  const all  = contracts.map(c => ({ ...c, _status: computeStatus(c) }));
+  const expC = all.filter(c => {
+    const du = daysUntil(c.endDate);
+    return du !== null && du >= 0 && du <= days && c._status !== 'terminated';
+  }).sort((a,b) => new Date(a.endDate) - new Date(b.endDate));
+  const expP = all.filter(c => {
+    const pdu = daysUntil(c.probEndDate);
+    return pdu !== null && pdu >= 0 && pdu <= days && c._status !== 'terminated';
+  }).sort((a,b) => new Date(a.probEndDate) - new Date(b.probEndDate));
+
+  const render = (list, dateKey, label) => {
+    if (!list.length) return `<div class="alert alert-ok">✅ ${days}天內無${label}到期</div>`;
+    return list.map(c => {
+      const d = daysUntil(c[dateKey]);
+      const urgency = d <= 7 ? '#fee2e2' : d <= 14 ? '#fff7ed' : '#fef9c3';
+      return `<div style="border:1px solid var(--c-border);border-left:4px solid ${d<=7?'#ef4444':d<=14?'#f59e0b':'#fbbf24'};border-radius:8px;padding:12px;margin-bottom:8px;background:${urgency}">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><b style="font-size:13px">${c.name}</b> <span style="font-size:11px;color:var(--c-muted)">${c.empId||''}</span>
+            <br><span style="font-size:11px">${c.dept} · ${c.position}</span></div>
+          <div style="text-align:right"><div style="font-size:18px;font-weight:700;color:${d<=7?'#dc2626':d<=14?'#d97706':'#92400e'}">${d} 天</div>
+            <div style="font-size:10px;color:var(--c-muted)">${c[dateKey]}</div></div>
+        </div>
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">
+          ${statusBadge(c._status)}
+          <span class="badge badge-muted">${ctypeLabel(c.contractType)}</span>
+          ${c.hrRemark?`<span style="font-size:10px;color:var(--c-muted)">${c.hrRemark}</span>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  };
+
+  document.getElementById('expiring-cards').innerHTML = `
+    <h3 style="margin-bottom:8px">📋 合約到期 (${expC.length} 筆)</h3>${render(expC,'endDate','合約')}
+    <h3 style="margin:14px 0 8px">🔍 試用到期 (${expP.length} 筆)</h3>${render(expP,'probEndDate','試用期')}`;
+}
+
+// ── IMPORT ──
+function dzDrop(e) { e.preventDefault(); document.getElementById('dz-import').classList.remove('drag'); addFiles(e.dataTransfer.files); }
+function dzSelect(e) { addFiles(e.target.files); }
+function addFiles(fs) {
+  _pendingFiles = [...fs];
+  document.getElementById('btn-parse').disabled = !_pendingFiles.length;
+  document.getElementById('parse-msg').textContent = _pendingFiles.length ? `${_pendingFiles.length} 個檔案` : '';
+}
+
+async function parseFiles() {
+  if (!_pendingFiles.length) return;
+  const f = _pendingFiles[0];
+  document.getElementById('parse-msg').textContent = '解析中…';
+  try {
+    const { headers, rows } = await HRA.Upload.parseExcel(f, 0);
+    _importBuf = rows.map(r => {
+      const g = (h) => { const i = headers.findIndex(x => x?.includes?.(h)); return i >= 0 ? (r[i]||'') : ''; };
+      return {
+        id: 'c_' + Date.now() + '_' + Math.random().toString(36).slice(2),
+        empId       : g('編號') || g('ID') || g('Code'),
+        name        : g('英文') || g('Name') || g('姓名'),
+        nameKm      : g('柬文') || g('Khmer'),
+        dept        : g('部門') || g('Dept'),
+        position    : g('職位') || g('Position'),
+        category    : 'worker',
+        contractType: g('合約類型') || g('Type') || 'fixed_term',
+        joinDate    : g('入職') || g('Join'),
+        endDate     : g('合約到期') || g('End'),
+        probEndDate : g('試用') || g('Prob'),
+        probDays    : 90,
+        hrRemark    : g('備註') || g('Remark'),
+        salary      : g('薪資') || g('Salary'),
+        status      : 'active',
+        createdAt   : new Date().toISOString(),
+        updatedAt   : new Date().toISOString(),
+      };
+    }).filter(r => r.empId || r.name);
+
+    document.getElementById('import-preview').style.display = '';
+    document.getElementById('preview-content').innerHTML =
+      `<div class="alert alert-info">找到 ${_importBuf.length} 筆記錄</div>
+       <div class="tbl-wrap" style="max-height:200px"><table><thead><tr><th>編號</th><th>姓名</th><th>部門</th><th>合約到期</th></tr></thead>
+       <tbody>${_importBuf.slice(0,10).map(r=>`<tr><td>${r.empId}</td><td>${r.name}</td><td>${r.dept}</td><td>${r.endDate}</td></tr>`).join('')}${_importBuf.length>10?`<tr><td colspan="4" style="text-align:center;color:var(--c-muted)">… 還有 ${_importBuf.length-10} 筆</td></tr>`:''}</tbody></table></div>`;
+    document.getElementById('parse-msg').textContent = `✅ ${_importBuf.length} 筆可匯入`;
+  } catch(e) {
+    document.getElementById('parse-msg').textContent = '❌ 解析失敗：' + e.message;
+  }
+}
+
+function confirmImport() {
+  if (!_importBuf.length) return;
+  const newIds = new Set(_importBuf.map(r => r.empId).filter(Boolean));
+  contracts = contracts.filter(c => !newIds.has(c.empId));
+  contracts.push(..._importBuf);
+  saveData();
+  document.getElementById('import-preview').style.display = 'none';
+  _importBuf = [];
+  _pendingFiles = [];
+  HRA.UI.toast(`✅ 已匯入 ${contracts.length} 筆合約`, 'ok');
+  HRA.Logger.log('IMPORT', `Imported ${contracts.length} contracts`);
+}
+
+function cancelImport() {
+  _importBuf = [];
+  document.getElementById('import-preview').style.display = 'none';
+}
+
+function downloadTemplate() {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    ['編號','英文姓名','柬文姓名','部門','職位','類別','合約類型','入職日','合約到期','試用到期','月薪','備註'],
+    ['AC001','Sok Panha','សុខ បញ្ញា','Line 1','Operator','worker','fixed_term','2024-01-15','2025-01-14','2024-04-15','200',''],
+  ]);
+  ws['!cols'] = Array(12).fill({ wch: 14 });
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  XLSX.writeFile(wb, 'AC_HRA_Contract_Template.xlsx');
+}
+
+// ── ADD / EDIT ──
+function openAddModal() {
+  _editId = null;
+  document.getElementById('modal-title-text').textContent = '新增合約記錄';
+  ['empid','name','namekm','position','remark'].forEach(f => { const el = document.getElementById('m-' + f); if(el) el.value = ''; });
+  ['salary'].forEach(f => { const el = document.getElementById('m-' + f); if(el) el.value = ''; });
+  document.getElementById('m-probdays').value = '90';
+  document.getElementById('m-dept').value = 'Line 1';
+  document.getElementById('m-ctype').value = 'fixed_term';
+  document.getElementById('m-joindate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('m-enddate').value = '';
+  calcProbEnd();
+  HRA.UI.openModal('modal-contract');
+}
+
+function editContract(id) {
+  const c = contracts.find(x => x.id === id);
+  if (!c) return;
+  _editId = id;
+  document.getElementById('modal-title-text').textContent = '編輯合約記錄';
+  document.getElementById('m-empid').value    = c.empId    || '';
+  document.getElementById('m-name').value     = c.name     || '';
+  document.getElementById('m-namekm').value   = c.nameKm   || '';
+  document.getElementById('m-dept').value     = c.dept     || 'Line 1';
+  document.getElementById('m-position').value = c.position || '';
+  document.getElementById('m-ctype').value    = c.contractType || 'fixed_term';
+  document.getElementById('m-category').value = c.category || 'worker';
+  document.getElementById('m-joindate').value = c.joinDate || '';
+  document.getElementById('m-enddate').value  = c.endDate  || '';
+  document.getElementById('m-probdays').value = c.probDays || 90;
+  document.getElementById('m-probend').value  = c.probEndDate || '';
+  document.getElementById('m-salary').value   = c.salary   || '';
+  document.getElementById('m-remark').value   = c.hrRemark || '';
+  HRA.UI.openModal('modal-contract');
+}
+
+function calcProbEnd() {
+  const join = document.getElementById('m-joindate')?.value;
+  const days = parseInt(document.getElementById('m-probdays')?.value) || 90;
+  if (!join) return;
+  const d = new Date(join);
+  d.setDate(d.getDate() + days);
+  document.getElementById('m-probend').value = d.toISOString().slice(0,10);
+}
+
+function onCtypeChange() {
+  const t = document.getElementById('m-ctype')?.value;
+  document.getElementById('m-enddate').disabled = (t === 'permanent');
+  if (t === 'permanent') document.getElementById('m-enddate').value = '';
+  const probDaysMap = { worker: 90, technical: 90, management: 180 };
+  const cat = document.getElementById('m-category')?.value || 'worker';
+  document.getElementById('m-probdays').value = probDaysMap[cat] || 90;
+  calcProbEnd();
+}
+
+function saveContract() {
+  const empId   = document.getElementById('m-empid').value.trim();
+  const name    = document.getElementById('m-name').value.trim();
+  const joinDate= document.getElementById('m-joindate').value;
+  if (!name || !joinDate) { HRA.UI.toast('請填寫必填欄位（姓名、入職日期）', 'warn'); return; }
+
+  const obj = {
+    id          : _editId || ('c_' + Date.now() + '_' + Math.random().toString(36).slice(2)),
+    empId, name,
+    nameKm      : document.getElementById('m-namekm').value.trim(),
+    dept        : document.getElementById('m-dept').value,
+    position    : document.getElementById('m-position').value.trim(),
+    category    : document.getElementById('m-category').value,
+    contractType: document.getElementById('m-ctype').value,
+    joinDate,
+    endDate     : document.getElementById('m-enddate').value || null,
+    probDays    : parseInt(document.getElementById('m-probdays').value) || 90,
+    probEndDate : document.getElementById('m-probend').value || null,
+    salary      : parseFloat(document.getElementById('m-salary').value) || null,
+    hrRemark    : document.getElementById('m-remark').value.trim(),
+    status      : 'active',
+    alertSentDates: _editId ? (contracts.find(c=>c.id===_editId)?.alertSentDates||[]) : [],
+    createdAt   : _editId ? (contracts.find(c=>c.id===_editId)?.createdAt||new Date().toISOString()) : new Date().toISOString(),
+    updatedAt   : new Date().toISOString(),
+  };
+
+  if (_editId) {
+    const idx = contracts.findIndex(c => c.id === _editId);
+    if (idx >= 0) contracts[idx] = obj;
+  } else {
+    contracts.push(obj);
+  }
+
+  HRA.UI.closeModal('modal-contract');
+  saveData();
+  HRA.UI.toast((_editId ? '✅ 已更新：' : '✅ 已新增：') + name, 'ok');
+  HRA.Logger.log('CONTRACT', (_editId ? 'Updated: ' : 'Added: ') + name);
+}
+
+function deleteContract(id) {
+  const c = contracts.find(x => x.id === id);
+  if (!c || !confirm(`確認刪除 ${c.name} 的合約記錄？`)) return;
+  contracts = contracts.filter(x => x.id !== id);
+  saveData();
+  HRA.UI.toast('🗑 已刪除：' + c.name, 'warn');
+}
+
+// ── DEPT FILTER ──
+function populateDeptFilter() {
+  const depts = [...new Set(contracts.map(c=>c.dept).filter(Boolean))].sort();
+  const sel = document.getElementById('filter-dept');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">全部部門</option>' + depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');
+}
+
+// ── EXPORT EXCEL ──
+function exportExcel() {
+  if (!contracts.length) { HRA.UI.toast('無資料', 'warn'); return; }
+  const wb = XLSX.utils.book_new();
+  const hdr = ['員工編號','英文姓名','柬文姓名','部門','職位','類別','合約類型','入職日','合約到期','試用到期','狀態','月薪','HRA備註','更新時間'];
+  const rows = contracts.map(c => {
+    const st = computeStatus(c);
+    const stMap = { active:'在職', probation:'試用期', expiring:'即將到期', expired:'已到期', terminated:'離職', extended:'已續約' };
+    return [c.empId,c.name,c.nameKm,c.dept,c.position,c.category,ctypeLabel(c.contractType),c.joinDate,c.endDate,c.probEndDate,stMap[st]||st,c.salary,c.hrRemark,c.updatedAt?.slice(0,10)];
+  });
+  const ws = XLSX.utils.aoa_to_sheet([hdr,...rows]);
+  ws['!cols'] = hdr.map((_,i)=>({ wch:[10,16,18,12,14,8,10,10,10,10,10,8,20,10][i]||12 }));
+  const hdrRange = XLSX.utils.decode_range(ws['!ref']);
+  for (let C=hdrRange.s.c; C<=hdrRange.e.c; C++) {
+    const addr = XLSX.utils.encode_cell({r:0,c:C});
+    if (!ws[addr]) continue;
+    ws[addr].s = { fill:{fgColor:{rgb:'1A6E5C'}}, font:{color:{rgb:'FFFFFF'},bold:true} };
+  }
+  XLSX.utils.book_append_sheet(wb, ws, 'Contracts');
+  XLSX.writeFile(wb, `AC_HRA_Contracts_${new Date().toISOString().slice(0,10)}.xlsx`);
+  HRA.UI.toast('⬇ Excel 已下載', 'ok');
+}
+
+// ── REPORTS ──
+function updateTgPreview() {
+  const type = document.getElementById('report-type')?.value || 'summary';
+  document.getElementById('tg-preview').textContent = buildReport(type);
+}
+
+function buildReport(type) {
+  const SEP  = '─'.repeat(26);
+  const ts   = new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const all  = contracts.map(c=>({...c,_status:computeStatus(c)}));
+  const act  = all.filter(c=>c._status==='active').length;
+  const prob = all.filter(c=>c._status==='probation').length;
+  const exp  = all.filter(c=>c._status==='expiring').length;
+  const xpd  = all.filter(c=>c._status==='expired').length;
+
+  if (type === 'summary') {
+    return `【AC HRA 合約總覽 / Contract Summary】\n${SEP}\n📅 ${ts}\n${SEP}\n📋 總合約 / Total: ${all.length}\n✅ 在職 / Active: ${act}\n🔵 試用期 / Probation: ${prob}\n⚠️ 即將到期 / Expiring: ${exp}\n❌ 已到期 / Expired: ${xpd}\n${SEP}\n[EN] AC HRA Contract Summary\nTotal:${all.length} Active:${act} Probation:${prob} Expiring:${exp}\n${SEP}\n[KM] ព័ត៌មានសង្ខេបកិច្ចសន្យា\nសរុប:${all.length} សកម្ម:${act} សាកល្បង:${prob} ជិតផុត:${exp}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+  }
+  if (type === 'expiring') {
+    const list = all.filter(c=>{const d=daysUntil(c.endDate);return d!==null&&d>=0&&d<=30;}).sort((a,b)=>new Date(a.endDate)-new Date(b.endDate));
+    let txt = `⚠️ 【AC HRA 合約到期預警】\n${SEP}\n📅 ${ts}\n接下來 30 天到期合約：\n${SEP}\n`;
+    if (!list.length) { txt += '✅ 30天內無合約到期\n'; }
+    else list.forEach((c,i)=>{txt+=`${i+1}. ${c.name} (${c.empId||'—'})\n   📆 ${c.endDate} · 剩 ${daysUntil(c.endDate)} 天 · ${c.dept}\n`;});
+    txt += `${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+    return txt;
+  }
+  if (type === 'probation') {
+    const list = all.filter(c=>c._status==='probation').sort((a,b)=>new Date(a.probEndDate)-new Date(b.probEndDate));
+    let txt = `🔍 【AC HRA 試用期狀態】\n${SEP}\n📅 ${ts}\n試用期中 (${list.length} 人)：\n${SEP}\n`;
+    list.forEach((c,i)=>{const d=daysUntil(c.probEndDate);txt+=`${i+1}. ${c.name} · ${c.dept}\n   試用到 ${c.probEndDate}（剩 ${d} 天）\n`;});
+    txt += `${SEP}\n🏭 Vantage River Textiles`;
+    return txt;
+  }
+  // monthly
+  const mo = new Date().toISOString().slice(0,7);
+  const newThis = all.filter(c=>c.joinDate?.startsWith(mo)).length;
+  const expThis = all.filter(c=>c.endDate?.startsWith(mo)).length;
+  return `📊 【AC HRA 月度報告 / Monthly Report】\n${SEP}\n📅 ${mo}\n${SEP}\n本月新入職 / New Joins: ${newThis}\n本月合約到期 / Expiring this month: ${expThis}\n目前在職 / Active: ${act}\n試用期中 / On Probation: ${prob}\n${SEP}\n🏭 Vantage River Textiles · Sihanoukville`;
+}
+
+function sendReport() {
+  const type = document.getElementById('report-type')?.value || 'summary';
+  const text = buildReport(type);
+  HRA.TG.push(text);
+  HRA.UI.toast('📱 已加入 Telegram 佇列', 'info');
+  HRA.Logger.log('TG', 'Report queued: ' + type);
+}
+
+function sendExpiryAlert() {
+  const text = buildReport('expiring');
+  HRA.TG.push(text);
+  HRA.UI.toast('📱 到期預警已加入 Telegram 佇列', 'info');
+}
+
+function renderMonthlyStats() {
+  const mo  = new Date().toISOString().slice(0,7);
+  const all = contracts.map(c=>({...c,_status:computeStatus(c)}));
+  const newJ = all.filter(c=>c.joinDate?.startsWith(mo)).length;
+  const expM = all.filter(c=>c.endDate?.startsWith(mo)).length;
+  document.getElementById('monthly-stats').innerHTML = `
+    <div style="font-size:12px;line-height:2">
+      📅 統計月份：<b>${mo}</b><br>
+      🟢 本月新入職：<b>${newJ}</b><br>
+      ⚠️ 本月合約到期：<b>${expM}</b><br>
+      👥 目前在職：<b>${all.filter(c=>c._status!=='terminated').length}</b>
+    </div>`;
+}
+
+// ── BACKUP / RESTORE ──
+function backupJSON() {
+  const blob = new Blob([JSON.stringify({ contracts, ts: new Date().toISOString() })], { type:'application/json' });
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download = `AC_HRA_Contract_Backup_${new Date().toISOString().slice(0,10)}.json`; a.click();
+  HRA.UI.toast('📦 已備份', 'ok');
+}
+function restoreJSON(e) {
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ev => {
+    try {
+      const d = JSON.parse(ev.target.result);
+      contracts = d.contracts || d || [];
+      saveData();
+      HRA.UI.toast(`📂 已還原 ${contracts.length} 筆`, 'ok');
+    } catch(ex) { HRA.UI.toast('❌ 還原失敗：'+ex.message, 'err'); }
+  };
+  r.readAsText(f);
+}
+function clearAll() {
+  if (!confirm('確認清除所有合約資料？此操作不可還原！')) return;
+  contracts = [];
+  localStorage.removeItem(STORE_KEY);
+  renderAll();
+  HRA.UI.toast('🗑 已清除', 'warn');
+}
+
+// ── LANGUAGE ──
+function setLang(l) {
+  HRA.I18N.setLang(l);
+  ['lb-zh','lb-en','lb-km'].forEach((id,i)=>{ document.getElementById(id).classList.toggle('on',['zh','en','km'][i]===l); });
+}
+
+// ── KPI HELPER ──
+function kpi(label, val, sub, cls) {
+  return `<div class="kpi${cls?' '+cls:''}"><div class="kpi-val">${val}</div><div class="kpi-lbl">${label}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
+}
+
+// ── INIT ──
+window.addEventListener('DOMContentLoaded', () => {
+  loadData();
+  HRA.I18N.init();
+  HRA.TG.init();
+  HRA.Settings.init();
+  HRA.Sync.init(MODULE, getCloudData, onCloudPull);
+  HRA.UI.syncStatus('idle', '');
+  renderAll();
+  HRA.Logger.log('INIT', 'Contract Tracker v2 loaded');
+
+  // TQ status updater
+  setInterval(() => {
+    const el = document.getElementById('sb-tg-lbl');
+    if (el) el.textContent = 'TG Queue: ' + HRA.TG.status().queueLen;
+  }, 3000);
+});
+</script>
+</body>
+</html>
