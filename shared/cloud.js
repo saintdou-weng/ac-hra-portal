@@ -1,12 +1,11 @@
-/* ═══════════════════════════════════════════════════
-   AC HRA Cloud Sync Module — shared/cloud.js v1.0
-   Usage:
-     HRA.Cloud.init()
-     await HRA.Cloud.push('contract', records, summary, onProgress)
-     await HRA.Cloud.pull('contract', onProgress)
-     await HRA.Cloud.status()
-     await HRA.Cloud.heartbeat()
-═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   AC HRA Cloud Sync Module  shared/cloud.js  v1.1
+   ─────────────────────────────────────────────────────────────
+   CORS FIX (v1.1):
+   - POST uses Content-Type: 'text/plain'  ← prevents preflight
+   - fetch with redirect: 'follow'         ← handles GAS redirect
+   - GET uses plain URL params             ← always worked
+═══════════════════════════════════════════════════════════════ */
 (function(global){
   'use strict';
   const KEY     = 'ac_hra_';
@@ -14,57 +13,59 @@
   const TIMEOUT = 28000;
 
   const Cloud = {
-    gasUrl : '',
+    gasUrl: '',
 
     init() {
       this.gasUrl = localStorage.getItem(KEY + 'gas_url') || '';
     },
 
     setUrl(url) {
-      this.gasUrl = url;
-      localStorage.setItem(KEY + 'gas_url', url);
+      this.gasUrl = (url || '').trim();
+      localStorage.setItem(KEY + 'gas_url', this.gasUrl);
     },
 
     getUrl() {
       return this.gasUrl || localStorage.getItem(KEY + 'gas_url') || '';
     },
 
-    // ── Heartbeat ──
+    // ── Heartbeat ──────────────────────────────────────────
     async heartbeat() {
       const url = this.getUrl();
       if (!url) return { ok: false, error: 'No GAS URL' };
       try {
-        const r = await this._get('heartbeat');
-        return r;
+        const r = await this._get(url + '?action=heartbeat');
+        return r.ok ? { ok: true, data: r.data } : { ok: false, error: r.error };
       } catch(e) {
         return { ok: false, error: e.message };
       }
     },
 
-    // ── Status (all tools) ──
+    // ── Status (all tools) ─────────────────────────────────
     async status() {
       const url = this.getUrl();
       if (!url) return { ok: false, error: 'No GAS URL' };
       try {
-        return await this._get('status');
+        const r = await this._get(url + '?action=status');
+        if (!r.ok) return { ok: false, error: r.error };
+        return { ok: true, ...r.data };
       } catch(e) {
         return { ok: false, error: e.message };
       }
     },
 
-    // ── Push to cloud ──
+    // ── Push to cloud ──────────────────────────────────────
     async push(tool, records, summary, onProgress) {
       const url = this.getUrl();
       if (!url) return { ok: false, error: 'No GAS URL' };
 
-      const recArr  = Array.isArray(records) ? records : [records];
-      const total   = Math.ceil(recArr.length / CHUNK) || 1;
+      const recArr   = Array.isArray(records) ? records : [records];
+      const total    = Math.ceil(recArr.length / CHUNK) || 1;
       const isSingle = recArr.length <= CHUNK;
 
       try {
         if (isSingle) {
           if (onProgress) onProgress(50, 1, 1);
-          const r = await this._post({
+          const r = await this._post(url, {
             action: 'push', tool,
             records: recArr,
             recordCount: recArr.length,
@@ -83,12 +84,11 @@
         for (let i = 0; i < total; i++) {
           const chunk = recArr.slice(i * CHUNK, (i + 1) * CHUNK);
           if (onProgress) onProgress(Math.round(i / total * 90), i + 1, total);
-          const r = await this._post({
+          const r = await this._post(url, {
             action: 'push', tool,
             records: chunk,
             recordCount: recArr.length,
-            totalChunks: total,
-            chunk: i,
+            totalChunks: total, chunk: i,
             summary: i === total - 1 ? (summary || {}) : {},
             version: '1.0',
             updatedAt: new Date().toISOString(),
@@ -105,64 +105,78 @@
       }
     },
 
-    // ── Pull from cloud ──
+    // ── Pull from cloud ────────────────────────────────────
     async pull(tool, onProgress) {
       const url = this.getUrl();
       if (!url) return { ok: false, error: 'No GAS URL' };
       try {
-        // Get meta first
         if (onProgress) onProgress(10);
-        const meta = await this._get('pull&tool=' + tool + '&meta=1');
-        if (!meta.ok) return meta;
-        if (meta.data === null) return { ok: true, data: null, message: '尚無雲端資料' };
+        const meta = await this._get(`${url}?action=pull&tool=${tool}&meta=1`);
+        if (!meta.ok) return { ok: false, error: meta.error };
+        const d = meta.data;
+        if (d.data === null) return { ok: true, data: null, message: '尚無雲端資料' };
 
-        if (!meta.chunked) {
+        if (!d.chunked) {
           if (onProgress) onProgress(100);
-          return { ok: true, data: meta.data };
+          return { ok: true, records: d.records || d.data?.records || [], data: d.data };
         }
 
         // Chunked pull
-        const chunks = meta.meta?.totalChunks || 1;
+        const chunks = d.meta?.totalChunks || 1;
         const all = [];
         for (let i = 0; i < chunks; i++) {
-          if (onProgress) onProgress(Math.round(10 + (i / chunks * 80)));
-          const r = await this._get('pull&tool=' + tool + '&chunk=' + i);
-          if (!r.ok) return r;
-          all.push(...(r.records || []));
+          if (onProgress) onProgress(Math.round(10 + i / chunks * 80));
+          const r = await this._get(`${url}?action=pull&tool=${tool}&chunk=${i}`);
+          if (!r.ok) return { ok: false, error: r.error };
+          all.push(...(r.data?.records || []));
           await this._yield();
         }
         if (onProgress) onProgress(100);
-        return { ok: true, records: all, meta: meta.meta };
+        return { ok: true, records: all, meta: d.meta };
       } catch(e) {
         return { ok: false, error: e.message };
       }
     },
 
-    // ── Snapshot helpers ──
+    // ── Telegram via GAS proxy ─────────────────────────────
+    async sendTelegram(text) {
+      const url = this.getUrl();
+      if (!url) return false;
+      try {
+        const r = await this._post(url, { action: 'telegram', text });
+        return r.ok && r.data?.sent === true;
+      } catch(e) { return false; }
+    },
+
+    // ── Snapshot ──────────────────────────────────────────
     _saveSnap(tool, snap) {
-      localStorage.setItem(KEY + 'snap_' + tool, JSON.stringify({ ...snap, tool }));
+      try { localStorage.setItem(KEY + 'snap_' + tool, JSON.stringify({ ...snap, tool })); } catch(e) {}
     },
     getSnap(tool) {
       try { return JSON.parse(localStorage.getItem(KEY + 'snap_' + tool) || 'null'); }
       catch(e) { return null; }
     },
 
-    // ── HTTP helpers ──
-    async _get(action) {
+    // ── HTTP GET (no preflight) ────────────────────────────
+    async _get(url) {
       const r = await Promise.race([
-        fetch(this.getUrl() + '?action=' + action),
+        fetch(url, { redirect: 'follow' }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), TIMEOUT)),
       ]);
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     },
 
-    async _post(body) {
+    // ── HTTP POST — KEY FIX: text/plain prevents CORS preflight
+    async _post(url, body) {
       const r = await Promise.race([
-        fetch(this.getUrl(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
+        fetch(url, {
+          method  : 'POST',
+          redirect: 'follow',
+          // ↓ 'text/plain' = simple request = no OPTIONS preflight
+          // GAS receives via e.postData.contents — JSON.parse works fine
+          headers : { 'Content-Type': 'text/plain' },
+          body    : JSON.stringify(body),
         }),
         new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), TIMEOUT)),
       ]);
