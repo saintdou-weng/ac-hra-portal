@@ -1675,7 +1675,7 @@ async function pullCloud(silent) {
     const d1 = await r1.json();
 
     if (!d1.ok) { setSyncStatus('failed', '拉取失敗'); toast('❌ 拉取失敗', 'err'); return; }
-    if (d1.data === null) {
+    if (!d1.data || d1.data.data === null || d1.data.message === '尚無雲端資料') {
       setSyncStatus('idle', '雲端尚無資料');
       if (!silent) toast('☁️ 雲端尚無資料', 'info');
       setProgress(0, false); return;
@@ -1683,8 +1683,8 @@ async function pullCloud(silent) {
 
     // Step 2: Confirm if local DB is not empty
     if (!silent && DB.length > 0) {
-      const cloudRecs = d1.chunked ? (d1.meta?.recordCount || 0) : (d1.data?.recordCount || 0);
-      const cloudTs   = d1.chunked ? (d1.meta?.timestamp || '') : '';
+      const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
+      const cloudTs   = d1.data?.chunked ? (d1.data?.meta?.timestamp || '') : (d1.data?.data?.updatedAt||'');
       if (!confirm(`雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs)})\n本地有 ${DB.length} 筆。\n\n拉取後會合併（不重複日期）。\n確定拉取？`)) {
         setSyncStatus('idle', ''); setProgress(0, false); return;
       }
@@ -1694,16 +1694,16 @@ async function pullCloud(silent) {
     let pullLog   = [];
     let recordCount = 0;
 
-    if (!d1.chunked) {
-      // Non-chunked
-      const data = d1.data || {};
-      pullDB  = data.records || [];
-      pullLog = data.importLog || [];
+    if (!d1.data?.chunked) {
+      // Non-chunked: d1.data.data = the pushed payload object
+      const payload = d1.data?.data || {};
+      pullDB  = payload.records || payload.employees || [];
+      pullLog = payload.importLog || [];
       recordCount = pullDB.length;
       setProgress(100);
     } else {
       // Chunked
-      const meta   = d1.meta;
+      const meta   = d1.data?.meta || {};
       const chunks = meta.totalChunks || 1;
       pullLog = meta.importLog || [];
       recordCount = meta.recordCount || 0;
@@ -1712,7 +1712,7 @@ async function pullCloud(silent) {
         setProgress((i / chunks) * 80);
         const r = await fetch(`${GAS_URL}?action=pull&tool=attendance&chunk=${i}`, { method:'GET', redirect:'follow' });
         const d = await r.json();
-        pullDB.push(...(d.records || []));
+        pullDB.push(...(d.data?.records || d.records || []));
       }
       setProgress(90);
     }

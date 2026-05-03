@@ -190,6 +190,63 @@ table.dtbl tr.alert td{background:#fff1f0}
   border-top-color:#fff;border-radius:50%;animation:sp .6s linear infinite;vertical-align:middle}
 @keyframes sp{to{transform:rotate(360deg)}}
 </style>
+
+<style>
+/* Cloud Sync Bar - HRA Complete */
+#hrc-cloud-bar{
+  background:#fff;border-bottom:1px solid #dde2ea;
+  padding:6px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  position:sticky;top:50px;z-index:140;box-shadow:0 1px 3px #0001;
+}
+.hrc-cb-label{font-size:10px;font-weight:700;color:#8595b0;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.hrc-cb-url{flex:1;min-width:180px;background:#f5f7fa;border:1px solid #dde2ea;border-radius:5px;
+  color:#1a2235;padding:5px 8px;font-size:11px;font-family:monospace;outline:none}
+.hrc-cb-url:focus{border-color:#d4841a}
+.hrc-cb-btn{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;
+  border:none;font-family:inherit;transition:.15s}
+.hrc-cb-save{background:#1e3a5f;color:#f5deb3}
+.hrc-cb-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.hrc-cb-push:hover{background:#2a1e00}
+.hrc-cb-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
+.hrc-cb-pull:hover{background:#0f2040}
+.hrc-cb-btn:disabled{opacity:.4;cursor:not-allowed}
+.hrc-cb-dot{width:8px;height:8px;border-radius:50%;background:#9ca3af;flex-shrink:0;transition:.3s}
+.hrc-cb-dot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
+.hrc-cb-dot.warn{background:#f59e0b}
+.hrc-cb-dot.err{background:#ef4444}
+.hrc-cb-status{font-size:11px;color:#8595b0;font-family:monospace;white-space:nowrap}
+/* Progress bar */
+#hrc-prog{height:3px;background:#dde2ea;overflow:hidden;display:none;position:sticky;top:82px;z-index:140}
+#hrc-prog.show{display:block}
+#hrc-prog-fill{height:100%;background:#d4841a;width:0%;transition:width .25s}
+/* Cross-module pane */
+#pane-xma{display:none;padding:14px 0}
+#pane-xma.on{display:block}
+.xma-section{background:#fff;border:1px solid #dde2ea;border-radius:6px;padding:14px;margin-bottom:12px;box-shadow:0 1px 3px #0001}
+.xma-shead{font-size:12px;font-weight:700;color:#1e3a5f;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.xma-shead::before{content:'';width:3px;height:12px;background:#d4841a;border-radius:2px;flex-shrink:0}
+.xma-kgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:10px}
+.xma-kcard{background:#f5f7fa;border:1px solid #dde2ea;border-radius:5px;padding:10px;text-align:center}
+.xma-kcard.warn{border-left:3px solid #f59e0b}
+.xma-kcard.err{border-left:3px solid #e05040}
+.xma-kcard.ok{border-left:3px solid #28a060}
+.xma-kval{font-size:22px;font-weight:700;color:#1e3a5f;font-family:monospace;line-height:1}
+.xma-klbl{font-size:10px;color:#8595b0;margin-top:4px}
+.xma-ksrc{font-size:9px;color:#b8c5d8}
+.xma-table{width:100%;border-collapse:collapse;font-size:11px}
+.xma-table th{background:#1e3a5f;color:#f5deb3;padding:5px 8px;text-align:left}
+.xma-table td{padding:4px 8px;border-bottom:1px solid #eee;vertical-align:middle}
+.xma-table tbody tr:hover td{background:#fbf9f0}
+.xma-trend{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.xma-ch-wrap{position:relative;height:180px}
+.xma-alert-list{display:flex;flex-direction:column;gap:6px}
+.xma-alert{padding:8px 12px;border-radius:4px;border-left:4px solid;font-size:12px}
+.xma-alert.ok{background:#e8f5e9;border-color:#2e7d32;color:#1b5e20}
+.xma-alert.warn{background:#fff8e1;border-color:#f59e0b;color:#6d4c00}
+.xma-alert.err{background:#ffebee;border-color:#c62828;color:#7f0000}
+@keyframes hrcSpin{to{transform:rotate(360deg)}}
+.hrc-spin{display:inline-block;animation:hrcSpin .7s linear infinite}
+</style>
 </head>
 <body>
 
@@ -207,11 +264,26 @@ table.dtbl tr.alert td{background:#fff1f0}
   </div>
 </div>
 
+
+<!-- Cloud Sync Bar -->
+<div id="hrc-cloud-bar">
+  <span class="hrc-cb-label">GAS</span>
+  <input class="hrc-cb-url" id="hrcGasUrl" type="text" placeholder="https://script.google.com/macros/s/…/exec"/>
+  <button class="hrc-cb-btn hrc-cb-save" onclick="hrcSaveGas()">儲存</button>
+  <div class="hrc-cb-dot" id="hrcGasDot"></div>
+  <span class="hrc-cb-status" id="hrcGasStatus">未設定</span>
+  <div style="flex:1"></div>
+  <button class="hrc-cb-btn hrc-cb-push" id="hrcPushBtn" onclick="hrcPush()" disabled>☁ Push</button>
+  <button class="hrc-cb-btn hrc-cb-pull" id="hrcPullBtn" onclick="hrcPull()" disabled>⬇ Pull</button>
+</div>
+<div id="hrc-prog"><div id="hrc-prog-fill"></div></div>
+
 <div id="tabbar">
   <button class="tab on" data-t="emp">👥 <span id="t-emp">員工資料</span></button>
   <button class="tab" data-t="att">📅 <span id="t-att">每日考勤</span></button>
   <button class="tab" data-t="cmp">🔍 <span id="t-cmp">異常分析</span></button>
   <button class="tab" data-t="hist">📊 <span id="t-hist">歷史記錄</span></button>
+  <button class="tab" data-t="xma">🔗 <span id="t-xma">整合摘要</span></button>
 </div>
 
 <!-- UPLOAD -->
@@ -938,250 +1010,354 @@ renderAll();
 setLang('zh');
 </script>
 
-<!-- ═══ Cross-Module Analytics Panel ═══ -->
-<style>
-#xmaPanel{background:#fff;border:1px solid #dde2ea;border-radius:8px;margin:16px;padding:16px;display:none}
-#xmaPanel.show{display:block}
-.xma-title{font-size:13px;font-weight:700;color:#1e3a5f;margin-bottom:12px;border-bottom:2px solid #d4af37;padding-bottom:6px}
-.xma-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:14px}
-.xma-card{background:#f5f7fa;border:1px solid #dde2ea;border-radius:6px;padding:12px;text-align:center}
-.xma-val{font-size:22px;font-weight:700;color:#1e3a5f;font-family:monospace}
-.xma-lbl{font-size:11px;color:#8595b0;margin-top:4px}
-.xma-src{font-size:10px;color:#b8c5d8;margin-top:2px}
-.xma-table{width:100%;border-collapse:collapse;font-size:12px}
-.xma-table th{background:#1e3a5f;color:#f5deb3;padding:6px 8px;text-align:left}
-.xma-table td{padding:5px 8px;border-bottom:1px solid #eee}
-.xma-table tbody tr:hover td{background:#f9f7f0}
-.xma-sect{font-size:11px;font-weight:700;color:#445068;text-transform:uppercase;letter-spacing:.05em;margin:12px 0 6px}
-.xma-alert{padding:8px 12px;border-radius:4px;border-left:4px solid;font-size:12px;margin-bottom:6px}
-.xma-alert.warn{background:#fff8e1;border-color:#f59e0b;color:#92400e}
-.xma-alert.ok{background:#e8f5e9;border-color:#2e7d32;color:#1b5e20}
-.xma-alert.err{background:#ffebee;border-color:#c62828;color:#b71c1c}
-
-/* Cloud sync widget */
-#hrcCloudBtn{position:fixed;bottom:20px;right:20px;width:44px;height:44px;
-  background:#1e3a5f;border:2px solid #d4af37;color:#f5deb3;border-radius:50%;
-  font-size:18px;cursor:pointer;z-index:9999;display:flex;align-items:center;
-  justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,.3)}
-#hrcCloudBtn:hover{background:#234f80}
-#hrcCloudPanel{position:fixed;bottom:72px;right:20px;width:244px;
-  background:#0f1929;border:1px solid #1e3050;border-radius:12px;padding:14px;
-  display:none;flex-direction:column;gap:8px;z-index:9998;
-  box-shadow:0 8px 28px rgba(0,0,0,.6);font-family:system-ui,sans-serif}
-#hrcCloudPanel.show{display:flex}
-.hrcp-title{font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase}
-.hrcp-status{font-size:11px;color:#475569;font-family:monospace}
-.hrcp-status.ok{color:#4ade80}.hrcp-status.warn{color:#fbbf24}.hrcp-status.err{color:#f87171}
-.hrcp-row{display:flex;gap:6px}
-.hrcp-btn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit}
-.hrcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
-.hrcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
-.hrcp-input{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:5px;
-  color:#f1f5f9;padding:4px 7px;font-size:10px;font-family:monospace;outline:none}
-.hrcp-save{background:#253058;border:none;color:#cbd5e1;border-radius:5px;
-  padding:4px 8px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700}
-.hrcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:55px;overflow-y:auto;
-  border-top:1px solid #1e3050;padding-top:6px;line-height:1.6}
-.hrcp-l-ok{color:#4ade80}.hrcp-l-err{color:#f87171}.hrcp-l-i{color:#60a5fa}
-@keyframes hrcSpin{to{transform:rotate(360deg)}}
-.hrc-spin{display:inline-block;animation:hrcSpin .7s linear infinite}
-</style>
-
-<!-- Cross-Module Analytics Toggle Button (in header area) -->
-<div style="padding:8px 18px;background:#f5f7fa;border-bottom:1px solid #dde2ea;display:flex;align-items:center;gap:10px">
-  <button onclick="xmaToggle()" style="background:#1e3a5f;color:#f5deb3;border:none;border-radius:5px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer">
-    📊 跨模組整合摘要
-  </button>
-  <span style="font-size:11px;color:#8595b0">整合出勤・合約・入離職・產假資料</span>
-</div>
-
-<!-- Cross-Module Panel -->
-<div id="xmaPanel">
-  <div class="xma-title">📊 AC HRA 跨模組整合摘要</div>
-  <div class="xma-grid" id="xmaKpi"></div>
-  <div class="xma-sect">⚠️ 需要注意</div>
-  <div id="xmaAlerts"></div>
-  <div class="xma-sect">📋 各模組資料狀態</div>
-  <div id="xmaModStatus"></div>
-</div>
-
-<!-- Cloud Sync Widget -->
-<button id="hrcCloudBtn" title="☁ 雲端同步" onclick="hrcCloudToggle()">☁</button>
-<div id="hrcCloudPanel">
-  <div class="hrcp-title">☁ 雲端同步 — HR Complete</div>
-  <div class="hrcp-status" id="hrcCloudStatus">讀取中…</div>
-  <div class="hrcp-row">
-    <button class="hrcp-btn hrcp-push" id="hrcPushBtn" onclick="hrcPush()">☁ 推送</button>
-    <button class="hrcp-btn hrcp-pull" onclick="hrcPull()">⬇ 拉取</button>
+<!-- ══ CROSS-MODULE ANALYTICS PANE ══ -->
+<div id="pane-xma" class="pane">
+  <div class="xma-section">
+    <div class="xma-shead">📊 跨模組 KPI 總覽</div>
+    <div class="xma-kgrid" id="xma-kpi-grid">
+      <div class="xma-kcard"><div class="xma-kval" id="xk-att">—</div><div class="xma-klbl">今日出勤人數</div><div class="xma-ksrc">attendance</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-rate">—</div><div class="xma-klbl">出勤率</div><div class="xma-ksrc">attendance</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-active">—</div><div class="xma-klbl">在職合約</div><div class="xma-ksrc">contract</div></div>
+      <div class="xma-kcard warn"><div class="xma-kval" id="xk-expiring">—</div><div class="xma-klbl">30天到期</div><div class="xma-ksrc">contract</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-probation">—</div><div class="xma-klbl">試用期中</div><div class="xma-ksrc">contract</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-pending">—</div><div class="xma-klbl">待審核申請</div><div class="xma-ksrc">onboarding</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-join">—</div><div class="xma-klbl">本月入職</div><div class="xma-ksrc">onboarding</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-resign">—</div><div class="xma-klbl">本月離職</div><div class="xma-ksrc">onboarding</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-mat">—</div><div class="xma-klbl">產假中</div><div class="xma-ksrc">maternity</div></div>
+      <div class="xma-kcard"><div class="xma-kval" id="xk-absent">—</div><div class="xma-klbl">今日缺勤</div><div class="xma-ksrc">attendance</div></div>
+    </div>
   </div>
-  <div style="display:flex;gap:5px;align-items:center">
-    <input class="hrcp-input" id="hrcGasInput" placeholder="GAS /exec URL"/>
-    <button class="hrcp-save" onclick="hrcSaveGas()">存</button>
+
+  <div class="xma-section">
+    <div class="xma-shead">⚠️ 需要處理事項</div>
+    <div class="xma-alert-list" id="xma-alerts">
+      <div class="xma-alert ok">✅ 載入資料後顯示</div>
+    </div>
   </div>
-  <div class="hrcp-log" id="hrcLog"></div>
+
+  <div class="xma-section">
+    <div class="xma-shead">📅 近期每日出勤趨勢（最近 30 天）</div>
+    <div class="xma-trend">
+      <div><div class="xma-shead" style="font-size:10px;margin-bottom:6px">出勤人數</div><div class="xma-ch-wrap"><canvas id="xma-ch-hc"></canvas></div></div>
+      <div><div class="xma-shead" style="font-size:10px;margin-bottom:6px">出勤率 %</div><div class="xma-ch-wrap"><canvas id="xma-ch-rate"></canvas></div></div>
+    </div>
+  </div>
+
+  <div class="xma-section">
+    <div class="xma-shead">📋 整合統計表（月度）</div>
+    <div style="overflow-x:auto">
+      <table class="xma-table" id="xma-monthly-table">
+        <thead><tr>
+          <th>月份</th><th>出勤天數</th><th>平均人數</th><th>平均出勤率</th>
+          <th>入職</th><th>離職</th><th>淨增減</th>
+          <th>新合約</th><th>到期合約</th>
+        </tr></thead>
+        <tbody id="xma-monthly-tbody"><tr><td colspan="9" style="text-align:center;color:#8595b0;padding:20px">請先匯入資料或從雲端 Pull</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="xma-section">
+    <div class="xma-shead">📦 各模組資料狀態</div>
+    <table class="xma-table">
+      <thead><tr><th>模組</th><th>本地筆數</th><th>最後同步</th><th>狀態</th></tr></thead>
+      <tbody id="xma-mod-status"></tbody>
+    </table>
+  </div>
 </div>
 
 <script>
-// ═══ Cross-Module Analytics ═══════════════════════════════
-function xmaToggle(){
-  var el=document.getElementById('xmaPanel');
-  el.classList.toggle('show');
-  if(el.classList.contains('show')) xmaRender();
-}
-
-function xmaRender(){
-  // ── Read all module data from localStorage ──
-  function safe(key){ try{return JSON.parse(localStorage.getItem(key)||'null');}catch(e){return null;} }
-
-  var attDb   = safe('vrt_att_v5_db') || {};
-  var attEmps = attDb.employees || safe('vrt_att_records') || [];
-  var conRecs = safe('ac_hra_contract_db') || [];
-  var obDb    = safe('ac_hra_onboarding_db') || {};
-  var obRecs  = Array.isArray(obDb)?obDb:(obDb.records||[]);
-  var matRecs = safe('vrt_maternity_v1') || [];
-  var calRecs = safe('cambodia_hols') || safe('ac_hra_calendar_db') || [];
-
-  // ── KPI cards ──
-  var mo = new Date().toISOString().slice(0,7);
-  function daysUntil(ds){if(!ds)return null;return Math.ceil((new Date(ds)-new Date(new Date().toDateString()))/86400000);}
-  function contractStatus(c){
-    var today=new Date();today.setHours(0,0,0,0);
-    var pe=c.probEndDate?new Date(c.probEndDate):null;
-    var ce=c.endDate?new Date(c.endDate):null;
-    if(c.status==='terminated')return'terminated';
-    if(pe&&pe>=today)return'probation';
-    if(!ce)return'active';
-    var d=Math.ceil((ce-today)/86400000);
-    if(d<0)return'expired';if(d<=30)return'expiring';return'active';
-  }
-
-  var conAll   = conRecs.map(function(c){return Object.assign({},c,{_s:contractStatus(c)});});
-  var active   = conAll.filter(function(c){return c._s==='active';}).length;
-  var probation= conAll.filter(function(c){return c._s==='probation';}).length;
-  var expiring = conAll.filter(function(c){return c._s==='expiring';}).length;
-  var expired  = conAll.filter(function(c){return c._s==='expired';}).length;
-  var matActive= matRecs.filter(function(m){return m.status==='maternity'||m.status==='pregnant';}).length;
-  var pendingOb= obRecs.filter(function(r){return r.reviewStatus==='pending';}).length;
-  var moJoins  = obRecs.filter(function(r){return r.type==='join'&&(r.effectDate||'').startsWith(mo);}).length;
-  var moResigns= obRecs.filter(function(r){return r.type==='resign'&&(r.effectDate||'').startsWith(mo);}).length;
-  var todayHols= calRecs.filter(function(h){
-    var d=h.date||h.Date||'';
-    return d===new Date().toISOString().slice(0,10);
-  }).length;
-
-  var kpis=[
-    {val:attEmps.length,   lbl:'出勤員工', src:'ac_hra_attendance'},
-    {val:conAll.length,    lbl:'合約總數', src:'ac_hra_contract'},
-    {val:active,           lbl:'在職', src:'contract', cls:'color:#2e7d32'},
-    {val:expiring,         lbl:'30天到期', src:'contract', cls:expiring>0?'color:#c62828':''},
-    {val:probation,        lbl:'試用期中', src:'contract'},
-    {val:pendingOb,        lbl:'待審核申請', src:'onboarding', cls:pendingOb>0?'color:#c62828':''},
-    {val:moJoins,          lbl:'本月入職', src:'onboarding'},
-    {val:moResigns,        lbl:'本月離職', src:'onboarding'},
-    {val:matActive,        lbl:'產假中', src:'maternity'},
-    {val:todayHols,        lbl:'今日假期', src:'calendar'},
-  ];
-
-  document.getElementById('xmaKpi').innerHTML = kpis.map(function(k){
-    return '<div class="xma-card"><div class="xma-val" style="'+(k.cls||'')+'">'+k.val+'</div><div class="xma-lbl">'+k.lbl+'</div><div class="xma-src">'+k.src+'</div></div>';
-  }).join('');
-
-  // ── Alerts ──
-  var alerts=[];
-  if(expiring>0) alerts.push({cls:'err',msg:'⚠️ '+expiring+' 份合約將在 30 天內到期'});
-  if(expired>0)  alerts.push({cls:'warn',msg:'❌ '+expired+' 份合約已過期，需更新狀態'});
-  if(pendingOb>0)alerts.push({cls:'warn',msg:'⏳ '+pendingOb+' 筆入離職申請待審核'});
-  var returning=matRecs.filter(function(m){var d=daysUntil(m.returnDate);return d!==null&&d>=0&&d<=14;});
-  if(returning.length>0) alerts.push({cls:'warn',msg:'🤱 '+returning.length+' 位員工產假將在14天內結束'});
-  if(!alerts.length) alerts.push({cls:'ok',msg:'✅ 目前無緊急待處理事項'});
-  document.getElementById('xmaAlerts').innerHTML = alerts.map(function(a){
-    return '<div class="xma-alert '+a.cls+'">'+a.msg+'</div>';
-  }).join('');
-
-  // ── Module status ──
-  var mods=[
-    {name:'出勤 Attendance',key:'vrt_att_v5_db',count:attEmps.length},
-    {name:'合約 Contract',   key:'ac_hra_contract_db',count:conRecs.length},
-    {name:'入離職 Onboarding',key:'ac_hra_onboarding_db',count:obRecs.length},
-    {name:'產假 Maternity',  key:'vrt_maternity_v1',count:matRecs.length},
-    {name:'行事曆 Calendar', key:'cambodia_hols',count:calRecs.length},
-  ];
-  document.getElementById('xmaModStatus').innerHTML =
-    '<table class="xma-table"><thead><tr><th>模組</th><th>本地筆數</th><th>狀態</th></tr></thead><tbody>'+
-    mods.map(function(m){
-      var raw=localStorage.getItem(m.key);
-      var status=raw?(m.count>0?'<span style="color:#2e7d32">✅ 有資料</span>':'<span style="color:#ef6c00">⚠️ 空資料</span>'):'<span style="color:#c62828">❌ 無資料</span>';
-      return '<tr><td>'+m.name+'</td><td style="font-family:monospace">'+m.count+'</td><td>'+status+'</td></tr>';
-    }).join('')+
-    '</tbody></table>';
-}
-
-// ═══ HR Complete Cloud Sync ═══════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// HR Complete Cloud Sync + Cross-Module Analytics
+// ═══════════════════════════════════════════════════════════
 (function(){
-  var GAS_KEY = 'ac_hra_gas_url';
-  var META_KEY= 'ac_hra_complete_meta';
-  var gasUrl  = localStorage.getItem(GAS_KEY)||'';
-  var open    = false;
+  'use strict';
+  const GAS_LS    = 'ac_hra_gas_url';
+  const META_LS   = 'ac_hra_hrc_meta';
+  const TOOL      = 'hr_complete';
+  let   gasUrl    = '';
+  let   hrcCharts = {};
 
-  function pad2(n){return String(n).padStart(2,'0');}
-  function now5(){var d=new Date();return pad2(d.getHours())+':'+pad2(d.getMinutes());}
-  function hrcLog(msg,type){
-    var el=document.getElementById('hrcLog');if(!el)return;
-    var cls=type==='ok'?'hrcp-l-ok':type==='err'?'hrcp-l-err':'hrcp-l-i';
-    el.innerHTML+='<span class="'+cls+'">['+now5()+'] '+msg+'</span>
-';
-    el.scrollTop=el.scrollHeight;
-  }
-  function hrcShowStatus(){
-    var el=document.getElementById('hrcCloudStatus');if(!el)return;
-    var meta=null;try{meta=JSON.parse(localStorage.getItem(META_KEY)||'null');}catch(e){}
-    if(meta){
-      var mins=(Date.now()-new Date(meta.ts))/60000;
-      el.textContent=meta.count+'筆 · '+(mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時')+'前';
-      el.className='hrcp-status '+(mins<120?'ok':'warn');
-    }else{
-      el.textContent=gasUrl?'尚未同步':'未設定 GAS URL';
-      el.className='hrcp-status '+(gasUrl?'warn':'err');
+  // ── Init ──
+  function hrcInit(){
+    gasUrl = localStorage.getItem(GAS_LS)||'';
+    var inp = document.getElementById('hrcGasUrl');
+    if(inp) inp.value = gasUrl;
+    hrcShowStatus();
+    if(gasUrl){
+      document.getElementById('hrcPushBtn').disabled = false;
+      document.getElementById('hrcPullBtn').disabled = false;
     }
   }
-  window.hrcCloudToggle=function(){
-    open=!open;
-    document.getElementById('hrcCloudPanel').classList.toggle('show',open);
-    if(open){document.getElementById('hrcGasInput').value=gasUrl;hrcShowStatus();}
-  };
-  window.hrcSaveGas=function(){
-    gasUrl=(document.getElementById('hrcGasInput').value||'').trim();
-    if(!gasUrl)return;
-    localStorage.setItem(GAS_KEY,gasUrl);
-    hrcLog('GAS URL 已儲存','i');hrcShowStatus();
-  };
-  window.hrcPush=async function(){
-    if(!gasUrl){hrcLog('請先設定 GAS URL','err');return;}
-    var btn=document.getElementById('hrcPushBtn');
-    if(btn){btn.disabled=true;btn.innerHTML='<span class="hrc-spin">⏳</span>';}
-    try{
-      // Push attendance data (the main data in HR Complete)
-      var raw=localStorage.getItem('vrt_att_v5_db')||'{}';
-      var db=JSON.parse(raw);
-      var recs=db.employees||[];
-      var payload={action:'push',tool:'hr_complete',records:recs,
-        recordCount:recs.length,updatedAt:new Date().toISOString()};
-      var r=await fetch(gasUrl,{method:'POST',redirect:'follow',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-      var d=await r.json();
-      if(d.ok){
-        localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:recs.length}));
-        hrcLog('✓ 推送完成 ('+recs.length+'筆)','ok');hrcShowStatus();
-      }else hrcLog('✗ '+(d.error||d.data?.error||'error'),'err');
-    }catch(e){hrcLog('✗ '+e.message,'err');}
-    finally{if(btn){btn.disabled=false;btn.innerHTML='☁ 推送';}}
-  };
-  window.hrcPull=function(){
-    hrcLog('HR Complete 為整合分析工具，請分別在各模組 Pull 後返回此頁查看','i');
-  };
-  document.addEventListener('DOMContentLoaded',hrcShowStatus);
-})();
-</script>
 
+  function hrcShowStatus(){
+    var dot = document.getElementById('hrcGasDot');
+    var lbl = document.getElementById('hrcGasStatus');
+    if(!dot||!lbl) return;
+    var meta = null;
+    try{ meta=JSON.parse(localStorage.getItem(META_LS)||'null'); }catch(e){}
+    if(!gasUrl){
+      dot.className='hrc-cb-dot'; lbl.textContent='未設定 GAS URL'; return;
+    }
+    if(meta){
+      var mins=(Date.now()-new Date(meta.ts))/60000;
+      var age=mins<60?Math.round(mins)+'分前':Math.round(mins/60)+'小時前';
+      dot.className='hrc-cb-dot '+(mins<120?'ok':'warn');
+      lbl.textContent=(meta.count||0)+'筆 · '+age;
+    } else {
+      dot.className='hrc-cb-dot warn';
+      lbl.textContent='尚未同步';
+    }
+  }
+
+  function hrcProg(pct, show){
+    var bar  = document.getElementById('hrc-prog');
+    var fill = document.getElementById('hrc-prog-fill');
+    if(!bar) return;
+    if(show!==undefined) bar.classList.toggle('show', show);
+    if(fill) fill.style.width = pct + '%';
+  }
+
+  window.hrcSaveGas = function(){
+    gasUrl = (document.getElementById('hrcGasUrl').value||'').trim();
+    if(!gasUrl) return;
+    localStorage.setItem(GAS_LS, gasUrl);
+    document.getElementById('hrcPushBtn').disabled = false;
+    document.getElementById('hrcPullBtn').disabled = false;
+    hrcShowStatus();
+    toast('✅ GAS URL 已儲存');
+  };
+
+  window.hrcPush = async function(){
+    if(!gasUrl){ toast('請先設定 GAS URL'); return; }
+    var btn = document.getElementById('hrcPushBtn');
+    btn.disabled=true; btn.innerHTML='<span class="hrc-spin">⏳</span>';
+    hrcProg(0, true);
+    try{
+      // Push attendance data (primary data in HR Complete)
+      var attDb  = {};
+      try{ attDb=JSON.parse(localStorage.getItem('vrt_att_v5_db')||'{}'); }catch(e){}
+      var recs   = attDb.employees || ATT_DATA || [];
+      hrcProg(30);
+      var payload = {
+        action:'push', tool:TOOL,
+        records:recs, recordCount:recs.length,
+        summary:{ attDays:ATT_DATA?ATT_DATA.length:0 },
+        updatedAt:new Date().toISOString()
+      };
+      var r = await fetch(gasUrl,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      var d = await r.json();
+      hrcProg(100);
+      if(d.ok){
+        localStorage.setItem(META_LS,JSON.stringify({ts:Date.now(),count:recs.length}));
+        hrcShowStatus(); toast('✅ Push 完成 ('+recs.length+'筆)');
+      } else toast('❌ '+(d.error||'Push 失敗'));
+    }catch(e){ toast('❌ '+e.message); }
+    finally{ btn.disabled=false; btn.innerHTML='☁ Push'; setTimeout(()=>hrcProg(0,false),2000); }
+  };
+
+  window.hrcPull = async function(){
+    if(!gasUrl){ toast('請先設定 GAS URL'); return; }
+    var btn = document.getElementById('hrcPullBtn');
+    btn.disabled=true; btn.innerHTML='<span class="hrc-spin">⏳</span>';
+    hrcProg(0, true);
+    try{
+      var r1 = await fetch(gasUrl+'?action=pull&tool='+TOOL+'&meta=1',{method:'GET',redirect:'follow'});
+      var d1 = await r1.json();
+      hrcProg(30);
+      if(!d1.ok || !d1.data || d1.data.data===null){
+        toast('☁️ 雲端尚無資料'); hrcProg(0,false); return;
+      }
+      var recs=[];
+      if(!d1.data.chunked){
+        var payload = d1.data.data||{};
+        recs = payload.records || payload.employees || [];
+      } else {
+        var chunks = d1.data.meta.totalChunks||1;
+        for(var i=0;i<chunks;i++){
+          hrcProg(30+i/chunks*60);
+          var rc = await fetch(gasUrl+'?action=pull&tool='+TOOL+'&chunk='+i,{method:'GET',redirect:'follow'});
+          var dc = await rc.json();
+          recs = recs.concat(dc.data?.records||dc.records||[]);
+        }
+      }
+      hrcProg(95);
+      localStorage.setItem(META_LS,JSON.stringify({ts:Date.now(),count:recs.length}));
+      hrcShowStatus();
+      toast('✅ Pull 完成 ('+recs.length+'筆)，重新整理可看最新資料');
+      hrcProg(100);
+    }catch(e){ toast('❌ '+e.message); }
+    finally{ btn.disabled=false; btn.innerHTML='⬇ Pull'; setTimeout(()=>hrcProg(0,false),2000); }
+  };
+
+  // ── Tab switch handler (hook into original goTab) ──
+  var _origGoTab = window.goTab;
+  window.goTab = function(sec){
+    if(_origGoTab) _origGoTab(sec);
+    if(sec==='xma') xmaRender();
+    // Also handle the data-t tab buttons
+    document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+    var pane=document.getElementById('pane-'+sec);
+    if(pane) pane.classList.add('on');
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+    var btn=document.querySelector('.tab[data-t="'+sec+'"]');
+    if(btn) btn.classList.add('on');
+  };
+
+  // ── Cross-Module Analytics Render ──
+  function xmaRender(){
+    // Read all module data
+    function safe(k){ try{return JSON.parse(localStorage.getItem(k)||'null');}catch(e){return null;} }
+    var attDb   = safe('vrt_att_v5_db') || {};
+    var conRecs = safe('ac_hra_contract_db') || [];
+    var obDb    = safe('ac_hra_onboarding_db') || {};
+    var obRecs  = Array.isArray(obDb)?obDb:(obDb.records||[]);
+    var matRecs = safe('vrt_maternity_v1') || [];
+    var calRecs = safe('cambodia_hols') || safe('ac_hra_calendar_db') || [];
+
+    // Use ATT_DATA from original HR Complete if available
+    var attData = (typeof ATT_DATA!=='undefined') ? ATT_DATA : [];
+    var today   = attData.length ? attData[attData.length-1] : null;
+
+    var mo = new Date().toISOString().slice(0,7);
+
+    function contractStatus(c){
+      var today2=new Date();today2.setHours(0,0,0,0);
+      var pe=c.probEndDate?new Date(c.probEndDate):null;
+      var ce=c.endDate?new Date(c.endDate):null;
+      if(c.status==='terminated')return'terminated';
+      if(pe&&pe>=today2)return'probation';
+      if(!ce)return'active';
+      var d=Math.ceil((ce-today2)/86400000);
+      if(d<0)return'expired';if(d<=30)return'expiring';return'active';
+    }
+    var conAll   = conRecs.map(function(c){return Object.assign({},c,{_s:contractStatus(c)});});
+    var active   = conAll.filter(function(c){return c._s==='active';}).length;
+    var probation= conAll.filter(function(c){return c._s==='probation';}).length;
+    var expiring = conAll.filter(function(c){return c._s==='expiring';}).length;
+    var expired  = conAll.filter(function(c){return c._s==='expired';}).length;
+    var matActive= matRecs.filter(function(m){return m.status==='maternity'||m.status==='pregnant';}).length;
+    var pendingOb= obRecs.filter(function(r){return r.reviewStatus==='pending';}).length;
+    var moJoins  = obRecs.filter(function(r){return r.type==='join'&&(r.effectDate||'').startsWith(mo);}).length;
+    var moResigns= obRecs.filter(function(r){return r.type==='resign'&&(r.effectDate||'').startsWith(mo);}).length;
+
+    // KPI update
+    function setK(id,val){ var el=document.getElementById(id); if(el) el.textContent=val; }
+    setK('xk-att', today ? today.present : (attData.length ? Math.round(attData.reduce(function(s,d){return s+d.present;},0)/attData.length) : '—'));
+    setK('xk-rate', today ? today.rate+'%' : '—');
+    setK('xk-active',   active||conRecs.length||'—');
+    setK('xk-expiring', expiring);
+    setK('xk-probation',probation);
+    setK('xk-pending',  pendingOb);
+    setK('xk-join',     moJoins);
+    setK('xk-resign',   moResigns);
+    setK('xk-mat',      matActive);
+    setK('xk-absent',   today ? today.absent : '—');
+
+    // Color expiring card
+    var expCard=document.querySelector('#xk-expiring')?.closest('.xma-kcard');
+    if(expCard) expCard.className='xma-kcard '+(expiring>0?'err':'ok');
+
+    // Alerts
+    var alerts=[];
+    if(expiring>0) alerts.push({cls:'err',  msg:'⚠️ '+expiring+' 份合約30天內到期，請確認續約'});
+    if(expired>0)  alerts.push({cls:'warn', msg:'❌ '+expired+' 份合約已過期'});
+    if(pendingOb>0)alerts.push({cls:'warn', msg:'⏳ '+pendingOb+' 筆入離職申請待審核'});
+    var ret=matRecs.filter(function(m){
+      if(!m.returnDate)return false;
+      var d=Math.ceil((new Date(m.returnDate)-new Date(new Date().toDateString()))/86400000);
+      return m.status==='maternity'&&d>=0&&d<=14;
+    });
+    if(ret.length>0) alerts.push({cls:'warn', msg:'🤱 '+ret.length+' 位員工14天內產假結束'});
+    if(!alerts.length) alerts.push({cls:'ok', msg:'✅ 目前無緊急待處理事項'});
+    var alertEl=document.getElementById('xma-alerts');
+    if(alertEl) alertEl.innerHTML=alerts.map(function(a){return '<div class="xma-alert '+a.cls+'">'+a.msg+'</div>';}).join('');
+
+    // Charts (last 30 days attendance)
+    var last30=attData.slice(-30);
+    var dates=last30.map(function(d){return d.date.slice(5);});
+    var hcData=last30.map(function(d){return d.present||d.headcount||0;});
+    var rateData=last30.map(function(d){return parseFloat(d.rate)||0;});
+    makeXmaChart('xma-ch-hc', dates, hcData, '出勤人數', '#1e3a5f');
+    makeXmaChart('xma-ch-rate', dates, rateData, '出勤率%', '#d4841a');
+
+    // Monthly summary table
+    var moMap={};
+    attData.forEach(function(d){
+      var m=(d.date||'').slice(0,7);if(!m)return;
+      if(!moMap[m])moMap[m]={mo:m,days:0,hcSum:0,rateSum:0,join:0,resign:0};
+      moMap[m].days++;moMap[m].hcSum+=(d.present||d.headcount||0);moMap[m].rateSum+=parseFloat(d.rate)||0;
+      moMap[m].join+=(d.join||0);moMap[m].resign+=(d.resign||0);
+    });
+    var months=Object.values(moMap).sort(function(a,b){return a.mo.localeCompare(b.mo);}).slice(-12);
+    var tbody=document.getElementById('xma-monthly-tbody');
+    if(tbody&&months.length){
+      tbody.innerHTML=months.map(function(m){
+        var avgHc=m.days?Math.round(m.hcSum/m.days):'—';
+        var avgRate=m.days?(m.rateSum/m.days).toFixed(1)+'%':'—';
+        var net=m.join-m.resign;
+        return '<tr><td style="font-family:monospace">'+m.mo+'</td><td>'+m.days+'</td>'+
+          '<td>'+avgHc+'</td><td>'+avgRate+'</td>'+
+          '<td style="color:#2e7d32">+'+m.join+'</td>'+
+          '<td style="color:#c62828">-'+m.resign+'</td>'+
+          '<td style="font-weight:700;color:'+(net>=0?'#2e7d32':'#c62828')+'">'+
+          (net>=0?'+':'')+net+'</td><td>—</td><td>—</td></tr>';
+      }).join('');
+    }
+
+    // Module status
+    var mods=[
+      {name:'出勤 Attendance',key:'vrt_att_v5_db',  metaKey:'ac_hra_att_meta'},
+      {name:'合約 Contract',   key:'ac_hra_contract_db', metaKey:'ac_hra_contract_meta'},
+      {name:'入離職 Onboarding',key:'ac_hra_onboarding_db',metaKey:'ac_hra_ob_meta'},
+      {name:'產假 Maternity',  key:'vrt_maternity_v1',  metaKey:'ac_hra_mat_meta'},
+      {name:'行事曆 Calendar', key:'cambodia_hols',      metaKey:'ac_hra_cal_meta'},
+    ];
+    var statEl=document.getElementById('xma-mod-status');
+    if(statEl) statEl.innerHTML=mods.map(function(m){
+      var raw=localStorage.getItem(m.key);
+      var count=0;
+      try{var d=JSON.parse(raw||'null');count=Array.isArray(d)?d.length:(d&&d.employees)?d.employees.length:(d&&d.records)?d.records.length:0;}catch(e){}
+      var meta=null;try{meta=JSON.parse(localStorage.getItem(m.metaKey)||'null');}catch(e){}
+      var ts=meta&&meta.ts?new Date(meta.ts).toLocaleString('zh-TW',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'—';
+      var st=raw?'<span style="color:#2e7d32">✅ 有資料</span>':'<span style="color:#c62828">❌ 無資料</span>';
+      return '<tr><td>'+m.name+'</td><td style="font-family:monospace">'+count+'</td><td style="font-family:monospace;font-size:10px">'+ts+'</td><td>'+st+'</td></tr>';
+    }).join('');
+  }
+
+  function makeXmaChart(id, labels, data, label, color){
+    var el=document.getElementById(id);if(!el)return;
+    if(hrcCharts[id]){try{hrcCharts[id].destroy();}catch(e){}}
+    hrcCharts[id]=new Chart(el,{
+      type:'line',
+      data:{labels,datasets:[{label,data,borderColor:color,backgroundColor:color+'22',
+        tension:.3,fill:true,pointRadius:2,pointHoverRadius:4}]},
+      options:{responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false}},
+        scales:{y:{beginAtZero:false,ticks:{font:{size:10}}},x:{ticks:{font:{size:9},maxRotation:45}}}}
+    });
+  }
+
+  // ── Module status table ──
+  // Tab button setup
+  document.addEventListener('DOMContentLoaded', function(){
+    hrcInit();
+    // Wire up all tab buttons including xma
+    document.querySelectorAll('.tab[data-t]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var t=btn.dataset.t;
+        document.querySelectorAll('.pane').forEach(function(p){p.classList.remove('on');});
+        var pane=document.getElementById('pane-'+t);
+        if(pane){pane.classList.add('on');}
+        document.querySelectorAll('.tab').forEach(function(b){b.classList.remove('on');});
+        btn.classList.add('on');
+        if(t==='xma') xmaRender();
+      });
+    });
+  });
+})();
+
+</script>
 </body>
 </html>
