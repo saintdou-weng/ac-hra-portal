@@ -1717,31 +1717,48 @@ async function pullCloud(silent) {
       setProgress(90);
     }
 
-    // Step 3: Merge (avoid duplicate dates)
-    const existingDates = new Set(IMPORT_LOG);
-    const newRecs = pullDB.filter(r => r.date && !existingDates.has(r.date));
-    const newDates = [...new Set(newRecs.map(r => r.date))];
-
-    if (newRecs.length > 0) {
-      DB.push(...newRecs);
-      newDates.forEach(d => { if (!IMPORT_LOG.includes(d)) IMPORT_LOG.push(d); });
-      saveDB();
-      toast(`✅ 拉取完成 — 新增 ${newRecs.length} 筆 / ${newDates.length} 天`, 'ok');
-    } else {
-      if (!silent) toast('☁️ 本地已是最新，無新資料', 'info');
+    // Step 3: Load pulled data into memory
+    // Use sewing approach: full data in memory, only recent 90 days in localStorage
+    if (!pullDB.length) {
+      if (!silent) toast('☁️ 雲端尚無資料', 'info');
+      setSyncStatus('idle', '雲端無資料');
+      setProgress(0, false);
+      return;
     }
 
+    // Load ALL records into memory
+    DB = pullDB;
+
+    // Build IMPORT_LOG from pulled data
+    IMPORT_LOG = [...new Set(pullDB.map(r => r.date).filter(Boolean))];
+
+    // Save only recent 90 days to localStorage (avoid quota exceeded)
+    try {
+      const cutDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+      const recent  = pullDB.filter(r => (r.date || '') >= cutDate);
+      LS.set('db', recent);
+      LS.set('log', IMPORT_LOG);
+    } catch(storageErr) {
+      // If still too large, just save the log (don't fail the pull)
+      try { LS.set('log', IMPORT_LOG); } catch(e2) {}
+      console.warn('localStorage save failed (data too large), using memory only');
+    }
+
+    updateHeader();
+
     lastSyncTs = new Date().toISOString();
+    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
     setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
     setProgress(100);
 
-    // Auto-navigate to daily tab if new data
-    if (newRecs.length > 0) {
-      setTimeout(() => {
-        const t = [...document.querySelectorAll('.tab')].find(x => x.textContent.includes('每日報告') || x.textContent.includes('Daily'));
-        if (t) t.click();
-      }, 1000);
-    }
+    toast(`✅ 拉取完成 — ${pullDB.length} 筆`, 'ok');
+
+    // Navigate to daily tab
+    setTimeout(() => {
+      const t = [...document.querySelectorAll('.tab')].find(x =>
+        x.textContent.includes('每日報告') || x.textContent.includes('Daily'));
+      if (t) t.click();
+    }, 800);
   } catch(e) {
     setSyncStatus('offline', '連線失敗');
     toast('❌ 拉取失敗：' + e.message, 'err');
