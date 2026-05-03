@@ -1523,15 +1523,118 @@ let cloudSnap   = null;     // last known cloud snapshot
     document.getElementById('btnPush').disabled = false;
     document.getElementById('btnPull').disabled = false;
     setSyncStatus('idle', '');
-    // Auto-pull if local DB is empty
-    if (DB.length === 0) {
-      setTimeout(() => pullCloud(true), 1200);
-    } else {
-      // Silently check cloud version
-      setTimeout(() => checkCloudVersion(), 2000);
-    }
+    // Auto-sync on load (sewing style)
+    setTimeout(() => attAutoSync(), 1000);
   }
 })();
+
+// ── sewing-style auto sync on page load ──
+async function attAutoSync() {
+  if (!GAS_URL) return;
+
+  // Show tip in header (like sewing vcAutoSync)
+  const hdr = document.querySelector('.cloud-bar') || document.querySelector('header') || document.body;
+  const tip = document.createElement('span');
+  tip.id = 'attSyncTip';
+  tip.style.cssText = 'font-size:11px;color:#f59e0b;font-family:monospace;padding:4px 10px;white-space:nowrap';
+  tip.textContent = '☁ 連線雲端中…';
+  document.querySelector('.cloud-bar')?.appendChild(tip);
+
+  try {
+    // Step 1: Get meta
+    const mr = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
+    const md = await mr.json();
+    if (!md.ok || !md.data) {
+      tip.textContent = '☁ 雲端無資料（使用本機）';
+      tip.style.color = '#9ca3af';
+      setTimeout(() => tip.remove(), 3000);
+      return;
+    }
+    const d = md.data;
+    if (d.data === null) {
+      tip.textContent = '☁ 雲端尚無資料';
+      setTimeout(() => tip.remove(), 3000);
+      return;
+    }
+
+    // If local DB already has data, just check version quietly
+    if (DB.length > 0) {
+      const cloudTs  = d.chunked ? (d.meta?.timestamp || '') : (d.data?.updatedAt || '');
+      const localTs  = localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || '';
+      if (cloudTs && localTs && cloudTs <= localTs) {
+        tip.textContent = '☁ 本機已是最新';
+        tip.style.color = '#10b981';
+        setTimeout(() => tip.remove(), 3000);
+        return;
+      }
+    }
+
+    // Pull all chunks
+    let allRecs = [];
+    if (!d.chunked) {
+      allRecs = d.data?.records || d.data?.employees || [];
+      tip.textContent = `☁ 拉取 ${allRecs.length} 筆…`;
+    } else {
+      const meta   = d.meta || {};
+      const total  = meta.totalChunks || 1;
+      const count  = meta.recordCount || 0;
+      tip.textContent = `☁ 拉取中（共 ${total} 批 / ${count} 筆）…`;
+
+      for (let i = 0; i < total; i++) {
+        tip.textContent = `☁ 第 ${i+1}/${total} 批…`;
+        for (let retry = 0; retry < 3; retry++) {
+          try {
+            const cr = await fetch(
+              `${GAS_URL}?action=pull&tool=attendance&chunk=${i}`,
+              { method:'GET', redirect:'follow' }
+            );
+            const cd = await cr.json();
+            if (cd.ok) { allRecs = allRecs.concat(cd.data?.records || cd.records || []); break; }
+          } catch(e) {
+            if (retry === 2) throw e;
+            await new Promise(r => setTimeout(r, 2000));
+          }
+        }
+      }
+    }
+
+    if (!allRecs.length) { tip.remove(); return; }
+
+    // Load into memory
+    DB = allRecs;
+    IMPORT_LOG = [...new Set(allRecs.map(r => r.date).filter(Boolean))];
+
+    // Save recent 90 days to localStorage
+    try {
+      const cutDate = new Date(Date.now() - 90*86400000).toISOString().slice(0,10);
+      LS.set('db',  allRecs.filter(r => (r.date||'') >= cutDate));
+      LS.set('log', IMPORT_LOG);
+    } catch(e) {
+      try { LS.set('log', IMPORT_LOG); } catch(e2) {}
+    }
+
+    const lastTs = new Date().toISOString();
+    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastTs);
+    setSyncStatus('synced', '已同步 ' + formatTs(lastTs));
+    updateHeader();
+
+    tip.textContent = `☁ 雲端同步完成（${allRecs.length.toLocaleString()} 筆）`;
+    tip.style.color = '#10b981';
+    setTimeout(() => tip.remove(), 5000);
+
+    // Navigate to daily report
+    setTimeout(() => {
+      const t = [...document.querySelectorAll('.tab')].find(x =>
+        x.textContent.includes('每日') || x.textContent.includes('Daily'));
+      if (t) t.click();
+    }, 800);
+
+  } catch(e) {
+    tip.textContent = '☁ 雲端離線，使用本機資料';
+    tip.style.color = '#f59e0b';
+    setTimeout(() => tip.remove(), 4000);
+  }
+}
 
 // ── Save GAS URL ──
 function saveGasUrl() {
