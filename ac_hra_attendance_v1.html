@@ -353,7 +353,72 @@ function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))
 // ── Data store ──
 let DB=LS.get('db')||[];// Array of parsed row objects
 let IMPORT_LOG=LS.get('log')||[];
-function saveDB(){LS.set('db',DB);LS.set('log',IMPORT_LOG);updateHeader();scheduleAutoSave();}
+// ── IndexedDB for full attendance data (no 5MB limit) ──
+const ATT_IDB_NAME  = 'AC_HRA_Attendance';
+const ATT_IDB_STORE = 'records';
+
+function openAttIDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(ATT_IDB_NAME, 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(ATT_IDB_STORE)) {
+        db.createObjectStore(ATT_IDB_STORE, { keyPath: '_iid', autoIncrement: true });
+      }
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = () => rej(req.error);
+  });
+}
+
+async function saveToIDB(recs) {
+  if (!recs || !recs.length) return 0;
+  const db = await openAttIDB();
+  const tx = db.transaction(ATT_IDB_STORE, 'readwrite');
+  const os = tx.objectStore(ATT_IDB_STORE);
+  // Clear first
+  await new Promise((res, rej) => { const q = os.clear(); q.onsuccess = res; q.onerror = rej; });
+  for (const r of recs) os.put(r);
+  return new Promise((res, rej) => {
+    tx.oncomplete = () => { db.close(); res(recs.length); };
+    tx.onerror    = () => rej(tx.error);
+  });
+}
+
+async function loadFromIDB() {
+  try {
+    const db = await openAttIDB();
+    return await new Promise((res) => {
+      const tx = db.transaction(ATT_IDB_STORE, 'readonly');
+      const q  = tx.objectStore(ATT_IDB_STORE).getAll();
+      q.onsuccess = () => { db.close(); res(q.result || []); };
+      q.onerror   = () => { db.close(); res([]); };
+    });
+  } catch(e) { return []; }
+}
+
+// Load from IDB on startup (before cloud auto-sync)
+(async function loadIDBOnStart() {
+  const recs = await loadFromIDB();
+  if (recs.length > 0) {
+    DB = recs;
+    IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
+    updateHeader();
+    console.log('[IDB] Loaded ' + recs.length + ' records from IndexedDB');
+  }
+})();
+
+
+function saveDB(){
+  // Save recent 90 days to localStorage (fast, for quick load)
+  const cutDate = new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+  try { LS.set('db', DB.filter(r=>(r.date||'')>=cutDate)); } catch(e) {}
+  LS.set('log', IMPORT_LOG);
+  // Save ALL to IndexedDB (persistent, no size limit)
+  saveToIDB(DB).catch(e => console.warn('[IDB save error]', e));
+  updateHeader();
+  scheduleAutoSave();
+}
 function updateHeader(){
   document.getElementById('hRecs').textContent=DB.length;
   const dates=[...new Set(DB.map(r=>r.date))];
@@ -1604,14 +1669,16 @@ async function attAutoSync() {
     DB = allRecs;
     IMPORT_LOG = [...new Set(allRecs.map(r => r.date).filter(Boolean))];
 
-    // Save recent 90 days to localStorage
+    // Save to IndexedDB (full data, persistent)
     try {
-      const cutDate = new Date(Date.now() - 90*86400000).toISOString().slice(0,10);
-      LS.set('db',  allRecs.filter(r => (r.date||'') >= cutDate));
-      LS.set('log', IMPORT_LOG);
-    } catch(e) {
-      try { LS.set('log', IMPORT_LOG); } catch(e2) {}
-    }
+      tip.textContent = \`☁ 寫入本機儲存（\${allRecs.length.toLocaleString()} 筆）…\`;
+      await saveToIDB(allRecs);
+      console.log('[IDB] Saved ' + allRecs.length + ' records');
+    } catch(idbErr) { console.warn('[IDB save error]', idbErr); }
+    // Save recent 90 days to localStorage as quick-load backup
+    const cutDate = new Date(Date.now() - 90*86400000).toISOString().slice(0,10);
+    try { LS.set('db', allRecs.filter(r => (r.date||'') >= cutDate)); } catch(e) {}
+    try { LS.set('log', IMPORT_LOG); } catch(e2) {}
 
     const lastTs = new Date().toISOString();
     localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastTs);
@@ -1835,17 +1902,15 @@ async function pullCloud(silent) {
     // Build IMPORT_LOG from pulled data
     IMPORT_LOG = [...new Set(pullDB.map(r => r.date).filter(Boolean))];
 
-    // Save only recent 90 days to localStorage (avoid quota exceeded)
+    // Save ALL to IndexedDB (no size limit, persists across page refresh)
     try {
-      const cutDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-      const recent  = pullDB.filter(r => (r.date || '') >= cutDate);
-      LS.set('db', recent);
-      LS.set('log', IMPORT_LOG);
-    } catch(storageErr) {
-      // If still too large, just save the log (don't fail the pull)
-      try { LS.set('log', IMPORT_LOG); } catch(e2) {}
-      console.warn('localStorage save failed (data too large), using memory only');
-    }
+      await saveToIDB(pullDB);
+      toast('💾 已儲存至本機 (' + pullDB.length + ' 筆)', 'ok');
+    } catch(idbErr) { console.warn('[IDB]', idbErr); }
+    // Also save recent 90 days to localStorage as quick-load
+    const cutDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
+    try { LS.set('db', pullDB.filter(r => (r.date||'') >= cutDate)); } catch(e) {}
+    try { LS.set('log', IMPORT_LOG); } catch(e2) {}
 
     updateHeader();
 
