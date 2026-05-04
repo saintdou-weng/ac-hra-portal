@@ -124,6 +124,20 @@ table tbody tr:hover{background:#fbf9f0}
   table th{background:#333 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
 .small-text{font-size:11px;color:var(--muted)}
+/* ── Period Navigation ── */
+.period-ctrl{display:inline-flex;align-items:center;gap:4px;background:#f0f0f0;border-radius:6px;padding:2px 4px}
+.ptabs{display:inline-flex;gap:1px;background:#ddd;border-radius:4px;padding:1px}
+.ptabs button{background:transparent;border:none;padding:3px 9px;cursor:pointer;font-size:11px;font-weight:600;border-radius:3px;color:var(--navy)}
+.ptabs button.active{background:var(--navy);color:var(--gold-light)}
+.nav-arrow{background:transparent;border:1px solid var(--navy);color:var(--navy);padding:2px 8px;cursor:pointer;border-radius:3px;font-size:13px;line-height:1}
+.nav-arrow:hover{background:var(--navy);color:#fff}
+.period-label{font-size:12px;font-weight:600;color:var(--navy);min-width:90px;text-align:center;padding:0 4px}
+.dash-h2-wrap{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.cb-col{width:28px}
+/* ── Probation result colours ── */
+.badge.pass,.badge.passed{background:#E8F5E9;color:var(--success)}
+.badge.fail,.badge.failed{background:#FFEBEE;color:var(--danger)}
+.badge.extended{background:#E3F2FD;color:var(--info)}
 .setting-row{display:grid;grid-template-columns:1fr 2fr;gap:10px;padding:8px 0;border-bottom:1px dashed var(--border);align-items:center}
 .setting-row:last-child{border-bottom:none}
 .danger-text{color:var(--danger);font-weight:bold}
@@ -150,7 +164,6 @@ table tbody tr:hover{background:#fbf9f0}
 
 <nav>
   <button data-page="dashboard" class="active">📊 <span data-i18n="navDashboard">總表</span></button>
-  <button data-page="employees">👥 <span data-i18n="navEmployees">員工</span></button>
   <button data-page="probation">📝 <span data-i18n="navProbation">試用期</span></button>
   <button data-page="contracts">📄 <span data-i18n="navContracts">合約</span></button>
   <button data-page="reminders">⏰ <span data-i18n="navReminders">到期提醒</span></button>
@@ -163,68 +176,124 @@ table tbody tr:hover{background:#fbf9f0}
 
 <!-- Dashboard -->
 <section class="page active" id="page-dashboard">
+  <!-- Stat summary row -->
   <div class="stat-grid" id="statGrid"></div>
 
+  <!-- ═══════ 試用期追蹤 Panel ═══════ -->
   <div class="panel">
-    <h2>⏰ <span data-i18n="upcomingExpiry">即將到期（15 天內）</span>
-      <div>
-        <button class="btn small" onclick="sendTelegramSummary()">📱 <span data-i18n="sendTelegram">傳送 Telegram</span></button>
-        <button class="btn small gold" onclick="window.print()">🖨️ <span data-i18n="print">列印</span></button>
-      </div>
-    </h2>
-    <div id="upcomingList"></div>
-  </div>
-
-  <div class="panel">
-    <h2>⚠️ <span data-i18n="anomaliesTitle">異常警示</span></h2>
-    <div id="dashAnomalies"></div>
-  </div>
-</section>
-
-<!-- Employees -->
-<section class="page" id="page-employees">
-  <div class="panel">
-    <h2>👥 <span data-i18n="employeeList">員工清單</span>
-      <div>
-        <button class="btn gold" onclick="openEmployeeModal()">+ <span data-i18n="addEmployee">新增員工</span></button>
-        <button class="btn" onclick="document.getElementById('importFile').click()">📥 <span data-i18n="importExcel">匯入</span></button>
-        <input type="file" id="importFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="importExcel(event)">
-        <button class="btn" onclick="exportExcel()">📤 <span data-i18n="exportExcel">匯出</span></button>
-        <button class="btn ghost" onclick="window.print()">🖨️ <span data-i18n="print">列印</span></button>
+    <h2>📝 試用期追蹤 / Probation
+      <div class="dash-h2-wrap">
+        <!-- Period Navigation -->
+        <div class="period-ctrl" id="probPeriodCtrl">
+          <div class="ptabs">
+            <button class="active" data-ptab="all"  onclick="setDashMode('prob','all')">全部</button>
+            <button data-ptab="day"   onclick="setDashMode('prob','day')">日</button>
+            <button data-ptab="week"  onclick="setDashMode('prob','week')">週</button>
+            <button data-ptab="month" onclick="setDashMode('prob','month')">月</button>
+            <button data-ptab="year"  onclick="setDashMode('prob','year')">年</button>
+          </div>
+          <button class="nav-arrow" id="probNavL" onclick="navDash('prob',-1)" style="display:none">◀</button>
+          <span class="period-label" id="probPeriodLabel"></span>
+          <button class="nav-arrow" id="probNavR" onclick="navDash('prob',1)"  style="display:none">▶</button>
+        </div>
+        <!-- Actions -->
+        <button class="btn gold small" onclick="openDashProbModal()">+ 新增</button>
+        <button class="btn small" onclick="document.getElementById('probDashFile').click()">📥 匯入 Excel</button>
+        <input type="file" id="probDashFile" accept=".xlsx,.xls" style="display:none" onchange="importProbDash(event)">
+        <button class="btn small danger" onclick="deleteSelectedProbs()">🗑 刪除</button>
+        <button class="btn small warning" onclick="clearAllProbs()">⚡ 全清除</button>
+        <button class="btn small success" onclick="exportProbationExcel()">💾 儲存</button>
+        <button class="btn small ghost" onclick="window.print()">🖨 列印</button>
       </div>
     </h2>
     <div class="filter-row">
-      <input type="text" id="empSearch" placeholder="🔍 搜尋（VRT編號/姓名/部門）" oninput="renderEmployees()" style="flex:1;min-width:200px">
-      <select id="empStatusFilter" onchange="renderEmployees()">
-        <option value="">全部狀態</option>
-        <option value="active">在職</option>
-        <option value="terminated">離職</option>
-      </select>
-      <select id="empDeptFilter" onchange="renderEmployees()">
-        <option value="">全部部門</option>
+      <input type="text" id="dashProbSearch" placeholder="🔍 搜尋（廠內編號/姓名/部門）" oninput="renderDashProb()" style="flex:1;min-width:200px">
+      <select id="dashProbResult" onchange="renderDashProb()">
+        <option value="">全部結果</option>
+        <option value="passed">通過</option>
+        <option value="failed">未通過</option>
+        <option value="pending">待評估</option>
+        <option value="extended">延長</option>
       </select>
     </div>
     <div class="table-scroll">
-      <table id="empTable">
+      <table id="dashProbTable">
         <thead><tr>
-          <th>#</th>
-          <th data-i18n="colVrtCode">VRT 編號</th>
-          <th data-i18n="colFactoryId">廠內編號</th>
-          <th data-i18n="colNameKm">柬文姓名</th>
-          <th data-i18n="colNameEn">英文姓名</th>
-          <th data-i18n="colDept">部門</th>
-          <th data-i18n="colPosition">職位</th>
-          <th data-i18n="colJoinDate">入職日</th>
-          <th data-i18n="colSalary">薪資</th>
-          <th data-i18n="colStatus">狀態</th>
-          <th data-i18n="colActions">操作</th>
+          <th class="cb-col"><input type="checkbox" id="probSelAll" onchange="toggleSelect('prob',this.checked)"></th>
+          <th>#</th><th>廠內編號</th><th>姓名</th><th>入職日</th>
+          <th>試用到期</th><th>評估日</th><th>分數</th><th>結果</th>
+          <th>部門</th><th>備註</th><th>操作</th>
         </tr></thead>
-        <tbody></tbody>
+        <tbody id="dashProbBody"></tbody>
       </table>
     </div>
+    <div id="dashProbSummary" class="small-text" style="margin-top:6px;text-align:right"></div>
+  </div>
+
+  <!-- ═══════ 合約追蹤 Panel ═══════ -->
+  <div class="panel">
+    <h2>📄 合約追蹤 / Contract
+      <div class="dash-h2-wrap">
+        <div class="period-ctrl" id="contPeriodCtrl">
+          <div class="ptabs">
+            <button class="active" data-ptab="all"  onclick="setDashMode('cont','all')">全部</button>
+            <button data-ptab="day"   onclick="setDashMode('cont','day')">日</button>
+            <button data-ptab="week"  onclick="setDashMode('cont','week')">週</button>
+            <button data-ptab="month" onclick="setDashMode('cont','month')">月</button>
+            <button data-ptab="year"  onclick="setDashMode('cont','year')">年</button>
+          </div>
+          <button class="nav-arrow" id="contNavL" onclick="navDash('cont',-1)" style="display:none">◀</button>
+          <span class="period-label" id="contPeriodLabel"></span>
+          <button class="nav-arrow" id="contNavR" onclick="navDash('cont',1)"  style="display:none">▶</button>
+        </div>
+        <button class="btn gold small" onclick="openDashContModal()">+ 新增</button>
+        <button class="btn small" onclick="document.getElementById('contDashFile').click()">📥 匯入 Excel</button>
+        <input type="file" id="contDashFile" accept=".xlsx,.xls" style="display:none" onchange="importContDash(event)">
+        <button class="btn small danger" onclick="deleteSelectedConts()">🗑 刪除</button>
+        <button class="btn small warning" onclick="clearAllConts()">⚡ 全清除</button>
+        <button class="btn small success" onclick="exportContractExcel()">💾 儲存</button>
+        <button class="btn small ghost" onclick="window.print()">🖨 列印</button>
+      </div>
+    </h2>
+    <div class="filter-row">
+      <input type="text" id="dashContSearch" placeholder="🔍 搜尋（廠內編號/姓名/部門/職位）" oninput="renderDashCont()" style="flex:1;min-width:200px">
+      <select id="dashContStatus" onchange="renderDashCont()">
+        <option value="">全部狀態</option>
+        <option value="active">生效中</option>
+        <option value="expired">已過期</option>
+        <option value="renewed">已續約</option>
+        <option value="terminated">終止</option>
+      </select>
+      <select id="dashContType" onchange="renderDashCont()">
+        <option value="">全部類型</option>
+        <option value="FDC-6M">FDC 6M</option>
+        <option value="FDC-1Y">FDC 1Y</option>
+        <option value="FDC-2Y">FDC 2Y</option>
+        <option value="UDC">UDC</option>
+      </select>
+    </div>
+    <div class="table-scroll">
+      <table id="dashContTable">
+        <thead><tr>
+          <th class="cb-col"><input type="checkbox" id="contSelAll" onchange="toggleSelect('cont',this.checked)"></th>
+          <th>#</th><th>廠內編號</th><th>姓名</th><th>部門</th><th>職位</th>
+          <th>入職日</th><th>合約類型</th><th>合約到期</th><th>剩餘天數</th>
+          <th>狀態</th><th>操作</th>
+        </tr></thead>
+        <tbody id="dashContBody"></tbody>
+      </table>
+    </div>
+    <div id="dashContSummary" class="small-text" style="margin-top:6px;text-align:right"></div>
+  </div>
+
+  <!-- Quick anomalies banner -->
+  <div class="panel" id="dashAnomaliesPanel">
+    <h2>⚠️ <span data-i18n="anomaliesTitle">異常警示</span>
+      <button class="btn small gold" onclick="sendTelegramSummary()">📱 Telegram</button>
+    </h2>
+    <div id="dashAnomalies"></div>
   </div>
 </section>
-
 <!-- Probation -->
 <section class="page" id="page-probation">
   <div class="panel">
@@ -447,58 +516,75 @@ table tbody tr:hover{background:#fbf9f0}
 
 </main>
 
-<!-- Employee Modal -->
-<div class="modal-bg" id="employeeModal">
+<!-- Dashboard: Add Probation Modal -->
+<div class="modal-bg" id="dashProbModal">
   <div class="modal">
-    <h3 id="empModalTitle">新增員工 / Add Employee</h3>
+    <h3 id="dashProbModalTitle">新增試用期紀錄 / Add Probation</h3>
     <div class="form-grid">
-      <div><label data-i18n="colVrtCode">VRT 編號 *</label><input type="text" id="empVrtCode" required></div>
-      <div><label data-i18n="colFactoryId">廠內編號 Factory ID</label><input type="text" id="empFactoryId"></div>
-      <div><label>NSSF Code</label><input type="text" id="empNssf"></div>
-      <div><label>ID / Passport</label><input type="text" id="empIdNum"></div>
-      <div><label data-i18n="colKhmerSurname">柬文姓 Khmer Surname</label><input type="text" id="empKhmerSurname" class="khmer"></div>
-      <div><label data-i18n="colKhmerName">柬文名 Khmer Name</label><input type="text" id="empKhmerName" class="khmer"></div>
-      <div><label data-i18n="colEnglishSurname">英文姓 English Surname</label><input type="text" id="empEngSurname"></div>
-      <div><label data-i18n="colEnglishName">英文名 English Name</label><input type="text" id="empEngName"></div>
-      <div><label data-i18n="colGender">性別</label>
-        <select id="empGender"><option value="F">F</option><option value="M">M</option></select></div>
-      <div><label data-i18n="colBirthDate">出生日期</label><input type="date" id="empBirthDate"></div>
-      <div><label data-i18n="colNationality">國籍</label><input type="text" id="empNationality" value="ខ្មែរ"></div>
-      <div><label data-i18n="colDept">部門 *</label>
-        <select id="empDept" required>
-          <option value="Line 1">Line 1</option><option value="Line 2">Line 2</option>
-          <option value="Line 3">Line 3</option><option value="Line 4">Line 4</option>
-          <option value="Line 5">Line 5</option><option value="Line 6">Line 6</option>
-          <option value="Line 7">Line 7</option><option value="Line 8">Line 8</option>
-          <option value="LINE 09">LINE 09</option><option value="LINE 10">LINE 10</option><option value="LINE 11">LINE 11</option>
-          <option value="Cutting">Cutting</option><option value="Packing">Packing</option>
-          <option value="QC">QC</option><option value="Warehouse">Warehouse</option>
-          <option value="Maintenance">Maintenance</option><option value="HR">HR</option>
-          <option value="Admin">Admin</option><option value="Management">Management</option>
+      <div><label>廠內編號 Factory ID *</label><input type="text" id="dpFactoryId" required></div>
+      <div><label>部門 Department *</label>
+        <select id="dpDept">
+          <option>Line 1</option><option>Line 2</option><option>Line 3</option>
+          <option>Line 4</option><option>Line 5</option><option>Line 6</option>
+          <option>Line 7</option><option>Line 8</option><option>LINE 09</option>
+          <option>LINE 10</option><option>LINE 11</option><option>Cutting</option>
+          <option>Packing</option><option>QC</option><option>Warehouse</option>
+          <option>Maintenance</option><option>HR</option><option>Admin</option>
+          <option>Management</option>
         </select></div>
-      <div><label data-i18n="colPosition">職位 *</label><input type="text" id="empPosition" required></div>
-      <div><label data-i18n="colPosCategory">職位類別 *</label>
-        <select id="empPosCategory" required>
-          <option value="worker" data-i18n="catWorker">普工</option>
-          <option value="technical" data-i18n="catTechnical">技術</option>
-          <option value="management" data-i18n="catManagement">管理</option>
+      <div><label>柬文姓 Khmer Surname</label><input type="text" id="dpKhSur" class="khmer"></div>
+      <div><label>柬文名 Khmer Name</label><input type="text" id="dpKhName" class="khmer"></div>
+      <div><label>入職日 Join Date *</label><input type="date" id="dpJoinDate" onchange="dpCalcEnd()"></div>
+      <div><label>試用期到期 Probation End *</label><input type="date" id="dpEndDate"></div>
+      <div><label>評估日 Evaluation Date</label><input type="date" id="dpEvalDate"></div>
+      <div><label>分數 Score</label><input type="number" id="dpScore" min="0" max="100"></div>
+      <div><label>結果 Result</label>
+        <select id="dpResult">
+          <option value="pending">待評估 Pending</option>
+          <option value="passed">通過 Pass</option>
+          <option value="failed">未通過 Fail</option>
+          <option value="extended">延長 Extended</option>
         </select></div>
-      <div><label data-i18n="colJoinDate">入職日 *</label><input type="date" id="empJoinDate" required></div>
-      <div><label data-i18n="colSalary">月薪 (USD)</label><input type="number" id="empSalary" step="0.01"></div>
-      <div><label data-i18n="colStatus">狀態</label>
-        <select id="empStatus">
-          <option value="active" data-i18n="statusActive">在職</option>
-          <option value="terminated" data-i18n="statusTerminated">離職</option>
-        </select></div>
-      <div class="full"><label data-i18n="colNotes">備註</label><textarea id="empNotes" rows="2"></textarea></div>
+      <div class="full"><label>備註 Remarks</label><input type="text" id="dpRemarks"></div>
     </div>
-    <label style="margin-top:10px;color:var(--info)">
-      <input type="checkbox" id="empAutoCreate" checked>
-      <span data-i18n="autoCreateProb">自動建立對應的試用期紀錄</span>
-    </label>
     <div class="modal-actions">
-      <button class="btn ghost" onclick="closeModal('employeeModal')" data-i18n="cancel">取消</button>
-      <button class="btn gold" onclick="saveEmployee()" data-i18n="save">儲存</button>
+      <button class="btn ghost" onclick="closeModal('dashProbModal')">取消</button>
+      <button class="btn gold" onclick="saveDashProb()">💾 儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dashboard: Add Contract Modal -->
+<div class="modal-bg" id="dashContModal">
+  <div class="modal">
+    <h3 id="dashContModalTitle">新增合約紀錄 / Add Contract</h3>
+    <div class="form-grid">
+      <div><label>廠內編號 Factory ID *</label><input type="text" id="dcFactoryId" required></div>
+      <div><label>部門 Dep. *</label><input type="text" id="dcDept"></div>
+      <div><label>柬文姓名 Name</label><input type="text" id="dcName" class="khmer"></div>
+      <div><label>Section</label><input type="text" id="dcSection"></div>
+      <div><label>職位 Position</label><input type="text" id="dcPosition"></div>
+      <div><label>入職日 Date Entry *</label><input type="date" id="dcEntry" onchange="dcCalcEnd()"></div>
+      <div><label>合約類型 Contract *</label>
+        <select id="dcType" onchange="dcCalcEnd()">
+          <option value="FDC-6M">FDC 6個月</option>
+          <option value="FDC-1Y">FDC 1年</option>
+          <option value="FDC-2Y">FDC 2年</option>
+          <option value="UDC">UDC 不定期</option>
+        </select></div>
+      <div><label>合約到期 End Date</label><input type="date" id="dcEndDate"></div>
+      <div><label>狀態 Status</label>
+        <select id="dcStatus">
+          <option value="active">生效中</option>
+          <option value="expired">已過期</option>
+          <option value="renewed">已續約</option>
+          <option value="terminated">終止</option>
+        </select></div>
+      <div class="full"><label>備註 Notes</label><input type="text" id="dcNotes"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn ghost" onclick="closeModal('dashContModal')">取消</button>
+      <button class="btn gold" onclick="saveDashCont()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -668,7 +754,7 @@ function applyLang(){
 }
 
 /* ========== IndexedDB ========== */
-const DB_NAME="HRContractDB",DB_VER=1;
+const DB_NAME="HRContractDB",DB_VER=2;
 let db=null;
 function openDB(){return new Promise((res,rej)=>{
   const req=indexedDB.open(DB_NAME,DB_VER);
@@ -678,6 +764,8 @@ function openDB(){return new Promise((res,rej)=>{
     if(!d.objectStoreNames.contains("probations"))d.createObjectStore("probations",{keyPath:"id"});
     if(!d.objectStoreNames.contains("contracts"))d.createObjectStore("contracts",{keyPath:"id"});
     if(!d.objectStoreNames.contains("settings"))d.createObjectStore("settings",{keyPath:"id"});
+    if(!d.objectStoreNames.contains("dashProbs"))d.createObjectStore("dashProbs",{keyPath:"id"});
+    if(!d.objectStoreNames.contains("dashConts"))d.createObjectStore("dashConts",{keyPath:"id"});
   };
   req.onsuccess=e=>{db=e.target.result;res(db)};
   req.onerror=e=>rej(e);
@@ -705,6 +793,7 @@ function dbGet(store,id){return new Promise((res,rej)=>{
 
 /* ========== 全域資料 ========== */
 let EMPLOYEES=[],PROBATIONS=[],CONTRACTS=[],SETTINGS={};
+let DASH_PROBS=[],DASH_CONTS=[];
 const DEFAULT_SETTINGS={
   id:"main",probationDurations:{worker:1,technical:2,management:3},
   reminderDays:15,severanceRate:5,severanceMinMonths:6,language:"zh",
@@ -715,6 +804,8 @@ async function loadAll(){
   EMPLOYEES=await dbAll("employees");
   PROBATIONS=await dbAll("probations");
   CONTRACTS=await dbAll("contracts");
+  DASH_PROBS=await dbAll("dashProbs");
+  DASH_CONTS=await dbAll("dashConts");
   const s=await dbGet("settings","main");
   SETTINGS=s||DEFAULT_SETTINGS;
   if(!s)await dbPut("settings",SETTINGS);
@@ -958,23 +1049,7 @@ function renderDashboard(){
     }
   });
   up.sort((a,b)=>a.days-b.days);
-  const upList=document.getElementById("upcomingList");
-  if(up.length===0){upList.innerHTML='<div class="alert info">✓ 目前沒有即將到期項目 / No upcoming expiry / គ្មានផុតកំណត់</div>';}
-  else{
-    upList.innerHTML=`<div class="table-scroll"><table><thead><tr>
-      <th>類型</th><th>VRT</th><th>姓名</th><th>部門</th><th>到期日</th><th>剩餘天數</th>
-    </tr></thead><tbody>${up.map(u=>`
-      <tr class="${u.days<=7?'row-warning':''}">
-        <td><span class="badge ${u.type.includes("試用")||u.typeEn.includes("Probation")?"pending":"info"}">${escapeHtml(u.type)}</span></td>
-        <td>${escapeHtml(u.emp?.vrtCode||"?")}</td>
-        <td>${escapeHtml(u.emp?.englishName||u.emp?.khmerName||"")}</td>
-        <td>${escapeHtml(u.emp?.department||"")}</td>
-        <td>${u.date}</td>
-        <td class="${u.days<=3?'danger-text':u.days<=7?'warning-text':''}">${u.days}</td>
-      </tr>`).join("")}</tbody></table></div>`;
-  }
-
-  // 異常快顯
+  // anomalies panel (shown at bottom of dashboard)
   const anomEl=document.getElementById("dashAnomalies");
   const topAn=anomalies.slice(0,5);
   if(topAn.length===0){anomEl.innerHTML='<div class="alert success">✓ 沒有異常 / No anomalies / គ្មានអនាធិបតេយ្យ</div>';}
@@ -983,11 +1058,418 @@ function renderDashboard(){
       <strong>[${escapeHtml(a.empCode)}]</strong> ${escapeHtml(a.title)}
       <div class="small-text">${escapeHtml(a.detail||"")}</div>
     </div>`).join("")+
-    (anomalies.length>5?`<div class="small-text">還有 ${anomalies.length-5} 項異常，請至 [異常] 頁面查看</div>`:"");
+    (anomalies.length>5?`<div class="small-text">還有 ${anomalies.length-5} 項異常，請至 [異常] 頁面查看`:"");
   }
+  renderDashProb();
+  renderDashCont();
 }
 
 /* ========== 渲染 - Employees ========== */
+
+/* ═══════════════════════════════════════════════════════════
+   DASHBOARD — 試用期 & 合約 獨立追蹤（dashProbs / dashConts）
+   ═══════════════════════════════════════════════════════════ */
+
+// ── Period nav state ──────────────────────────────────────
+let probMode='all', probPeriodIdx=0, probPeriods=[];
+let contMode='all', contPeriodIdx=0, contPeriods=[];
+
+function getProbDate(r){ return r.joinDate||r.startDate||""; }
+function getContDate(r){ return r.entryDate||r.startDate||""; }
+
+function periodKey(dateStr,mode){
+  if(!dateStr)return"";
+  const d=new Date(dateStr+"T00:00:00");
+  if(mode==="day")  return dateStr.slice(0,10);
+  if(mode==="week") {
+    const mon=new Date(d); mon.setDate(d.getDate()-((d.getDay()||7)-1));
+    return mon.toISOString().slice(0,10);
+  }
+  if(mode==="month")return dateStr.slice(0,7);
+  if(mode==="year") return dateStr.slice(0,4);
+  return"";
+}
+function periodLabel(key,mode){
+  if(!key)return"";
+  if(mode==="day")  return key;
+  if(mode==="week") { const end=new Date(key+"T00:00:00");end.setDate(end.getDate()+6);
+    return key+" ~ "+end.toISOString().slice(0,10); }
+  if(mode==="month")return key;
+  if(mode==="year") return key+"年";
+  return key;
+}
+function buildPeriods(arr,getDate,mode){
+  if(mode==="all")return[];
+  const keys=[...new Set(arr.map(r=>periodKey(getDate(r),mode)).filter(Boolean))].sort().reverse();
+  return keys;
+}
+
+function setDashMode(type,mode){
+  if(type==="prob"){
+    probMode=mode;
+    probPeriods=buildPeriods(DASH_PROBS,getProbDate,mode);
+    probPeriodIdx=0;
+    // update tab button styles
+    document.querySelectorAll("#probPeriodCtrl .ptabs button").forEach(b=>{
+      b.classList.toggle("active",b.dataset.ptab===mode);
+    });
+    const show=(mode!=="all");
+    document.getElementById("probNavL").style.display=show?"":"none";
+    document.getElementById("probNavR").style.display=show?"":"none";
+  }else{
+    contMode=mode;
+    contPeriods=buildPeriods(DASH_CONTS,getContDate,mode);
+    contPeriodIdx=0;
+    document.querySelectorAll("#contPeriodCtrl .ptabs button").forEach(b=>{
+      b.classList.toggle("active",b.dataset.ptab===mode);
+    });
+    const show=(mode!=="all");
+    document.getElementById("contNavL").style.display=show?"":"none";
+    document.getElementById("contNavR").style.display=show?"":"none";
+  }
+  if(type==="prob")renderDashProb(); else renderDashCont();
+}
+function navDash(type,dir){
+  if(type==="prob"){
+    probPeriodIdx=Math.max(0,Math.min(probPeriods.length-1,probPeriodIdx+dir));
+    renderDashProb();
+  }else{
+    contPeriodIdx=Math.max(0,Math.min(contPeriods.length-1,contPeriodIdx+dir));
+    renderDashCont();
+  }
+}
+
+// ── Render probation table ────────────────────────────────
+function renderDashProb(){
+  const search=(document.getElementById("dashProbSearch")?.value||"").toLowerCase();
+  const resF=(document.getElementById("dashProbResult")?.value||"");
+  let list=[...DASH_PROBS];
+
+  // period filter
+  if(probMode!=="all"&&probPeriods.length){
+    const curKey=probPeriods[probPeriodIdx]||"";
+    list=list.filter(r=>periodKey(getProbDate(r),probMode)===curKey);
+    document.getElementById("probPeriodLabel").textContent=periodLabel(curKey,probMode);
+  }else{
+    document.getElementById("probPeriodLabel").textContent="";
+  }
+  if(resF)list=list.filter(r=>r.result===resF);
+  if(search)list=list.filter(r=>(r.factoryId+r.khmerName+r.khmerSurname+r.dept||"").toLowerCase().includes(search));
+  list.sort((a,b)=>(getProbDate(b)||"").localeCompare(getProbDate(a)||""));
+
+  const today=todayISO();
+  const tbody=document.getElementById("dashProbBody");
+  if(!tbody)return;
+  tbody.innerHTML=list.map((r,i)=>{
+    const due=r.probEnd||"";
+    const days=due?Math.round((new Date(due)-new Date(today))/(864e5)):null;
+    const rowCls=days!==null&&days<0?"row-danger":days!==null&&days<=7?"row-warning":"";
+    const resBadge={passed:"active",failed:"expired",pending:"pending",extended:"warning"}[r.result]||"muted";
+    return `<tr class="${rowCls}">
+      <td class="cb-col"><input type="checkbox" class="prob-cb" data-id="${r.id}"></td>
+      <td>${i+1}</td>
+      <td>${escapeHtml(r.factoryId||"")}</td>
+      <td class="khmer">${escapeHtml((r.khmerSurname||"")+" "+(r.khmerName||""))}</td>
+      <td>${fmtDate(r.joinDate)}</td>
+      <td>${fmtDate(r.probEnd)}</td>
+      <td>${fmtDate(r.evalDate)}</td>
+      <td>${r.score!=null&&r.score!==""?r.score:""}</td>
+      <td><span class="badge ${resBadge}">${{passed:"通過",failed:"未通過",pending:"待評估",extended:"延長"}[r.result]||r.result||"-"}</span></td>
+      <td>${escapeHtml(r.dept||"")}</td>
+      <td class="small-text">${escapeHtml(r.remarks||"")}</td>
+      <td class="actions-cell">
+        <button class="btn small" onclick="openDashProbModal('${r.id}')">✏️</button>
+        <button class="btn small danger" onclick="delOneDashProb('${r.id}')">🗑️</button>
+      </td>
+    </tr>`;
+  }).join("")||`<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--muted)">沒有資料 / No data</td></tr>`;
+  document.getElementById("dashProbSummary").textContent=`共 ${list.length} 筆 / Total ${DASH_PROBS.length}`;
+}
+
+// ── Render contract table ─────────────────────────────────
+function renderDashCont(){
+  const search=(document.getElementById("dashContSearch")?.value||"").toLowerCase();
+  const statusF=(document.getElementById("dashContStatus")?.value||"");
+  const typeF=(document.getElementById("dashContType")?.value||"");
+  let list=[...DASH_CONTS];
+
+  // auto-compute status
+  const today=todayISO();
+  list=list.map(r=>{
+    let st=r.status||"active";
+    if(st==="active"&&r.endDate&&r.contractType!=="UDC"&&r.endDate<today)st="expired";
+    return {...r,_computedStatus:st};
+  });
+
+  if(contMode!=="all"&&contPeriods.length){
+    const curKey=contPeriods[contPeriodIdx]||"";
+    list=list.filter(r=>periodKey(getContDate(r),contMode)===curKey);
+    document.getElementById("contPeriodLabel").textContent=periodLabel(curKey,contMode);
+  }else{
+    document.getElementById("contPeriodLabel").textContent="";
+  }
+  if(statusF)list=list.filter(r=>r._computedStatus===statusF);
+  if(typeF)list=list.filter(r=>r.contractType===typeF);
+  if(search)list=list.filter(r=>(r.factoryId+r.name+r.dept+r.position||"").toLowerCase().includes(search));
+
+  const remDays=SETTINGS.reminderDays||15;
+  list.sort((a,b)=>{
+    const da=a.endDate?Math.round((new Date(a.endDate)-new Date(today))/(864e5)):9999;
+    const db2=b.endDate?Math.round((new Date(b.endDate)-new Date(today))/(864e5)):9999;
+    return da-db2;
+  });
+
+  const tbody=document.getElementById("dashContBody");
+  if(!tbody)return;
+  tbody.innerHTML=list.map((r,i)=>{
+    const days=r.endDate&&r.contractType!=="UDC"?Math.round((new Date(r.endDate)-new Date(today))/(864e5)):null;
+    const rowCls=days!==null&&days<0?"row-danger":days!==null&&days<=remDays?"row-warning":"";
+    const daysCell=r.contractType==="UDC"?"—":(days===null?"":days<0?`<span class="danger-text">${days}</span>`:days<=remDays?`<span class="warning-text">${days}</span>`:days);
+    const stBadge={active:"active",expired:"expired",renewed:"info",terminated:"muted"}[r._computedStatus]||"muted";
+    const stLabel={active:"生效中",expired:"已過期",renewed:"已續約",terminated:"終止"}[r._computedStatus]||r._computedStatus;
+    return `<tr class="${rowCls}">
+      <td class="cb-col"><input type="checkbox" class="cont-cb" data-id="${r.id}"></td>
+      <td>${i+1}</td>
+      <td>${escapeHtml(r.factoryId||"")}</td>
+      <td class="khmer">${escapeHtml(r.name||"")}</td>
+      <td>${escapeHtml(r.dept||"")}</td>
+      <td>${escapeHtml(r.position||"")}</td>
+      <td>${fmtDate(r.entryDate)}</td>
+      <td><span class="badge ${r.contractType==="UDC"?"info":"pending"}">${r.contractType||""}</span></td>
+      <td>${r.contractType==="UDC"?"—":fmtDate(r.endDate)}</td>
+      <td>${daysCell}</td>
+      <td><span class="badge ${stBadge}">${stLabel}</span></td>
+      <td class="actions-cell">
+        <button class="btn small" onclick="openDashContModal('${r.id}')">✏️</button>
+        <button class="btn small danger" onclick="delOneDashCont('${r.id}')">🗑️</button>
+      </td>
+    </tr>`;
+  }).join("")||`<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--muted)">沒有資料 / No data</td></tr>`;
+  document.getElementById("dashContSummary").textContent=`共 ${list.length} 筆 / Total ${DASH_CONTS.length}`;
+}
+
+// ── Checkbox helpers ──────────────────────────────────────
+function toggleSelect(type,checked){
+  document.querySelectorAll("."+type+"-cb").forEach(cb=>cb.checked=checked);
+}
+
+// ── Delete helpers ────────────────────────────────────────
+async function deleteSelectedProbs(){
+  const ids=[...document.querySelectorAll(".prob-cb:checked")].map(cb=>cb.dataset.id);
+  if(!ids.length){toast("請先勾選要刪除的紀錄","warning");return;}
+  if(!confirm(`確定刪除 ${ids.length} 筆試用期紀錄？`))return;
+  for(const id of ids)await dbDel("dashProbs",id);
+  DASH_PROBS=DASH_PROBS.filter(r=>!ids.includes(r.id));
+  renderDashProb(); toast(`已刪除 ${ids.length} 筆`,"success");
+}
+async function deleteSelectedConts(){
+  const ids=[...document.querySelectorAll(".cont-cb:checked")].map(cb=>cb.dataset.id);
+  if(!ids.length){toast("請先勾選要刪除的紀錄","warning");return;}
+  if(!confirm(`確定刪除 ${ids.length} 筆合約紀錄？`))return;
+  for(const id of ids)await dbDel("dashConts",id);
+  DASH_CONTS=DASH_CONTS.filter(r=>!ids.includes(r.id));
+  renderDashCont(); toast(`已刪除 ${ids.length} 筆`,"success");
+}
+async function delOneDashProb(id){
+  if(!confirm("確定刪除此試用期紀錄？"))return;
+  await dbDel("dashProbs",id);
+  DASH_PROBS=DASH_PROBS.filter(r=>r.id!==id);
+  renderDashProb(); toast("已刪除","success");
+}
+async function delOneDashCont(id){
+  if(!confirm("確定刪除此合約紀錄？"))return;
+  await dbDel("dashConts",id);
+  DASH_CONTS=DASH_CONTS.filter(r=>r.id!==id);
+  renderDashCont(); toast("已刪除","success");
+}
+async function clearAllProbs(){
+  if(!confirm(`確定清除全部 ${DASH_PROBS.length} 筆試用期紀錄？此操作無法復原！`))return;
+  await dbClear("dashProbs");DASH_PROBS=[];renderDashProb();toast("試用期紀錄已全部清除","success");
+}
+async function clearAllConts(){
+  if(!confirm(`確定清除全部 ${DASH_CONTS.length} 筆合約紀錄？此操作無法復原！`))return;
+  await dbClear("dashConts");DASH_CONTS=[];renderDashCont();toast("合約紀錄已全部清除","success");
+}
+
+// ── Modals: open / save ───────────────────────────────────
+function openDashProbModal(id){
+  const r=id?DASH_PROBS.find(x=>x.id===id):{};
+  document.getElementById("dashProbModalTitle").textContent=id?"編輯試用期 / Edit Probation":"新增試用期 / Add Probation";
+  document.getElementById("dpFactoryId").value=r.factoryId||"";
+  document.getElementById("dpDept").value=r.dept||"Line 1";
+  document.getElementById("dpKhSur").value=r.khmerSurname||"";
+  document.getElementById("dpKhName").value=r.khmerName||"";
+  document.getElementById("dpJoinDate").value=r.joinDate||"";
+  document.getElementById("dpEndDate").value=r.probEnd||"";
+  document.getElementById("dpEvalDate").value=r.evalDate||"";
+  document.getElementById("dpScore").value=r.score!=null?r.score:"";
+  document.getElementById("dpResult").value=r.result||"pending";
+  document.getElementById("dpRemarks").value=r.remarks||"";
+  document.getElementById("dashProbModal")._editId=id||null;
+  document.getElementById("dashProbModal").classList.add("show");
+}
+function dpCalcEnd(){
+  const j=document.getElementById("dpJoinDate").value;
+  if(j&&!document.getElementById("dpEndDate").value)
+    document.getElementById("dpEndDate").value=addMonths(j,2);
+}
+async function saveDashProb(){
+  const fid=document.getElementById("dpFactoryId").value.trim();
+  if(!fid){toast("廠內編號為必填","warning");return;}
+  const id=document.getElementById("dashProbModal")._editId||uid("dp");
+  const r={id,factoryId:fid,
+    dept:document.getElementById("dpDept").value,
+    khmerSurname:document.getElementById("dpKhSur").value.trim(),
+    khmerName:document.getElementById("dpKhName").value.trim(),
+    joinDate:document.getElementById("dpJoinDate").value,
+    probEnd:document.getElementById("dpEndDate").value,
+    evalDate:document.getElementById("dpEvalDate").value,
+    score:document.getElementById("dpScore").value!==""?Number(document.getElementById("dpScore").value):null,
+    result:document.getElementById("dpResult").value,
+    remarks:document.getElementById("dpRemarks").value.trim(),
+    updatedAt:new Date().toISOString(),
+    createdAt:DASH_PROBS.find(x=>x.id===id)?.createdAt||new Date().toISOString()
+  };
+  await dbPut("dashProbs",r);
+  const idx=DASH_PROBS.findIndex(x=>x.id===id);
+  if(idx>=0)DASH_PROBS[idx]=r; else DASH_PROBS.push(r);
+  closeModal("dashProbModal");renderDashProb();toast("已儲存","success");
+}
+
+function openDashContModal(id){
+  const r=id?DASH_CONTS.find(x=>x.id===id):{};
+  document.getElementById("dashContModalTitle").textContent=id?"編輯合約 / Edit Contract":"新增合約 / Add Contract";
+  document.getElementById("dcFactoryId").value=r.factoryId||"";
+  document.getElementById("dcDept").value=r.dept||"";
+  document.getElementById("dcName").value=r.name||"";
+  document.getElementById("dcSection").value=r.section||"";
+  document.getElementById("dcPosition").value=r.position||"";
+  document.getElementById("dcEntry").value=r.entryDate||"";
+  document.getElementById("dcType").value=r.contractType||"FDC-6M";
+  document.getElementById("dcEndDate").value=r.endDate||"";
+  document.getElementById("dcStatus").value=r.status||"active";
+  document.getElementById("dcNotes").value=r.notes||"";
+  document.getElementById("dashContModal")._editId=id||null;
+  document.getElementById("dashContModal").classList.add("show");
+}
+function dcCalcEnd(){
+  const e=document.getElementById("dcEntry").value;
+  const t=document.getElementById("dcType").value;
+  if(!e)return;
+  const m={"FDC-6M":6,"FDC-1Y":12,"FDC-2Y":24}[t];
+  if(m)document.getElementById("dcEndDate").value=addMonths(e,m);
+  else document.getElementById("dcEndDate").value="";
+}
+async function saveDashCont(){
+  const fid=document.getElementById("dcFactoryId").value.trim();
+  if(!fid){toast("廠內編號為必填","warning");return;}
+  const id=document.getElementById("dashContModal")._editId||uid("dc");
+  const r={id,factoryId:fid,
+    dept:document.getElementById("dcDept").value.trim(),
+    name:document.getElementById("dcName").value.trim(),
+    section:document.getElementById("dcSection").value.trim(),
+    position:document.getElementById("dcPosition").value.trim(),
+    entryDate:document.getElementById("dcEntry").value,
+    contractType:document.getElementById("dcType").value,
+    endDate:document.getElementById("dcEndDate").value,
+    status:document.getElementById("dcStatus").value,
+    notes:document.getElementById("dcNotes").value.trim(),
+    updatedAt:new Date().toISOString(),
+    createdAt:DASH_CONTS.find(x=>x.id===id)?.createdAt||new Date().toISOString()
+  };
+  await dbPut("dashConts",r);
+  const idx=DASH_CONTS.findIndex(x=>x.id===id);
+  if(idx>=0)DASH_CONTS[idx]=r; else DASH_CONTS.push(r);
+  closeModal("dashContModal");renderDashCont();toast("已儲存","success");
+}
+
+// ── Excel Import: Probation（Probation list Excel 格式）───
+async function importProbDash(evt){
+  const f=evt.target.files[0];if(!f)return;
+  const buf=await f.arrayBuffer();
+  const wb=XLSX.read(buf,{type:"array",cellDates:true});
+  let added=0,updated=0,skipped=0;
+  // 支援多 sheet（Jan/Feb/Mar/April …）
+  const sheetNames=wb.SheetNames.filter(n=>!/chart/i.test(n));
+  for(const nm of sheetNames){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,defval:"",raw:false});
+    // 找到資料開始行（第一欄是數字）
+    for(const row of rows){
+      const no=String(row[0]||"").trim();
+      if(!/^\d+$/.test(no))continue;
+      const factoryId=String(row[1]||"").replace(/\.0$/,"").trim();
+      if(!factoryId)continue;
+      const khmerSurname=String(row[2]||"").trim();
+      const khmerName=String(row[3]||"").trim();
+      const joinDate=normalizeDate(row[4]);
+      const probEnd=normalizeDate(row[5]);
+      const evalDate=normalizeDate(row[6]);
+      const scoreRaw=String(row[7]||"").trim();
+      const score=scoreRaw&&!isNaN(scoreRaw)?Number(scoreRaw):null;
+      const resultRaw=String(row[8]||"").toLowerCase().trim();
+      const result=resultRaw==="pass"||resultRaw==="passed"?"passed":
+                   resultRaw==="fail"||resultRaw==="failed"?"failed":"pending";
+      const dept=String(row[9]||"").trim();
+      const remarks=String(row[10]||"").trim();
+      // dedup key = factoryId + joinDate
+      const key=factoryId+"_"+(joinDate||"");
+      const existing=DASH_PROBS.find(r=>r.factoryId===factoryId&&(r.joinDate||"")===joinDate);
+      const id=existing?.id||uid("dp");
+      const rec={id,factoryId,khmerSurname,khmerName,joinDate,probEnd,evalDate,score,result,dept,remarks,
+        updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
+      await dbPut("dashProbs",rec);
+      if(existing){const i=DASH_PROBS.findIndex(r=>r.id===existing.id);DASH_PROBS[i]=rec;updated++;}
+      else{DASH_PROBS.push(rec);added++;}
+    }
+  }
+  renderDashProb();evt.target.value="";
+  toast(`試用期匯入：新增 ${added} / 更新 ${updated}`,"success");
+}
+
+// ── Excel Import: Contract（Contract 2026 Excel 格式）────
+async function importContDash(evt){
+  const f=evt.target.files[0];if(!f)return;
+  const buf=await f.arrayBuffer();
+  const wb=XLSX.read(buf,{type:"array",cellDates:true});
+  // 找合約 sheet（"Contract 2026." 或包含 Contract 的 sheet）
+  let sheetName=wb.SheetNames.find(n=>/contract\s*20/i.test(n))||
+                wb.SheetNames.find(n=>/contract/i.test(n))||wb.SheetNames[0];
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:"",raw:false});
+  let added=0,updated=0;
+  const today=todayISO();
+  for(const row of rows){
+    const no=String(row[0]||"").trim();
+    if(!/^\d+/.test(no))continue;
+    const factoryId=String(row[1]||"").replace(/\.0$/,"").trim();
+    if(!factoryId)continue;
+    const name=String(row[2]||"").trim();
+    const dept=String(row[3]||"").trim();
+    const section=String(row[4]||"").trim();
+    const position=String(row[5]||"").trim();
+    const entryDate=normalizeDate(row[6]);
+    const ctRaw=String(row[7]||"").toLowerCase().trim();
+    let contractType="FDC-6M";
+    if(/6\s*month/i.test(ctRaw))contractType="FDC-6M";
+    else if(/1\s*year/i.test(ctRaw)||/12\s*month/i.test(ctRaw))contractType="FDC-1Y";
+    else if(/2\s*year/i.test(ctRaw)||/24\s*month/i.test(ctRaw))contractType="FDC-2Y";
+    else if(/udc/i.test(ctRaw))contractType="UDC";
+    const months={"FDC-6M":6,"FDC-1Y":12,"FDC-2Y":24}[contractType];
+    const endDate=months&&entryDate?addMonths(entryDate,months):"";
+    const status=contractType==="UDC"?"active":(endDate&&endDate<today?"expired":"active");
+    const existing=DASH_CONTS.find(r=>r.factoryId===factoryId&&(r.entryDate||"")===entryDate);
+    const id=existing?.id||uid("dc");
+    const rec={id,factoryId,name,dept,section,position,entryDate,contractType,endDate,status,notes:"",
+      updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
+    await dbPut("dashConts",rec);
+    if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);DASH_CONTS[i]=rec;updated++;}
+    else{DASH_CONTS.push(rec);added++;}
+  }
+  renderDashCont();evt.target.value="";
+  toast(`合約匯入：新增 ${added} / 更新 ${updated}`,"success");
+}
+
+/* ── end dashboard helpers ── */
+
 function populateDeptFilter(){
   const sel=document.getElementById("empDeptFilter");
   const depts=[...new Set(EMPLOYEES.map(e=>e.department).filter(Boolean))].sort();
