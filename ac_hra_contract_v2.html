@@ -1595,6 +1595,54 @@ document.querySelectorAll(".modal-bg").forEach(m=>{
   m.onclick=e=>{if(e.target===m)m.classList.remove("show")};
 });
 
+/* ========== 匯入輔助：去重 / 合併 / 驗證 ========== */
+/**
+ * normalizeDate — 統一日期格式為 YYYY-MM-DD
+ * 取代原 parseExcelDate，支援 Date 物件 / Excel 序列數 / 字串。
+ */
+function normalizeDate(d){
+  if(!d)return"";
+  if(d instanceof Date)return d.toISOString().slice(0,10);
+  if(typeof d==="number")return new Date((d-25569)*86400*1000).toISOString().slice(0,10);
+  const s=String(d).trim();if(!s)return"";
+  const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+  if(m)return`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  const m2=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if(m2)return`${m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
+  const dt=new Date(s);if(!isNaN(dt))return dt.toISOString().slice(0,10);
+  return"";
+}
+/** 員工唯一鍵 = vrtCode 大寫（大小寫容錯） */
+function getEmpKey(r){return String(r.vrtCode||"").trim().toUpperCase();}
+/** 驗證：必須有 vrtCode，否則丟棄 */
+function validateEmpRow(r){return!!(r.vrtCode&&String(r.vrtCode).trim());}
+/**
+ * mergeEmployees — 合併邏輯（無重複）
+ *   相同 vrtCode → 覆蓋（保留舊 id / createdAt）
+ *   新 vrtCode   → 插入
+ */
+function mergeEmployees(existing,incoming){
+  const map=new Map();
+  existing.forEach(r=>{map.set(getEmpKey(r),r);});
+  incoming.forEach(r=>{
+    const key=getEmpKey(r);
+    if(map.has(key)){
+      const old=map.get(key);
+      // 保留 DB 主鍵與建立時間，其餘欄位以匯入資料覆蓋
+      map.set(key,{...r,id:old.id,createdAt:old.createdAt});
+    }else{
+      map.set(key,r);
+    }
+  });
+  return Array.from(map.values());
+}
+/** 雲端 Pull 後去重：以 id 為鍵，後者覆蓋前者 */
+function deduplicateById(arr){
+  const map=new Map();
+  (arr||[]).forEach(r=>{if(r&&r.id)map.set(r.id,r);});
+  return Array.from(map.values());
+}
+
 /* ========== 匯入 / 匯出 ========== */
 function exportExcel(){
   const data=EMPLOYEES.map((e,i)=>({
@@ -1671,75 +1719,68 @@ async function importExcel(evt){
   const rows=XLSX.utils.sheet_to_json(sheet,{defval:"",raw:false});
   if(rows.length===0){toast("檔案為空","danger");return}
 
-  let added=0,updated=0,skipped=0;
+  // ── Step 1: 映射欄位 ──
+  let incoming=rows.map(r=>({
+    id:uid("emp"),
+    vrtCode:String(r["VRT Code"]||r["VRT"]||r["VRT 編號"]||r["lVRT Code"]||r["លេខកូត VRT"]||"").trim(),
+    factoryId:String(r["Factory ID"]||r["廠內編號"]||"").trim(),
+    nssfCode:String(r["NSSF"]||r["Nssf Code"]||r["អត្ត.ប.ស.ស"]||"").trim(),
+    idNumber:String(r["ID/Passport"]||r["ID/Pass Port No."]||r["អត្ត.ប្រជាពលរដ្ឋ"]||"").trim(),
+    khmerSurname:String(r["Khmer Surname"]||r["Khmer Sure name"]||r["គោត្តនាម"]||"").trim(),
+    khmerName:String(r["Khmer Name"]||r["នាម"]||"").trim(),
+    englishSurname:String(r["English Surname"]||r["English Sure name"]||"").trim(),
+    englishName:String(r["English Name"]||"").trim(),
+    gender:String(r["Gender"]||r["ភេទ"]||"F").trim().charAt(0).toUpperCase()||"F",
+    birthDate:normalizeDate(r["Birth Date"]||r["Birth of Date"]||r["出生日期"]||r["ថ្ងៃខែឆ្នាំកំណើត"]||""),
+    nationality:String(r["Nationality"]||r["សញ្ជាតិ"]||"ខ្មែរ").trim(),
+    department:String(r["Department"]||r["Dept"]||r["Deparment"]||r["部門"]||"Line 1").trim(),
+    position:String(r["Position"]||r["職位"]||"").trim(),
+    positionCategory:String(r["Category"]||r["職位類別"]||"worker").trim(),
+    joinDate:normalizeDate(r["Join Date"]||r["入職日"]||r["Join date"]||r["Contract date old"]||r["កាលបរិ. កិច្ចសន្យាចាស់"]||"")||todayISO(),
+    salary:safeNum(r["Salary"]||r["Average Salary"]||r["薪資"]||0),
+    status:String(r["Status"]||"active").trim(),
+    notes:String(r["Notes"]||r["備註"]||"").trim(),
+    updatedAt:new Date().toISOString(),
+    createdAt:new Date().toISOString(),
+  }));
+
+  // ── Step 2: 驗證 — 無 vrtCode 的列丟棄 ──
+  const totalRaw=incoming.length;
+  incoming=incoming.filter(validateEmpRow);
+  const skipped=totalRaw-incoming.length;
+
+  // ── Step 3: 合併（更新 or 插入，永不重複）──
+  const existing=await dbAll("employees");
+  const existingKeys=new Set(existing.map(getEmpKey));
+  const merged=mergeEmployees(existing,incoming);
+
+  // ── Step 4: 寫回 DB ──
+  await dbClear("employees");
   const newProbs=[];
-  for(const r of rows){
-    const vrt=String(r["VRT Code"]||r["VRT"]||r["VRT 編號"]||r["lVRT Code"]||r["លេខកូត VRT"]||"").trim();
-    if(!vrt){skipped++;continue}
-    const joinDateRaw=r["Join Date"]||r["入職日"]||r["Join date"]||r["Contract date old"]||r["កាលបរិ. កិច្ចសន្យាចាស់"]||"";
-    const joinDate=parseExcelDate(joinDateRaw);
-    const birthRaw=r["Birth Date"]||r["Birth of Date"]||r["出生日期"]||r["ថ្ងៃខែឆ្នាំកំណើត"]||"";
-    const birth=parseExcelDate(birthRaw);
-    const existing=EMPLOYEES.find(e=>e.vrtCode===vrt);
-    const obj={
-      id:existing?.id||uid("emp"),vrtCode:vrt,
-      factoryId:String(r["Factory ID"]||r["廠內編號"]||"").trim(),
-      nssfCode:String(r["NSSF"]||r["Nssf Code"]||r["អត្ត.ប.ស.ស"]||"").trim(),
-      idNumber:String(r["ID/Passport"]||r["ID/Pass Port No."]||r["អត្ត.ប្រជាពលរដ្ឋ"]||"").trim(),
-      khmerSurname:String(r["Khmer Surname"]||r["Khmer Sure name"]||r["គោត្តនាម"]||"").trim(),
-      khmerName:String(r["Khmer Name"]||r["នាម"]||"").trim(),
-      englishSurname:String(r["English Surname"]||r["English Sure name"]||"").trim(),
-      englishName:String(r["English Name"]||"").trim(),
-      gender:String(r["Gender"]||r["ភេទ"]||"F").trim().charAt(0).toUpperCase()||"F",
-      birthDate:birth||"",
-      nationality:String(r["Nationality"]||r["សញ្ជាតិ"]||"ខ្មែរ").trim(),
-      department:String(r["Department"]||r["Dept"]||r["Deparment"]||r["部門"]||existing?.department||"Line 1").trim(),
-      position:String(r["Position"]||r["職位"]||existing?.position||"").trim(),
-      positionCategory:String(r["Category"]||r["職位類別"]||existing?.positionCategory||"worker").trim(),
-      joinDate:joinDate||existing?.joinDate||todayISO(),
-      salary:safeNum(r["Salary"]||r["Average Salary"]||r["薪資"]||existing?.salary),
-      status:String(r["Status"]||existing?.status||"active").trim(),
-      notes:String(r["Notes"]||r["備註"]||"").trim(),
-      updatedAt:new Date().toISOString(),
-      createdAt:existing?.createdAt||new Date().toISOString()
-    };
-    await dbPut("employees",obj);
-    if(existing)updated++;else{
-      added++;
-      // 為新員工自動建立試用期紀錄
-      if(obj.joinDate){
-        const months=getProbationMonthsFor(obj.positionCategory);
-        newProbs.push({
-          id:uid("prob"),employeeId:obj.id,
-          startDate:obj.joinDate,durationMonths:months,
-          endDate:addMonths(obj.joinDate,months),
-          status:"pending",evaluationDate:"",evaluator:"",notes:"",
-          createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
-        });
-      }
+  for(const emp of merged){
+    await dbPut("employees",emp);
+    // 只對真正新增的員工自動建立試用期紀錄
+    if(!existingKeys.has(getEmpKey(emp))&&emp.joinDate){
+      const months=getProbationMonthsFor(emp.positionCategory);
+      newProbs.push({
+        id:uid("prob"),employeeId:emp.id,
+        startDate:emp.joinDate,durationMonths:months,
+        endDate:addMonths(emp.joinDate,months),
+        status:"pending",evaluationDate:"",evaluator:"",notes:"",
+        createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()
+      });
     }
   }
   for(const p of newProbs){await dbPut("probations",p)}
+
+  const added=incoming.filter(r=>!existingKeys.has(getEmpKey(r))).length;
+  const updated=incoming.length-added;
   await loadAll();refreshAll();
   toast(`匯入完成：新增 ${added} / 更新 ${updated} / 跳過 ${skipped}`,"success");
   evt.target.value="";
 }
-function parseExcelDate(v){
-  if(!v)return"";
-  if(v instanceof Date)return v.toISOString().slice(0,10);
-  if(typeof v==="number"){
-    const d=new Date((v-25569)*86400*1000);return d.toISOString().slice(0,10);
-  }
-  if(typeof v==="string"){
-    const s=v.trim();
-    const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
-    if(m)return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
-    const m2=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-    if(m2)return `${m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
-    const d=new Date(s);if(!isNaN(d))return d.toISOString().slice(0,10);
-  }
-  return"";
-}
+// parseExcelDate 已由 normalizeDate 統一取代（向下相容保留）
+function parseExcelDate(v){return normalizeDate(v);}
 
 /* ========== 備份 / 還原 ========== */
 function exportAllBackup(){
@@ -1955,16 +1996,20 @@ async function pullFromGas(){
         recs=recs.concat(dd.data?.records||dd.records||[]);
       }
     }
-    // Write to IndexedDB
+    // Write to IndexedDB（Pull 前先去重，防止雲端資料本身有重複）
     if(recs.employees){
+      const dedupEmps=deduplicateById(recs.employees||[]);
+      const dedupProbs=deduplicateById(recs.probations||[]);
+      const dedupConts=deduplicateById(recs.contracts||[]);
       await dbClear("employees");await dbClear("probations");await dbClear("contracts");
-      for(const e of recs.employees||[])await dbPut("employees",e);
-      for(const p of recs.probations||[])await dbPut("probations",p);
-      for(const c of recs.contracts||[])await dbPut("contracts",c);
+      for(const e of dedupEmps)await dbPut("employees",e);
+      for(const p of dedupProbs)await dbPut("probations",p);
+      for(const c of dedupConts)await dbPut("contracts",c);
     } else {
-      // flat records fallback
+      // flat records fallback — 以 id 去重
+      const dedupRecs=deduplicateById(recs);
       await dbClear("contracts");
-      for(const c of recs)await dbPut("contracts",c);
+      for(const c of dedupRecs)await dbPut("contracts",c);
     }
     await loadAll();refreshAll();
     toast("✅ 已從雲端拉取資料","success");

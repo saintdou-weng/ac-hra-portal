@@ -242,14 +242,127 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-dark
 .print-notice { font-size: 10.5px; color: #6B4E5A; background: #F9F5F7; border: 1px solid #EDE0E5; border-radius: 6px; padding: 8px 12px; margin-top: 12px; line-height: 1.6; }
 .print-doc-no { font-size: 11px; color: #A08090; text-align: right; margin-bottom: 8px; }
 .modal-xl { width: 760px; max-width: 97vw; }
+/* ── HAMBURGER ─────────────────────────────────────── */
+.hamburger{display:none;flex-direction:column;justify-content:center;gap:5px;width:40px;height:40px;
+  padding:8px;border:none;background:none;cursor:pointer;border-radius:8px;flex-shrink:0}
+.hamburger span{display:block;height:2px;border-radius:2px;background:var(--text-dark);transition:all .25s}
+.hamburger:hover{background:var(--rose-pale)}
+
+/* Sidebar overlay backdrop */
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(45,32,32,0.4);
+  z-index:89;backdrop-filter:blur(1px);opacity:0;transition:opacity .25s}
+.sidebar-overlay.show{display:block;opacity:1}
+
 /* ── RESPONSIVE ───────────────────────────────────── */
 @media(max-width:900px){
-  .sidebar{transform:translateX(-100%);transition:.3s}
+  /* Hamburger visible, date hidden to save space */
+  .hamburger{display:flex}
+  .header-date{display:none}
+  .header-sub{display:none}
+
+  /* Sidebar slides in as drawer */
+  .sidebar{
+    transform:translateX(-100%);
+    transition:transform .28s cubic-bezier(.4,0,.2,1);
+    z-index:95;
+    box-shadow: 4px 0 24px rgba(45,32,32,0.18);
+  }
   .sidebar.open{transform:translateX(0)}
-  .main{margin-left:0}
-  .stat-grid{grid-template-columns:1fr 1fr}
+
+  /* Main content fills full width */
+  .main{margin-left:0;padding:16px}
+
+  /* Stats: 2 columns */
+  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .stat-card{padding:14px;gap:10px}
+  .stat-num{font-size:22px}
+
+  /* Charts: single column */
   .chart-grid{grid-template-columns:1fr}
+  .chart-canvas-wrap{height:180px}
+
+  /* Form fields: single column */
   .form-grid{grid-template-columns:1fr}
+
+  /* ── TABLES: horizontal scroll instead of clip ──── */
+  /* Override overflow:hidden → allows horizontal swipe */
+  .data-table-wrap{
+    overflow-x:auto;
+    overflow-y:visible;
+    -webkit-overflow-scrolling:touch;
+    border-radius:var(--radius);
+  }
+  .data-table{min-width:640px}   /* force scroll before collapsing */
+  .data-table th,.data-table td{padding:9px 10px;font-size:12px}
+
+  /* Table toolbar wraps onto 2 rows on small screens */
+  .table-toolbar{gap:8px}
+  .search-input{min-width:0;flex:1}
+  .filter-select{flex:1;min-width:0}
+
+  /* Bigger touch targets for action buttons */
+  .btn-sm{padding:8px 11px;font-size:13px}
+  .action-btns{gap:5px;flex-wrap:wrap}
+
+  /* Pagination compact */
+  .pagination{flex-wrap:wrap;justify-content:center;gap:6px}
+
+  /* ── MODALS: bottom-sheet on mobile ─────────────── */
+  .modal-overlay{align-items:flex-end}
+  .modal{
+    width:100%;
+    max-width:100%;
+    max-height:92vh;
+    border-radius:20px 20px 0 0;
+    transform:translateY(100%);
+    transition:transform .3s cubic-bezier(.4,0,.2,1);
+    padding-bottom:env(safe-area-inset-bottom,12px);
+  }
+  .modal-overlay.open .modal{transform:translateY(0)}
+  .modal-xl{width:100%;max-width:100%}
+  .modal-header{border-radius:20px 20px 0 0}
+
+  /* Salary breakdown: 1 column on very small screens */
+  .salary-breakdown{grid-template-columns:1fr}
+
+  /* Import drop zones: shorter on mobile */
+  .drop-zone{padding:28px 16px}
+  .drop-icon{font-size:32px}
+
+  /* Section cards: less padding */
+  .section-card{padding:14px}
+
+  /* Chart cards */
+  .chart-card{padding:14px}
+
+  /* Page header */
+  .page-header{margin-bottom:16px}
+  .page-title{font-size:20px}
+
+  /* Cloud panel: anchored to left on small screens so it clears the toast */
+  #matCloudPanel{right:auto;left:16px;bottom:72px;width:calc(100vw - 32px);max-width:320px}
+  #matCloudBtn{bottom:16px;right:16px}
+
+  /* Toast: narrower, avoids cloud button */
+  .toast{bottom:72px;right:16px;left:16px;max-width:none;font-size:12px}
+
+  /* Timeline items: compact */
+  .timeline-item{padding:8px 10px}
+  .timeline-avatar{width:30px;height:30px;font-size:12px}
+
+  /* Import format table */
+  .chart-grid[style*="1fr 1fr"]{grid-template-columns:1fr!important}
+}
+
+@media(max-width:480px){
+  /* Extra small: stat grid 1 column */
+  .stat-grid{grid-template-columns:1fr 1fr}
+  .stat-card::before{display:none}
+  .header-logo-icon{width:30px;height:30px;font-size:14px}
+  .header-title{font-size:15px}
+  .lang-toggle{gap:2px}
+  .lang-btn{padding:3px 7px;font-size:11px}
+  .main{padding:12px}
 }
 
 /* ── SALARY DETAIL ───────────────────────────────── */
@@ -266,6 +379,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-dark
 
 <!-- HEADER -->
 <header class="header">
+  <!-- Hamburger — mobile only -->
+  <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
   <div class="header-logo">
     <div class="header-logo-icon">🌸</div>
     <div>
@@ -281,6 +398,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text-dark
   </div>
   <div class="header-date" id="headerDate"></div>
 </header>
+
+<!-- Sidebar overlay backdrop (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
 
 <!-- SIDEBAR -->
 <aside class="sidebar" id="sidebar">
@@ -1146,17 +1266,192 @@ let employees = [];
 let salaryRecords = [];
 let editingId = null;
 let editingSalaryId = null;
-const STORAGE_KEY='vrt_maternity_v1';
+const STORAGE_KEY = 'vrt_maternity_v1';   // ← NEVER change this key
 
-function loadData(){
-  try{
-    const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-    employees=d.employees||[];
-    salaryRecords=d.salaryRecords||[];
-  }catch(e){employees=[];salaryRecords=[];}
+// ── TASK 1 · COMPOSITE UNIQUE KEY ───────────────────
+// employees  → idNo + edd  + 'pregnant'
+// salary     → idNo + month + 'salary'
+// This prevents cross-module and cross-import duplicates.
+const UNIQUE_KEY = (r) =>
+  `${r.idNo || r.id || ''}_${r.date || r.edd || r.month || ''}_${r.type || 'pregnant'}`;
+
+// ── TASK 2 · VALIDATION LAYER ───────────────────────
+function validateRow(row) {
+  const errors = [];
+  if (!row.idNo && !row.id)  errors.push('Missing ID');
+  if (!row.name)             errors.push('Missing Name');
+  if (row.edd   && isNaN(new Date(row.edd)))   errors.push('Invalid EDD date');
+  if (row.month && !/^\d{4}-\d{2}$/.test(row.month)) errors.push('Invalid month (YYYY-MM)');
+  if (row.basicSalary !== undefined && isNaN(Number(row.basicSalary))) errors.push('Invalid basicSalary');
+  if (row.netPay      !== undefined && isNaN(Number(row.netPay)))      errors.push('Invalid netPay');
+  return { valid: errors.length === 0, errors };
 }
-function saveData(){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify({employees,salaryRecords}));
+
+// ── TASK 3 · UPSERT WITH DEDUP + VALIDATION ─────────
+// Works for both employees[] and salaryRecords[].
+// 'type' must be set on each incoming row before calling.
+function upsertWithValidation(existing, incoming) {
+  const map = new Map();
+  let inserted = 0, updated = 0, skipped = 0;
+  const skippedRows = [];
+
+  existing.forEach(r => map.set(UNIQUE_KEY(r), r));
+
+  incoming.forEach(row => {
+    const check = validateRow(row);
+    if (!check.valid) {
+      skipped++;
+      skippedRows.push({ row, errors: check.errors });
+      console.warn('[UPSERT skip]', row.idNo || row.id, check.errors);
+      return;
+    }
+
+    // TASK 8 · Hard-check: salary duplicate guard
+    if (row.type === 'salary') {
+      const dupExists = existing.some(r =>
+        (r.idNo === row.idNo) && (r.month === row.month) && (r.type === 'salary')
+      );
+      if (dupExists) {
+        // Allow UPSERT to overwrite (update path), not block — just log
+        console.info('[UPSERT] Salary UPSERT overwrite:', row.idNo, row.month);
+      }
+    }
+
+    const key = UNIQUE_KEY(row);
+    if (map.has(key)) {
+      const old = map.get(key);
+      map.set(key, { ...old, ...row, _updatedAt: Date.now() });
+      updated++;
+    } else {
+      map.set(key, { ...row, _createdAt: Date.now() });
+      inserted++;
+    }
+  });
+
+  return {
+    data: Array.from(map.values()),
+    stats: { inserted, updated, skipped },
+    skippedRows
+  };
+}
+
+// ── TASK 6 · DUPLICATE IMPORT HASH CHECK ────────────
+function hashData(data) {
+  try { return btoa(unescape(encodeURIComponent(JSON.stringify(data)))).slice(0, 24); }
+  catch(e) { return String(Date.now()); }
+}
+
+function checkDuplicateImport(incoming, hashKey) {
+  const h = hashData(incoming);
+  if (localStorage.getItem(hashKey) === h) return true;   // duplicate
+  localStorage.setItem(hashKey, h);
+  return false;
+}
+
+// ── TASK 4 · AUTO CLOUD SYNC ─────────────────────────
+// Called automatically after every successful import.
+// Uses the same gasUrl already stored by the cloud panel.
+async function syncToCloud(data, tool) {
+  const gasUrl = localStorage.getItem('ac_hra_gas_url') || '';
+  if (!gasUrl) return;   // GAS not configured — skip silently
+  try {
+    await fetch(gasUrl, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'push',
+        tool,
+        records: data,
+        recordCount: data.length,
+        updatedAt: new Date().toISOString()
+      })
+    });
+    // Update meta after auto-push
+    localStorage.setItem('ac_hra_maternity_meta',
+      JSON.stringify({ ts: Date.now(), count: data.length }));
+    console.info('[syncToCloud] Auto-push OK —', tool, data.length, 'records');
+  } catch(e) {
+    console.warn('[syncToCloud] Auto-push failed (non-fatal):', e.message);
+  }
+}
+
+// ── TASK 5 · CLOUD-FIRST INIT ────────────────────────
+// On page load: try cloud, fall back to localStorage.
+async function initData() {
+  const gasUrl = localStorage.getItem('ac_hra_gas_url') || '';
+  if (gasUrl) {
+    try {
+      const r = await fetch(gasUrl + '?action=pull&tool=maternity&meta=1', {
+        method: 'GET', redirect: 'follow'
+      });
+      const d = await r.json();
+      if (d.ok && d.data && d.data !== null) {
+        let recs = d.data.records || (d.data.data && d.data.data.records) || d.data || [];
+        if (d.data.chunked) {
+          const chunks = (d.data.meta && d.data.meta.totalChunks) || 1;
+          recs = [];
+          for (let i = 0; i < chunks; i++) {
+            const rc = await fetch(gasUrl + '?action=pull&tool=maternity&chunk=' + i, {
+              method: 'GET', redirect: 'follow'
+            });
+            const dc = await rc.json();
+            recs = recs.concat(dc.data && dc.data.records || dc.records || []);
+          }
+        }
+        if (Array.isArray(recs) && recs.length > 0) {
+          // Cloud is source of truth — overwrite localStorage
+          const payload = { employees: recs.filter(r => r.type !== 'salary'),
+                            salaryRecords: recs.filter(r => r.type === 'salary') };
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+          employees     = payload.employees;
+          salaryRecords = payload.salaryRecords;
+          console.info('[initData] Loaded from cloud:', recs.length, 'records');
+          return;
+        }
+      }
+    } catch(e) {
+      console.warn('[initData] Cloud pull failed, using localStorage:', e.message);
+    }
+  }
+  // Fallback — read localStorage
+  loadData();
+}
+
+// ── LEGACY COMPAT · loadData / saveData ─────────────
+// loadData() preserved for non-async contexts (sample data, etc.)
+function loadData() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    employees     = d.employees     || [];
+    salaryRecords = d.salaryRecords || [];
+  } catch(e) { employees = []; salaryRecords = []; }
+}
+
+// saveData() still writes localStorage (GAS push is done separately in import functions)
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify({ employees, salaryRecords }));
+}
+
+// ════════════════════════════════════════════════════
+// MOBILE SIDEBAR (hamburger ↔ drawer)
+// ════════════════════════════════════════════════════
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebarOverlay');
+  const isOpen=sb.classList.contains('open');
+  if(isOpen){ closeSidebar(); }
+  else {
+    sb.classList.add('open');
+    ov.classList.add('show');
+    document.body.style.overflow='hidden';  // prevent scroll-behind
+  }
+}
+
+function closeSidebar(){
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebarOverlay').classList.remove('show');
+  document.body.style.overflow='';
 }
 
 // ════════════════════════════════════════════════════
@@ -1169,6 +1464,8 @@ function showTab(t){
   document.querySelectorAll('.nav-item').forEach(el=>{
     if(el.getAttribute('onclick')==="showTab('"+t+"')") el.classList.add('active');
   });
+  // Auto-close sidebar drawer on mobile after navigation
+  if(window.innerWidth<=900) closeSidebar();
   if(t==='dashboard') renderDashboard();
   if(t==='pregnant') renderPregnantTable();
   if(t==='maternity') renderMaternityTable();
@@ -1636,46 +1933,84 @@ function deleteSalary(id){
 function importPregnantFile(input){
   const f=input.files[0]; if(!f) return;
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'binary'});
       const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
-      let added=0, updated=0;
-      rows.forEach(r=>{
+      const rawRows=XLSX.utils.sheet_to_json(ws,{defval:''});
+
+      // ── TASK 6 · Duplicate import guard ─────────
+      if(checkDuplicateImport(rawRows,'last_import_hash_pregnant')){
+        toast(currentLang==='en'?'⚠️ Duplicate import detected — skipped':'⚠️ 重複匯入偵測，已略過','info');
+        return;
+      }
+
+      // ── Map raw Excel rows → normalised employee objects ─
+      const incoming=rawRows.map(r=>{
         const idNo=String(r['ID No.']||r['ID']||r['idNo']||'').trim();
         const name=String(r['Name']||r['name']||r['NAME']||'').trim();
-        if(!name&&!idNo) return;
-        const edd=r['Estimate confinement date']||r['EDD']||r['edd']||'';
-        const returnDate=r['Return date']||r['returnDate']||'';
-        const existing=employees.find(e=>e.idNo===idNo&&idNo);
-        const obj={
-          id:existing?existing.id:uid(), idNo,name,
+        if(!name&&!idNo) return null;
+        const eddRaw=r['Estimate confinement date']||r['EDD']||r['edd']||'';
+        const eddDate=eddRaw?new Date(eddRaw):null;
+        const edd=(eddDate&&!isNaN(eddDate))?eddDate.toISOString().split('T')[0]:'';
+        const retRaw=r['Return date']||r['returnDate']||'';
+        const retDate=retRaw?new Date(retRaw):null;
+        const returnDate=(retDate&&!isNaN(retDate))?retDate.toISOString().split('T')[0]:'';
+        const applyRaw=r['Apply date']||'';
+        const applyDate=applyRaw&&!isNaN(new Date(applyRaw))?new Date(applyRaw).toISOString().split('T')[0]:'';
+        const lsRaw=r['Leave start']||'';
+        const leaveStart=lsRaw&&!isNaN(new Date(lsRaw))?new Date(lsRaw).toISOString().split('T')[0]:'';
+        // Preserve existing internal id if matching record found
+        const existing=employees.find(ex=>ex.idNo===idNo&&idNo);
+        return {
+          id:existing?existing.id:uid(), idNo, name, type:'pregnant',
           engName:String(r['English Name']||r['englishName']||r['NAME']||'').trim(),
           dept:String(r['Dept']||r['dept']||r['Department']||'Other').trim(),
           group:String(r['Group']||r['group']||r['Position']||'').trim(),
           position:String(r['Position']||r['position']||'').trim(),
           gender:String(r['Gender']||r['gender']||r['Sex']||'F').trim(),
           phone:String(r['Phone']||r['phone']||'').trim(),
-          edd:edd?new Date(edd).toISOString().split('T')[0]:'',
-          applyDate:r['Apply date']?new Date(r['Apply date']).toISOString().split('T')[0]:'',
-          leaveStart:r['Leave start']?new Date(r['Leave start']).toISOString().split('T')[0]:'',
-          returnDate:returnDate?new Date(returnDate).toISOString().split('T')[0]:'',
+          edd, applyDate, leaveStart, returnDate,
           totalDays:+r['Total Maternity leave']||+r['totalDays']||90,
           status:String(r['Status']||r['status']||'pregnant').toLowerCase().trim()||'pregnant',
           basicSalary:+r['Basic Salary']||+r['basicSalary']||0,
           mealFee:+r['Meal Fee']||+r['Meal fee']||0,
           transportAllowance:+r['Transport Allowance']||+r['Transport']||0,
-          nssf:+r['NSSF']||0,deductions:+r['Deductions']||0,remarks:String(r['Remarks']||'').trim()
+          nssf:+r['NSSF']||0, deductions:+r['Deductions']||0,
+          remarks:String(r['Remarks']||'').trim()
         };
-        if(existing){employees[employees.indexOf(existing)]=obj;updated++;}
-        else{employees.push(obj);added++;}
-      });
+      }).filter(Boolean);
+
+      // ── TASK 3 · Validated UPSERT ───────────────
+      const result=upsertWithValidation(employees, incoming);
+      employees=result.data;
+      const {inserted,updated,skipped}=result.stats;
+
+      // ── Save locally ─────────────────────────────
       saveData(); renderAll();
-      document.getElementById('importPregnantResult').innerHTML=`<div style="color:var(--green);font-size:13px;padding:8px">✅ ${currentLang==='en'?`Import done: +${added} added, ${updated} updated`:`匯入完成：新增 ${added} 筆，更新 ${updated} 筆`}</div>`;
-      toast(`${currentLang==='en'?`Import OK! +${added} records`:`匯入成功！新增 ${added} 筆`}`);
+
+      // ── TASK 7 · Result summary ──────────────────
+      const summaryMsg=currentLang==='en'
+        ?`✅ Pregnant import done\n+${inserted} new  |  ${updated} updated  |  ${skipped} skipped`
+        :`✅ 孕婦名單匯入完成\n新增 ${inserted} 筆｜更新 ${updated} 筆｜跳過 ${skipped} 筆`;
+      document.getElementById('importPregnantResult').innerHTML=
+        `<div style="background:var(--green-light);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--green);line-height:1.7;white-space:pre">
+          ✅ ${currentLang==='en'?`+${inserted} new · ${updated} updated · ${skipped} skipped`:`新增 ${inserted}｜更新 ${updated}｜跳過 ${skipped}`}
+          ${result.skippedRows.length?'<span style="color:var(--amber);font-size:11px">⚠️ '+result.skippedRows.map(s=>s.row.idNo+': '+s.errors.join(', ')).join(' / ')+'</span>':''}
+        </div>`;
+      toast(summaryMsg);
+
+      // ── TASK 4 · AUTO CLOUD SYNC ─────────────────
+      // Combine employees + salaryRecords for full payload
+      const allRecords=[
+        ...employees.map(r=>({...r,type:r.type||'pregnant'})),
+        ...salaryRecords.map(r=>({...r,type:'salary'}))
+      ];
+      syncToCloud(allRecords,'maternity');
+
     }catch(err){
-      document.getElementById('importPregnantResult').innerHTML=`<div style="color:#E53E3E;font-size:13px;padding:8px">❌ ${currentLang==='en'?'Import failed':'匯入失敗'}：${err.message}</div>`;
+      document.getElementById('importPregnantResult').innerHTML=
+        `<div style="color:#E53E3E;font-size:13px;padding:8px">❌ ${currentLang==='en'?'Import failed':'匯入失敗'}：${err.message}</div>`;
       toast((currentLang==='en'?'Import failed: ':'匯入失敗：')+err.message,'error');
     }
   };
@@ -1685,42 +2020,87 @@ function importPregnantFile(input){
 function importSalaryFile(input){
   const f=input.files[0]; if(!f) return;
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'binary'});
       // Try Summery sheet first
       const sheetName=wb.SheetNames.find(s=>s.toLowerCase().includes('summ'))||wb.SheetNames[0];
       const ws=wb.Sheets[sheetName];
-      const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
-      let added=0;
-      rows.forEach(r=>{
+      const rawRows=XLSX.utils.sheet_to_json(ws,{defval:''});
+
+      // ── TASK 6 · Duplicate import guard ─────────
+      if(checkDuplicateImport(rawRows,'last_import_hash_salary')){
+        toast(currentLang==='en'?'⚠️ Duplicate salary import detected — skipped':'⚠️ 重複薪資匯入偵測，已略過','info');
+        return;
+      }
+
+      // ── Map raw rows → normalised salary objects ──
+      const incoming=rawRows.map(r=>{
         const idNo=String(r['ID No.']||r['ID']||'').trim();
         const name=String(r['NAME']||r['Name']||'').trim();
-        if(!name) return;
+        if(!name) return null;
         const basic=+r['Salary']||+r['Basic Salary']||+r['Basic']||0;
         const meal=+r['Meals']||+r['Meal Fee']||0;
         const transport=+r['Transport Allowance']||+r['Transport']||0;
         const annual=+r['Annual Leave 2018']||+r['Annual Leave']||0;
         const net=(+r['AMOUNT']||+r['Amount']||basic+meal+transport+annual)||0;
         const rem=String(r['Remarks']||r['remark']||'');
-        let month='2023-06';
+        let month='';
         const mMatch=rem.match(/(\d{1,2})-(\w+)-(\d{4})/i);
         if(mMatch){
           const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
           month=`${mMatch[3]}-${months[mMatch[2]]||'06'}`;
         }
-        salaryRecords.push({
-          id:uid(),idNo,name,dept:String(r['Position']||'Sewing').trim(),
-          month,basicSalary:basic,mealFee:meal,transportAllowance:transport,
-          annualLeave:annual,nssf:0,deductions:0,netPay:net,remarks:rem
-        });
-        added++;
-      });
+        // Fallback: try direct YYYY-MM columns
+        if(!month){
+          const mDirect=String(r['Month']||r['month']||'').trim();
+          if(/^\d{4}-\d{2}$/.test(mDirect)) month=mDirect;
+        }
+        if(!month) month='2026-04';   // safe fallback — will still UPSERT correctly
+
+        // Carry existing internal id if this salary record already exists
+        const existingRec=salaryRecords.find(sr=>sr.idNo===idNo&&sr.month===month);
+        return {
+          id:existingRec?existingRec.id:uid(),
+          idNo, name, type:'salary',
+          dept:String(r['Position']||r['Dept']||'Sewing').trim(),
+          month, workDays:+r['Work Days']||+r['workDays']||0,
+          basicSalary:basic, otPay:+r['OT']||+r['otPay']||0,
+          mealFee:meal, transportAllowance:transport,
+          annualLeave:annual, nssf:+r['NSSF']||0, deductions:+r['Deductions']||0,
+          netPay:net, remarks:rem
+        };
+      }).filter(Boolean);
+
+      // ── TASK 3 · Validated UPSERT ───────────────
+      const result=upsertWithValidation(salaryRecords, incoming);
+      salaryRecords=result.data;
+      const {inserted,updated,skipped}=result.stats;
+
+      // ── Save locally ─────────────────────────────
       saveData(); renderSalaryTable();
-      document.getElementById('importSalaryResult').innerHTML=`<div style="color:var(--green);font-size:13px;padding:8px">✅ ${currentLang==='en'?`Import done: ${added} salary records added`:`匯入完成：新增 ${added} 筆薪資記錄`}</div>`;
-      toast(`${currentLang==='en'?`Salary import OK! +${added} records`:`薪資匯入成功！新增 ${added} 筆`}`);
+
+      // ── TASK 7 · Result summary ──────────────────
+      document.getElementById('importSalaryResult').innerHTML=
+        `<div style="background:var(--green-light);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--green);line-height:1.7">
+          ✅ ${currentLang==='en'?`+${inserted} new · ${updated} updated · ${skipped} skipped`:`新增 ${inserted}｜更新 ${updated}｜跳過 ${skipped}`}
+          ${result.skippedRows.length?'<div style="color:var(--amber);font-size:11px;margin-top:4px">⚠️ '+result.skippedRows.map(s=>s.row.idNo+': '+s.errors.join(', ')).join(' / ')+'</div>':''}
+        </div>`;
+      const summaryMsg=currentLang==='en'
+        ?`✅ Salary import done\n+${inserted} new  |  ${updated} updated  |  ${skipped} skipped`
+        :`✅ 薪資匯入完成\n新增 ${inserted} 筆｜更新 ${updated} 筆｜跳過 ${skipped} 筆`;
+      toast(summaryMsg);
+
+      // ── TASK 4 · AUTO CLOUD SYNC ─────────────────
+      const allRecords=[
+        ...employees.map(r=>({...r,type:r.type||'pregnant'})),
+        ...salaryRecords.map(r=>({...r,type:'salary'}))
+      ];
+      syncToCloud(allRecords,'maternity');
+
     }catch(err){
-      document.getElementById('importSalaryResult').innerHTML=`<div style="color:#E53E3E;font-size:13px;padding:8px">❌ ${err.message}</div>`;
+      document.getElementById('importSalaryResult').innerHTML=
+        `<div style="color:#E53E3E;font-size:13px;padding:8px">❌ ${err.message}</div>`;
       toast(currentLang==='en'?'Import failed':'匯入失敗','error');
     }
   };
@@ -2332,15 +2712,21 @@ table.sig td{width:33%;padding:4px 14px;vertical-align:bottom;font-size:10.5pt}
 }
 
 
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded', async () => {
   // Date in header
-  const localeMap={zh:'zh-TW',en:'en-US',km:'km-KH'}; document.getElementById('headerDate').textContent=new Date().toLocaleDateString(localeMap[currentLang]||'en-US',{year:'numeric',month:'long',day:'numeric'});
-  // Load data
-  loadData();
+  const localeMap={zh:'zh-TW',en:'en-US',km:'km-KH'};
+  document.getElementById('headerDate').textContent=
+    new Date().toLocaleDateString(localeMap[currentLang]||'en-US',{year:'numeric',month:'long',day:'numeric'});
+
+  // ── TASK 5 · Cloud-first init ────────────────────
+  // Tries cloud first, falls back to localStorage automatically.
+  await initData();
   loadTgConfig();
-  // Load sample if empty
+
+  // Load sample only if no data from any source
   if(!employees.length) loadSampleData();
   else renderAll();
+
   // Default preview
   setTimeout(updateTgPreview,500);
 });
