@@ -320,74 +320,104 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- ══ JOINS ══ -->
 <div class="page" id="page-joins">
-  <div class="toolbar">
-    <input class="search-box" id="join-search" placeholder="搜尋姓名/工號/部門…" oninput="renderJoins()">
-    <select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部部門</option></select>
-    <select class="flt" id="join-month" onchange="renderJoins()"><option value="">全部月份</option></select>
-    <div class="view-toggle">
-      <button class="on" id="join-vt-card" onclick="setJoinView('card')">▦</button>
-      <button id="join-vt-table" onclick="setJoinView('table')">☰</button>
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="openJoinModal()">＋ <span data-i="add">新增</span></button>
+  <!-- Filters bar -->
+  <div class="sum-filters">
+    <div class="sum-filter-group"><label>月份</label><select class="flt" id="join-month" onchange="renderJoins()"><option value="">全部</option></select></div>
+    <div class="sum-filter-group"><label>部門/組別</label><select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部</option></select></div>
+    <div class="sum-filter-group"><label>性別</label><select class="flt" id="join-gender" onchange="renderJoins()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
+    <div class="sum-filter-group"><label>職位</label><select class="flt" id="join-pos" onchange="renderJoins()"><option value="">全部</option></select></div>
+    <input class="search-box" id="join-search" placeholder="搜尋姓名/工號…" oninput="renderJoins()" style="flex:1;min-width:140px">
+    <button class="btn btn-primary btn-sm" onclick="openJoinModal()">＋ 新增</button>
     <button class="btn btn-ghost btn-sm" onclick="exportJoinsExcel()">⬇ Excel</button>
     <button class="btn btn-ghost btn-sm" onclick="printPage()">🖨</button>
   </div>
-  <div id="join-cards" class="card-grid"></div>
-  <div class="tbl-wrap" id="join-table-wrap" style="display:none">
-    <table>
-      <thead><tr>
-        <th>工號</th><th>姓名</th><th>部門</th><th>組別</th><th>職位</th>
-        <th>入職日</th><th>性別</th><th>電話</th><th>備注</th><th>操作</th>
-      </tr></thead>
-      <tbody id="join-tbody"></tbody>
-    </table>
+
+  <!-- Summary cards -->
+  <div class="sum-grid" id="join-summary-cards"></div>
+
+  <!-- Breakdown row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="detail-section">
+      <div class="detail-hd">部門/組別分佈</div>
+      <table class="bd-table" id="join-dept-breakdown">
+        <thead><tr><th>部門/組別</th><th>人數</th><th>佔比</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="detail-section">
+      <div class="detail-hd">性別 / 年齡分佈</div>
+      <table class="bd-table" id="join-gender-breakdown">
+        <thead><tr><th>類別</th><th>人數</th><th>佔比</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Detail list (table only, no cards) -->
+  <div class="detail-section">
+    <div class="detail-hd">員工明細列表 <span id="join-count-lbl" style="font-weight:400;color:#888"></span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>組別/線</th>
+          <th>職位</th><th>入職日</th><th>性別</th><th>年齡</th><th>電話</th><th>介紹人</th><th>備注</th><th>操作</th>
+        </tr></thead>
+        <tbody id="join-tbody"></tbody>
+      </table>
+    </div>
   </div>
   <div id="join-empty" class="alert ok" style="display:none;margin-top:12px">尚無入職記錄，請至「匯入」頁面匯入 Excel</div>
 </div>
 
 <!-- ══ RESIGNS ══ -->
 <div class="page" id="page-resigns">
-  <!-- Summary Filters -->
+  <!-- Filters bar -->
   <div class="sum-filters">
     <div class="sum-filter-group"><label>月份</label><select class="flt" id="resign-month" onchange="renderResigns()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>部門/組別</label><select class="flt" id="resign-dept" onchange="renderResigns()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="resign-gender" onchange="renderResigns()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>離職類型</label><select class="flt" id="resign-type" onchange="renderResigns()"><option value="">全部</option><option value="resign">辭職</option><option value="dismiss">辭退</option><option value="self">自離</option><option value="expel">開除</option></select></div>
     <div class="sum-filter-group"><label>年資</label><select class="flt" id="resign-tenure" onchange="renderResigns()"><option value="">全部</option><option value="lt1">＜1年</option><option value="1to3">1-3年</option><option value="3to5">3-5年</option><option value="gt5">5年以上</option></select></div>
-    <input class="search-box" id="resign-search" placeholder="搜尋姓名/工號…" oninput="renderResigns()" style="min-width:160px">
+    <input class="search-box" id="resign-search" placeholder="搜尋姓名/工號…" oninput="renderResigns()" style="flex:1;min-width:140px">
+    <button class="btn btn-primary btn-sm" onclick="openResignModal()">＋ 新增</button>
+    <button class="btn btn-ghost btn-sm" onclick="exportResignsExcel()">⬇ Excel</button>
+    <button class="btn btn-ghost btn-sm" onclick="printPage()">🖨</button>
   </div>
-  <!-- Summary Cards -->
+
+  <!-- Summary cards -->
   <div class="sum-grid" id="resign-summary-cards"></div>
-  <!-- Breakdown -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+
+  <!-- Breakdown row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
     <div class="detail-section">
-      <div class="detail-hd">離職類型分佈 <button class="btn btn-ghost btn-sm" onclick="exportResignsExcel()">⬇ Excel</button></div>
-      <table class="bd-table" id="resign-type-breakdown"><thead><tr><th>類型</th><th>人數</th><th>佔比</th><th>離職率</th></tr></thead><tbody></tbody></table>
+      <div class="detail-hd">離職類型分佈</div>
+      <table class="bd-table" id="resign-type-breakdown">
+        <thead><tr><th>類型</th><th>人數</th><th>佔比</th><th>相對入職率</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
     <div class="detail-section">
       <div class="detail-hd">部門/年資分佈</div>
-      <table class="bd-table" id="resign-dept-breakdown"><thead><tr><th>部門/組別</th><th>人數</th><th>平均年資</th></tr></thead><tbody></tbody></table>
+      <table class="bd-table" id="resign-dept-breakdown">
+        <thead><tr><th>部門/組別</th><th>人數</th><th>平均年資</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
-  <!-- Detail -->
-  <div class="toolbar" style="margin-bottom:8px">
-    <div style="font-size:12px;font-weight:700;color:#1a7abf">📋 詳細記錄</div>
-    <div class="view-toggle">
-      <button class="on" id="resign-vt-card" onclick="setResignView('card')">▦ 卡片</button>
-      <button id="resign-vt-table" onclick="setResignView('table')">☰ 表格</button>
+
+  <!-- Detail list (table only) -->
+  <div class="detail-section">
+    <div class="detail-hd">離職員工明細 <span id="resign-count-lbl" style="font-weight:400;color:#888"></span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>組別/線</th>
+          <th>職位</th><th>入職日</th><th>離職日</th><th>年資</th><th>性別</th>
+          <th>類型</th><th>原因</th><th>備注</th><th>操作</th>
+        </tr></thead>
+        <tbody id="resign-tbody"></tbody>
+      </table>
     </div>
-    <button class="btn btn-primary btn-sm" onclick="openResignModal()">＋ 新增</button>
-    <button class="btn btn-ghost btn-sm" onclick="printPage()">🖨</button>
-  </div>
-  <div id="resign-cards" class="card-grid"></div>
-  <div class="tbl-wrap" id="resign-table-wrap" style="display:none">
-    <table>
-      <thead><tr>
-        <th>工號</th><th>姓名</th><th>部門</th><th>組別</th><th>職位</th>
-        <th>入職日</th><th>離職日</th><th>年資</th><th>類型</th><th>原因</th><th>操作</th>
-      </tr></thead>
-      <tbody id="resign-tbody"></tbody>
-    </table>
   </div>
   <div id="resign-empty" class="alert ok" style="display:none;margin-top:12px">尚無離職記錄</div>
 </div>
@@ -888,28 +918,39 @@ function renderJoins(){
   if(!rows.length&&!JOINS.length){if(empty)empty.style.display='';return;}
   if(empty)empty.style.display='none';
 
-  if(_joinView==='card'){
-    document.getElementById('join-cards').style.display='';
-    document.getElementById('join-table-wrap').style.display='none';
-    document.getElementById('join-cards').innerHTML=rows.map(r=>joinCard(r)).join('');
-  }else{
-    document.getElementById('join-cards').style.display='none';
-    document.getElementById('join-table-wrap').style.display='';
-    document.getElementById('join-tbody').innerHTML=rows.map(r=>`<tr>
-      <td class="td-mono">${r.empId||'—'}</td>
-      <td><b>${r.name}</b></td>
-      <td>${normDept(r.dept)||'—'}</td>
-      <td>${r.section||'—'}</td>
-      <td>${r.position||'—'}</td>
-      <td class="td-mono">${r.joinDate||'—'}</td>
-      <td>${r.gender||'—'}</td>
-      <td>${r.tel||'—'}</td>
-      <td style="font-size:11px;color:var(--muted)">${r.remark||'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" onclick="openJoinModal('${r.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteJoin('${r.id}')">🗑</button>
-      </td>
-    </tr>`).join('');
+  // ── Detail table (always table, no card mode) ──
+  const countLbl = document.getElementById('join-count-lbl');
+  if(countLbl) countLbl.textContent = `共 ${rows.length} 筆`;
+
+  const tbody = document.getElementById('join-tbody');
+  if(tbody){
+    if(!rows.length){
+      tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:#aaa;padding:20px">無符合記錄</td></tr>';
+    } else {
+      const today2=new Date().toISOString().slice(0,10);
+      tbody.innerHTML=rows.map((r,i)=>{
+        const dob=r.dob?Math.floor((new Date()-new Date(r.dob))/31536000000):'—';
+        const isNew=(r.joinDate||'')>=today2.slice(0,7)+'-01'?'background:#f0fff8':''
+        return`<tr style="${isNew}">
+          <td class="td-mono" style="color:#aaa">${i+1}</td>
+          <td class="td-mono">${r.empId||'—'}</td>
+          <td><b>${r.name}</b></td>
+          <td>${normDept(r.dept)||'—'}</td>
+          <td>${r.section||'—'}</td>
+          <td>${r.position||'—'}</td>
+          <td class="td-mono">${r.joinDate||'—'}</td>
+          <td style="text-align:center">${r.gender||'—'}</td>
+          <td style="text-align:center">${dob}</td>
+          <td class="td-mono">${r.tel||'—'}</td>
+          <td style="font-size:11px">${r.introducer||'—'}</td>
+          <td style="font-size:11px;color:#888;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.remark||''}">${r.remark||'—'}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-ghost btn-sm" onclick="openJoinModal('${r.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteJoin('${r.id}')">🗑</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
   }
   updateBadges();
 }
@@ -983,8 +1024,8 @@ function renderResigns(){
   const sumCards=document.getElementById('resign-summary-cards');
   if(sumCards) sumCards.innerHTML=[
     {cls:'resign-c', val:total,       sub:`本月${moR}人`,    lbl:'篩選離職人數'},
-    {cls:'warn-c',   val:typeCounts.resign, sub:'辭職率 '+(total?Math.round(typeCounts.resign/total*100):'0')+'%', lbl:'辭職 Resigned'},
-    {cls:'warn-c',   val:typeCounts.self,   sub:'自離率 '+(total?Math.round(typeCounts.self/total*100):'0')+'%',   lbl:'自離 Self-resign'},
+    {cls:'warn-c',   val:typeCounts.resign, sub:'辭職率 '+(JOINS.length?Math.round(typeCounts.resign/JOINS.length*100):'0')+'%（對入職總數）', lbl:'辭職 Resigned'},
+    {cls:'warn-c',   val:typeCounts.self,   sub:'自離率 '+(JOINS.length?Math.round(typeCounts.self/JOINS.length*100):'0')+'%（對入職總數）',   lbl:'自離 Self-resign'},
     {cls:'resign-c', val:typeCounts.dismiss+typeCounts.expel, sub:'辭退/開除', lbl:'公司主動'},
     {cls:'info-c',   val:avgTenure,  sub:'平均年資',           lbl:'Average Tenure'},
     {cls:'info-c',   val:avgAge,     sub:'歲·離職時',          lbl:'平均年齡'},
@@ -1021,29 +1062,41 @@ function renderResigns(){
   if(!rows.length&&!RESIGNS.length){if(empty)empty.style.display='';return;}
   if(empty)empty.style.display='none';
 
-  if(_resignView==='card'){
-    document.getElementById('resign-cards').style.display='';
-    document.getElementById('resign-table-wrap').style.display='none';
-    document.getElementById('resign-cards').innerHTML=rows.map(r=>resignCard(r)).join('');
-  }else{
-    document.getElementById('resign-cards').style.display='none';
-    document.getElementById('resign-table-wrap').style.display='';
-    document.getElementById('resign-tbody').innerHTML=rows.map(r=>`<tr>
-      <td class="td-mono">${r.empId||'—'}</td>
-      <td><b>${r.name}</b></td>
-      <td>${deptOf(r)}</td>
-      <td>${r.section||'—'}</td>
-      <td>${r.position||'—'}</td>
-      <td class="td-mono">${r.joinDate||'—'}</td>
-      <td class="td-mono">${r.resignDate||'—'}</td>
-      <td class="td-mono">${tenureDays(r)?Math.round(tenureDays(r)/365*10)/10+'年':'—'}</td>
-      <td><span class="badge-type badge-resign">${typeMap[r.resignType]||'—'}</span></td>
-      <td style="font-size:11px">${r.reason||'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" onclick="openResignModal('${r.id}')">✏️</button>
-        <button class="btn btn-danger btn-sm" onclick="deleteResign('${r.id}')">🗑</button>
-      </td>
-    </tr>`).join('');
+  // ── Detail table (always table) ──
+  const rcountLbl = document.getElementById('resign-count-lbl');
+  if(rcountLbl) rcountLbl.textContent = `共 ${rows.length} 筆`;
+
+  const rtbody = document.getElementById('resign-tbody');
+  if(rtbody){
+    if(!rows.length){
+      rtbody.innerHTML='<tr><td colspan="14" style="text-align:center;color:#aaa;padding:20px">無符合記錄</td></tr>';
+    } else {
+      rtbody.innerHTML=rows.map((r,i)=>{
+        const td=tenureDays(r);
+        const tenureStr=td>365?Math.round(td/365*10)/10+'年':(td>30?Math.round(td/30)+'月':td+'天');
+        const typeColors={resign:'#e74c3c',dismiss:'#e67e22',self:'#9b59b6',expel:'#c0392b'};
+        const tColor=typeColors[r.resignType]||'#999';
+        return`<tr>
+          <td class="td-mono" style="color:#aaa">${i+1}</td>
+          <td class="td-mono">${r.empId||'—'}</td>
+          <td><b>${r.name}</b></td>
+          <td>${normDept(r.dept)||'—'}</td>
+          <td>${r.section||'—'}</td>
+          <td>${r.position||'—'}</td>
+          <td class="td-mono">${r.joinDate||'—'}</td>
+          <td class="td-mono">${r.resignDate||'—'}</td>
+          <td class="td-mono" style="color:#1a7abf;font-weight:600">${tenureStr}</td>
+          <td style="text-align:center">${r.gender||'—'}</td>
+          <td><span style="color:${tColor};font-weight:700;font-size:11px">${typeMap[r.resignType]||'—'}</span></td>
+          <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.reason||''}">${r.reason||'—'}</td>
+          <td style="font-size:11px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.remark||''}">${r.remark||'—'}</td>
+          <td style="white-space:nowrap">
+            <button class="btn btn-ghost btn-sm" onclick="openResignModal('${r.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteResign('${r.id}')">🗑</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
   }
   updateBadges();
 }
