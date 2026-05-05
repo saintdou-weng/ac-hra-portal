@@ -962,38 +962,88 @@ function parseSheet(data,dateStr){
   return rows;
 }
 
-// Fast date check: directly read cells (NOT sheet_to_json which parses ALL rows)
+// Fast date check: uses SHEET NAME as day + Date: cell for year/month
+// This avoids timezone issues: sheet name "06" is always day 6 regardless of timezone
 function quickDateCheck(wb,sheetName){
   const ws=wb.Sheets[sheetName];if(!ws)return null;
-  for(let R=0;R<6;R++){
-    for(let C=0;C<30;C++){
+
+  // Helper: parse Excel date value timezone-safe
+  // Always use the DATE: cell for YEAR+MONTH, sheet name for DAY
+  function excelDateToYearMonth(nv){
+    if(nv instanceof Date){
+      // Use UTC components (XLSX cellDates:true stores as UTC midnight of that date)
+      // But some timezones shift this - so try both UTC and local, prefer UTC
+      const utcY=nv.getUTCFullYear(),utcM=nv.getUTCMonth()+1,utcD=nv.getUTCDate();
+      const locY=nv.getFullYear(),locM=nv.getMonth()+1,locD=nv.getDate();
+      // If UTC and local differ by 1 day, local is likely correct (cellDates stores local midnight)
+      // Return ONLY year+month (day will come from sheet name)
+      if(utcY>=2000) return {y:locY,m:locM}; // use local year+month
+      return null;
+    }
+    if(typeof nv==='number'&&nv>40000&&nv<60000){
+      const d=new Date(Math.round((nv-25569)*86400)*1000);
+      if(d.getUTCFullYear()<2000)return null;
+      return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1};
+    }
+    const s=String(nv||'');
+    const match=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
+    if(match&&+match[1]>=2000) return {y:+match[1],m:+match[2]};
+    return null;
+  }
+
+  // Step 1: Try to use sheet name as DAY (most reliable — no timezone issue)
+  // Sheet name is "06", "07", "31" etc.
+  const snDay = parseInt(sheetName, 10);
+  const snIsDay = !isNaN(snDay) && snDay>=1 && snDay<=31 && /^\d{1,2}$/.test(sheetName.trim());
+
+  // Step 2: Find Date: cell for year+month
+  let ym = null;
+  for(let R=0;R<6&&!ym;R++){
+    for(let C=0;C<30&&!ym;C++){
       const addr=XLSX.utils.encode_cell({r:R,c:C});
       const cell=ws[addr];if(!cell)continue;
       const v=String(cell.v||'').trim();
       if(!/^date:?$/i.test(v))continue;
-      for(let off=1;off<=2;off++){
+      for(let off=1;off<=3;off++){
         const nAddr=XLSX.utils.encode_cell({r:R,c:C+off});
         const nCell=ws[nAddr];if(!nCell)continue;
-        const nv=nCell.v;
-        if(nv instanceof Date){
-          if(nv.getFullYear()<2000)return null;
-          // Use LOCAL date to avoid UTC timezone shift (Cambodia UTC+7: midnight local = previous day UTC)
-          const y=nv.getFullYear(),mo=String(nv.getMonth()+1).padStart(2,'0'),dy=String(nv.getDate()).padStart(2,'0');
-          return`${y}-${mo}-${dy}`;
-        }
-        if(typeof nv==='number'&&nv>40000&&nv<60000){
-          // Excel serial: days since 1900-01-01. Use UTC date components to avoid DST
-          const d=new Date(Math.round((nv-25569)*86400)*1000);
-          if(d.getUTCFullYear()<2000)return null;
-          return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
-        }
-        const s=String(nv||'');
-        const m=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
-        if(m){if(+m[1]<2000)return null;return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;}
+        ym=excelDateToYearMonth(nCell.v);
+        if(ym)break;
       }
     }
   }
-  return null;
+
+  // Step 3: Also scan first 10 rows for any date-like text (e.g. "2026.4.6 attendance")
+  if(!ym){
+    for(let R=0;R<10&&!ym;R++){
+      for(let C=0;C<10&&!ym;C++){
+        const addr=XLSX.utils.encode_cell({r:R,c:C});
+        const cell=ws[addr];if(!cell)continue;
+        const s=String(cell.v||'');
+        const m=s.match(/(20\d{2})[.\/\-](0?[1-9]|1[0-2])[.\/\-](\d{1,2})/);
+        if(m&&+m[1]>=2000){ym={y:+m[1],m:+m[2],d:+m[3]};}
+      }
+    }
+  }
+
+  if(!ym)return null;
+
+  // Step 4: Determine the day
+  let day;
+  if(snIsDay){
+    // Sheet name is the most reliable day source — no timezone risk
+    day=snDay;
+  } else if(ym.d){
+    day=ym.d;
+  } else {
+    return null;
+  }
+
+  const dateStr=`${ym.y}-${String(ym.m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  // Validate it's a real date
+  const check=new Date(dateStr);
+  if(isNaN(check.getTime())||check.getUTCFullYear()<2000)return null;
+  return dateStr;
 }
 
 // Async workbook parser — yields between sheets to prevent UI freeze
