@@ -77,7 +77,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 /* Tg preview */
 .tg-preview{background:#1e2640;color:#e2e6f0;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;max-height:400px;overflow-y:auto;margin-top:12px}
 @media(max-width:900px){.g2,.g3,.tips{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){.h-stats{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.h-stats .hstat{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}}
 
 /* ── Cloud Sync Bar ── */
 .cloud-bar{background:#fff;border-bottom:2px solid #e2e6f0;padding:7px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:40px}
@@ -118,6 +118,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
     <div style="display:flex;border:1px solid rgba(255,255,255,.3);border-radius:5px;overflow:hidden;margin-left:8px">
       <button onclick="setLang('zh')" class="lbtn lbtn-on" id="lbZh" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:#2dd4a8;color:#0f3027">中文</button>
       <button onclick="setLang('en')" class="lbtn" id="lbEn" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:transparent;color:#8bc5b5">EN</button>
+      <button onclick="setLang('km')" class="lbtn" id="lbKm" style="padding:3px 10px;font-size:10px;font-weight:700;border:none;cursor:pointer;background:transparent;color:#8bc5b5">ខ្មែរ</button>
     </div>
   </div>
 </div>
@@ -443,6 +444,10 @@ function setLang(l){
   document.getElementById('lbZh').style.color=l==='zh'?'#0f3027':'#8bc5b5';
   document.getElementById('lbEn').style.background=l==='en'?'#2dd4a8':'transparent';
   document.getElementById('lbEn').style.color=l==='en'?'#0f3027':'#8bc5b5';
+  if(document.getElementById('lbKm')){
+    document.getElementById('lbKm').style.background=l==='km'?'#2dd4a8':'transparent';
+    document.getElementById('lbKm').style.color=l==='km'?'#0f3027':'#8bc5b5';
+  }
   document.querySelectorAll('[data-zh]').forEach(el=>{const v=el.getAttribute('data-'+l);if(v)el.textContent=v;});
 }
 
@@ -913,6 +918,11 @@ function findHeaderRow(data){
   return 4;
 }
 
+function normDept(d){
+  if(!d) return d;
+  // 2026/04 onwards: 行政管理部 → 行政中心
+  return d.replace(/行政管理部?/g,'行政中心').replace(/Admin(?:istration)?\s*(?:Dept\.?|Department)?/gi,'Admin Center');
+}
 function parseSheet(data,dateStr){
   const rows=[];
   const hdrIdx=findHeaderRow(data);
@@ -946,7 +956,7 @@ function parseSheet(data,dateStr){
     const isSubtotal=!isGrand&&combined.includes('小計');
     const m=gn(row,'m'),f=gn(row,'f');
     if(!dept&&!sect&&!line&&m===0&&f===0&&!isSubtotal&&!isGrand)continue;
-    rows.push({date:dateStr,dept,sect,line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),isSubtotal,isGrand});
+    rows.push({date:dateStr,dept:normDept(dept),sect:normDept(sect),line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),isSubtotal,isGrand});
     if(isGrand)break;
   }
   return rows;
@@ -965,8 +975,18 @@ function quickDateCheck(wb,sheetName){
         const nAddr=XLSX.utils.encode_cell({r:R,c:C+off});
         const nCell=ws[nAddr];if(!nCell)continue;
         const nv=nCell.v;
-        if(nv instanceof Date){if(nv.getFullYear()<2000)return null;return nv.toISOString().slice(0,10);}
-        if(typeof nv==='number'&&nv>40000&&nv<60000){const d=new Date((nv-25569)*86400000);if(d.getFullYear()>=2000)return d.toISOString().slice(0,10);}
+        if(nv instanceof Date){
+          if(nv.getFullYear()<2000)return null;
+          // Use LOCAL date to avoid UTC timezone shift (Cambodia UTC+7: midnight local = previous day UTC)
+          const y=nv.getFullYear(),mo=String(nv.getMonth()+1).padStart(2,'0'),dy=String(nv.getDate()).padStart(2,'0');
+          return`${y}-${mo}-${dy}`;
+        }
+        if(typeof nv==='number'&&nv>40000&&nv<60000){
+          // Excel serial: days since 1900-01-01. Use UTC date components to avoid DST
+          const d=new Date(Math.round((nv-25569)*86400)*1000);
+          if(d.getUTCFullYear()<2000)return null;
+          return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+        }
         const s=String(nv||'');
         const m=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
         if(m){if(+m[1]<2000)return null;return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;}
@@ -1573,7 +1593,7 @@ updateHeader();
 // CLOUD SYNC LAYER — VRT HR CloudSync v1
 // ═══════════════════════════════════════════════════════════════════
 const CLOUD_CFG_KEY = 'vrt_att_cloud_v1';
-const CHUNK_SIZE    = 200; // records per chunk
+const CHUNK_SIZE    = 5000; // records per chunk (sewing=5000 → 68k≈14 chunks)
 let GAS_URL     = '';
 let syncStatus  = 'idle';   // idle | syncing | synced | failed | offline
 let lastSyncTs  = null;
