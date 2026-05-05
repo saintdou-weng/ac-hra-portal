@@ -1028,13 +1028,23 @@ function quickDateCheck(wb,sheetName){
 
   if(!ym)return null;
 
-  // Step 4: Determine the day
+  // Step 4: Determine the day + validate consistency
   let day;
   if(snIsDay){
-    // Sheet name is the most reliable day source — no timezone risk
-    day=snDay;
+    // Sheet name gives the day (no timezone risk)
+    // But ALSO get the day from Date: cell to cross-check
+    // If they don't match → the sheet is a holiday placeholder (template not updated)
+    // e.g. Jan 1 is holiday but sheet "01" still has Date: showing "2026/1/2" → skip
+    if(ym.d && ym.d !== snDay){
+      // Mismatch: sheet name day ≠ Date: cell day
+      // This means the template/holiday sheet was not properly updated
+      // → skip this sheet to avoid importing wrong-date data
+      console.log('[DATE] Skip sheet "'+sheetName+'": sheet_day='+snDay+' cell_day='+ym.d+' (holiday placeholder)');
+      return null;
+    }
+    day = snDay;
   } else if(ym.d){
-    day=ym.d;
+    day = ym.d;
   } else {
     return null;
   }
