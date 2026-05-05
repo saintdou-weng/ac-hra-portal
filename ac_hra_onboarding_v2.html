@@ -10,8 +10,8 @@
 <style>
 :root{
   --navy:#0f1c33;--navy2:#1a2842;--navy3:#263859;
-  --gold:#c9a961;--gold2:#d4b97a;--gold3:#e3cfa0;
-  --cream:#faf7f0;--paper:#fff;--line:#e6e2d4;
+  --gold:#2E75B6;--gold2:#4A90C4;--gold3:#A8D4F5;
+  --cream:#f0f7ff;--paper:#fff;--line:#e6e2d4;
   --muted:#6b6758;--danger:#a93226;--dbg:#fdecea;
   --warn:#b45309;--wbg:#fef3c7;--ok:#2d6a4f;--obg:#e8f3ec;
   --info:#1e4e8c;--ibg:#e8f0fa;
@@ -113,7 +113,7 @@ table{width:100%;border-collapse:collapse;font-size:12px}
 thead{position:sticky;top:0;z-index:2}
 th{text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--line);background:#f5f3ec;white-space:nowrap}
 td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
-tbody tr:hover td{background:#fdfcf5}
+tbody tr:hover td{background:#f5faff}
 .td-mono{font-family:monospace;font-size:11px}
 
 /* ── Cards ── */
@@ -133,8 +133,8 @@ tbody tr:hover td{background:#fdfcf5}
 .badge-warn{background:var(--wbg);color:var(--warn)}
 
 /* ── Upload zone ── */
-.drop-zone{border:2px dashed var(--line);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:#fdfcf5;position:relative}
-.drop-zone:hover,.drop-zone.drag{border-color:var(--gold);background:#fef9ed}
+.drop-zone{border:2px dashed var(--line);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:#f5faff;position:relative}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--gold);background:#eaf4ff}
 .drop-zone.done{border-color:var(--ok);border-style:solid;background:var(--obg)}
 .drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
 
@@ -992,7 +992,7 @@ async function parseWorkbook(data,name,overwrite){
   for(const sn of wb.SheetNames){
     const snLow=sn.toLowerCase().trim();
     const ws=wb.Sheets[sn];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,cellDates:true,dateNF:'yyyy-mm-dd'});
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
     if(!rows.length)continue;
 
     // ── Join sheet ──
@@ -1011,7 +1011,7 @@ async function parseWorkbook(data,name,overwrite){
       for(let i=hdrRow+1;i<rows.length;i++){
         const row=rows[i];
         const nameVal=String(row[cName]||'').trim();
-        if(!nameVal||nameVal.toLowerCase()==='name')continue;
+        if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
         const empId=String(row[cId]||'').trim();
         const joinDate=parseDate(row[cDate]);
         if(!joinDate)continue;
@@ -1056,7 +1056,7 @@ async function parseWorkbook(data,name,overwrite){
       for(let i=hdrRow+1;i<rows.length;i++){
         const row=rows[i];
         const nameVal=String(row[cName]||'').trim();
-        if(!nameVal||nameVal.toLowerCase()==='name')continue;
+        if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
         const empId=String(row[cId]||'').trim();
         const resignDate=parseDate(row[cResignDate]);
         if(!resignDate)continue;
@@ -1092,19 +1092,56 @@ async function parseWorkbook(data,name,overwrite){
 }
 
 function parseDate(v){
-  if(!v)return null;
+  if(!v && v!==0) return null;
+
+  // Date object (cellDates:true) - use LOCAL date components (no timezone shift)
   if(v instanceof Date){
-    const y=v.getFullYear(),m=v.getMonth()+1,d=v.getDate();
-    if(y<2000||y>2050)return null;
-    return`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const y=v.getFullYear(),mo=v.getMonth()+1,d=v.getDate();
+    if(y<2000||y>2050||isNaN(y))return null;
+    return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
   }
+
+  // Excel serial number (raw:true, no cellDates)
+  if(typeof v==='number'&&v>40000&&v<60000){
+    const d=new Date(Math.round((v-25569)*86400)*1000);
+    if(d.getUTCFullYear()<2000)return null;
+    return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+  }
+
   const s=String(v).trim();
-  // ISO: 2026-04-21
-  let m=s.match(/^(20\d{2})-(\d{2})-(\d{2})/);
-  if(m)return`${m[1]}-${m[2]}-${m[3]}`;
-  // Slash: 2026/4/21
-  m=s.match(/(20\d{2})[\/\.](0?[1-9]|1[0-2])[\/\.](\d{1,2})/);
-  if(m)return`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  if(!s)return null;
+  let m;
+
+  // ISO: 2026-04-21 or 2026-4-21
+  m=s.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})/);
+  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+
+  // Slash/dot: 2026/4/21 or 2026.4.21
+  m=s.match(/(20\d{2})[\/\.](\d{1,2})[\/\.](\d{1,2})/);
+  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
+
+  // MM-DD-YY (Excel mm-dd-yy format): "10-22-24" → 2024-10-22
+  m=s.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+  if(m){const yr=2000+parseInt(m[3]);if(yr>=2020&&yr<=2035)return yr+'-'+m[1]+'-'+m[2];}
+
+  // DD-Mon-YY or DD-Mon-YYYY: "22-Oct-24" or "22-Apr-2026" or "1-Apr-26"
+  const months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  m=s.match(/^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-?(\d{2,4})$/i);
+  if(m){
+    const day=parseInt(m[1]),mon=months[m[2].toLowerCase()];
+    let yr=parseInt(m[3]);if(yr<100)yr+=2000;
+    if(yr>=2000&&yr<=2050)return yr+'-'+String(mon).padStart(2,'0')+'-'+String(day).padStart(2,'0');
+  }
+
+  // M/D/YYYY or D/M/YYYY: try both interpretations
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(20\d{2})$/);
+  if(m){
+    // Try month/day/year first
+    const a=parseInt(m[1]),b=parseInt(m[2]),yr=parseInt(m[3]);
+    if(a<=12)return yr+'-'+String(a).padStart(2,'0')+'-'+String(b).padStart(2,'0');
+    if(b<=12)return yr+'-'+String(b).padStart(2,'0')+'-'+String(a).padStart(2,'0');
+  }
+
   return null;
 }
 
