@@ -220,22 +220,6 @@ tr:hover td{background:#fdf5f7}
 .ana-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 @media(max-width:820px){.ana-row{grid-template-columns:1fr}.ana-grid{grid-template-columns:1fr 1fr}}
 
-/* ── SEWING-STYLE LINE CARDS ─────────────────────────── */
-.lc{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:12px;border-top:3px solid #e2e6f0;cursor:pointer;transition:.15s}
-.lc:hover{box-shadow:0 3px 12px rgba(199,91,122,.15);transform:translateY(-1px)}
-.lc.hi{border-top-color:#059669}
-.lc.md{border-top-color:#d97706}
-.lc.lo{border-top-color:#dc2626}
-.lc.zero{border-top-color:#9ca3af;opacity:.7}
-.lc-name{font-size:13px;font-weight:700;color:#1e2640}
-.lc-sec{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;display:inline-block;margin-top:2px;text-transform:uppercase}
-.lc-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0}
-.lc-stat{background:#f7f8fc;border-radius:6px;padding:6px;text-align:center}
-.lc-sn{font-size:16px;font-weight:700;font-family:monospace;color:#1e2640;line-height:1.1}
-.lc-sl{font-size:9px;color:#6b7a9e;margin-top:2px}
-.capbar{height:7px;background:#e2e6f0;border-radius:4px;overflow:hidden;margin-top:4px}
-.capfill{height:100%;border-radius:4px;transition:width .4s}
-
 @media print{
   .hdr,.tabs,.toolbar,.date-nav,.pagination,#cloudBtn,#cloudPanel,.btn,.hamburger,
   .overlay{display:none!important}
@@ -353,105 +337,87 @@ tr:hover td{background:#fdf5f7}
 <!-- ══════════ TAB: 孕婦名單 ══════════ -->
 <div class="sec" id="sec-pregnant">
   <div class="toolbar">
-    <input class="search-box" id="pregSrch" oninput="renderPregnant()" placeholder="Search…">
-    <select class="fsel" id="pregDept" onchange="renderPregnant()"><option value="">—</option></select>
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setPregMode('day')" id="pm-day">日</button>
-      <button class="dnm" onclick="setPregMode('week')" id="pm-week">週</button>
-      <button class="dnm on" onclick="setPregMode('month')" id="pm-month">月</button>
-      <button class="dnm" onclick="setPregMode('year')" id="pm-year">年</button>
-    </div>
-    <button class="btn-nav" onclick="navPreg(-1)">◀</button>
-    <div class="date-nav-display" id="pregDateDisp" style="min-width:130px;font-size:13px">—</div>
-    <button class="btn-nav" onclick="navPreg(1)">▶</button>
-    <button class="btn-today" onclick="pregToday()">今日</button>
+    <input class="search-box" id="pregSrch" placeholder="搜尋姓名 / ID…" oninput="renderPregnant()">
+    <select class="fsel" id="pregDept" onchange="renderPregnant()"><option value="">所有部門</option></select>
     <div class="tbar-r">
-      <button class="btn btn-rose" onclick="openEmpModal(null,'pregnant')" id="tb-addPreg">＋ 新增孕婦</button>
-      <label class="btn btn-y" style="cursor:pointer"><span id="tb-impPreg">📥 匯入</span>
+      <button class="btn btn-rose" onclick="openEmpModal(null,'pregnant')">＋ 新增孕婦</button>
+      <label class="btn btn-y" style="cursor:pointer">📥 匯入 Excel
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'pregnant')">
       </label>
-      <button class="btn btn-g" onclick="printRows(pregFiltered(),'Pregnant')">🖨️</button>
-      <button class="btn btn-g" onclick="xlsxExport(pregFiltered(),'VRT_Pregnant_'+today()+'.xlsx')">⬇</button>
-      <button class="btn btn-r" onclick="clearSection('pregnant')">🗑️</button>
+      <button class="btn btn-g" onclick="printRows(pregFiltered(),'孕婦名單')">🖨️ 列印</button>
+      <button class="btn btn-g" onclick="xlsxExport(pregFiltered(),'VRT_Pregnant_'+today()+'.xlsx')">⬇ Excel</button>
+      <button class="btn btn-r" onclick="clearSection('pregnant')">🗑️ 全清除</button>
     </div>
   </div>
-  <div class="kpi-strip" style="margin-bottom:10px">
-    <div class="kpi rose"><div class="kpi-n" id="pk-total">0</div><div class="kpi-l" id="pkl-total">懷孕中</div></div>
-    <div class="kpi amber"><div class="kpi-n" id="pk-edd30">0</div><div class="kpi-l" id="pkl-edd30">30天EDD</div></div>
-    <div class="kpi blue"><div class="kpi-n" id="pk-new">0</div><div class="kpi-l" id="pkl-new">本期新增</div></div>
-    <div class="kpi teal"><div class="kpi-n" id="pk-dept">0</div><div class="kpi-l" id="pkl-dept">部門數</div></div>
-  </div>
-  <div id="pregCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:10px"></div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <button class="btn btn-g btn-sm" onclick="togglePregTable()" id="pregTblToggle">📋 顯示列表</button>
-    <span id="pregCount" style="font-size:11px;color:#6b7a9e"></span>
-  </div>
-  <div id="pregTableWrap" style="display:none">
-    <div class="tw"><table><thead><tr id="pregTblHdr"></tr></thead><tbody id="pregTbody"></tbody></table></div>
-    <div class="pagination" id="pregPag" style="margin-top:8px;padding:0 4px"></div>
-  </div>
+  <div class="tw"><table id="pregTbl">
+    <thead><tr>
+      <th>No.</th><th>登記日</th><th>孕期</th><th>ID No.</th><th>姓名</th>
+      <th>部門</th><th>職位</th><th>生日</th><th>齡</th><th>EDD</th>
+      <th>NSSF</th><th>狀態</th><th>申請日</th><th>回歸日</th>
+      <th>總天</th><th>已用</th><th>剩餘</th><th>備註</th><th>聯絡電話</th><th>操作</th>
+    </tr></thead>
+    <tbody id="pregTbody"></tbody>
+  </table></div>
+  <div class="pagination" id="pregPag" style="margin-top:10px;padding:0 4px"></div>
 </div>
 
 <!-- ══════════ TAB: 產假管理 ══════════ -->
 <div class="sec" id="sec-maternity">
   <div class="toolbar">
-    <input class="search-box" id="matSrch" oninput="renderMaternity()" placeholder="Search…">
-    <select class="fsel" id="matDept" onchange="renderMaternity()"><option value="">—</option></select>
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setMatMode('day')" id="mm-day">日</button>
-      <button class="dnm" onclick="setMatMode('week')" id="mm-week">週</button>
-      <button class="dnm on" onclick="setMatMode('month')" id="mm-month">月</button>
-      <button class="dnm" onclick="setMatMode('year')" id="mm-year">年</button>
-    </div>
-    <button class="btn-nav" onclick="navMat(-1)">◀</button>
-    <div class="date-nav-display" id="matDateDisp" style="min-width:130px;font-size:13px">—</div>
-    <button class="btn-nav" onclick="navMat(1)">▶</button>
-    <button class="btn-today" onclick="matToday()">今日</button>
+    <input class="search-box" id="matSrch" placeholder="搜尋姓名 / ID…" oninput="renderMaternity()">
+    <select class="fsel" id="matDept" onchange="renderMaternity()"><option value="">所有部門</option></select>
     <div class="tbar-r">
-      <button class="btn btn-rose" onclick="openEmpModal(null,'maternity')" id="tb-addMat">＋ 新增產假</button>
-      <label class="btn btn-y" style="cursor:pointer"><span id="tb-impMat">📥 匯入</span>
+      <button class="btn btn-rose" onclick="openEmpModal(null,'maternity')">＋ 新增產假</button>
+      <label class="btn btn-y" style="cursor:pointer">📥 匯入 Excel
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'maternity')">
       </label>
-      <button class="btn btn-g" onclick="printRows(matFiltered(),'Maternity')">🖨️</button>
-      <button class="btn btn-g" onclick="xlsxExport(matFiltered(),'VRT_Maternity_'+today()+'.xlsx')">⬇</button>
-      <button class="btn btn-r" onclick="clearSection('maternity')">🗑️</button>
+      <button class="btn btn-g" onclick="printRows(matFiltered(),'產假管理')">🖨️ 列印</button>
+      <button class="btn btn-g" onclick="xlsxExport(matFiltered(),'VRT_Maternity_'+today()+'.xlsx')">⬇ Excel</button>
+      <button class="btn btn-r" onclick="clearSection('maternity')">🗑️ 全清除</button>
     </div>
   </div>
-  <div class="kpi-strip" style="margin-bottom:10px">
-    <div class="kpi teal"><div class="kpi-n" id="mk-total">0</div><div class="kpi-l" id="mkl-total">產假中</div></div>
-    <div class="kpi amber"><div class="kpi-n" id="mk-ret30">0</div><div class="kpi-l" id="mkl-ret30">30天回歸</div></div>
-    <div class="kpi rose"><div class="kpi-n" id="mk-pay">$0</div><div class="kpi-l" id="mkl-pay">產假薪資總額</div></div>
-    <div class="kpi blue"><div class="kpi-n" id="mk-avg">$0</div><div class="kpi-l" id="mkl-avg">平均月薪</div></div>
-  </div>
-  <div id="matCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-bottom:10px"></div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <button class="btn btn-g btn-sm" onclick="toggleMatTable()" id="matTblToggle">📋 顯示列表</button>
-    <span id="matCount" style="font-size:11px;color:#6b7a9e"></span>
-  </div>
-  <div id="matTableWrap" style="display:none">
-    <div class="tw"><table><thead><tr id="matTblHdr"></tr></thead><tbody id="matTbody"></tbody></table></div>
-    <div class="pagination" id="matPag" style="margin-top:8px;padding:0 4px"></div>
-  </div>
+  <div class="tw"><table id="matTbl">
+    <thead><tr>
+      <th>No.</th><th>ID No.</th><th>姓名</th><th>部門</th><th>職位</th>
+      <th>EDD</th><th>申請日</th><th>回歸日</th><th>總天</th><th>已用</th>
+      <th>剩餘</th><th>進度</th><th>薪資金額</th><th>操作</th>
+    </tr></thead>
+    <tbody id="matTbody"></tbody>
+  </table></div>
+  <div class="pagination" id="matPag" style="margin-top:10px;padding:0 4px"></div>
 </div>
 
 <!-- ══════════ TAB: 薪資記錄 ══════════ -->
 <div class="sec" id="sec-salary">
   <div class="toolbar">
-    <input class="search-box" id="salSrch" oninput="renderSalary()" placeholder="Search…">
-    <select class="fsel" id="salIdF" onchange="renderSalary()"><option value="">— All —</option></select>
+    <input class="search-box" id="salSrch" placeholder="搜尋姓名 / ID…" oninput="renderSalary()">
+    <select class="fsel" id="salMon" onchange="renderSalary()"><option value="">所有月份</option></select>
     <div class="tbar-r">
-      <button class="btn btn-rose" onclick="openSalModal(null)" id="tb-addSal">＋ 新增薪資</button>
-      <label class="btn btn-y" style="cursor:pointer"><span id="tb-impSal">📥 匯入薪資 Excel</span>
+      <button class="btn btn-rose" onclick="openSalModal(null)">＋ 新增薪資</button>
+      <label class="btn btn-y" style="cursor:pointer">📥 匯入薪資 Excel
         <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importSalXlsx(this)">
       </label>
-      <button class="btn btn-g" onclick="xlsxExport(salaryRecords,'VRT_Salary_'+today()+'.xlsx')">⬇</button>
-      <button class="btn btn-r" onclick="clearSection('salary')">🗑️</button>
+      <button class="btn btn-g" onclick="xlsxExport(salaryRecords,'VRT_Salary_'+today()+'.xlsx')">⬇ Excel</button>
+      <button class="btn btn-r" onclick="clearSection('salary')">🗑️ 全清除</button>
     </div>
   </div>
-  <div id="salPersonCards"></div>
+  <div class="sal-sum">
+    <div class="sal-card"><div class="sal-amt" id="sBasic">$0</div><div class="sal-lbl"><span data-t='basicSum'>底薪合計</span></div></div>
+    <div class="sal-card"><div class="sal-amt" id="sOT">$0</div><div class="sal-lbl"><span data-t='otSum'>OT 合計</span></div></div>
+    <div class="sal-card"><div class="sal-amt" id="sNet">$0</div><div class="sal-lbl"><span data-t='netSum'>實發合計</span></div></div>
+  </div>
+  <div class="tw"><table>
+    <thead><tr>
+      <th>No.</th><th>ID No.</th><th>姓名</th><th>月份</th>
+      <th>工作天</th><th>底薪</th><th>OT Pay</th><th>餐費</th>
+      <th>NSSF</th><th>扣款</th><th>實發</th><th>備註</th><th>操作</th>
+    </tr></thead>
+    <tbody id="salTbody"></tbody>
+  </table></div>
+  <div class="pagination" id="salPag" style="margin-top:10px;padding:0 4px"></div>
 </div>
 
-<!-- ══════════ TAB: 設定 ══════════ --><!-- ══════════ TAB: 設定 ══════════ -->
+<!-- ══════════ TAB: 設定 ══════════ -->
 <div class="sec" id="sec-settings">
   <div class="card">
     <div class="ct">☁ 雲端 GAS 設定</div>
@@ -608,19 +574,6 @@ const I18N = {
     gasStatus:'GAS URL 已儲存', cloudPush:'☁ 推送', cloudPull:'⬇ 拉取',
     emp:'新增員工記錄', empEdit:'編輯員工記錄',
     sal:'新增薪資記錄', salEdit:'編輯薪資記錄',
-    showList:'顯示明細列表', hideList:'隱藏列表',
-    records:'筆', all:'全部', addSal:'新增薪資',
-    daysLeft:'距EDD', period:'孕期', totalDays:'總天',
-    used:'已用', left:'剩餘', regDate:'登記日', name:'姓名', dept:'部門',
-    pos:'職位', birthday:'生日', age:'齡', applyDate:'申請日',
-    returnDate:'回歸日', progress:'進度', status:'狀態', contact:'聯絡',
-    salVerify:'產假薪資核對', avgSal:'平均月薪', entitledPay:'應領產假薪',
-    actualPaid:'實際已領', diff:'差額', salMismatch:'金額不符！',
-    noSalRecord:'無薪資記錄', month:'月份', workDays:'工作天', basicSal:'底薪',
-    meal:'餐費', netPay:'實發', remark:'備註', ops:'操作',
-    totalNet:'總實發', avgNet:'平均實發', ops:'操作',
-    clearConfirm1:'確定清除所有資料？', clearConfirm2:'再次確認？此操作無法復原！',
-    cleared:'已清除所有資料',
     cancel:'取消', save:'💾 儲存',
     noRecord:'無符合記錄', noPregRec:'無懷孕記錄', noMatRec:'無產假記錄', noSalRec:'無薪資記錄',
     cloudLoaded:'雲端載入', autoSync:'自動同步',
@@ -651,19 +604,6 @@ const I18N = {
     gasStatus:'GAS URL saved', cloudPush:'☁ Push', cloudPull:'⬇ Pull',
     emp:'Add Employee', empEdit:'Edit Employee',
     sal:'Add Salary Record', salEdit:'Edit Salary Record',
-    showList:'Show Detail List', hideList:'Hide List',
-    records:'records', all:'All', addSal:'Add Salary',
-    daysLeft:'Days to EDD', period:'Preg Period', totalDays:'Total Days',
-    used:'Used', left:'Left', regDate:'Reg Date', name:'Name', dept:'Dept',
-    pos:'Position', birthday:'Birthday', age:'Age', applyDate:'Apply Date',
-    returnDate:'Return Date', progress:'Progress', status:'Status', contact:'Contact',
-    salVerify:'Maternity Pay Verification', avgSal:'Avg Monthly', entitledPay:'Entitled Pay',
-    actualPaid:'Actual Paid', diff:'Difference', salMismatch:'Amount mismatch!',
-    noSalRecord:'No salary records', month:'Month', workDays:'Work Days', basicSal:'Basic Sal',
-    meal:'Meal', netPay:'Net Pay', remark:'Remark', ops:'Action',
-    totalNet:'Total Net', avgNet:'Avg Net',
-    clearConfirm1:'Confirm clear all data?', clearConfirm2:'Confirm again? Cannot undo!',
-    cleared:'All data cleared',
     cancel:'Cancel', save:'💾 Save',
     noRecord:'No records found', noPregRec:'No pregnant employees', noMatRec:'No maternity records', noSalRec:'No salary records',
     cloudLoaded:'Cloud loaded', autoSync:'Auto-synced',
@@ -694,19 +634,6 @@ const I18N = {
     gasStatus:'GAS URL បានរក្សា', cloudPush:'☁ បញ្ជូន', cloudPull:'⬇ ទាញ',
     emp:'បន្ថែមបុគ្គលិក', empEdit:'កែប្រែបុគ្គលិក',
     sal:'បន្ថែមប្រាក់ខែ', salEdit:'កែប្រែប្រាក់ខែ',
-    showList:'បង្ហាញបញ្ជី', hideList:'លាក់បញ្ជី',
-    records:'កំណត់ត្រា', all:'ទាំងអស់', addSal:'បន្ថែមប្រាក់ខែ',
-    daysLeft:'ថ្ងៃ EDD', period:'រយៈពេលមានផ្ទៃពោះ', totalDays:'ថ្ងៃសរុប',
-    used:'បានប្រើ', left:'នៅសល់', regDate:'ថ្ងៃចុះឈ្មោះ', name:'ឈ្មោះ', dept:'ផ្នែក',
-    pos:'តំណែង', birthday:'ថ្ងៃកំណើត', age:'អាយុ', applyDate:'ថ្ងៃដាក់ពាក្យ',
-    returnDate:'ថ្ងៃត្រឡប់', progress:'វឌ្ឍនភាព', status:'ស្ថានភាព', contact:'ទំនាក់ទំនង',
-    salVerify:'ផ្ទៀងផ្ទាត់ប្រាក់ខែ', avgSal:'ប្រាក់ខែមធ្យម', entitledPay:'ប្រាក់ខែដែលត្រូវទទួល',
-    actualPaid:'ពិតជាបានទទួល', diff:'ភាពខុសគ្នា', salMismatch:'ចំនួនមិនត្រូវ!',
-    noSalRecord:'គ្មានកំណត់ត្រាប្រាក់ខែ', month:'ខែ', workDays:'ថ្ងៃធ្វើការ', basicSal:'ប្រាក់ខែមូលដ្ឋាន',
-    meal:'អាហារ', netPay:'ប្រាក់ខែសុទ្ធ', remark:'កំណត់ចំណាំ', ops:'សកម្មភាព',
-    totalNet:'សរុបសុទ្ធ', avgNet:'មធ្យមសុទ្ធ',
-    clearConfirm1:'បញ្ជាក់ការលុបទិន្នន័យ?', clearConfirm2:'បញ្ជាក់ម្តងទៀត? មិនអាចដកវិញ!',
-    cleared:'ទិន្នន័យទាំងអស់ត្រូវបានលុប',
     cancel:'បោះបង់', save:'💾 រក្សាទុក',
     noRecord:'គ្មានកំណត់ត្រា', noPregRec:'គ្មានបុគ្គលិកមានផ្ទៃពោះ', noMatRec:'គ្មានកំណត់ត្រាលំហែ', noSalRec:'គ្មានប្រាក់ខែ',
     cloudLoaded:'ទាញពីCloud', autoSync:'ធ្វើសម្រួលស្វ័យប្រវត្តិ',
@@ -754,7 +681,7 @@ let employees = [], salaryRecords = [];
 let editEmpId = null, editSalId = null;
 let viewMode  = 'month';
 let viewDate  = new Date();
-let masterPage = 1;  // pregPage/matPage/salPage declared in nav blocks
+let masterPage = 1, pregPage = 1, matPage = 1, salPage = 1;
 
 // ════════════════════ KEYS ════════════════════════════
 const UKEY = r => `${r.idNo||r.id||''}_${r.edd||r.month||''}_${r.type||'pregnant'}`;
@@ -1054,452 +981,437 @@ function renderMaster() {
   mkPag('masterPag', rows.length, masterPage, 'setMasterPage');
 }
 
-// ════════════════════ PREGNANT DATE NAV ═════════════════
-let pregMode='month', pregDate=new Date(), pregTableOpen=false;
-function setPregMode(m){
-  pregMode=m;
-  ['day','week','month','year'].forEach(x=>document.getElementById('pm-'+x)?.classList.toggle('on',x===m));
-  renderPregnant();
-}
-function navPreg(d){
-  const v=new Date(pregDate);
-  if(pregMode==='day')   v.setDate(v.getDate()+d);
-  if(pregMode==='week')  v.setDate(v.getDate()+d*7);
-  if(pregMode==='month') v.setMonth(v.getMonth()+d);
-  if(pregMode==='year')  v.setFullYear(v.getFullYear()+d);
-  pregDate=v; renderPregnant();
-}
-function pregToday(){ pregDate=new Date(); renderPregnant(); }
-function getPregLabel(){
-  const y=pregDate.getFullYear(),mo=pregDate.getMonth(),d=pregDate.getDate();
-  if(pregMode==='day')   return pregDate.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
-  if(pregMode==='week'){
-    const s=new Date(pregDate); s.setDate(d-pregDate.getDay());
-    const e=new Date(s); e.setDate(s.getDate()+6);
-    return s.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})+' — '+e.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})+' '+y;
-  }
-  if(pregMode==='month') return y+' / '+String(mo+1).padStart(2,'0');
-  return y+'';
-}
-function empMatchesPregPeriod(e){
-  const y=pregDate.getFullYear(),mo=pregDate.getMonth(),d=pregDate.getDate();
-  const check=(ds)=>{
-    if(!ds) return false; const ed=new Date(ds);
-    if(pregMode==='day')   return ed.getFullYear()===y&&ed.getMonth()===mo&&ed.getDate()===d;
-    if(pregMode==='week'){
-      const ws=new Date(pregDate); ws.setDate(d-pregDate.getDay()); ws.setHours(0,0,0,0);
-      const we=new Date(ws); we.setDate(ws.getDate()+6); we.setHours(23,59,59,999);
-      return ed>=ws&&ed<=we;
-    }
-    if(pregMode==='month') return ed.getFullYear()===y&&ed.getMonth()===mo;
-    return ed.getFullYear()===y;
-  };
-  return check(e.registerTime)||check(e.edd)||check(e.leaveStart);
-}
-function togglePregTable(){
-  pregTableOpen=!pregTableOpen;
-  document.getElementById('pregTableWrap').style.display=pregTableOpen?'block':'none';
-  document.getElementById('pregTblToggle').textContent=pregTableOpen?'▲ '+T('hideList'):'📋 '+T('showList');
-}
-
 // ════════════════════ RENDER: PREGNANT ════════════════
-  // (page vars moved to date-nav blocks)
-function pregFiltered(){
+function pregFiltered() {
   const q=(document.getElementById('pregSrch')?.value||'').toLowerCase();
   const dept=document.getElementById('pregDept')?.value||'';
   return employees.filter(e=>{
-    if(e.status!=='pregnant') return false;
-    if(dept&&e.dept!==dept) return false;
-    if(q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
-    if(!empMatchesPregPeriod(e)) return false;
+    if (e.status!=='pregnant') return false;
+    if (dept&&e.dept!==dept) return false;
+    if (q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
     return true;
   });
 }
-function setPregPage(p){pregPage=p;renderPregnant();}
-function renderPregnant(){
-  const disp=document.getElementById('pregDateDisp');
-  if(disp) disp.textContent=getPregLabel();
+function setPregPage(p) { pregPage=p; renderPregnant(); }
+function renderPregnant() {
   const rows=pregFiltered();
-
-  // KPI
-  const now=new Date(); now.setHours(0,0,0,0);
-  const edd30=rows.filter(e=>e.edd&&Math.round((new Date(e.edd)-now)/86400000)<=30&&Math.round((new Date(e.edd)-now)/86400000)>=0).length;
-  const depts=new Set(rows.map(e=>e.dept).filter(Boolean)).size;
-  document.getElementById('pk-total').textContent=rows.length;
-  document.getElementById('pk-edd30').textContent=edd30;
-  document.getElementById('pk-new').textContent=rows.length;
-  document.getElementById('pk-dept').textContent=depts;
-  document.getElementById('pregCount').textContent=rows.length+' '+T('records');
-
-  // Cards (sewing lc style)
-  document.getElementById('pregCards').innerHTML=rows.length
-    ? rows.map(e=>{
-        const daysToEdd=e.edd?Math.round((new Date(e.edd)-now)/86400000):null;
-        const urgency=daysToEdd!==null&&daysToEdd<=30?'lo':daysToEdd<=60?'md':'hi';
-        const used=e.leaveStart?since(e.leaveStart):0;
-        const left=Math.max(0,(+e.totalDays||90)-used);
-        const cap=Math.min(100,Math.round(used/(+e.totalDays||90)*100));
-        return `<div class="lc ${urgency}" onclick="openEmpModal('${e.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-            <div>
-              <div class="lc-name">${e.name||'—'}</div>
-              <span class="lc-sec" style="background:#fef3c7;color:#92400e">${e.dept||'—'}</span>
-            </div>
-            <span class="id-badge" style="font-size:10px">${e.idNo||'—'}</span>
-          </div>
-          <div class="lc-row">
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:#d97706">${e.edd||'—'}</div>
-              <div class="lc-sl">EDD</div>
-            </div>
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:${daysToEdd!==null&&daysToEdd<=30?'#dc2626':daysToEdd<=60?'#d97706':'#059669'}">${daysToEdd!==null?daysToEdd+'d':'—'}</div>
-              <div class="lc-sl">${T('daysLeft')}</div>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7a9e;margin-bottom:3px">
-            <span>${T('period')}: ${e.pregnantPeriod||'—'}M</span>
-            <span>${e.position||'—'}</span>
-          </div>
-          <div class="capbar"><div class="capfill" style="width:${cap}%;background:${urgency==='hi'?'#059669':urgency==='md'?'#d97706':'#dc2626'}"></div></div>
-          <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7a9e;margin-top:4px">
-            <span>${T('totalDays')}: ${e.totalDays||90}</span>
-            <button class="btn btn-r btn-sm" style="padding:2px 6px;font-size:10px" onclick="event.stopPropagation();delEmp('${e.id}')">🗑️</button>
-          </div>
-        </div>`;
-      }).join('')
-    : `<div style="padding:30px;text-align:center;color:#6b7a9e;grid-column:1/-1">${T('noPregRec')}</div>`;
-
-  // Table (hidden by default)
-  if(pregTableOpen){
-    document.getElementById('pregTblHdr').innerHTML = [
-      'No.', T('regDate'), T('period'), 'ID', T('name'), T('dept'), T('pos'),
-      T('birthday'), T('age'), 'EDD', 'NSSF', T('status'), T('applyDate'),
-      T('returnDate'), T('totalDays'), T('used'), T('left'), T('remark'), T('contact'), T('ops')
-    ].map(h=>`<th>${h}</th>`).join('');
-    const page=rows.slice((pregPage-1)*PGSZ,pregPage*PGSZ);
-    document.getElementById('pregTbody').innerHTML=page.length?page.map((e,i)=>{
-      const used=e.leaveStart?since(e.leaveStart):0;
-      const left=Math.max(0,(+e.totalDays||90)-used);
-      return `<tr>
-        <td class="mono">${(pregPage-1)*PGSZ+i+1}</td>
-        <td class="mono" style="font-size:11px">${fd(e.registerTime)}</td>
-        <td style="text-align:center">${e.pregnantPeriod||'—'}</td>
-        <td><span class="id-badge">${e.idNo||'—'}</span></td>
-        <td style="font-weight:600">${e.name||'—'}</td>
-        <td>${e.dept||'—'}</td>
-        <td style="font-size:11px">${e.position||'—'}</td>
-        <td class="mono" style="font-size:11px">${fd(e.birthday)}</td>
-        <td style="text-align:center">${calcAge(e.birthday)}</td>
-        <td class="mono" style="color:#d97706">${fd(e.edd)}</td>
-        <td style="font-size:10px">${e.nssfNo||'—'}</td>
-        <td>${sBadge(e.status)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
-        <td style="text-align:center">${e.totalDays||90}</td>
-        <td style="text-align:center;color:#6b7a9e">${used}</td>
-        <td style="text-align:center;color:#059669;font-weight:600">${left}</td>
-        <td style="font-size:11px">${e.remark||'—'}</td>
-        <td style="font-size:11px">${e.contactPhone||'—'}</td>
-        <td><div style="display:flex;gap:3px">
-          <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }).join(''):`<tr><td colspan="20" style="text-align:center;padding:20px;color:#6b7a9e">${T('noPregRec')}</td></tr>`;
-    mkPag('pregPag',rows.length,pregPage,'setPregPage');
-  }
+  const page=rows.slice((pregPage-1)*PGSZ, pregPage*PGSZ);
+  document.getElementById('pregTbody').innerHTML = page.length ? page.map((e,i)=>{
+    const used=e.leaveStart?since(e.leaveStart):0;
+    const left=Math.max(0,(+e.totalDays||90)-used);
+    return `<tr>
+      <td class="mono">${(pregPage-1)*PGSZ+i+1}</td>
+      <td class="mono" style="font-size:11px">${fd(e.registerTime)}</td>
+      <td style="text-align:center">${e.pregnantPeriod||'—'}</td>
+      <td><span class="id-badge">${e.idNo||'—'}</span></td>
+      <td style="font-weight:600">${e.name||'—'}</td>
+      <td>${e.dept||'—'}</td>
+      <td style="font-size:11px">${e.position||'—'}</td>
+      <td class="mono" style="font-size:11px">${fd(e.birthday)}</td>
+      <td style="text-align:center">${calcAge(e.birthday)}</td>
+      <td class="mono" style="color:#d97706">${fd(e.edd)}</td>
+      <td style="font-size:10px">${e.nssfNo||'—'}</td>
+      <td>${sBadge(e.status)}</td>
+      <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
+      <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
+      <td style="text-align:center">${e.totalDays||90}</td>
+      <td style="text-align:center;color:#6b7a9e">${used}</td>
+      <td style="text-align:center;color:#059669;font-weight:600">${left}</td>
+      <td style="font-size:11px">${e.remark||'—'}</td>
+      <td style="font-size:11px">${e.contactPhone||'—'}</td>
+      <td><div style="display:flex;gap:3px">
+        <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
+        <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="20" style="text-align:center;padding:30px;color:#6b7a9e">'+T('noPregRec')+'</td></tr>`;
+  mkPag('pregPag', rows.length, pregPage, 'setPregPage');
   fillDeptSel('pregDept');
 }
 
-// ════════════════════ MATERNITY DATE NAV ══════════════
-let matMode='month', matDate=new Date(), matTableOpen=false;
-function setMatMode(m){
-  matMode=m;
-  ['day','week','month','year'].forEach(x=>document.getElementById('mm-'+x)?.classList.toggle('on',x===m));
-  renderMaternity();
-}
-function navMat(d){
-  const v=new Date(matDate);
-  if(matMode==='day')   v.setDate(v.getDate()+d);
-  if(matMode==='week')  v.setDate(v.getDate()+d*7);
-  if(matMode==='month') v.setMonth(v.getMonth()+d);
-  if(matMode==='year')  v.setFullYear(v.getFullYear()+d);
-  matDate=v; renderMaternity();
-}
-function matToday(){ matDate=new Date(); renderMaternity(); }
-function getMatLabel(){
-  const y=matDate.getFullYear(),mo=matDate.getMonth(),d=matDate.getDate();
-  if(matMode==='day')   return matDate.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
-  if(matMode==='week'){
-    const s=new Date(matDate); s.setDate(d-matDate.getDay());
-    const e=new Date(s); e.setDate(s.getDate()+6);
-    return s.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})+' — '+e.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})+' '+y;
-  }
-  if(matMode==='month') return y+' / '+String(mo+1).padStart(2,'0');
-  return y+'';
-}
-function empMatchesMatPeriod(e){
-  const y=matDate.getFullYear(),mo=matDate.getMonth(),d=matDate.getDate();
-  const check=(ds)=>{
-    if(!ds) return false; const ed=new Date(ds);
-    if(matMode==='day')   return ed.getFullYear()===y&&ed.getMonth()===mo&&ed.getDate()===d;
-    if(matMode==='week'){
-      const ws=new Date(matDate); ws.setDate(d-matDate.getDay()); ws.setHours(0,0,0,0);
-      const we=new Date(ws); we.setDate(ws.getDate()+6); we.setHours(23,59,59,999);
-      return ed>=ws&&ed<=we;
-    }
-    if(matMode==='month') return ed.getFullYear()===y&&ed.getMonth()===mo;
-    return ed.getFullYear()===y;
-  };
-  // Show if leave start or return date falls in range
-  return check(e.leaveStart)||check(e.returnDate)||check(e.edd);
-}
-function toggleMatTable(){
-  matTableOpen=!matTableOpen;
-  document.getElementById('matTableWrap').style.display=matTableOpen?'block':'none';
-  document.getElementById('matTblToggle').textContent=matTableOpen?'▲ '+T('hideList'):'📋 '+T('showList');
-}
-
 // ════════════════════ RENDER: MATERNITY ═══════════════
-  // (page vars moved to date-nav blocks)
-function matFiltered(){
+function matFiltered() {
   const q=(document.getElementById('matSrch')?.value||'').toLowerCase();
   const dept=document.getElementById('matDept')?.value||'';
   return employees.filter(e=>{
-    if(!['maternity','returned'].includes(e.status)) return false;
-    if(dept&&e.dept!==dept) return false;
-    if(q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
-    if(!empMatchesMatPeriod(e)) return false;
+    if (!['maternity','returned'].includes(e.status)) return false;
+    if (dept&&e.dept!==dept) return false;
+    if (q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
     return true;
   });
 }
-function setMatPage(p){matPage=p;renderMaternity();}
-
-// Calculate maternity pay from last 12 months salary history
-function calcMatPay(e){
-  const recs=salaryRecords.filter(r=>r.idNo===e.idNo).sort((a,b)=>b.month.localeCompare(a.month)).slice(0,12);
-  if(recs.length===0) return {avg:+e.basicSalary||0, total:((+e.basicSalary||0)/26*(+e.totalDays||90)).toFixed(2), months:0};
-  const avgNet=recs.reduce((s,r)=>s+(+r.netPay||0),0)/recs.length;
-  const total=(avgNet/26*(+e.totalDays||90)).toFixed(2);
-  return {avg:avgNet.toFixed(2), total, months:recs.length};
+function setMatPage(p) { matPage=p; renderMaternity(); }
+function matPay(e) {
+  const recs=salaryRecords.filter(r=>r.idNo===e.idNo).slice(-12);
+  const avg=recs.length ? recs.reduce((s,r)=>s+(+r.netPay||0),0)/recs.length : (+e.basicSalary||0);
+  return avg/26*(+e.totalDays||90)/2;
 }
-
-function renderMaternity(){
-  const disp=document.getElementById('matDateDisp');
-  if(disp) disp.textContent=getMatLabel();
+function renderMaternity() {
   const rows=matFiltered();
-  const now=new Date(); now.setHours(0,0,0,0);
-  const ret30=rows.filter(e=>e.returnDate&&Math.round((new Date(e.returnDate)-now)/86400000)<=30&&Math.round((new Date(e.returnDate)-now)/86400000)>=0).length;
-  const totalPay=rows.reduce((s,e)=>s+(+calcMatPay(e).total),0);
-  const avgMon=rows.reduce((s,e)=>s+(+calcMatPay(e).avg),0)/(rows.length||1);
-
-  document.getElementById('mk-total').textContent=rows.length;
-  document.getElementById('mk-ret30').textContent=ret30;
-  document.getElementById('mk-pay').textContent='$'+totalPay.toFixed(0);
-  document.getElementById('mk-avg').textContent='$'+avgMon.toFixed(0);
-  document.getElementById('matCount').textContent=rows.length+' '+T('records');
-
-  // Cards — one per employee with salary verification
-  document.getElementById('matCards').innerHTML=rows.length
-    ? rows.map(e=>{
-        const used=e.leaveStart?since(e.leaveStart):0;
-        const left=Math.max(0,(+e.totalDays||90)-used);
-        const cap=Math.min(100,Math.round(used/(+e.totalDays||90)*100));
-        const pay=calcMatPay(e);
-        const daysToRet=e.returnDate?Math.round((new Date(e.returnDate)-now)/86400000):null;
-        const urgency=daysToRet!==null&&daysToRet<=14?'lo':daysToRet!==null&&daysToRet<=30?'md':'hi';
-        // Actual paid (sum of salary records during maternity)
-        const actualPaid=salaryRecords.filter(r=>r.idNo===e.idNo&&e.leaveStart&&r.month>=e.leaveStart.substring(0,7)).reduce((s,r)=>s+(+r.netPay||0),0);
-        const diff=+pay.total-actualPaid;
-        const payStatus=actualPaid===0?'gray':Math.abs(diff)<10?'ok':'warn';
-        return `<div class="lc ${urgency}" onclick="openEmpModal('${e.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">
-            <div>
-              <div class="lc-name">${e.name||'—'}</div>
-              <span class="lc-sec" style="background:#fce7f3;color:#9d174d">${e.dept||'—'}</span>
-              <span style="font-size:9px;color:#6b7a9e;margin-left:4px">${e.position||''}</span>
-            </div>
-            <span class="id-badge ${e.status==='returned'?'green':''}" style="font-size:10px">${e.idNo||'—'}</span>
-          </div>
-          <div class="lc-row">
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:#c75b7a">${used}</div>
-              <div class="lc-sl">${T('used')}d</div>
-            </div>
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:${left>30?'#059669':'#d97706'}">${left}</div>
-              <div class="lc-sl">${T('left')}d</div>
-            </div>
-          </div>
-          <div class="capbar" style="margin-bottom:6px"><div class="capfill" style="width:${cap}%;background:#c75b7a"></div></div>
-          <!-- Salary verification section -->
-          <div style="background:#f7f8fc;border-radius:6px;padding:7px;margin-bottom:5px">
-            <div style="font-size:9px;font-weight:700;color:#6b7a9e;text-transform:uppercase;margin-bottom:5px">💰 ${T('salVerify')}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:10px">
-              <div><span style="color:#6b7a9e">${T('avgSal')} (${pay.months}M):</span><br><b style="font-family:monospace">$${pay.avg}</b></div>
-              <div><span style="color:#6b7a9e">${T('entitledPay')} (90d):</span><br><b style="font-family:monospace;color:#c75b7a">$${pay.total}</b></div>
-              <div><span style="color:#6b7a9e">${T('actualPaid')}:</span><br><b style="font-family:monospace;color:${payStatus==='ok'?'#059669':payStatus==='warn'?'#dc2626':'#6b7a9e'}">$${actualPaid.toFixed(2)}</b></div>
-              <div><span style="color:#6b7a9e">${T('diff')}:</span><br><b style="font-family:monospace;color:${Math.abs(diff)<10?'#059669':'#dc2626'}">${actualPaid===0?'—':'$'+(diff>=0?'+':'')+diff.toFixed(2)}</b></div>
-            </div>
-            ${payStatus==='warn'?`<div style="background:#fee2e2;border-radius:4px;padding:3px 6px;margin-top:4px;font-size:9px;color:#dc2626;font-weight:700">⚠️ ${T('salMismatch')}</div>`:''}
-            ${payStatus==='gray'?`<div style="background:#f3f4f6;border-radius:4px;padding:3px 6px;margin-top:4px;font-size:9px;color:#6b7a9e">— ${T('noSalRecord')}</div>`:''}
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#6b7a9e">
-            <span>${T('returnDate')}: ${fd(e.returnDate)||'—'} ${daysToRet!==null?'('+daysToRet+'d)':''}</span>
-            <div style="display:flex;gap:3px">
-              <button class="btn btn-teal btn-sm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();openSalModal(null,{idNo:'${e.idNo}',name:'${e.name}'})">＋💰</button>
-              <button class="btn btn-r btn-sm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();delEmp('${e.id}')">🗑️</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')
-    : `<div style="padding:30px;text-align:center;color:#6b7a9e;grid-column:1/-1">${T('noMatRec')}</div>`;
-
-  // Table (hidden by default)
-  if(matTableOpen){
-    document.getElementById('matTblHdr').innerHTML=[
-      'No.','ID',T('name'),T('dept'),T('pos'),'EDD',T('applyDate'),T('returnDate'),
-      T('totalDays'),T('used'),T('left'),T('progress'),T('entitledPay'),T('actualPaid'),T('diff'),T('ops')
-    ].map(h=>`<th>${h}</th>`).join('');
-    const page=rows.slice((matPage-1)*PGSZ,matPage*PGSZ);
-    document.getElementById('matTbody').innerHTML=page.length?page.map((e,i)=>{
-      const used=e.leaveStart?since(e.leaveStart):0;
-      const left=Math.max(0,(+e.totalDays||90)-used);
-      const pay=calcMatPay(e);
-      const actualPaid=salaryRecords.filter(r=>r.idNo===e.idNo&&e.leaveStart&&r.month>=e.leaveStart.substring(0,7)).reduce((s,r)=>s+(+r.netPay||0),0);
-      const diff=+pay.total-actualPaid;
-      return `<tr>
-        <td class="mono">${(matPage-1)*PGSZ+i+1}</td>
-        <td><span class="id-badge ${e.status==='returned'?'green':''}">${e.idNo||'—'}</span></td>
-        <td style="font-weight:600">${e.name||'—'}</td>
-        <td>${e.dept||'—'}</td>
-        <td style="font-size:11px">${e.position||'—'}</td>
-        <td class="mono" style="color:#c75b7a">${fd(e.edd)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
-        <td style="text-align:center;font-weight:700">${e.totalDays||90}</td>
-        <td style="text-align:center;color:#c75b7a;font-weight:600">${used}</td>
-        <td style="text-align:center;color:${left>30?'#059669':'#d97706'};font-weight:600">${left}</td>
-        <td>${e.leaveStart?prog(used,+e.totalDays||90):''}</td>
-        <td class="mono" style="color:#c75b7a;font-weight:700">$${pay.total}</td>
-        <td class="mono" style="color:${Math.abs(diff)<10?'#059669':'#dc2626'}">$${actualPaid.toFixed(2)}</td>
-        <td class="mono" style="font-weight:700;color:${Math.abs(diff)<10?'#059669':'#dc2626'}">${actualPaid===0?'—':'$'+(diff>=0?'+':'')+diff.toFixed(2)}</td>
-        <td><div style="display:flex;gap:3px">
-          <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }).join(''):`<tr><td colspan="16" style="text-align:center;padding:20px;color:#6b7a9e">${T('noMatRec')}</td></tr>`;
-    mkPag('matPag',rows.length,matPage,'setMatPage');
-  }
+  const page=rows.slice((matPage-1)*PGSZ, matPage*PGSZ);
+  document.getElementById('matTbody').innerHTML = page.length ? page.map((e,i)=>{
+    const used=e.leaveStart?since(e.leaveStart):0;
+    const left=Math.max(0,(+e.totalDays||90)-used);
+    return `<tr>
+      <td class="mono">${(matPage-1)*PGSZ+i+1}</td>
+      <td><span class="id-badge ${e.status==='returned'?'green':''}">${e.idNo||'—'}</span></td>
+      <td style="font-weight:600">${e.name||'—'}</td>
+      <td>${e.dept||'—'}</td>
+      <td style="font-size:11px">${e.position||'—'}</td>
+      <td class="mono" style="font-size:11px;color:#c75b7a">${fd(e.edd)}</td>
+      <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
+      <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
+      <td style="text-align:center;font-weight:700">${e.totalDays||90}</td>
+      <td style="text-align:center;color:#c75b7a;font-weight:600">${used}</td>
+      <td style="text-align:center;color:${left>30?'#059669':'#d97706'};font-weight:600">${left}</td>
+      <td>${e.leaveStart?prog(used,+e.totalDays||90):''}</td>
+      <td class="mono" style="font-weight:700;color:#c75b7a">$${matPay(e).toFixed(2)}</td>
+      <td><div style="display:flex;gap:3px">
+        <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
+        <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('') : `<tr><td colspan="14" style="text-align:center;padding:30px;color:#6b7a9e">'+T('noMatRec')+'</td></tr>`;
+  mkPag('matPag', rows.length, matPage, 'setMatPage');
   fillDeptSel('matDept');
 }
 
 // ════════════════════ RENDER: SALARY ══════════════════
-// Per-person cards — each maternity employee gets their own block
-  // (page vars moved to date-nav blocks)
-function setSalPage(p){salPage=p;renderSalary();}
-function renderSalary(){
+function setSalPage(p) { salPage=p; renderSalary(); }
+function renderSalary() {
   const q=(document.getElementById('salSrch')?.value||'').toLowerCase();
-  const idF=document.getElementById('salIdF')?.value||'';
-
-  // Build per-person groups
-  const matEmps=employees.filter(e=>['maternity','returned'].includes(e.status));
-  // Also include employees who have salary records even if not yet in maternity
-  const allIds=[...new Set([...matEmps.map(e=>e.idNo),...salaryRecords.map(r=>r.idNo)])].filter(Boolean);
-
-  let filtered=allIds;
-  if(idF) filtered=filtered.filter(id=>id===idF);
-  if(q) filtered=filtered.filter(id=>{
-    const e=employees.find(x=>x.idNo===id);
-    return (e?.name||'').toLowerCase().includes(q)||id.includes(q);
+  const mon=document.getElementById('salMon')?.value||'';
+  const rows=salaryRecords.filter(r=>{
+    if (q&&!(r.name||'').toLowerCase().includes(q)&&!(r.idNo||'').includes(q)) return false;
+    if (mon&&!(r.month||'').startsWith(mon)) return false;
+    return true;
   });
+  document.getElementById('sBasic').textContent='$'+rows.reduce((s,r)=>s+(+r.basicSalary||0),0).toFixed(2);
+  document.getElementById('sOT').textContent   ='$'+rows.reduce((s,r)=>s+(+r.otPay||0),0).toFixed(2);
+  document.getElementById('sNet').textContent  ='$'+rows.reduce((s,r)=>s+(+r.netPay||0),0).toFixed(2);
+  const page=rows.slice((salPage-1)*PGSZ, salPage*PGSZ);
+  document.getElementById('salTbody').innerHTML = page.length ? page.map((r,i)=>`<tr>
+    <td class="mono">${(salPage-1)*PGSZ+i+1}</td>
+    <td><span class="id-badge">${r.idNo||'—'}</span></td>
+    <td style="font-weight:600">${r.name||'—'}</td>
+    <td class="mono">${r.month||'—'}</td>
+    <td style="text-align:center">${r.workDays||'—'}</td>
+    <td class="mono">$${(+r.basicSalary||0).toFixed(2)}</td>
+    <td class="mono">$${(+r.otPay||0).toFixed(2)}</td>
+    <td class="mono">$${(+r.mealFee||0).toFixed(2)}</td>
+    <td class="mono" style="color:#dc2626">$${(+r.nssf||0).toFixed(2)}</td>
+    <td class="mono" style="color:#dc2626">$${(+r.deductions||0).toFixed(2)}</td>
+    <td class="mono" style="font-weight:700;color:#c75b7a">$${(+r.netPay||0).toFixed(2)}</td>
+    <td style="font-size:11px">${r.remarks||'—'}</td>
+    <td><div style="display:flex;gap:3px">
+      <button class="btn btn-g btn-sm" onclick="openSalModal('${r.id}')">✏️</button>
+      <button class="btn btn-r btn-sm" onclick="delSal('${r.id}')">🗑️</button>
+    </div></td>
+  </tr>`).join('') : `<tr><td colspan="13" style="text-align:center;padding:30px;color:#6b7a9e">'+T('noSalRec')+'</td></tr>`;
+  mkPag('salPag', rows.length, salPage, 'setSalPage');
+  // Refresh month filter
+  const mons=[...new Set(salaryRecords.map(r=>r.month).filter(Boolean))].sort().reverse();
+  const mf=document.getElementById('salMon'); const curMon=mf.value;
+  mf.innerHTML='<option value="">所有月份</option>'+mons.map(m=>`<option value="${m}"${m===curMon?' selected':''}>${m}</option>`).join('');
+}
 
-  const container=document.getElementById('salPersonCards');
-  if(!container) return;
+function fillDeptSel(selId) {
+  const sel=document.getElementById(selId); if(!sel) return;
+  const cur=sel.value;
+  const depts=[...new Set(employees.map(e=>e.dept).filter(Boolean))].sort();
+  sel.innerHTML='<option value="">所有部門</option>'+depts.map(d=>`<option value="${d}"${d===cur?' selected':''}>${d}</option>`).join('');
+}
 
-  container.innerHTML=filtered.length?filtered.map(idNo=>{
-    const emp=employees.find(e=>e.idNo===idNo);
-    const name=emp?.name||idNo;
-    const recs=salaryRecords.filter(r=>r.idNo===idNo).sort((a,b)=>b.month.localeCompare(a.month));
-    if(!recs.length) return '';
-    const pay=emp?calcMatPay(emp):null;
-    const totalNet=recs.reduce((s,r)=>s+(+r.netPay||0),0);
-    const avgNet=totalNet/recs.length;
-    const isMat=emp&&['maternity','returned'].includes(emp.status);
-    // Salary records during maternity
-    const matRecs=isMat&&emp.leaveStart?recs.filter(r=>r.month>=emp.leaveStart.substring(0,7)):[];
-    const actualPaid=matRecs.reduce((s,r)=>s+(+r.netPay||0),0);
-    const diff=pay?+pay.total-actualPaid:0;
+// ════════════════════ SMART IMPORT ════════════════════
+// ROOT-CAUSE FIX: Both Pregnant.xls and Maternity.xls use the
+// IDENTICAL 孕婦情況登記表 format. The data sheet is named
+// '2026', '2025-2026', etc — NOT 'Summery'. We must scan ALL
+// sheets to find the one containing the register data.
+//
+// Real column layout (0-indexed, confirmed from actual XLS):
+//  [0]=No  [1]=Register time  [2]=Pregnant Period  [3]=ID No.
+//  [4]=Name  [5]=Dept  [6]=Position  [7]=Birthday  [8]=Age
+//  [9]=EDD  [10]=NSSF no.  [11]=status(Maternity leave|null)
+//  [12]=Apply date  [13]=Return date  [14]=Total days
+//  [15]=Used day(formula→negative float)  [16]=Left day
+//  [17]=Remark  [18]=Contact Name  [19]=Contact Number  [20]=Address
+function smartImport(input, hint) {
+  const f=input.files[0]; if(!f) return; input.value='';
+  const ext = f.name.split('.').pop().toLowerCase();
+  const rd=new FileReader();
+  rd.onload = async ev => {
+    try {
+      // cellDates:true converts Excel date serials → JS Date objects
+      const wb=XLSX.read(ev.target.result,{type:'binary',cellDates:true});
+      const names=wb.SheetNames;
 
-    const rows=recs.map((r,i)=>{
-      const isDuringMat=matRecs.includes(r);
-      return `<tr style="${isDuringMat?'background:#fef0f3;':''}">
-        <td class="mono" style="font-size:10px">${i+1}</td>
-        <td class="mono" style="font-weight:600;${isDuringMat?'color:#c75b7a':''}">${r.month||'—'}</td>
-        <td style="text-align:center">${r.workDays||'—'}</td>
-        <td class="mono">$${(+r.basicSalary||0).toFixed(2)}</td>
-        <td class="mono">$${(+r.otPay||0).toFixed(2)}</td>
-        <td class="mono">$${(+r.mealFee||0).toFixed(2)}</td>
-        <td class="mono" style="color:#dc2626">$${(+r.nssf||0).toFixed(2)}</td>
-        <td class="mono" style="font-weight:700;color:${isDuringMat?'#c75b7a':'#1e2640'}">$${(+r.netPay||0).toFixed(2)}</td>
-        <td style="font-size:10px">${isDuringMat?'🍼':''}${r.remarks||'—'}</td>
-        <td><div style="display:flex;gap:2px">
-          <button class="btn btn-g btn-sm" style="padding:2px 5px" onclick="openSalModal('${r.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" style="padding:2px 5px" onclick="delSal('${r.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }).join('');
+      // ── STEP 1: Find the data sheet ─────────────────
+      // Scan all sheets; the register sheet has 'ID No.' at column-3
+      // of some row, AND has integer row-numbers at column-0.
+      let dataSheet=null, dataRaw=null;
+      for (const sn of names) {
+        const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+        // Skip obvious non-data sheets (Chart, Sheet1 employee master)
+        if (sn==='Chart'||sn==='Sheet1') continue;
+        // Must have 'ID No.' at col[3] in some header row
+        const hasIdCol = raw.some(r=>r&&String(r[3]||'').replace(/[\s\n]+/g,' ').trim().toLowerCase().startsWith('id no'));
+        if (hasIdCol) { dataSheet=sn; dataRaw=raw; break; }
+      }
+      // Fallback: try any sheet (excluding Chart/Sheet1)
+      if (!dataSheet) {
+        for (const sn of names) {
+          if (sn==='Chart'||sn==='Sheet1') continue;
+          const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+          const hasData=raw.some(r=>r&&Number.isInteger(+r[0])&&+r[0]>=1&&+r[0]<=500&&r[4]);
+          if (hasData) { dataSheet=sn; dataRaw=raw; break; }
+        }
+      }
+      if (!dataRaw) { toast(T('noData'),'info'); return; }
 
-    return `<div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
-      <!-- Person header -->
-      <div style="background:linear-gradient(135deg,#1e2640,#2d3658);padding:12px 15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span class="id-badge" style="font-size:12px">${idNo}</span>
-        <div style="flex:1">
-          <div style="font-weight:700;color:#fff;font-size:14px">${name}</div>
-          <div style="font-size:10px;color:#8b95b8">${emp?.dept||''} ${emp?.position?'· '+emp.position:''}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          ${isMat?`<span class="badge b-maternity">🍼 ${T('matIn')}</span>`:''}
-          <button class="btn btn-teal" style="padding:4px 10px;font-size:11px" onclick="openSalModal(null,{idNo:'${idNo}',name:'${name}'})">＋ ${T('addSal')}</button>
-        </div>
-      </div>
-      <!-- Pay summary (maternity employees only) -->
-      ${isMat&&pay?`<div style="background:#fef0f3;padding:10px 15px;display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid #fce7f3">
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('avgSal')} (${pay.months}M avg):</span> <b style="font-family:monospace">$${pay.avg}</b></div>
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('entitledPay')} (90d):</span> <b style="font-family:monospace;color:#c75b7a">$${pay.total}</b></div>
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('actualPaid')}:</span> <b style="font-family:monospace;color:${Math.abs(diff)<10?'#059669':'#dc2626'}">$${actualPaid.toFixed(2)}</b></div>
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('diff')}:</span> <b style="font-family:monospace;color:${Math.abs(diff)<10?'#059669':'#dc2626'};font-weight:700">$${actualPaid===0?'—':(diff>=0?'+':'')+diff.toFixed(2)}</b>
-          ${Math.abs(diff)>10&&actualPaid>0?'<span style="color:#dc2626;font-size:9px;font-weight:700;margin-left:4px">⚠️ '+T('salMismatch')+'</span>':''}</div>
-      </div>`:''}
-      <!-- Salary table -->
-      <div class="tw" style="border-radius:0">
-        <table style="min-width:580px">
-          <thead><tr>
-            <th>No.</th><th>${T('month')}</th><th>${T('workDays')}</th><th>${T('basicSal')}</th>
-            <th>OT</th><th>${T('meal')}</th><th>NSSF</th><th>${T('netPay')}</th><th>${T('remark')}</th><th>${T('ops')}</th>
-          </tr></thead>
-          <tbody>${rows||`<tr><td colspan="10" style="text-align:center;padding:16px;color:#6b7a9e">${T('noSalRecord')}</td></tr>`}</tbody>
-        </table>
-      </div>
-      <!-- Totals -->
-      <div style="padding:8px 15px;background:#f7f8fc;font-size:11px;color:#6b7a9e;display:flex;gap:16px;border-top:1px solid #e2e6f0">
-        <span>${recs.length} ${T('records')}</span>
-        <span>${T('totalNet')}: <b style="font-family:monospace;color:#c75b7a">$${totalNet.toFixed(2)}</b></span>
-        <span>${T('avgNet')}: <b style="font-family:monospace">$${avgNet.toFixed(2)}</b></span>
-      </div>
-    </div>`;
-  }).join('')
-  : `<div style="padding:40px;text-align:center;color:#6b7a9e">${T('noSalRec')}</div>`;
+      // ── STEP 2: Dedup guard (session only) ───────────
+      if (isDup(dataRaw.slice(0,20),'lih_'+hint)) {
+        toast(T('dupImport'),'info'); return;
+      }
 
-  // Populate ID filter
-  const sf=document.getElementById('salIdF');
-  if(sf){
-    const curId=sf.value;
-    sf.innerHTML=`<option value="">— ${T('all')} —</option>`+
-      allIds.map(id=>{const e=employees.find(x=>x.idNo===id);return`<option value="${id}"${id===curId?' selected':''}>${id} ${e?'- '+e.name:''}</option>`;}).join('');
+      // ── STEP 3: Parse and UPSERT ─────────────────────
+      const rows=parseRegister(dataRaw, hint);
+      if (!rows.length) { toast(T('noData'),'info'); return; }
+      const r=upsert(employees,rows); employees=r.data;
+
+      saveData(); renderAll(); renderAnalytics();
+      toast(`✅ ${hint==='maternity'?T('matImport'):T('pregImport')}: +${r.stats.ins} ${T('new')} | ${r.stats.upd} ${T('updated')} | ${r.stats.skip} ${T('skipped')}`);
+      autoSync();
+    } catch(e) { toast('❌ '+e.message,'err'); console.error(e); }
+  };
+  rd.readAsBinaryString(f);
+}
+
+// Salary-only import (unchanged)
+function importSalXlsx(input) {
+  const f=input.files[0]; if(!f) return; input.value='';
+  const rd=new FileReader();
+  rd.onload = ev => {
+    try {
+      const wb=XLSX.read(ev.target.result,{type:'binary',cellDates:true});
+      // Try to find salary data
+      let found=false;
+      for (const sn of wb.SheetNames) {
+        const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+        const res=parseSalarySheet(raw, sn, wb);
+        if (res.length) {
+          const r=upsert(salaryRecords,res); salaryRecords=r.data;
+          saveData(); renderSalary();
+          toast(`✅ ${T('salImport')}: +${r.stats.ins} ${T('new')} | ${r.stats.upd} ${T('updated')}`);
+          autoSync(); found=true; break;
+        }
+      }
+      if (!found) toast(T('noData'),'info');
+    } catch(e) { toast('❌ '+e.message,'err'); }
+  };
+  rd.readAsBinaryString(f);
+}
+
+// ── CORE PARSER: 孕婦情況登記表 ──────────────────────────
+// Works for BOTH Pregnant.xls and Maternity.xls (same format).
+// hint='pregnant' or 'maternity' — used as fallback status only.
+function parseRegister(raw, hint) {
+  // Find first data row: col[0] is a positive integer row number
+  let dataStart=-1;
+  for (let i=0;i<raw.length;i++) {
+    const r=raw[i]; if(!r) continue;
+    const n=Number(r[0]);
+    if (Number.isInteger(n)&&n>=1&&n<=9999&&(r[3]||r[4])) { dataStart=i; break; }
   }
+  if (dataStart<0) return [];
+
+  return raw.slice(dataStart).map(r=>{
+    if (!r) return null;
+    // col[3]=ID No, col[4]=Name (required)
+    const idNo=String(r[3]||'').trim();
+    const name=String(r[4]||'').trim();
+    if (!name&&!idNo) return null;
+    if (name==='Total'||name==='Approved by'||name==='Check by') return null;
+
+    // col[11]=status field ('Maternity leave'|'Resign'|'Abortion'|null)
+    const statusRaw=String(r[11]||'').toLowerCase().trim();
+    let status = hint==='maternity' ? 'maternity' : 'pregnant';
+    if (statusRaw.includes('maternity')) status='maternity';
+    else if (statusRaw.includes('resign'))  status='resigned';
+    else if (statusRaw.includes('abort'))   status='abortion';
+
+    const ex=employees.find(e=>e.idNo===idNo&&idNo);
+
+    // Date columns — may be JS Date objects (cellDates:true) or strings
+    const edd       = safeDate(r[9]);
+    const leaveStart= safeDate(r[12]);
+    const returnDate= safeDate(r[13]);
+    const regTime   = safeDate(r[1]) || today();
+    const bday      = safeDate(r[7]);
+
+    // Used days: col[15] is Excel formula result (often negative float).
+    // Recompute from leaveStart to today instead.
+    const usedDays  = leaveStart ? since(leaveStart) : 0;
+
+    return {
+      id:         ex ? ex.id : uid(),
+      idNo, name, type:'pregnant', status,
+      dept:       String(r[5]||'').trim().replace(/^\s+|\s+$/g,''),
+      position:   String(r[6]||'').trim(),
+      birthday:   bday,
+      nssfNo:     String(r[10]||'').replace(/\u200b/g,'').trim(), // strip zero-width spaces
+      edd, leaveStart, returnDate,
+      registerTime: regTime,
+      totalDays:  +r[14]||90,
+      pregnantPeriod: +r[2]||'',
+      remark:     String(r[17]||'').trim()||statusRaw||'',
+      contactName:  String(r[18]||'').replace(/\u200b/g,'').trim(),
+      contactPhone: String(r[19]||'').replace(/\u200b/g,'').trim(),
+      address:    String(r[20]||'').trim(),
+      basicSalary: ex?.basicSalary||0
+    };
+  }).filter(Boolean);
+}
+
+// ── SALARY SHEET PARSER ───────────────────────────────
+// Looks for col[7]='Month' header then reads H-M columns
+function parseSalarySheet(raw, sheetIdNo, wb) {
+  const sal=[];
+  let salHd=-1;
+  for (let i=0;i<raw.length;i++) {
+    if (raw[i]&&String(raw[i][7]||'').trim()==='Month') { salHd=i; break; }
+  }
+  if (salHd<0) return sal;
+  // Get name from employee records
+  const empRec=employees.find(e=>e.idNo===sheetIdNo);
+  const name=empRec?.name||sheetIdNo;
+  raw.slice(salHd+1).forEach(sr=>{
+    if (!sr) return;
+    const monCell=sr[7]; const totV=sr[12];
+    if (!monCell||totV===null||totV===undefined) return;
+    const mon=monCell instanceof Date&&!isNaN(monCell)
+      ? monCell.toISOString().substring(0,7) : safeMon(String(monCell));
+    if (!mon) return;
+    sal.push({id:uid(),idNo:sheetIdNo,name,type:'salary',month:mon,
+      workDays:+sr[8]||0,basicSalary:+sr[9]||0,otPay:+sr[10]||0,
+      mealFee:+sr[11]||0,nssf:0,deductions:0,netPay:+totV||0,remarks:'Maternity'});
+  });
+  return sal;
+}
+
+// ── GENERIC FALLBACK (raw arrays) ─────────────────────
+function parseGeneric(raw, hint) {
+  const emp=[], sal=[];
+  let hdIdx=-1;
+  for (let i=0;i<raw.length;i++) {
+    const r=raw[i]; if(!r) continue;
+    const s=r.join('|').toLowerCase();
+    if (s.includes('id no')||s.includes('salary')||s.includes('name')) { hdIdx=i; break; }
+  }
+  if (hdIdx<0) return {emp,sal};
+  const hdr=raw[hdIdx].map(h=>String(h||'').trim().toLowerCase());
+  const col=k=>{ const i=hdr.indexOf(k); return i>=0?i:-1; };
+  raw.slice(hdIdx+1).forEach(r=>{
+    if(!r) return;
+    const idNo=String(r[Math.max(0,col('id no.')||col('id no')||col('id'))]||'').trim();
+    const name=String(r[Math.max(0,col('name')||col('NAME'))]||'').trim();
+    if(!name&&!idNo) return;
+    if (r[col('salary')]!==null||r[col('total amount')]!==null) {
+      sal.push({id:uid(),idNo,name,type:'salary',
+        month:safeMon(String(r[col('month')]||today().substring(0,7))),
+        workDays:+r[col('work day')]||0,basicSalary:+r[col('salary')]||0,
+        otPay:+r[col('ot pay')]||0,mealFee:+r[col('meal fee')]||0,
+        nssf:0,deductions:0,netPay:+r[col('total amount')]||0,remarks:hint});
+    } else if (name&&idNo) {
+      const ex=employees.find(e=>e.idNo===idNo);
+      emp.push({id:ex?ex.id:uid(),idNo,name,type:'pregnant',
+        status:hint==='maternity'?'maternity':'pregnant',
+        dept:'',position:'',birthday:'',nssfNo:'',edd:'',
+        leaveStart:'',returnDate:'',totalDays:90,registerTime:today(),remark:hint,basicSalary:0});
+    }
+  });
+  return {emp,sal};
+}
+
+
+// ════════════════════ ANALYTICS ══════════════════════
+function renderAnalytics() {
+  if (!document.getElementById('deptCards')) return;
+
+  // ── Dept breakdown cards ────────────────────────────
+  const deptMap = {};
+  employees.forEach(e=>{
+    const d=e.dept||'Other';
+    if (!deptMap[d]) deptMap[d]={preg:0,mat:0,ret:0,total:0};
+    if (e.status==='pregnant')  deptMap[d].preg++;
+    else if (e.status==='maternity') deptMap[d].mat++;
+    else if (e.status==='returned')  deptMap[d].ret++;
+    deptMap[d].total++;
+  });
+  const maxDept=Math.max(...Object.values(deptMap).map(v=>v.total),1);
+  document.getElementById('deptCards').innerHTML = Object.entries(deptMap)
+    .sort((a,b)=>b[1].total-a[1].total)
+    .map(([dept,v])=>`
+    <div class="ana-card">
+      <div class="ana-card-top">
+        <div class="ana-card-name">${dept}</div>
+        <span class="ana-card-badge" style="background:#fef3c7;color:#92400e">${v.total}</span>
+      </div>
+      <div class="ana-stat-row">
+        <div class="ana-stat"><div class="ana-stat-n" style="color:#c75b7a">${v.preg}</div><div class="ana-stat-l">🤰 ${T('pregIn')}</div></div>
+        <div class="ana-stat"><div class="ana-stat-n" style="color:#059669">${v.mat}</div><div class="ana-stat-l">🍼 ${T('matIn')}</div></div>
+      </div>
+      <div class="ana-bar-wrap"><div class="ana-bar" style="width:${Math.round(v.total/maxDept*100)}%"></div></div>
+    </div>`).join('') || `<div style="color:#6b7a9e;font-size:12px;padding:10px">${T('noRecord')}</div>`;
+
+  // ── Upcoming EDD (next 90 days) ─────────────────────
+  const now=new Date(); now.setHours(0,0,0,0);
+  const upcoming=employees
+    .filter(e=>e.edd&&['pregnant','maternity'].includes(e.status))
+    .map(e=>({...e,daysLeft:Math.round((new Date(e.edd)-now)/86400000)}))
+    .filter(e=>e.daysLeft<=90)
+    .sort((a,b)=>a.daysLeft-b.daysLeft)
+    .slice(0,8);
+  document.getElementById('eddList').innerHTML = upcoming.length
+    ? upcoming.map(e=>{
+        const cls=e.daysLeft<=14?'urgent':e.daysLeft<=30?'soon':'';
+        const dcls=e.daysLeft<=14?'urgent':e.daysLeft<=30?'soon':'ok';
+        const label=e.daysLeft<0?Math.abs(e.daysLeft)+'d ago':`${e.daysLeft}d`;
+        return `<div class="edd-item ${cls}">
+          <span class="edd-days ${dcls}">${label}</span>
+          <span class="edd-name">${e.name}</span>
+          <span class="edd-date">${e.edd}</span>
+          <span class="id-badge" style="font-size:9px">${e.idNo}</span>
+        </div>`;
+      }).join('')
+    : `<div style="color:#6b7a9e;font-size:12px;padding:10px">${T('noRecord')}</div>`;
+
+  // ── Monthly trend bar chart ─────────────────────────
+  // Build counts for last 8 months
+  const months=[];
+  for(let i=7;i>=0;i--){
+    const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-i);
+    months.push(d.toISOString().substring(0,7));
+  }
+  const mData=months.map(m=>{
+    const preg=employees.filter(e=>e.status==='pregnant'&&e.registerTime&&e.registerTime.startsWith(m)).length;
+    const mat=employees.filter(e=>e.status==='maternity'&&e.leaveStart&&e.leaveStart.startsWith(m)).length;
+    return {m,preg,mat,total:preg+mat};
+  });
+  const maxBar=Math.max(...mData.map(d=>d.total),1);
+  document.getElementById('monthBars').innerHTML = mData.map(d=>
+    `<div class="month-bar-col">
+      <span class="month-bar-n">${d.total||''}</span>
+      <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:1px;flex:1;justify-content:flex-end">
+        <div class="month-bar mat" style="height:${Math.round(d.mat/maxBar*64)}px;width:100%"></div>
+        <div class="month-bar preg" style="height:${Math.round(d.preg/maxBar*64)}px;width:100%"></div>
+      </div>
+    </div>`).join('');
+  document.getElementById('monthLabels').innerHTML = mData.map(d=>
+    `<div style="flex:1;text-align:center;font-size:8px;color:#6b7a9e">${d.m.substring(5)}</div>`).join('');
+
+  // Update legend text
+  const lp=document.getElementById('leg-preg'); if(lp) lp.textContent=T('pregIn');
+  const lm=document.getElementById('leg-mat');  if(lm) lm.textContent=T('matIn');
 }
 
 // ════════════════════ CRUD — EMPLOYEE ═════════════════
@@ -1568,12 +1480,12 @@ function delEmp(id) {
 }
 
 // ════════════════════ CRUD — SALARY ═══════════════════
-function openSalModal(id, defaults) {
+function openSalModal(id) {
   editSalId=id||null;
   const r=id?salaryRecords.find(x=>x.id===id):null;
   document.getElementById('salMTitle').textContent=r?'編輯薪資記錄':'新增薪資記錄';
-  document.getElementById('sId').value   =r?.idNo||defaults?.idNo||'';
-  document.getElementById('sName').value =r?.name||defaults?.name||'';
+  document.getElementById('sId').value   =r?.idNo||'';
+  document.getElementById('sName').value =r?.name||'';
   document.getElementById('sMon').value  =r?.month||today().substring(0,7);
   document.getElementById('sWd').value   =r?.workDays||'';
   document.getElementById('sSal').value  =r?.basicSalary||'';
@@ -1639,9 +1551,7 @@ function clearAll() {
   if (!confirm('確定清除所有資料？')) return;
   if (!confirm('再次確認：清除全部員工及薪資記錄？此操作無法復原！')) return;
   employees=[]; salaryRecords=[];
-  saveData();
-  localStorage.setItem('vrt_user_cleared','1'); // FIX1: prevent sample reload
-  renderAll(); toast('已清除所有資料','info');
+  saveData(); renderAll(); toast('已清除所有資料','info');
 }
 
 // ════════════════════ EXPORT / PRINT ══════════════════
@@ -1712,22 +1622,6 @@ function printRows(rows, title) {
 .ana-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
 @media(max-width:820px){.ana-row{grid-template-columns:1fr}.ana-grid{grid-template-columns:1fr 1fr}}
 
-/* ── SEWING-STYLE LINE CARDS ─────────────────────────── */
-.lc{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:12px;border-top:3px solid #e2e6f0;cursor:pointer;transition:.15s}
-.lc:hover{box-shadow:0 3px 12px rgba(199,91,122,.15);transform:translateY(-1px)}
-.lc.hi{border-top-color:#059669}
-.lc.md{border-top-color:#d97706}
-.lc.lo{border-top-color:#dc2626}
-.lc.zero{border-top-color:#9ca3af;opacity:.7}
-.lc-name{font-size:13px;font-weight:700;color:#1e2640}
-.lc-sec{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;display:inline-block;margin-top:2px;text-transform:uppercase}
-.lc-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0}
-.lc-stat{background:#f7f8fc;border-radius:6px;padding:6px;text-align:center}
-.lc-sn{font-size:16px;font-weight:700;font-family:monospace;color:#1e2640;line-height:1.1}
-.lc-sl{font-size:9px;color:#6b7a9e;margin-top:2px}
-.capbar{height:7px;background:#e2e6f0;border-radius:4px;overflow:hidden;margin-top:4px}
-.capfill{height:100%;border-radius:4px;transition:width .4s}
-
 @media print{.nb{display:none}}</style></head><body>
   <div class="nb"><button onclick="window.close()">✕ 關閉</button>&nbsp;
     <button class="p" onclick="window.print()">🖨️ 列印</button></div>
@@ -1756,8 +1650,6 @@ function saveGas() {
 
 // ════════════════════ SAMPLE DATA ═════════════════════
 function loadSample() {
-  localStorage.removeItem('vrt_cleared');
-  localStorage.removeItem('vrt_user_cleared');
   employees=[
     {id:uid(),idNo:'5062',name:'YOEM RAN',dept:'Line5',position:'Sewing operator',birthday:'1993-08-07',
      nssfNo:'29310160394677',edd:'2026-06-03',status:'pregnant',leaveStart:'2026-05-02',returnDate:'2026-07-30',
@@ -1862,7 +1754,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   setMode('month');
   // Apply saved language
   document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('on', b.textContent.trim()==={zh:'中文',en:'EN',km:'ខ្មែរ'}[lang]));
-  if (!employees.length && !localStorage.getItem('vrt_user_cleared')) loadSample();
+  if (!employees.length) loadSample();
   else renderAll();
   renderAnalytics();
   applyLang();
