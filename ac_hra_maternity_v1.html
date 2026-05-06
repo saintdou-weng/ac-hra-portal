@@ -848,115 +848,102 @@ function applyLang() {
 }
 let employees = [], salaryRecords = [];
 
-// ════════════════════ RENDER ALL ════════════════════
-// 統一刷新所有 tab 的顯示（缺此定義會導致 cloud pull callback 報錯）
+// ══ renderAll：統一刷新所有 tab（缺此定義 cloud pull callback 會崩潰）══
 function renderAll() {
-  try { renderMaster(); } catch(e) { console.warn('renderMaster:', e); }
+  try { renderMaster(); }   catch(e) { console.warn('renderMaster:', e); }
   try { renderPregnant(); } catch(e) { console.warn('renderPregnant:', e); }
-  try { renderMaternity(); } catch(e) { console.warn('renderMaternity:', e); }
-  try { renderSalary(); } catch(e) { console.warn('renderSalary:', e); }
+  try { renderMaternity(); }catch(e) { console.warn('renderMaternity:', e); }
+  try { renderSalary(); }   catch(e) { console.warn('renderSalary:', e); }
 }
 
-// ════════════════════ ANALYTICS ══════════════════════
-// 填充首頁 Analytics Row：部門分布 / 預產期倒數 / 月度趨勢
+// ══ renderAnalytics：填充首頁 Analytics Row（部門/EDD/月度趨勢）══
 function renderAnalytics() {
   const now = new Date(); now.setHours(0,0,0,0);
 
-  // ── 部門分布 deptCards ──
+  // 部門分布 deptCards
   const deptEl = document.getElementById('deptCards');
   if (deptEl) {
-    const deptMap = {};
+    const dm = {};
     employees.forEach(e => {
       const d = e.dept || '(未分部門)';
-      if (!deptMap[d]) deptMap[d] = { preg:0, mat:0, ret:0, total:0 };
-      deptMap[d].total++;
-      if (e.status === 'pregnant')  deptMap[d].preg++;
-      if (e.status === 'maternity') deptMap[d].mat++;
-      if (e.status === 'returned')  deptMap[d].ret++;
+      if (!dm[d]) dm[d] = { preg:0, mat:0, ret:0, total:0 };
+      dm[d].total++;
+      if (e.status==='pregnant')  dm[d].preg++;
+      if (e.status==='maternity') dm[d].mat++;
+      if (e.status==='returned')  dm[d].ret++;
     });
-    const maxTotal = Math.max(1, ...Object.values(deptMap).map(d => d.total));
-    deptEl.innerHTML = Object.entries(deptMap).length
-      ? Object.entries(deptMap).sort((a,b)=>b[1].total-a[1].total).map(([name, s]) =>
+    const mx = Math.max(1,...Object.values(dm).map(d=>d.total));
+    deptEl.innerHTML = Object.entries(dm).length
+      ? Object.entries(dm).sort((a,b)=>b[1].total-a[1].total).map(([name,s])=>
           `<div class="ana-card">
             <div class="ana-card-top">
               <div class="ana-card-name">${name}</div>
               <div class="ana-card-badge" style="background:#fce7f3;color:#9d174d">共${s.total}</div>
             </div>
             <div style="display:flex;gap:6px;font-size:11px">
-              ${s.preg >0?`<span style="color:#c75b7a">🤰${s.preg}</span>`:''}
-              ${s.mat  >0?`<span style="color:#059669">🍼${s.mat}</span>`:''}
-              ${s.ret  >0?`<span style="color:#6b7a9e">✅${s.ret}</span>`:''}
+              ${s.preg>0?`<span style="color:#c75b7a">🤰${s.preg}</span>`:''}
+              ${s.mat >0?`<span style="color:#059669">🍼${s.mat}</span>`:''}
+              ${s.ret >0?`<span style="color:#6b7a9e">✅${s.ret}</span>`:''}
             </div>
-            <div class="ana-bar-wrap"><div class="ana-bar" style="width:${Math.round(s.total/maxTotal*100)}%"></div></div>
-          </div>`
-        ).join('')
+            <div class="ana-bar-wrap"><div class="ana-bar" style="width:${Math.round(s.total/mx*100)}%"></div></div>
+          </div>`).join('')
       : '<div style="color:#8b95b8;font-size:12px;padding:8px">尚無資料</div>';
   }
 
-  // ── 預產期倒數 eddList ──
+  // 預產期倒數 eddList
   const eddEl = document.getElementById('eddList');
   if (eddEl) {
     const upcoming = employees
-      .filter(e => e.edd && e.status === 'pregnant')
-      .map(e => {
-        const diff = Math.round((new Date(e.edd) - now) / 86400000);
-        return { name: e.name, edd: e.edd, dept: e.dept, diff };
-      })
+      .filter(e => e.edd && e.status==='pregnant')
+      .map(e => ({ name:e.name, edd:e.edd, dept:e.dept,
+                   diff:Math.round((new Date(e.edd)-now)/86400000) }))
       .filter(e => e.diff >= -14)
-      .sort((a,b) => a.diff - b.diff)
-      .slice(0, 8);
+      .sort((a,b)=>a.diff-b.diff).slice(0,8);
     eddEl.innerHTML = upcoming.length
       ? upcoming.map(e => {
-          const color  = e.diff < 0 ? '#ef4444' : e.diff <= 14 ? '#f59e0b' : '#059669';
-          const label  = e.diff < 0 ? `已超過 ${Math.abs(e.diff)} 天`
-                       : e.diff === 0 ? '今天！' : `還有 ${e.diff} 天`;
+          const color = e.diff<0?'#ef4444':e.diff<=14?'#f59e0b':'#059669';
+          const label = e.diff<0?`已超過${Math.abs(e.diff)}天`:e.diff===0?'今天！':`還有${e.diff}天`;
           return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6">
-            <div style="flex:1">
-              <div style="font-size:12px;font-weight:700;color:#1e2640">${e.name||'—'}</div>
-              <div style="font-size:10px;color:#6b7a9e">${e.dept||'—'} · EDD ${e.edd}</div>
-            </div>
+            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#1e2640">${e.name||'—'}</div>
+            <div style="font-size:10px;color:#6b7a9e">${e.dept||'—'} · EDD ${e.edd}</div></div>
             <div style="font-size:11px;font-weight:700;color:${color};white-space:nowrap">${label}</div>
           </div>`;
         }).join('')
       : '<div style="color:#8b95b8;font-size:12px;padding:8px">無即將到來的預產期</div>';
   }
 
-  // ── 月度趨勢 monthBars ──
-  const barsEl   = document.getElementById('monthBars');
-  const labelsEl = document.getElementById('monthLabels');
+  // 月度趨勢 monthBars
+  const barsEl = document.getElementById('monthBars'), labelsEl = document.getElementById('monthLabels');
   if (barsEl && labelsEl) {
     const months = [];
-    for (let i = 11; i >= 0; i--) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      months.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+    for (let i=11;i>=0;i--) {
+      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+      months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
     }
-    const pregByMonth = {}, matByMonth = {};
-    months.forEach(m => { pregByMonth[m] = 0; matByMonth[m] = 0; });
-    employees.forEach(e => {
-      const ls   = e.leaveStart ? e.leaveStart.slice(0,7) : null;
-      const eddM = e.edd        ? e.edd.slice(0,7)        : null;
-      if (e.status === 'pregnant'  && eddM && pregByMonth[eddM] !== undefined) pregByMonth[eddM]++;
-      if ((e.status === 'maternity'||e.status==='returned') && ls && matByMonth[ls] !== undefined) matByMonth[ls]++;
+    const pb={},mb={};
+    months.forEach(m=>{pb[m]=0;mb[m]=0;});
+    employees.forEach(e=>{
+      const ls=e.leaveStart?e.leaveStart.slice(0,7):null;
+      const em=e.edd?e.edd.slice(0,7):null;
+      if(e.status==='pregnant'&&em&&pb[em]!==undefined) pb[em]++;
+      if((e.status==='maternity'||e.status==='returned')&&ls&&mb[ls]!==undefined) mb[ls]++;
     });
-    const maxVal = Math.max(1, ...months.map(m => pregByMonth[m] + matByMonth[m]));
-    barsEl.innerHTML = months.map(m => {
-      const p = pregByMonth[m], ma = matByMonth[m];
-      const hP  = Math.round(p  / maxVal * 60);
-      const hMA = Math.round(ma / maxVal * 60);
+    const mx=Math.max(1,...months.map(m=>pb[m]+mb[m]));
+    barsEl.innerHTML=months.map(m=>{
+      const hP=Math.round(pb[m]/mx*60),hMA=Math.round(mb[m]/mx*60);
       return `<div style="display:inline-flex;flex-direction:column-reverse;align-items:center;width:${Math.floor(100/months.length)}%;vertical-align:bottom">
-        <div style="width:70%;height:${hMA}px;background:#6ee7b7" title="產假 ${ma}"></div>
-        <div style="width:70%;height:${hP}px;background:#f5a0b5" title="懷孕 ${p}"></div>
+        <div style="width:70%;height:${hMA}px;background:#6ee7b7" title="產假${mb[m]}"></div>
+        <div style="width:70%;height:${hP}px;background:#f5a0b5" title="懷孕${pb[m]}"></div>
       </div>`;
     }).join('');
-    labelsEl.innerHTML = months.map(m =>
-      `<div style="flex:1;font-size:9px;text-align:center;color:#6b7a9e">${m.slice(5)}</div>`
-    ).join('');
+    labelsEl.innerHTML=months.map(m=>`<div style="flex:1;font-size:9px;text-align:center;color:#6b7a9e">${m.slice(5)}</div>`).join('');
   }
 }
+
 let editEmpId = null, editSalId = null;
 let viewMode  = 'month';
 let viewDate  = new Date();
-let masterPage = 1;  // pregPage/matPage/salPage declared in nav blocks
+let masterPage = 1, pregPage = 1, matPage = 1, salPage = 1;
 
 // ════════════════════ KEYS ════════════════════════════
 const UKEY = r => `${r.idNo||r.id||''}_${r.edd||r.month||''}_${r.type||'pregnant'}`;
@@ -1892,6 +1879,121 @@ function clearAll() {
 }
 
 // ════════════════════ EXPORT / PRINT ══════════════════
+// ════════════════════════════════════════════════════════
+// 匯入產假薪資 Excel（VRT Maternity.xlsx 格式）
+// 每員工一個 sheet（sheet name = 卡號）
+//   H=月份  I=工作天  J=底薪  K=OT  L=餐費
+//   公式：AVERAGE(12月 total) / 26 * 90 / 2
+// ════════════════════════════════════════════════════════
+async function importSalXlsx(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  toast('📂 解析中…', 'info');
+  try {
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(new Uint8Array(buf), { type:'array', cellDates:true });
+    const SKIP = ['form','summery','summary','0','attach','template'];
+
+    let newRecs = [], skipSheets = [];
+
+    for (const shName of wb.SheetNames) {
+      if (SKIP.includes(shName.trim().toLowerCase())) continue;
+
+      const ws   = wb.Sheets[shName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null, raw:true });
+
+      // 取卡號：優先 sheet name，否則掃 'លេខកាត' 行 col D
+      let idNo = null;
+      const shNum = parseInt(shName.trim(), 10);
+      if (!isNaN(shNum) && shNum > 0) {
+        idNo = String(shNum);
+      } else {
+        for (const row of rows) {
+          if (row.some(c => typeof c === 'string' && c.includes('លេខកាត'))) {
+            const id = row[3];
+            if (id && !isNaN(Number(id))) { idNo = String(parseInt(id,10)); break; }
+          }
+        }
+      }
+      if (!idNo) { skipSheets.push(shName); continue; }
+
+      // 掃資料行：H(7)=月份 I(8)=工作天 J(9)=底薪 K(10)=OT L(11)=餐費
+      const sheetRecs = [];
+      for (const row of rows) {
+        const monthRaw = row[7], workDay = row[8];
+        const salRaw = row[9], otRaw = row[10], mealRaw = row[11];
+
+        let monthStr = null;
+        if (monthRaw instanceof Date && !isNaN(monthRaw)) {
+          monthStr = monthRaw.getFullYear() + '-' +
+                     String(monthRaw.getMonth()+1).padStart(2,'0');
+        } else if (typeof monthRaw === 'number' && monthRaw > 40000) {
+          const d = new Date(Math.round((monthRaw - 25569) * 86400000));
+          monthStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+        }
+
+        const sal = parseFloat(salRaw);
+        // 過濾：必須有月份且底薪合理（>=50 USD，柬埔寨法定最低工資 $208+）
+        if (!monthStr || isNaN(sal) || sal < 50) continue;
+
+        const ot   = parseFloat(otRaw)   || 0;
+        const meal = parseFloat(mealRaw) || 0;
+        const net  = parseFloat((sal + ot + meal).toFixed(2));
+
+        sheetRecs.push({
+          id         : 'sal_' + idNo + '_' + monthStr + '_' + Math.random().toString(36).slice(2,6),
+          idNo,
+          month      : monthStr,
+          workDays   : parseFloat(workDay) || 0,
+          basicSalary: parseFloat(sal.toFixed(2)),
+          otPay      : parseFloat(ot.toFixed(2)),
+          mealFee    : parseFloat(meal.toFixed(2)),
+          nssf       : 0,
+          netPay     : net,
+          type       : 'salary',
+          source     : 'maternity_xlsx'
+        });
+      }
+
+      if (!sheetRecs.length) { skipSheets.push(shName + '(無資料)'); continue; }
+      newRecs.push(...sheetRecs);
+    }
+
+    if (!newRecs.length) {
+      toast('❌ 未解析到薪資資料，請確認格式', 'err'); return;
+    }
+
+    // 去重：相同 idNo+month 則新資料覆蓋（先移除舊的再加入）
+    const newKeys = new Set(newRecs.map(r => r.idNo + '_' + r.month));
+    salaryRecords = salaryRecords.filter(r => !newKeys.has(r.idNo + '_' + r.month));
+    salaryRecords.push(...newRecs);
+    saveData();
+    try { renderAll(); }       catch(e) {}
+    try { renderAnalytics(); } catch(e) {}
+
+    const empSet = new Set(newRecs.map(r => r.idNo));
+    let msg = '✅ 匯入 ' + newRecs.length + ' 筆薪資記錄（' + empSet.size + ' 名員工）';
+    if (skipSheets.length) msg += '；' + skipSheets.length + ' 個 sheet 略過';
+    toast(msg, 'ok');
+
+    // console 顯示各員工計算結果
+    for (const id of empSet) {
+      const emp  = employees.find(e => e.idNo === id);
+      const recs = newRecs.filter(r => r.idNo === id);
+      const avg  = recs.reduce((s,r)=>s+r.netPay,0) / recs.length;
+      const mat  = avg / 26 * 90 / 2;
+      console.log('[MatImport]', id, emp ? emp.name : '(未登錄)',
+        '均月$' + avg.toFixed(2), '→ 應領$' + mat.toFixed(2));
+    }
+
+  } catch(err) {
+    console.error('[importSalXlsx]', err);
+    toast('❌ 解析失敗：' + err.message, 'err');
+  }
+}
+
 function xlsxExport(rows, filename) {
   if (!rows||!rows.length) { toast('無資料可匯出','info'); return; }
   const ws=XLSX.utils.json_to_sheet(rows);
