@@ -1885,6 +1885,203 @@ function clearAll() {
 //   H=月份  I=工作天  J=底薪  K=OT  L=餐費
 //   公式：AVERAGE(12月 total) / 26 * 90 / 2
 // ════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════
+// smartImport：孕婦 / 產假 員工記錄 Excel 匯入
+// 支援兩種格式：
+//   A. 系統自身匯出格式（第一行為英文欄位名稱）
+//   B. 通用格式（中/英文欄位名稱自動對應）
+// 呼叫：smartImport(inputEl, 'pregnant'|'maternity')
+// ════════════════════════════════════════════════════════
+async function smartImport(input, defaultType) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+
+  toast('📂 解析中…', 'info');
+  try {
+    const buf = await file.arrayBuffer();
+    const wb  = XLSX.read(new Uint8Array(buf), { type:'array', cellDates:true });
+
+    // ── 欄位名稱對應表（英/中 → 系統欄位）──
+    const COL_MAP = {
+      // idNo
+      'idno':'idNo', 'id no':'idNo', 'id no.':'idNo', 'card no':'idNo',
+      'cardno':'idNo', 'card':'idNo', '卡號':'idNo', 'no.':'idNo',
+      // name
+      'name':'name', 'nama':'name', '姓名':'name', '名字':'name',
+      // dept
+      'dept':'dept', 'department':'dept', '部門':'dept',
+      // position
+      'position':'position', 'pos':'position', '職位':'position', '崗位':'position',
+      // status
+      'status':'status', '狀態':'status',
+      // edd
+      'edd':'edd', '預產期':'edd', 'expected delivery':'edd',
+      // leaveStart
+      'leavestart':'leaveStart', 'leave start':'leaveStart',
+      'date maternity':'leaveStart', 'maternity start':'leaveStart',
+      '請假日':'leaveStart', '產假開始':'leaveStart',
+      // returnDate
+      'returndate':'returnDate', 'return date':'returnDate',
+      'return':'returnDate', '復工日':'returnDate', '回歸日':'returnDate',
+      // totalDays
+      'totaldays':'totalDays', 'total days':'totalDays', 'days':'totalDays',
+      '天數':'totalDays',
+      // basicSalary
+      'basicsalary':'basicSalary', 'basic salary':'basicSalary',
+      'salary':'basicSalary', '底薪':'basicSalary',
+      // other
+      'birthday':'birthday', '生日':'birthday',
+      'nssfno':'nssfNo', 'nssf':'nssfNo',
+      'registertime':'registerTime', 'register':'registerTime', '登記日':'registerTime',
+      'pregnantperiod':'pregnantPeriod', '週數':'pregnantPeriod',
+      'contactname':'contactName', 'contact':'contactName', '聯絡人':'contactName',
+      'contactphone':'contactPhone', 'phone':'contactPhone', '電話':'contactPhone',
+      'address':'address', '地址':'address',
+      'remark':'remark', 'remarks':'remark', '備註':'remark',
+    };
+
+    // ── 日期格式化輔助 ──
+    const toDateStr = (v) => {
+      if (!v) return '';
+      if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+      if (typeof v === 'number' && v > 40000) {
+        const d = new Date(Math.round((v - 25569) * 86400000));
+        return d.toISOString().slice(0,10);
+      }
+      const s = String(v).trim();
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      const d = new Date(s);
+      if (!isNaN(d)) return d.toISOString().slice(0,10);
+      return '';
+    };
+
+    let added = 0, updated = 0, skipped = 0;
+
+    // ── 逐個 sheet 解析 ──
+    for (const shName of wb.SheetNames) {
+      const ws   = wb.Sheets[shName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null, raw:true });
+      if (rows.length < 2) continue;
+
+      // 找 header 行（第一個有至少2個非空字串的行）
+      let headerIdx = -1, headers = [];
+      for (let i = 0; i < Math.min(rows.length, 5); i++) {
+        const nonNull = rows[i].filter(c => c !== null && c !== undefined && String(c).trim());
+        if (nonNull.length >= 2) { headerIdx = i; headers = rows[i]; break; }
+      }
+      if (headerIdx < 0) continue;
+
+      // 建立欄位 index → 系統欄位名的對應
+      const colIdx = {};
+      headers.forEach((h, i) => {
+        if (!h) return;
+        const key = String(h).trim().toLowerCase();
+        const mapped = COL_MAP[key];
+        if (mapped) colIdx[mapped] = i;
+        // 直接符合系統欄位名（系統自身匯出格式）
+        const direct = String(h).trim();
+        if (['idNo','name','dept','position','status','edd','leaveStart',
+             'returnDate','totalDays','basicSalary','birthday','nssfNo',
+             'registerTime','pregnantPeriod','contactName','contactPhone',
+             'address','remark'].includes(direct)) {
+          colIdx[direct] = i;
+        }
+      });
+
+      // 必須至少能識別 name 或 idNo
+      if (colIdx.name === undefined && colIdx.idNo === undefined) continue;
+
+      // ── 逐行解析 ──
+      for (let r = headerIdx + 1; r < rows.length; r++) {
+        const row = rows[r];
+        const name = row[colIdx.name] ? String(row[colIdx.name]).trim() : '';
+        const idNo = row[colIdx.idNo] !== undefined && row[colIdx.idNo] !== null
+                   ? String(parseInt(row[colIdx.idNo], 10) || row[colIdx.idNo]).trim()
+                   : '';
+
+        if (!name && !idNo) continue;  // 空行跳過
+
+        const getStr = (field) => {
+          const i = colIdx[field];
+          if (i === undefined || row[i] === null || row[i] === undefined) return '';
+          return String(row[i]).trim();
+        };
+        const getNum = (field) => {
+          const i = colIdx[field];
+          if (i === undefined) return 0;
+          return parseFloat(row[i]) || 0;
+        };
+        const getDate = (field) => {
+          const i = colIdx[field];
+          if (i === undefined || row[i] === null) return '';
+          return toDateStr(row[i]);
+        };
+
+        // 決定 status
+        let status = getStr('status') || defaultType || 'pregnant';
+        if (!['pregnant','maternity','returned'].includes(status)) {
+          status = defaultType || 'pregnant';
+        }
+
+        const rec = {
+          id           : uid(),
+          type         : 'pregnant',
+          idNo         : idNo || String(Math.random().toString(36).slice(2,8)),
+          name         : name || idNo,
+          dept         : getStr('dept'),
+          position     : getStr('position'),
+          birthday     : getDate('birthday'),
+          nssfNo       : getStr('nssfNo'),
+          status,
+          pregnantPeriod: getNum('pregnantPeriod') || '',
+          edd          : getDate('edd'),
+          registerTime : getDate('registerTime'),
+          leaveStart   : getDate('leaveStart'),
+          returnDate   : getDate('returnDate'),
+          totalDays    : getNum('totalDays') || 90,
+          basicSalary  : getNum('basicSalary'),
+          contactName  : getStr('contactName'),
+          contactPhone : getStr('contactPhone'),
+          address      : getStr('address'),
+          remark       : getStr('remark'),
+          _upd         : Date.now()
+        };
+
+        // 去重：用 idNo 找已有記錄
+        const existIdx = idNo ? employees.findIndex(e => e.idNo === idNo) : -1;
+        if (existIdx >= 0) {
+          // 有 idNo 對應 → 合併（只覆蓋非空欄位）
+          const ex = employees[existIdx];
+          Object.entries(rec).forEach(([k,v]) => {
+            if (v !== '' && v !== 0 && v !== 90 && k !== 'id' && k !== '_upd') ex[k] = v;
+          });
+          ex._upd = Date.now();
+          updated++;
+        } else {
+          employees.push(rec);
+          added++;
+        }
+      }
+    }
+
+    if (added + updated === 0) {
+      toast('❌ 未找到可識別的員工記錄（請確認欄位名稱）', 'err'); return;
+    }
+
+    saveData();
+    try { renderAll(); }       catch(e) {}
+    try { renderAnalytics(); } catch(e) {}
+
+    const msg = `✅ 新增 ${added} 筆、更新 ${updated} 筆員工記錄`;
+    toast(msg, 'ok');
+
+  } catch(err) {
+    console.error('[smartImport]', err);
+    toast('❌ 解析失敗：' + err.message, 'err');
+  }
+}
+
 async function importSalXlsx(input) {
   const file = input.files[0];
   if (!file) return;
