@@ -847,6 +847,112 @@ function applyLang() {
   renderAll(); renderAnalytics();
 }
 let employees = [], salaryRecords = [];
+
+// ════════════════════ RENDER ALL ════════════════════
+// 統一刷新所有 tab 的顯示（缺此定義會導致 cloud pull callback 報錯）
+function renderAll() {
+  try { renderMaster(); } catch(e) { console.warn('renderMaster:', e); }
+  try { renderPregnant(); } catch(e) { console.warn('renderPregnant:', e); }
+  try { renderMaternity(); } catch(e) { console.warn('renderMaternity:', e); }
+  try { renderSalary(); } catch(e) { console.warn('renderSalary:', e); }
+}
+
+// ════════════════════ ANALYTICS ══════════════════════
+// 填充首頁 Analytics Row：部門分布 / 預產期倒數 / 月度趨勢
+function renderAnalytics() {
+  const now = new Date(); now.setHours(0,0,0,0);
+
+  // ── 部門分布 deptCards ──
+  const deptEl = document.getElementById('deptCards');
+  if (deptEl) {
+    const deptMap = {};
+    employees.forEach(e => {
+      const d = e.dept || '(未分部門)';
+      if (!deptMap[d]) deptMap[d] = { preg:0, mat:0, ret:0, total:0 };
+      deptMap[d].total++;
+      if (e.status === 'pregnant')  deptMap[d].preg++;
+      if (e.status === 'maternity') deptMap[d].mat++;
+      if (e.status === 'returned')  deptMap[d].ret++;
+    });
+    const maxTotal = Math.max(1, ...Object.values(deptMap).map(d => d.total));
+    deptEl.innerHTML = Object.entries(deptMap).length
+      ? Object.entries(deptMap).sort((a,b)=>b[1].total-a[1].total).map(([name, s]) =>
+          `<div class="ana-card">
+            <div class="ana-card-top">
+              <div class="ana-card-name">${name}</div>
+              <div class="ana-card-badge" style="background:#fce7f3;color:#9d174d">共${s.total}</div>
+            </div>
+            <div style="display:flex;gap:6px;font-size:11px">
+              ${s.preg >0?`<span style="color:#c75b7a">🤰${s.preg}</span>`:''}
+              ${s.mat  >0?`<span style="color:#059669">🍼${s.mat}</span>`:''}
+              ${s.ret  >0?`<span style="color:#6b7a9e">✅${s.ret}</span>`:''}
+            </div>
+            <div class="ana-bar-wrap"><div class="ana-bar" style="width:${Math.round(s.total/maxTotal*100)}%"></div></div>
+          </div>`
+        ).join('')
+      : '<div style="color:#8b95b8;font-size:12px;padding:8px">尚無資料</div>';
+  }
+
+  // ── 預產期倒數 eddList ──
+  const eddEl = document.getElementById('eddList');
+  if (eddEl) {
+    const upcoming = employees
+      .filter(e => e.edd && e.status === 'pregnant')
+      .map(e => {
+        const diff = Math.round((new Date(e.edd) - now) / 86400000);
+        return { name: e.name, edd: e.edd, dept: e.dept, diff };
+      })
+      .filter(e => e.diff >= -14)
+      .sort((a,b) => a.diff - b.diff)
+      .slice(0, 8);
+    eddEl.innerHTML = upcoming.length
+      ? upcoming.map(e => {
+          const color  = e.diff < 0 ? '#ef4444' : e.diff <= 14 ? '#f59e0b' : '#059669';
+          const label  = e.diff < 0 ? `已超過 ${Math.abs(e.diff)} 天`
+                       : e.diff === 0 ? '今天！' : `還有 ${e.diff} 天`;
+          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6">
+            <div style="flex:1">
+              <div style="font-size:12px;font-weight:700;color:#1e2640">${e.name||'—'}</div>
+              <div style="font-size:10px;color:#6b7a9e">${e.dept||'—'} · EDD ${e.edd}</div>
+            </div>
+            <div style="font-size:11px;font-weight:700;color:${color};white-space:nowrap">${label}</div>
+          </div>`;
+        }).join('')
+      : '<div style="color:#8b95b8;font-size:12px;padding:8px">無即將到來的預產期</div>';
+  }
+
+  // ── 月度趨勢 monthBars ──
+  const barsEl   = document.getElementById('monthBars');
+  const labelsEl = document.getElementById('monthLabels');
+  if (barsEl && labelsEl) {
+    const months = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push(d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0'));
+    }
+    const pregByMonth = {}, matByMonth = {};
+    months.forEach(m => { pregByMonth[m] = 0; matByMonth[m] = 0; });
+    employees.forEach(e => {
+      const ls   = e.leaveStart ? e.leaveStart.slice(0,7) : null;
+      const eddM = e.edd        ? e.edd.slice(0,7)        : null;
+      if (e.status === 'pregnant'  && eddM && pregByMonth[eddM] !== undefined) pregByMonth[eddM]++;
+      if ((e.status === 'maternity'||e.status==='returned') && ls && matByMonth[ls] !== undefined) matByMonth[ls]++;
+    });
+    const maxVal = Math.max(1, ...months.map(m => pregByMonth[m] + matByMonth[m]));
+    barsEl.innerHTML = months.map(m => {
+      const p = pregByMonth[m], ma = matByMonth[m];
+      const hP  = Math.round(p  / maxVal * 60);
+      const hMA = Math.round(ma / maxVal * 60);
+      return `<div style="display:inline-flex;flex-direction:column-reverse;align-items:center;width:${Math.floor(100/months.length)}%;vertical-align:bottom">
+        <div style="width:70%;height:${hMA}px;background:#6ee7b7" title="產假 ${ma}"></div>
+        <div style="width:70%;height:${hP}px;background:#f5a0b5" title="懷孕 ${p}"></div>
+      </div>`;
+    }).join('');
+    labelsEl.innerHTML = months.map(m =>
+      `<div style="flex:1;font-size:9px;text-align:center;color:#6b7a9e">${m.slice(5)}</div>`
+    ).join('');
+  }
+}
 let editEmpId = null, editSalId = null;
 let viewMode  = 'month';
 let viewDate  = new Date();
