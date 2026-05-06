@@ -207,8 +207,9 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <!-- Date navigation -->
   <div class="frow">
     <button class="btn btn-g" onclick="navDay(-1)" style="padding:6px 12px;font-size:16px">◀</button>
-    <label style="color:#6b7a9e">日期</label>
-    <select id="dsel" onchange="renderDaily()"></select>
+    <span style="color:#6b7a9e;font-size:13px">日期</span>
+    <span id="dsel-label" style="font-size:14px;font-weight:700;color:#1e2640;min-width:120px;text-align:center">—</span>
+    <input type="hidden" id="dsel" value="">
     <button class="btn btn-g" onclick="navDay(1)" style="padding:6px 12px;font-size:16px">▶</button>
     <span id="dayMeta" style="font-size:12px;color:#8b95b8;margin-left:auto"></span>
   </div>
@@ -225,7 +226,8 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="frow">
     <button class="btn btn-g" onclick="navWeek(-1)" style="padding:6px 12px;font-size:16px">◀</button>
     <label style="color:#6b7a9e">週次</label>
-    <select id="wsel" onchange="renderWeekly()"></select>
+    <span id="wsel-label" style="font-size:14px;font-weight:700;color:#1e2640;min-width:150px;text-align:center">—</span>
+    <input type="hidden" id="wsel" value="">
     <button class="btn btn-g" onclick="navWeek(1)" style="padding:6px 12px;font-size:16px">▶</button>
     <button class="btn btn-t" onclick="genTelegram('weekly')" style="margin-left:auto">📱 Telegram</button>
   </div>
@@ -253,7 +255,8 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="frow">
     <button class="btn btn-g" onclick="navMonth(-1)" style="padding:6px 12px;font-size:16px">◀</button>
     <label style="color:#6b7a9e">月份</label>
-    <select id="msel" onchange="renderMonthly()"></select>
+    <span id="msel-label" style="font-size:14px;font-weight:700;color:#1e2640;min-width:110px;text-align:center">—</span>
+    <input type="hidden" id="msel" value="">
     <button class="btn btn-g" onclick="navMonth(1)" style="padding:6px 12px;font-size:16px">▶</button>
     <button class="btn btn-t" onclick="genTelegram('monthly')" style="margin-left:auto">📱 Telegram</button>
   </div>
@@ -274,7 +277,8 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="frow">
     <button class="btn btn-g" onclick="navYear(-1)" style="padding:6px 12px;font-size:16px">◀</button>
     <label style="color:#6b7a9e"><span data-zh="年度" data-en="Year">年度</span></label>
-    <select id="ysel" onchange="renderYearly()"></select>
+    <span id="ysel-label" style="font-size:14px;font-weight:700;color:#1e2640;min-width:80px;text-align:center">—</span>
+    <input type="hidden" id="ysel" value="">
     <button class="btn btn-g" onclick="navYear(1)" style="padding:6px 12px;font-size:16px">▶</button>
     <button class="btn btn-t" onclick="genTelegram('yearly')" style="margin-left:auto">📱 Telegram</button>
   </div>
@@ -500,14 +504,45 @@ function goTab(name,el){
 }
 
 // ═══════ NAV ═══════
-function populateDateSel(id){const s=document.getElementById(id),d=allDates().reverse(),c=s.value;s.innerHTML=d.map(v=>`<option>${v}</option>`).join('');if(d.includes(c))s.value=c;}
+function populateDateSel(id){
+  const inp=document.getElementById(id);if(!inp)return;
+  const lists={'dsel':()=>allDates().reverse(),'wsel':allWeeks,'msel':()=>allMonths().sort().reverse(),'ysel':()=>[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse()};
+  const opts=(lists[id]?lists[id]():allDates().reverse());
+  if(!inp.value||!opts.includes(inp.value))inp.value=opts[0]||'';
+  const lbl=document.getElementById(id+'-label');
+  if(lbl)lbl.textContent=inp.value||'—';
+}
 function populateWeekSel(){
-  const dates=allDates(),weeks=new Map();
-  dates.forEach(d=>{const dt=new Date(d),mon=new Date(dt);mon.setDate(mon.getDate()-(mon.getDay()||7)+1);const k=mon.toISOString().slice(0,10);if(!weeks.has(k))weeks.set(k,[]);weeks.get(k).push(d);});
-  const s=document.getElementById('wsel');s.innerHTML=[...weeks.keys()].sort().reverse().map(k=>`<option value="${k}">W ${k}</option>`).join('');}
-function populateMonthSel(){const s=document.getElementById('msel');s.innerHTML=allMonths().reverse().map(m=>`<option>${m}</option>`).join('');}
-function populateYearSel(){const yrs=[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse();const s=document.getElementById('ysel');s.innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');}
-function nav(selId,dir){const s=document.getElementById(selId),o=[...s.options].map(x=>x.value),i=o.indexOf(s.value),n=i-dir;if(n>=0&&n<o.length){s.value=o[n];}}
+  const inp=document.getElementById('wsel');if(!inp)return;
+  const opts=allWeeks();
+  if(!inp.value||!opts.includes(inp.value))inp.value=opts[0]||'';
+  const lbl=document.getElementById('wsel-label');if(lbl)lbl.textContent=inp.value||'—';
+}
+
+function populateMonthSel(){
+  const inp=document.getElementById('msel');if(!inp)return;
+  const opts=allMonths().sort().reverse();
+  if(!inp.value||!opts.includes(inp.value))inp.value=opts[0]||'';
+  const lbl=document.getElementById('msel-label');if(lbl)lbl.textContent=inp.value||'—';
+}
+function populateYearSel(){
+  const inp=document.getElementById('ysel');if(!inp)return;
+  const yrs=[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse();
+  if(!inp.value||!yrs.includes(inp.value))inp.value=yrs[0]||'';
+  const lbl=document.getElementById('ysel-label');if(lbl)lbl.textContent=inp.value||'—';
+}
+function allWeeks(){const ws=new Set();allDates().forEach(d=>{const dt=new Date(d),mon=new Date(dt);mon.setDate(dt.getDate()-(dt.getDay()||7)+1);ws.add(mon.toISOString().slice(0,10));});return[...ws].sort().reverse();}
+
+function nav(selId,dir){
+  const inp=document.getElementById(selId);if(!inp)return;
+  const lists={'dsel':()=>allDates().reverse(),'wsel':allWeeks,'msel':()=>allMonths().sort().reverse(),'ysel':()=>[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse()};
+  const opts=(lists[selId]?lists[selId]():allDates().reverse());
+  const i=opts.indexOf(inp.value);
+  const ni=Math.max(0,Math.min(opts.length-1,i+dir));
+  inp.value=opts[ni]!=null?opts[ni]:(opts[0]||'');
+  const lbl=document.getElementById(selId+'-label');
+  if(lbl)lbl.textContent=inp.value||'—';
+}
 function navDay(d){nav('dsel',d);renderDaily();}
 function navWeek(d){nav('wsel',d);renderWeekly();}
 function navMonth(d){nav('msel',d);renderMonthly();}
@@ -518,6 +553,21 @@ function kpiHtml(label,value,sub,cls){return`<div class="kpi ${cls||''}"><div cl
 function rateClass(r){return r>=0.92?'good':r>=0.85?'warn':'bad';}
 function rateBadge(r){if(r==null)return'—';const p=(r*100).toFixed(1)+'%';return`<span class="badge ${r>=0.92?'bg':r>=0.85?'bw':'bb'}">${p}</span>`;}
 
+
+// ── Sewing & ratio helpers ───────────────────────────────────
+function getSewingTotal(dates){
+  let sewM=0,sewF=0,sewJoin=0,sewResign=0;
+  const ds=Array.isArray(dates)?dates:[dates];
+  ds.forEach(dt=>{
+    DB.filter(r=>isSewingLine(r)&&r.date===dt).forEach(r=>{
+      sewM+=r.m||0;sewF+=r.f||0;sewJoin+=r.join||0;sewResign+=r.resign||0;
+    });
+  });
+  return{sewM,sewF,sew:sewM+sewF,sewJoin,sewResign};
+}
+function getPersonCarRatio(ttl,sew){
+  if(!sew)return'—';return(ttl/sew).toFixed(2);
+}
 // ═══════ DAILY ═══════
 const CH={};function mk(id,cfg){if(CH[id])CH[id].destroy();const el=document.getElementById(id);if(!el)return;CH[id]=new Chart(el,cfg);}
 
@@ -530,11 +580,16 @@ function renderDaily(){
 
   // KPIs
   const ttl=c?c.ttl:0,att=g?g.att:0,rate=c?c.rate:null,absent=c?c.absent:0;
+  const _ds=getSewingTotal(d);
+  const _sew=_ds.sew;
   document.getElementById('dayKpi').innerHTML=
     kpiHtml('在職人數 Headcount',ttl,g?`M:${g.m} F:${g.f}`:'')+
     kpiHtml('出勤率 Att.Rate',rate!=null?(rate*100).toFixed(1)+'%':'—',`出勤:${att}`,rateClass(rate||0))+
     kpiHtml('缺勤 Absent',absent,`ML:${g?g.ml:0}`)+
-    kpiHtml('新進 Join',g?g.join:0)+kpiHtml('離職 Resign',g?g.resign:0,(g&&ttl>0)?'流失率:'+(g.resign/ttl*100).toFixed(2)+'%':'')+
+    kpiHtml('新進 Join',g?g.join:0,_ds.sewJoin>0?`車組:${_ds.sewJoin}`:'')+
+    kpiHtml('離職 Resign',g?g.resign:0,_ds.sewResign>0?`車組:${_ds.sewResign}：${ttl>0&&g?(g.resign>0?((_ds.sewResign/g.resign*100).toFixed(0)+'%'):'0%'):'—'}`:'',g&&g.resign>0?'bad':'')+
+    kpiHtml('人車比 HC/Sew',getPersonCarRatio(ttl,_sew),`車組:${_sew}人`)+
+    kpiHtml('男女比 M/F',g?`${g.f}F/${g.m}M`:g?g.f+g.m:0)+
     kpiHtml('停工 Idle',g?g.idle:0);
 
   // Leave pie — smaller with person count labels
@@ -574,12 +629,18 @@ function renderWeekly(){
   const totalResign=grands.reduce((s,g)=>s+g.resign,0);
   const avgTtl=Math.round(grands.reduce((s,g)=>s+(g.m+g.f),0)/grands.length);
 
+  const _wkSew=getSewingTotal(dates);
+  const _wkAvgSew=dates.length>0?Math.round(_wkSew.sew/dates.length):0;
+  const _wkM=grands.reduce((s,g)=>s+(g.m||0),0);
+  const _wkF=grands.reduce((s,g)=>s+(g.f||0),0);
   document.getElementById('weekKpi').innerHTML=
-    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length} ${zh?'天':'days'}`)+
-    kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${zh?'總出勤':'Att'}:${totalAtt}`,rateClass(avgRate||0))+
-    kpiHtml(zh?'總新進':'Total Join',totalJoin,'',totalJoin>0?'good':'')+
-    kpiHtml(zh?'總離職':'Total Resign',totalResign,'',totalResign>0?'bad':'')+
-    kpiHtml(zh?'平均流失率':'Avg Turnover',avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
+    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length}${zh?'天':'d'}`)+
+    kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${zh?'總':''}${totalAtt}`,rateClass(avgRate||0))+
+    kpiHtml(zh?'總新進':'Total Join',totalJoin,_wkSew.sewJoin>0?`車組:${_wkSew.sewJoin}`:'',totalJoin>0?'good':'')+
+    kpiHtml(zh?'總離職':'Total Resign',totalResign,totalResign>0&&_wkSew.sewResign>0?`車組:${_wkSew.sewResign}(${Math.round(_wkSew.sewResign/totalResign*100)}%)`:'',totalResign>0?'bad':'')+
+    kpiHtml(zh?'人車比':'HC/Sew',getPersonCarRatio(avgTtl,_wkAvgSew),`車均${_wkAvgSew}人`)+
+    kpiHtml(zh?'男女比':'M/F',`${Math.round(_wkF/Math.max(1,dates.length))}F/${Math.round(_wkM/Math.max(1,dates.length))}M`)+
+    kpiHtml(zh?'流失率':'Turnover',avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
 
   // Trend
   mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'出勤率%',data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -609,13 +670,17 @@ function renderMonthly(){
   const avgTtl=Math.round(grands.reduce((s,g)=>s+(g.m+g.f),0)/grands.length);
   const avgTurnover=avgTtl>0?(totalResign/grands.length/avgTtl*100).toFixed(2):'0';
 
-  const actDays=actualWorkDays(dates);
-  const expDays=expectedWorkDays(m);
+  const _moSew=getSewingTotal(dates);
+  const _moAvgSew=dates.length>0?Math.round(_moSew.sew/dates.length):0;
+  const _moM=grands.reduce((s,g)=>s+(g.m||0),0);
+  const _moF=grands.reduce((s,g)=>s+(g.f||0),0);
   document.getElementById('monthKpi').innerHTML=
-    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${actDays}/${expDays}${zh?'天':'d'}`)+
+    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length}${zh?'天':'d'}`)+
     kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
-    kpiHtml(zh?'出勤天數':'Att Days',actDays,`${zh?'應':'Exp'} ${expDays}${zh?'天(排週日)':'d(excl.Sun)'}`)+
-    kpiHtml(zh?'總新進':'Total Join',totalJoin)+kpiHtml(zh?'總離職':'Total Resign',totalResign,'',totalResign>0?'bad':'')+
+    kpiHtml(zh?'總新進':'Total Join',totalJoin,_moSew.sewJoin>0?`車組:${_moSew.sewJoin}`:'',totalJoin>0?'good':'')+
+    kpiHtml(zh?'總離職':'Total Resign',totalResign,totalResign>0&&_moSew.sewResign>0?`車組:${_moSew.sewResign}(${Math.round(_moSew.sewResign/totalResign*100)}%)`:'',totalResign>0?'bad':'')+
+    kpiHtml(zh?'人車比':'HC/Sew',getPersonCarRatio(avgTtl,_moAvgSew),`車均${_moAvgSew}人`)+
+    kpiHtml(zh?'男女比':'M/F',`${Math.round(_moF/Math.max(1,dates.length))}F/${Math.round(_moM/Math.max(1,dates.length))}M`)+
     kpiHtml(zh?'月均流失率':'Avg Turnover',avgTurnover+'%');
 
   // Daily rate trend
@@ -743,13 +808,18 @@ function renderYearly(){
   const yR=mData.reduce((s,m)=>s+m.totalR,0);
   const yTurnover=yTtl>0?(yR/yDays/yTtl*100):0;
 
+  const _yrDates=months.reduce((a,m2)=>a.concat(allDates().filter(d=>d.startsWith(m2))),[]);
+  const _yrSew=getSewingTotal(_yrDates);
+  const _yrAvgSew=_yrDates.length>0?Math.round(_yrSew.sew/_yrDates.length):0;
+  const _yrAvgF=mData.reduce((s,m2)=>s+(m2.avgTtl*0.85),0)/Math.max(1,mData.length);  // approx
   document.getElementById('yearKpi').innerHTML=
-    kpiHtml(zh?'年度天數':'Days',yDays,`${months.length} ${zh?'個月':'months'}`)+
+    kpiHtml(zh?'年度天數':'Days',yDays,`${months.length}${zh?'個月':'mo'}`)+
     kpiHtml(zh?'平均在職':'Avg HC',yTtl)+
     kpiHtml(zh?'加權出勤率':'Wtd Rate',yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
-    kpiHtml(zh?'年度新進':'Year Join',yJ,'',yJ>0?'good':'')+
-    kpiHtml(zh?'年度離職':'Year Resign',yR,'',yR>0?'bad':'')+
-    kpiHtml(zh?'日均流失率':'Avg Turnover',yTurnover.toFixed(3)+'%');
+    kpiHtml(zh?'年度新進':'Year Join',yJ,_yrSew.sewJoin>0?`車組:${_yrSew.sewJoin}`:'',yJ>0?'good':'')+
+    kpiHtml(zh?'年度離職':'Year Resign',yR,yR>0&&_yrSew.sewResign>0?`車組:${_yrSew.sewResign}(${Math.round(_yrSew.sewResign/yR*100)}%)`:'',yR>0?'bad':'')+
+    kpiHtml(zh?'人車比（年均）':'HC/Sew',getPersonCarRatio(yTtl,_yrAvgSew),`車均${_yrAvgSew}人`)+
+    kpiHtml(zh?'年均流失率':'Avg Turnover',yTurnover.toFixed(3)+'%');
 
   // Monthly rate trend
   mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
@@ -1129,8 +1199,8 @@ async function parseWorkbook(wb, progressFn, overwrite){
       continue;// ★ Key optimization: skip without full parse
     }
 
-    // If overwrite mode, remove existing data for this date first
-    if(alreadyHave&&overwrite){
+    // Overwrite: remove existing data for this date first
+    if(overwrite){
       DB=DB.filter(r=>r.date!==dateStr);
       IMPORT_LOG=IMPORT_LOG.filter(d=>d!==dateStr);
     }
