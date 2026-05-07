@@ -1081,10 +1081,37 @@ async function parseWorkbook(wb, progressFn, overwrite){
   const results=[],dedupLog=[],newDates=[],skippedDates=[];
   const total=wb.SheetNames.length;
 
+  // ── Phase 0: 全本共識年月掃描（防止單一 sheet 年月被誤讀）──
+  // 例：sheet '01' 的 2026-05-01 有時被解成 2026-04-01（序號邊界問題）
+  // 解法：先掃全部 sheet 取共識年月，再逐一校正衝突者
+  const _ymMap={};
+  for(const sn of wb.SheetNames){
+    const ds=quickDateCheck(wb,sn);
+    if(ds&&/^\d{4}-\d{2}-\d{2}$/.test(ds)){
+      const ym=ds.slice(0,7);
+      if(+ym.slice(0,4)>=2020) _ymMap[ym]=(_ymMap[ym]||0)+1;
+    }
+  }
+  // 找最多票的年月（排除很舊的年份，如 template sheet 的 2020-03）
+  let _consensusYM=null,_maxVote=0;
+  for(const[ym,cnt] of Object.entries(_ymMap)){
+    if(cnt>_maxVote){_consensusYM=ym;_maxVote=cnt;}
+  }
+
   // Phase 1: Quick scan all sheets for dates (fast — only reads cells directly, no full decode)
   const sheetDates=[];
   for(const sn of wb.SheetNames){
-    const dateStr=quickDateCheck(wb,sn);
+    let dateStr=quickDateCheck(wb,sn);
+    // ── 共識校正：若年月與共識不同，嘗試用共識年月+原日期替換 ──
+    if(dateStr&&_consensusYM&&dateStr.slice(0,7)!==_consensusYM){
+      const day=dateStr.slice(8); // DD
+      const candidate=_consensusYM+'-'+day;
+      const chk=new Date(candidate);
+      if(!isNaN(chk)&&chk.getUTCFullYear()>=2020){
+        console.log('[DateConsensus] sheet',sn,':',dateStr,'→',candidate,'(consensus',_consensusYM+')');
+        dateStr=candidate;
+      }
+    }
     const alreadyHave=dateStr&&IMPORT_LOG.includes(dateStr);
     sheetDates.push({sn,dateStr,alreadyHave});
   }
