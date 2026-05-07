@@ -322,8 +322,13 @@ table tbody tr:hover{background:#fbf9f0}
           <th data-i18n="colFactoryId">廠內編號</th>
           <th data-i18n="colName">姓名</th>
           <th data-i18n="colDept">部門</th>
+          <th data-i18n="colSection">組別/線</th>
           <th data-i18n="colPosition">職位</th>
           <th data-i18n="colJoinDate">入職日</th>
+          <th data-i18n="colGender">性別</th>
+          <th data-i18n="colAge">年齡</th>
+          <th data-i18n="colPhone">電話</th>
+          <th data-i18n="colReferral">介紹人</th>
           <th data-i18n="colContractType">合約類型</th>
           <th data-i18n="colContractEnd">合約到期</th>
           <th data-i18n="colDaysRemain">剩餘天數</th>
@@ -622,7 +627,7 @@ const I18N = {
     gasSettings:"GAS 雲端同步",saveSettings:"儲存設定",testTelegram:"測試 Telegram",syncGas:"同步至 GAS",
     backupAll:"完整備份 JSON",restoreAll:"還原備份",clearAll:"清除所有資料",months:"個月",year:"年",years:"年",
     colKhmerSurname:"柬文姓",colKhmerName:"柬文名",colEnglishSurname:"英文姓",colEnglishName:"英文名",
-    colGender:"性別",colBirthDate:"出生日期",colNationality:"國籍",colPosCategory:"職位類別",colNotes:"備註",
+    colGender:"性別",colSection:"組別/線",colAge:"年齡",colPhone:"電話",colReferral:"介紹人",colBirthDate:"出生日期",colNationality:"國籍",colPosCategory:"職位類別",colNotes:"備註",
     catWorker:"普工",catTechnical:"技術",catManagement:"管理",statusActive:"在職",statusTerminated:"離職",
     statusPending:"待評估",statusPassed:"通過",statusFailed:"未通過",statusExtended:"延長",
     statusActiveContract:"生效中",statusExpired:"已過期",statusRenewed:"已續約",typeUDC:"UDC 不定期",
@@ -666,7 +671,7 @@ const I18N = {
     gasSettings:"GAS Cloud Sync",saveSettings:"Save Settings",testTelegram:"Test Telegram",syncGas:"Sync to GAS",
     backupAll:"Full Backup JSON",restoreAll:"Restore Backup",clearAll:"Clear All Data",months:"months",year:"year",years:"years",
     colKhmerSurname:"Khmer Surname",colKhmerName:"Khmer Given",colEnglishSurname:"English Surname",colEnglishName:"English Given",
-    colGender:"Gender",colBirthDate:"Birth Date",colNationality:"Nationality",colPosCategory:"Position Category",colNotes:"Notes",
+    colGender:"Gender",colSection:"Line/Section",colAge:"Age",colPhone:"Phone",colReferral:"Referral",colBirthDate:"Birth Date",colNationality:"Nationality",colPosCategory:"Position Category",colNotes:"Notes",
     catWorker:"Worker",catTechnical:"Technical",catManagement:"Management",statusActive:"Active",statusTerminated:"Terminated",
     statusPending:"Pending",statusPassed:"Passed",statusFailed:"Failed",statusExtended:"Extended",
     statusActiveContract:"Active",statusExpired:"Expired",statusRenewed:"Renewed",typeUDC:"UDC Permanent",
@@ -711,7 +716,7 @@ const I18N = {
     gasSettings:"GAS Cloud",saveSettings:"រក្សាទុក",testTelegram:"ស្ទង់ Telegram",syncGas:"ផ្ញើទៅ GAS",
     backupAll:"ទ្រនុកពេញ JSON",restoreAll:"ស្តារទ្រនុក",clearAll:"លុបទាំងអស់",months:"ខែ",year:"ឆ្នាំ",years:"ឆ្នាំ",
     colKhmerSurname:"គោត្តនាម",colKhmerName:"នាមខ្មែរ",colEnglishSurname:"Surname",colEnglishName:"Name",
-    colGender:"ភេទ",colBirthDate:"ថ្ងៃកំណើត",colNationality:"សញ្ជាតិ",colPosCategory:"ប្រភេទតំណែង",colNotes:"កំណត់",
+    colGender:"ភេទ",colSection:"ជួរ/ផ្នែក",colAge:"អាយុ",colPhone:"ទូរស័ព្ទ",colReferral:"អ្នកណែនាំ",colBirthDate:"ថ្ងៃកំណើត",colNationality:"សញ្ជាតិ",colPosCategory:"ប្រភេទតំណែង",colNotes:"កំណត់",
     catWorker:"កម្មករ",catTechnical:"បច្ចេកទេស",catManagement:"គ្រប់គ្រង",statusActive:"ធ្វើការ",statusTerminated:"បញ្ឈប់",
     statusPending:"រង់ចាំ",statusPassed:"ជាប់",statusFailed:"ធ្លាក់",statusExtended:"បន្ត",
     statusActiveContract:"សកម្ម",statusExpired:"ផុតកំណត់",statusRenewed:"បន្តកិច្ចសន្យា",typeUDC:"UDC អចិន្ត្រៃយ៍",
@@ -803,6 +808,15 @@ async function loadAll(){
 
 /* ========== 工具函式 ========== */
 function uid(prefix){return prefix+"_"+Date.now()+"_"+Math.random().toString(36).substr(2,6)}
+function calcAge(b){
+  if(!b)return null;
+  const d=new Date(String(b).replace(/\//g,"-"));
+  if(isNaN(d))return null;
+  const n=new Date(),a=n.getFullYear()-d.getFullYear();
+  const m=n.getMonth()-d.getMonth();
+  const age=m<0||(m===0&&n.getDate()<d.getDate())?a-1:a;
+  return age>=12&&age<=70?age:null;
+}
 function todayISO(){return new Date().toISOString().slice(0,10)}
 function addMonths(dateStr,months){
   if(!dateStr)return"";
@@ -1191,6 +1205,14 @@ function renderDashCont(){
   const cfdc=DASH_CONTS.filter(c=>c.contractType!=="UDC").length;
   const cudc=DASH_CONTS.filter(c=>c.contractType==="UDC").length;
   const cstrip=document.getElementById("contKpiStrip");
+  // 車工數據（Production dept. + 含 Sewing/Line 的 section）
+  const sewRecs=DASH_CONTS.filter(r=>{
+    const d=(r.dept||"").toLowerCase(); const s=(r.section||"").toLowerCase();
+    return d.includes("production")||d.includes("sewing")||/^l(ine)?\s*\d/i.test(s)||s.includes("sewing");
+  });
+  const sewTotal=sewRecs.length;
+  const sewF=sewRecs.filter(r=>r.gender==="F").length;
+  const sewM=sewRecs.filter(r=>r.gender==="M").length;
   if(cstrip)cstrip.innerHTML=[
     {l:t("contKpiTotal"),  v:ctotal,  c:"#1e3a8a"},
     {l:t("contKpiActive"), v:cactive, c:"#059669"},
@@ -1198,6 +1220,8 @@ function renderDashCont(){
     {l:t("contKpiSoon"),   v:csoon,   c:"#d97706"},
     {l:t("contKpiFDC"),    v:cfdc,    c:"#b8860b"},
     {l:t("contKpiUDC"),    v:cudc,    c:"#0369a1"},
+    {l:"🧵 "+t("sewTotal")||"車工人數", v:sewTotal,c:"#0f766e"},
+    {l:"F/M",              v:`${sewF}/${sewM}`,c:"#6d28d9"},
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashContSearch")?.value||"").toLowerCase();
   const statusF=(document.getElementById("dashContStatus")?.value||"");
@@ -1238,14 +1262,20 @@ function renderDashCont(){
     const daysCell=r.contractType==="UDC"?"—":(days===null?"":days<0?`<span class="danger-text">${days}</span>`:days<=remDays?`<span class="warning-text">${days}</span>`:days);
     const stBadge={active:"active",expired:"expired",renewed:"info",terminated:"muted"}[r._computedStatus]||"muted";
     const stLabel={active:t("statusActiveContract"),expired:t("statusExpired"),renewed:t("statusRenewed"),terminated:t("statusTerminated")}[r._computedStatus]||r._computedStatus;
+    const empAge = r.age || calcAge(r.birthDate);
     return `<tr class="${rowCls}">
       <td class="cb-col"><input type="checkbox" class="cont-cb" data-id="${r.id}"></td>
       <td>${i+1}</td>
       <td>${escapeHtml(r.factoryId||"")}</td>
-      <td class="khmer">${escapeHtml(r.name||"")}</td>
+      <td>${escapeHtml(r.name||"")}</td>
       <td>${escapeHtml(r.dept||"")}</td>
+      <td>${escapeHtml(r.section||"")}</td>
       <td>${escapeHtml(r.position||"")}</td>
       <td>${fmtDate(r.entryDate)}</td>
+      <td>${escapeHtml(r.gender||"")}</td>
+      <td>${empAge!=null?empAge:"—"}</td>
+      <td>${escapeHtml(r.phone||"")}</td>
+      <td>${escapeHtml(r.referral||"")}</td>
       <td><span class="badge ${r.contractType==="UDC"?"info":"pending"}">${r.contractType||""}</span></td>
       <td>${r.contractType==="UDC"?"—":fmtDate(r.endDate)}</td>
       <td>${daysCell}</td>
@@ -1469,7 +1499,16 @@ async function importContDash(evt){
     const status=contractType==="UDC"?"active":(endDate&&endDate<today?"expired":"active");
     const existing=DASH_CONTS.find(r=>r.factoryId===factoryId&&(r.entryDate||"")===entryDate);
     const id=existing?.id||uid("dc");
-    const rec={id,factoryId,name,dept,section,position,entryDate,contractType,endDate,status,notes:"",
+    // 擴充欄位：嘗試讀取 gender/birthDate/phone/referral
+    // 自動偵測：先掃 header 行（若存在），否則用固定位置 8-11
+    const gender  = String(row[8]||"").trim().charAt(0).toUpperCase()||"F";
+    const bdRaw   = row[9];
+    const birthDate = bdRaw ? String(bdRaw).replace(/\//g,"-").replace(/[^0-9\-]/g,"").trim() : "";
+    const age     = calcAge(birthDate);
+    const phone   = String(row[10]||"").replace(/\.0$/,"").trim();
+    const referral= String(row[11]||"").trim();
+    const rec={id,factoryId,name,dept,section,position,entryDate,contractType,endDate,status,
+      gender,birthDate,age,phone,referral,notes:"",
       updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
     await dbPut("dashConts",rec);
     if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);DASH_CONTS[i]=rec;updated++;}
@@ -2339,6 +2378,98 @@ async function testTelegram(){
   const ok=await sendTelegramMessage(`🏭 <b>VRT HR 系統測試</b>\n時間：${new Date().toLocaleString()}\n連線正常 ✅`);
   if(ok)toast("Telegram 測試訊息已發送","success");
 }
+
+/* ========== Telegram 期間推送 ========== */
+let _tgPeriod = "all";
+function openTelegramModal(){
+  _tgPeriod = "all";
+  document.querySelectorAll("#tgPeriodTabs button").forEach(b=>b.classList.toggle("active",b.dataset.ptab==="all"));
+  document.getElementById("tgModal").classList.add("show");
+  applyLang();
+}
+function setTgPeriod(p){
+  _tgPeriod=p;
+  document.querySelectorAll("#tgPeriodTabs button").forEach(b=>b.classList.toggle("active",b.dataset.ptab===p));
+}
+async function executeTelegramSend(){
+  closeModal("tgModal");
+  const doExpiry = document.getElementById("tgChkExpiry").checked;
+  const doAnom   = document.getElementById("tgChkAnom").checked;
+  const doJoin   = document.getElementById("tgChkJoin").checked;
+  const period   = _tgPeriod;
+  const today    = todayISO();
+  const remDays  = SETTINGS.reminderDays||15;
+
+  // 期間過濾輔助
+  function inPeriod(dateStr){
+    if(period==="all"||!dateStr)return true;
+    const d=new Date(dateStr); const t=new Date(today);
+    if(period==="day")return dateStr===today;
+    if(period==="week"){const s=new Date(t); s.setDate(t.getDate()-t.getDay()); const e=new Date(s); e.setDate(s.getDate()+6); return d>=s&&d<=e;}
+    if(period==="month")return dateStr.slice(0,7)===today.slice(0,7);
+    if(period==="year")return dateStr.slice(0,4)===today.slice(0,4);
+    return true;
+  }
+  const periodLabel={all:"全部",day:today,week:"本週",month:today.slice(0,7),year:today.slice(0,4)}[period]||period;
+
+  let msg=`🏭 <b>VRT HR 系統報告</b>\n📅 ${today}  期間：${periodLabel}\n`;
+  let hasContent=false;
+
+  // ── 到期提醒 ──
+  if(doExpiry){
+    const up=[];
+    DASH_PROBS.forEach(p=>{
+      if(p.result==="pending"&&p.probEnd&&inPeriod(p.probEnd)){
+        const d=daysFromToday(p.probEnd);
+        if(d!==null&&d>=0&&d<=remDays)up.push({kind:"試用",factoryId:p.factoryId,name:(p.khmerSurname||"")+" "+(p.khmerName||""),dept:p.dept,date:p.probEnd,days:d});
+      }
+    });
+    DASH_CONTS.forEach(c=>{
+      if(c.contractType!=="UDC"&&c.endDate&&inPeriod(c.endDate)){
+        const d=daysFromToday(c.endDate);
+        if(d!==null&&d>=0&&d<=remDays)up.push({kind:c.contractType,factoryId:c.factoryId,name:c.name,dept:c.dept,date:c.endDate,days:d});
+      }
+    });
+    if(up.length>0){
+      hasContent=true;
+      msg+=`\n⏰ <b>到期提醒（${up.length}件）</b>\n`;
+      up.sort((a,b)=>a.days-b.days).slice(0,20).forEach((u,i)=>{
+        msg+=`${i+1}. <b>[${u.factoryId||"?"}]</b> ${u.name} ${u.dept}\n   ${u.kind} ⏰ ${u.date}（剩${u.days}天）\n`;
+      });
+      if(up.length>20)msg+=`...還有${up.length-20}項\n`;
+    }
+  }
+
+  // ── 異常警示 ──
+  if(doAnom){
+    const list=detectAnomalies();
+    if(list.length>0){
+      hasContent=true;
+      const danger=list.filter(a=>a.severity==="danger");
+      const warn  =list.filter(a=>a.severity==="warning");
+      msg+=`\n🚨 <b>異常警示（危${danger.length}/警${warn.length}）</b>\n`;
+      list.slice(0,15).forEach((a,i)=>{msg+=`${i+1}. [${a.code||"?"}] ${a.title}\n`;});
+      if(list.length>15)msg+=`...+${list.length-15}\n`;
+    }
+  }
+
+  // ── 新進摘要 ──
+  if(doJoin){
+    const joins=DASH_CONTS.filter(r=>inPeriod(r.entryDate));
+    if(joins.length>0){
+      hasContent=true;
+      const byDept=new Map();
+      joins.forEach(r=>{const d=r.dept||"—"; byDept.set(d,(byDept.get(d)||0)+1);});
+      msg+=`\n🆕 <b>新進人員（${joins.length}人）</b>\n`;
+      [...byDept.entries()].sort((a,b)=>b[1]-a[1]).forEach(([d,n])=>{ msg+=`  ${d}: ${n}人\n`; });
+    }
+  }
+
+  if(!hasContent){toast("選定期間內無資料可推送","info");return;}
+  const ok=await sendTelegramMessage(msg);
+  if(ok)toast("Telegram 已推送","success");
+}
+
 async function sendTelegramSummary(){
   const remDays=SETTINGS.reminderDays||15;const today=todayISO();
   const up=[];
@@ -2487,5 +2618,38 @@ async function init(){
 
 init().catch(e=>{console.error(e);toast("初始化錯誤："+e.message,"danger")});
 </script>
+
+<!-- Telegram 推送選擇 Modal -->
+<div class="modal-overlay" id="tgModal">
+  <div class="modal-box" style="max-width:420px">
+    <h3>📱 Telegram 推送摘要</h3>
+    <div style="margin:16px 0">
+      <div style="font-weight:600;margin-bottom:10px;color:var(--navy)">選擇推送內容：</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="tgChkExpiry" checked> <span data-i18n="tgChkExpiry">到期提醒</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="tgChkAnom" checked> <span data-i18n="tgChkAnom">異常警示</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="tgChkJoin"> <span data-i18n="tgChkJoin">新進摘要</span>
+        </label>
+      </div>
+      <div style="font-weight:600;margin-bottom:8px;color:var(--navy)">期間：</div>
+      <div class="ptabs" id="tgPeriodTabs" style="margin-bottom:0">
+        <button class="active" data-ptab="all"   onclick="setTgPeriod('all')"   data-i18n="tabAll">全部</button>
+        <button data-ptab="day"   onclick="setTgPeriod('day')"   data-i18n="tabDay">日</button>
+        <button data-ptab="week"  onclick="setTgPeriod('week')"  data-i18n="tabWeek">週</button>
+        <button data-ptab="month" onclick="setTgPeriod('month')" data-i18n="tabMonth">月</button>
+        <button data-ptab="year"  onclick="setTgPeriod('year')"  data-i18n="tabYear">年</button>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn" onclick="closeModal('tgModal')">取消</button>
+      <button class="btn gold" onclick="executeTelegramSend()">📤 發送</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
