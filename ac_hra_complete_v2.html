@@ -3,440 +3,528 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VRT 整合分析</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<title>AC HRA Complete · VRT</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
-  --bg:#e8f4fd;--bg2:#fff;--bg3:#d6eefa;--bg4:#c4e3f5;
+  --bg:#e8f4fd;--bg2:#fff;--bg3:#d6eefa;
   --navy:#1e3a5f;--teal:#0f766e;--gold:#d97706;
   --red:#dc2626;--green:#16a34a;--blue:#2563eb;--pu:#7c3aed;--gray:#6b7a9e;
-  --brd:#b8d9ef;--brd2:#7cbad6;
-  --sh:0 1px 4px #1e3a5f14;--sh2:0 3px 12px #1e3a5f22;
-  --sans:'DM Sans','Noto Sans TC',sans-serif;
+  --brd:#b8d9ef;--sh:0 1px 4px #1e3a5f14;--sh2:0 3px 12px #1e3a5f22;
+  --f:'DM Sans','Noto Sans TC',sans-serif;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--navy);font-family:var(--sans);min-height:100vh;font-size:13px}
+body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100vh;font-size:13px}
 ::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-track{background:var(--bg3)}
-::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px}
+::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
 
-/* ── HEADER ── */
-#hdr{background:var(--navy);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:sticky;top:0;z-index:300;box-shadow:0 2px 8px #0006}
-.hlogo{display:flex;align-items:center;gap:9px}
-.hvrt{font-size:17px;font-weight:700;color:#f0a030;letter-spacing:1.5px;padding-right:10px;border-right:1px solid #fff3}
-.htit{font-size:10px;color:#ffffffaa}
-.hright{display:flex;align-items:center;gap:6px}
-.hbtn{font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;border:1px solid;cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-.hbtn.pull{background:#0f766e;color:#fff;border-color:#0f766e}
-.hbtn.push{background:#2563eb;color:#fff;border-color:#2563eb}
-.hbtn.prt {background:#555;color:#fff;border-color:#555}
-.hbtn.lang{background:transparent;color:#ffffffcc;border-color:#ffffff44}
-.hbtn.lang.on{background:#f0a030;color:#000;border-color:#f0a030}
-.sync-tip{font-size:10px;color:#f59e0b;font-family:monospace;white-space:nowrap;margin-left:4px}
-.sync-tip.ok{color:#10b981}
+/* HDR */
+#hdr{background:var(--navy);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;position:sticky;top:0;z-index:300;box-shadow:0 2px 8px #0006}
+.hlo{display:flex;align-items:center;gap:8px}
+.hvrt{font-size:16px;font-weight:700;color:#f0a030;letter-spacing:1.5px;padding-right:8px;border-right:1px solid #fff3}
+.htit{font-size:9px;color:#ffffffbb;line-height:1.4}
+.hbtns{display:flex;align-items:center;gap:5px}
+.hb{font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;border:1px solid;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:3px}
+.hb.tl{background:#0f766e;color:#fff;border-color:#0f766e}
+.hb.bl{background:#2563eb;color:#fff;border-color:#2563eb}
+.hb.gy{background:#555;color:#fff;border-color:#555}
+.hb.lg{background:transparent;color:#ffffffcc;border-color:#fff4}
+.hb.lg.on{background:#f0a030;color:#000;border-color:#f0a030}
+.sync{font-size:10px;color:#f59e0b;font-family:monospace}
+.sync.ok{color:#10b981}
 
-/* ── TABBAR ── */
-#tabbar{background:var(--bg2);border-bottom:2px solid var(--brd);display:flex;padding:0 14px;position:sticky;top:50px;z-index:200;overflow-x:auto;gap:0;box-shadow:0 1px 3px #0001}
-.tab{font-size:11px;font-weight:700;letter-spacing:.3px;padding:10px 13px;border:none;background:transparent;color:var(--gray);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:.15s;white-space:nowrap}
+/* TABS */
+#tabs{background:var(--bg2);border-bottom:2px solid var(--brd);display:flex;padding:0 14px;position:sticky;top:50px;z-index:200;overflow-x:auto;gap:0}
+.tab{font-size:11px;font-weight:700;padding:10px 12px;border:none;background:transparent;color:var(--gray);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:.15s;white-space:nowrap}
 .tab:hover{color:var(--navy);background:var(--bg3)}
 .tab.on{color:var(--navy);border-bottom-color:var(--gold)}
+.tab .badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;background:#fee2e2;color:#b91c1c;margin-left:4px;vertical-align:middle}
+.tab .badge.ok{background:#dcfce7;color:#15803d}
+.tab .badge.warn{background:#fef9c3;color:#92400e}
 
-/* ── PERIOD BAR ── */
-.pbar{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 13px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;margin-bottom:12px}
-.ptab{font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;border:1px solid var(--brd2);background:transparent;color:var(--gray);cursor:pointer;transition:.15s}
-.ptab.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.pnav{font-size:14px;padding:3px 7px;border:1px solid var(--brd2);border-radius:4px;background:var(--bg2);cursor:pointer;color:var(--navy);transition:.15s}
-.pnav:hover{background:var(--bg3)}
-.plabel{font-size:12px;font-weight:600;color:var(--navy);min-width:100px;text-align:center}
-select.psel{font-size:11px;padding:4px 8px;border:1px solid var(--brd2);border-radius:4px;background:var(--bg2);color:var(--navy);font-family:var(--sans);outline:none;cursor:pointer}
-select.psel:focus{border-color:var(--navy)}
-
-/* ── PANES ── */
+/* PANE */
 .pane{display:none;padding:12px 14px 28px}
 .pane.on{display:block}
 
-/* ── KPI ── */
+/* PBAR */
+.pbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;margin-bottom:12px}
+.pt{font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;border:1px solid var(--brd);background:transparent;color:var(--gray);cursor:pointer;transition:.15s}
+.pt.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.pnav{font-size:13px;padding:3px 7px;border:1px solid var(--brd);border-radius:4px;background:var(--bg2);cursor:pointer;color:var(--navy)}
+.pnav:hover{background:var(--bg3)}
+.psel{font-size:11px;padding:4px 7px;border:1px solid var(--brd);border-radius:4px;background:var(--bg2);color:var(--navy);font-family:var(--f);outline:none;cursor:pointer;max-width:180px}
+.psel:focus{border-color:var(--navy)}
+
+/* KPI STRIP */
 .ks{display:grid;gap:10px;margin-bottom:12px}
 .ks5{grid-template-columns:repeat(5,1fr)}
 .ks4{grid-template-columns:repeat(4,1fr)}
 .ks3{grid-template-columns:repeat(3,1fr)}
-@media(max-width:880px){.ks5,.ks4{grid-template-columns:repeat(3,1fr)}.ks3{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:900px){.ks5,.ks4{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:580px){.ks5,.ks4,.ks3{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:11px 13px;box-shadow:var(--sh);position:relative;overflow:hidden;transition:.15s}
-.kpi:hover{box-shadow:var(--sh2)}
+.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:11px 13px;box-shadow:var(--sh);position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:4px 0 0 4px}
 .kpi.nv::before{background:var(--navy)}.kpi.tl::before{background:var(--teal)}
 .kpi.gd::before{background:var(--gold)}.kpi.rd::before{background:var(--red)}
 .kpi.gn::before{background:var(--green)}.kpi.pu::before{background:var(--pu)}
-.kpi.bl::before{background:var(--blue)}
 .kl{font-size:9px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.kv{font-size:24px;font-weight:700;color:var(--navy);line-height:1}
+.kv{font-size:22px;font-weight:700;color:var(--navy);line-height:1}
 .ks2{font-size:10px;color:var(--gray);margin-top:3px}
 
-/* ── CARDS ── */
-.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:12px}
+/* CARDS */
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
 .card{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:13px;box-shadow:var(--sh)}
 .card-hd{font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:6px}
 .row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-bottom:1px solid var(--bg3)}
 .row:last-child{border-bottom:none}
-.row .lbl{color:var(--gray)}
-.row .val{font-weight:700;color:var(--navy)}
-
-/* ── TABLE ── */
-.twrap{overflow-x:auto;border-radius:8px;border:1px solid var(--brd);margin-bottom:12px}
-table{width:100%;border-collapse:collapse;background:var(--bg2);font-size:11.5px}
-thead{background:var(--navy);color:#fff;position:sticky;top:0}
-th{padding:8px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;white-space:nowrap}
-td{padding:6px 10px;border-bottom:1px solid var(--bg3);white-space:nowrap;color:var(--navy)}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--bg3)}
-.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px}
-.badge.ok{background:#dcfce7;color:#15803d}.badge.warn{background:#fef9c3;color:#92400e}
-.badge.bad{background:#fee2e2;color:#b91c1c}.badge.info{background:#dbeafe;color:#1d4ed8}
-.badge.muted{background:#f1f5f9;color:var(--gray)}
-
-/* ── DIFF BARS ── */
-.dbars{padding:4px 0}
-.dbar{display:flex;align-items:center;gap:7px;padding:3px 0}
-.dbar .dl{font-size:10px;color:var(--gray);width:55px;text-align:right;flex-shrink:0}
-.dbar .dw{flex:1;height:13px;background:var(--bg3);border-radius:2px;overflow:hidden}
-.dbar .da{height:100%;background:var(--navy);border-radius:2px;transition:width .4s}
-.dbar .db{height:100%;background:var(--teal);border-radius:2px;transition:width .4s}
-.dbar .dv{font-size:10px;color:var(--gray);width:70px;flex-shrink:0}
-
-/* ── PANEL ── */
-.panel{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:13px;margin-bottom:11px;box-shadow:var(--sh)}
-.panel h3{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px}
-.stit{font-size:11px;font-weight:700;color:var(--navy);margin:13px 0 7px;display:flex;align-items:center;gap:6px}
-.stit::after{content:'';flex:1;height:1px;background:var(--brd)}
-
-/* ── UPLOAD ── */
-.uzbox{border:2px dashed var(--brd2);border-radius:8px;background:var(--bg2);padding:16px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:10px}
-.uzbox:hover,.uzbox.drag{border-color:var(--gold);background:#d9770608}
-
-/* ── STATUS DOT ── */
-.dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.row .l{color:var(--gray)}
+.row .v{font-weight:700;color:var(--navy)}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
 .dot.ok{background:var(--green)}.dot.warn{background:var(--gold)}.dot.bad{background:var(--red)}.dot.off{background:var(--gray)}
 
-/* ── CLOUD PANEL ── */
-#cloudPanel{position:fixed;top:50px;right:0;width:340px;background:var(--bg2);border:1px solid var(--brd);border-right:none;border-radius:8px 0 0 8px;box-shadow:var(--sh2);padding:14px;z-index:250;transform:translateX(100%);transition:transform .25s}
-#cloudPanel.open{transform:translateX(0)}
-.cpRow{display:flex;gap:6px;align-items:center;margin-bottom:8px}
-.cpLabel{font-size:10px;font-weight:600;color:var(--gray);width:60px;flex-shrink:0}
-.cpInput{flex:1;font-size:11px;padding:4px 7px;border:1px solid var(--brd2);border-radius:4px;font-family:var(--sans);outline:none}
-.cpBtn{font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;border:none;cursor:pointer;color:#fff;white-space:nowrap}
-.cpBtn.sv{background:var(--navy)}.cpBtn.pl{background:var(--teal)}.cpBtn.ps{background:var(--blue)}
-.cpStatus{font-size:10px;margin-top:4px;padding:4px 7px;border-radius:4px;font-family:monospace}
-.cpStatus.ok{background:#dcfce7;color:#15803d}
-.cpStatus.warn{background:#fef9c3;color:#92400e}
-.cpStatus.err{background:#fee2e2;color:#b91c1c}
-.cpStatus.info{background:#dbeafe;color:#1d4ed8}
-.cpLog{font-size:10px;color:var(--gray);font-family:monospace;max-height:100px;overflow-y:auto;margin-top:6px;padding:4px;background:var(--bg3);border-radius:4px}
+/* UNIFIED TABLE */
+.utable{overflow-x:auto;border-radius:8px;border:1px solid var(--brd);margin-bottom:12px}
+.utable table{width:100%;border-collapse:collapse;background:var(--bg2);font-size:11px;min-width:700px}
+.utable thead{background:var(--navy);color:#fff;position:sticky;top:0}
+.utable th{padding:8px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap;text-transform:uppercase}
+.utable th.center,.utable td.center{text-align:center}
+.utable td{padding:6px 10px;border-bottom:1px solid var(--bg3);white-space:nowrap}
+.utable tr:hover td{background:var(--bg3)}
+.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px}
+.badge.ok{background:#dcfce7;color:#15803d}
+.badge.warn{background:#fef9c3;color:#92400e}
+.badge.bad{background:#fee2e2;color:#b91c1c}
+.badge.info{background:#dbeafe;color:#1d4ed8}
+.badge.muted{background:#f1f5f9;color:var(--gray)}
 
-/* ── MODAL ── */
+/* DIFF CELL */
+.dc{font-weight:700;text-align:center}
+.dc.ok{color:var(--green)}.dc.warn{color:var(--gold)}.dc.bad{color:var(--red)}.dc.na{color:var(--gray)}
+
+/* PANEL */
+.panel{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:13px;margin-bottom:11px;box-shadow:var(--sh)}
+.panel h3{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px}
+.stit{font-size:11px;font-weight:700;color:var(--navy);margin:12px 0 7px;display:flex;align-items:center;gap:6px}
+.stit::after{content:'';flex:1;height:1px;background:var(--brd)}
+
+/* ALIAS TABLE */
+.at{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+.at th{background:var(--navy);color:#fff;padding:6px 10px;text-align:left;font-size:10px;font-weight:700}
+.at td{padding:6px 10px;border-bottom:1px solid var(--bg3);color:var(--navy)}
+.at tr:hover td{background:var(--bg3)}
+.at input{width:100%;font-size:11px;padding:3px 6px;border:1px solid var(--brd);border-radius:3px;font-family:var(--f);outline:none}
+.at input:focus{border-color:var(--navy)}
+
+/* MODAL */
 .mbg{display:none;position:fixed;inset:0;background:#0007;z-index:500;align-items:center;justify-content:center}
 .mbg.show{display:flex}
-.mbox{background:var(--bg2);border-radius:10px;padding:20px;max-width:420px;width:90%;box-shadow:0 8px 32px #0005}
+.mbox{background:var(--bg2);border-radius:10px;padding:20px;max-width:440px;width:90%;box-shadow:0 8px 32px #0005}
 .mbox h3{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px}
-.mbtns{display:flex;gap:7px;justify-content:flex-end;margin-top:14px}
-.mbtn{font-size:11px;font-weight:600;padding:5px 13px;border-radius:4px;border:1px solid;cursor:pointer}
+.mbtns{display:flex;gap:7px;justify-content:flex-end;margin-top:12px}
+.mbtn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:4px;border:1px solid;cursor:pointer}
 .mbtn.ok{background:var(--navy);color:#fff;border-color:var(--navy)}
-.mbtn.cl{background:transparent;color:var(--gray);border-color:var(--brd2)}
+.mbtn.cl{background:transparent;color:var(--gray);border-color:var(--brd)}
 
-/* ── TOAST ── */
+/* CLOUD PANEL */
+#cpanel{position:fixed;top:50px;right:0;width:340px;background:var(--bg2);border:1px solid var(--brd);border-right:none;border-radius:8px 0 0 8px;box-shadow:var(--sh2);padding:14px;z-index:250;transform:translateX(100%);transition:transform .25s}
+#cpanel.open{transform:translateX(0)}
+.cp-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.cp-label{font-size:10px;font-weight:600;color:var(--gray);width:70px;flex-shrink:0}
+.cp-input{flex:1;font-size:11px;padding:4px 7px;border:1px solid var(--brd);border-radius:4px;font-family:var(--f);outline:none}
+.cp-btn{font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;border:none;cursor:pointer;color:#fff;white-space:nowrap}
+.cp-log{font-size:10px;color:var(--gray);font-family:monospace;max-height:120px;overflow-y:auto;margin-top:6px;padding:4px;background:var(--bg3);border-radius:4px}
+
+/* UPLOAD ZONE */
+.uz{border:2px dashed var(--brd);border-radius:8px;background:var(--bg2);padding:14px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:10px}
+.uz:hover,.uz.drag{border-color:var(--gold);background:#d9770608}
+
+/* TOAST */
 #toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1e3a5f;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;z-index:1000;pointer-events:none}
 #toast.show{opacity:1}
 
-@media print{#hdr,#tabbar,#cloudPanel,button,select,.pbar .pnav,.pbar .ptab{display:none!important}.pane.on{display:block!important}body{background:#fff}}
+/* WARN BOX */
+.warn-box{background:#fef9c3;border:1px solid #fbbf24;border-radius:6px;padding:8px 12px;font-size:11px;color:#92400e;margin-bottom:8px}
+
+@media print{#hdr,#tabs,#cpanel,button,.pbar{display:none!important}.pane.on{display:block!important}body{background:#fff}}
 </style>
 </head>
 <body>
 
-<!-- HEADER -->
+<!-- HDR -->
 <div id="hdr">
-  <div class="hlogo">
+  <div class="hlo">
     <span class="hvrt">VRT</span>
-    <span class="htit" id="htit">🔗 整合分析 Complete</span>
+    <div class="htit"><div>🔗 AC HRA COMPLETE</div><div style="font-size:8px;opacity:.7">Integration Center v5</div></div>
   </div>
-  <div class="hright">
-    <span class="sync-tip" id="syncTip"></span>
-    <button class="hbtn lang on" id="btn-zh" onclick="setLang('zh')">中</button>
-    <button class="hbtn lang"    id="btn-en" onclick="setLang('en')">EN</button>
-    <button class="hbtn pull" onclick="doPull()" title="從雲端拉取 Pull from Cloud">☁↓</button>
-    <button class="hbtn push" onclick="doPush()" title="推送至雲端 Push to Cloud">☁↑</button>
-    <button class="hbtn" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="toggleCloud()">⚙ 雲端</button>
-    <button class="hbtn prt" onclick="window.print()">🖨</button>
+  <div class="hbtns">
+    <span class="sync" id="syncTip"></span>
+    <button class="hb lg on" id="btn-zh" onclick="setL('zh')">中</button>
+    <button class="hb lg"    id="btn-en" onclick="setL('en')">EN</button>
+    <button class="hb tl" onclick="doLoad()" title="讀取所有資料源">☁↓ 讀取</button>
+    <button class="hb bl" onclick="doSave()" title="推送至雲端">☁↑ 推送</button>
+    <button class="hb" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="toggleCP()">⚙</button>
+    <button class="hb gy" onclick="window.print()">🖨</button>
   </div>
 </div>
 
 <!-- CLOUD PANEL -->
-<div id="cloudPanel">
+<div id="cpanel">
   <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:10px">☁ 雲端設定</div>
-  <div class="cpRow">
-    <span class="cpLabel" id="cp-hra-lbl">HRA GAS</span>
-    <input class="cpInput" id="hraGasInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button class="cpBtn sv" onclick="saveGas('hra')">存</button>
+  <div class="cp-row">
+    <span class="cp-label">HRA GAS</span>
+    <input class="cp-input" id="hraUrl" placeholder="HRA GAS URL…">
+    <button class="cp-btn" style="background:var(--navy)" onclick="saveUrl('hra')">存</button>
+    <button class="cp-btn" style="background:var(--teal)" onclick="testUrl('hra')">測</button>
   </div>
-  <div class="cpRow">
-    <span class="cpLabel" id="cp-prod-lbl">生產 GAS</span>
-    <input class="cpInput" id="prodGasInput" placeholder="https://script.google.com/macros/s/.../exec">
-    <button class="cpBtn sv" onclick="saveGas('prod')">存</button>
+  <div class="cp-row">
+    <span class="cp-label">生產 GAS</span>
+    <input class="cp-input" id="prodUrl" placeholder="Production GAS URL…">
+    <button class="cp-btn" style="background:var(--navy)" onclick="saveUrl('prod')">存</button>
   </div>
   <div style="display:flex;gap:6px;margin-bottom:8px">
-    <button class="cpBtn pl" onclick="doPull()" style="flex:1">☁↓ 拉取全部</button>
-    <button class="cpBtn ps" onclick="doPush()" style="flex:1">☁↑ 推送</button>
-    <button class="cpBtn" style="background:#6b7a9e" onclick="reloadAll()">🔄 讀取 IDB</button>
+    <button class="cp-btn" style="background:var(--teal);flex:1" onclick="doLoad()">☁↓ 拉取全部</button>
+    <button class="cp-btn" style="background:var(--blue);flex:1" onclick="doSave()">☁↑ 推送</button>
   </div>
-  <div class="cpStatus info" id="cpStatus">尚未同步</div>
-  <div class="cpLog" id="cpLog"></div>
+  <div class="cp-log" id="cplog"></div>
 </div>
 
 <!-- TABS -->
-<div id="tabbar">
-  <button class="tab on" data-t="sum"  id="tab-sum">📊 <span data-i18n="navSum">總表</span></button>
-  <button class="tab"    data-t="as"   id="tab-as">🔄 <span data-i18n="navAS">出勤×車縫</span></button>
-  <button class="tab"    data-t="ac"   id="tab-ac">📋 <span data-i18n="navAC">出勤×入離職</span></button>
-  <button class="tab"    data-t="am"   id="tab-am">🤰 <span data-i18n="navAM">出勤×孕假</span></button>
-  <button class="tab"    data-t="list" id="tab-list">📁 <span data-i18n="navList">列表</span></button>
-  <button class="tab"    data-t="cfg"  id="tab-cfg">⚙️ <span data-i18n="navCfg">設定</span></button>
+<div id="tabs">
+  <button class="tab on" data-t="sum">📊 <span data-i="navSum">總表</span></button>
+  <button class="tab" data-t="as">🔄 <span data-i="navAS">出勤×車縫</span></button>
+  <button class="tab" data-t="ac">📋 <span data-i="navAC">出勤×入離職</span></button>
+  <button class="tab" data-t="am">🤰 <span data-i="navAM">出勤×孕假</span></button>
+  <button class="tab" data-t="unified">📑 <span data-i="navUni">整合總表</span></button>
+  <button class="tab" data-t="map">🗺 <span data-i="navMap">對應設定</span></button>
+  <button class="tab" data-t="unmatched">⚠ <span data-i="navUm">未匹配</span><span class="badge" id="um-cnt" style="display:none">0</span></button>
+  <button class="tab" data-t="cfg">⚙️ <span data-i="navCfg">設定</span></button>
 </div>
 
 <!-- ══ 總表 ══ -->
 <div class="pane on" id="pane-sum">
-  <div id="sum-pbar" class="pbar"></div>
+  <div id="pbar-sum" class="pbar"></div>
   <div class="ks ks5" id="kpi-sum"></div>
-  <div class="stit" id="stit-sum">📋 期間明細比較</div>
-  <div id="sum-detail"></div>
-  <div class="panel">
-    <h3 id="chart-sum-title">📊 五系統人數比較</h3>
-    <div style="height:260px;position:relative"><canvas id="chartSum"></canvas></div>
+  <div class="stit" data-i="stSum">📋 期間明細</div>
+  <div id="sum-cards"></div>
+  <div class="panel"><h3 id="chart-title">📊 跨系統人數對比</h3>
+    <div style="height:240px;position:relative"><canvas id="chartSum"></canvas></div>
   </div>
 </div>
 
 <!-- ══ 出勤×車縫 ══ -->
 <div class="pane" id="pane-as">
-  <div id="as-pbar" class="pbar"></div>
+  <div id="pbar-as" class="pbar"></div>
   <div class="ks ks4" id="kpi-as"></div>
-  <div id="as-detail"></div>
+  <div id="as-content"></div>
 </div>
 
 <!-- ══ 出勤×入離職 ══ -->
 <div class="pane" id="pane-ac">
-  <div id="ac-pbar" class="pbar"></div>
+  <div id="pbar-ac" class="pbar"></div>
   <div class="ks ks4" id="kpi-ac"></div>
-  <div id="ac-detail"></div>
+  <div id="ac-content"></div>
 </div>
 
 <!-- ══ 出勤×孕假 ══ -->
 <div class="pane" id="pane-am">
-  <div id="am-pbar" class="pbar"></div>
+  <div id="pbar-am" class="pbar"></div>
   <div class="ks ks3" id="kpi-am"></div>
-  <div id="am-detail"></div>
+  <div id="am-content"></div>
 </div>
 
-<!-- ══ 列表 ══ -->
-<div class="pane" id="pane-list">
-  <div class="pbar" style="gap:7px">
-    <select class="psel" id="list-src" onchange="renderList()">
-      <option value="att">考勤 Attendance</option>
-      <option value="sew">車縫 Sewing</option>
-      <option value="cont">合約 Contract</option>
-      <option value="mat">孕假 Maternity</option>
-    </select>
-    <input class="psel" id="list-q" placeholder="搜尋 Search…" oninput="renderList()" style="min-width:150px">
-    <select class="psel" id="list-period" onchange="renderList()"><option value="">— 全部期間 —</option></select>
-    <button class="hbtn pull" onclick="addRec()">＋</button>
-    <button class="hbtn" style="background:var(--red);color:#fff;border-color:var(--red)" onclick="delSelected()">🗑</button>
-    <span id="list-cnt" style="font-size:10px;color:var(--gray);margin-left:auto"></span>
-  </div>
-  <div class="twrap">
-    <table id="listTable">
-      <thead><tr id="listTh"></tr></thead>
-      <tbody id="listTb"></tbody>
+<!-- ══ 整合總表 ══ -->
+<div class="pane" id="pane-unified">
+  <div id="pbar-uni" class="pbar"></div>
+  <div class="stit" data-i="uniTitle">📑 跨模組整合比較表</div>
+  <div class="utable" id="unified-table">
+    <table><thead><tr>
+      <th>LINE</th>
+      <th class="center" data-i="thAtt">考勤</th>
+      <th class="center" data-i="thSew">車縫</th>
+      <th class="center" data-i="thDiff">差異</th>
+      <th class="center" data-i="thJoin">新進</th>
+      <th class="center" data-i="thResign">離職</th>
+      <th class="center" data-i="thPreg">孕婦</th>
+      <th class="center" data-i="thMat">產假</th>
+      <th class="center" data-i="thCont">合約</th>
+      <th class="center" data-i="thProb">試用</th>
+    </tr></thead>
+    <tbody id="unified-tbody"></tbody>
     </table>
   </div>
+</div>
+
+<!-- ══ 對應設定 ══ -->
+<div class="pane" id="pane-map">
+  <div class="panel">
+    <h3 data-i="mapTitle">🗺 Line Alias 管理</h3>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:10px" data-i="mapDesc">設定別名對應關係，儲存後立即生效</div>
+    <div style="display:flex;gap:7px;margin-bottom:10px">
+      <button class="hb tl" onclick="addAlias()">＋ 新增別名</button>
+      <button class="hb bl" onclick="resetAliases()">🔄 重設預設</button>
+      <button class="hb" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveAliases()">💾 儲存</button>
+    </div>
+    <table class="at">
+      <thead><tr><th>別名（原始）</th><th>對應標準 LINE</th><th>操作</th></tr></thead>
+      <tbody id="alias-tbody"></tbody>
+    </table>
+  </div>
+  <div class="panel">
+    <h3 data-i="srcStatus">🔗 資料來源狀態</h3>
+    <div class="ks ks4" id="src-kpi"></div>
+    <div style="display:flex;gap:7px;margin-top:8px">
+      <button class="hb tl" onclick="doLoad()">🔄 重新讀取</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ 未匹配 ══ -->
+<div class="pane" id="pane-unmatched">
+  <div class="stit">⚠ 未匹配資料（無法對應到標準 LINE）</div>
+  <div id="um-hard" class="panel"><h3>❌ Hard Unmatched（完全無法識別）</h3><div id="um-hard-body"></div></div>
+  <div id="um-hist" class="panel"><h3>⚠ Historical Unmatched（可能是舊版線別）</h3><div id="um-hist-body"></div></div>
 </div>
 
 <!-- ══ 設定 ══ -->
 <div class="pane" id="pane-cfg">
   <div class="panel">
-    <h3 id="cfg-status-title">🔗 資料來源狀態</h3>
-    <div class="ks ks4" id="cfg-status-kpi"></div>
-    <button class="cpBtn pl" style="margin-top:8px" onclick="reloadAll()">🔄 重新讀取外部 IDB</button>
-  </div>
-  <div class="panel">
-    <h3 id="cfg-att-title">📥 考勤 Excel 匯入</h3>
-    <div class="uzbox" id="attUz" onclick="document.getElementById('attFile').click()" ondrop="dropAtt(event)" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag')" ondragleave="this.classList.remove('drag')">
+    <h3 data-i="cfgAtt">📥 考勤 Excel 匯入</h3>
+    <div class="uz" id="attUz" onclick="document.getElementById('attFile').click()" ondrop="dropAtt(event)" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag')" ondragleave="this.classList.remove('drag')">
       <div style="font-size:22px">📂</div>
-      <div style="font-size:11px;color:var(--gray);margin-top:4px" id="uz-hint">拖入考勤 Excel / .msg 或點此選擇</div>
-      <input type="file" id="attFile" accept=".xlsx,.xls,.msg" multiple style="display:none" onchange="importAtt(event)">
+      <div style="font-size:11px;color:var(--gray);margin-top:4px" id="uzHint">拖入考勤 Excel 或點此選擇</div>
+      <input type="file" id="attFile" accept=".xlsx,.xls" multiple style="display:none" onchange="importAtt(event)">
     </div>
     <div id="attLog" style="font-size:10px;color:var(--gray)"></div>
   </div>
   <div class="panel">
     <h3>💾 備份/還原</h3>
     <div style="display:flex;gap:7px">
-      <button class="cpBtn sv" onclick="exportJSON()">📦 匯出 JSON</button>
-      <button class="cpBtn pl" onclick="document.getElementById('restoreFile').click()">📂 還原 JSON</button>
-      <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreJSON(event)">
+      <button class="hb tl" onclick="exportJS()">📦 匯出</button>
+      <button class="hb bl" onclick="document.getElementById('restoreF').click()">📂 還原</button>
+      <input type="file" id="restoreF" accept=".json" style="display:none" onchange="restoreJS(event)">
     </div>
-    <details style="margin-top:10px">
-      <summary style="font-size:10px;color:var(--gray);cursor:pointer">⚠ 清除資料</summary>
-      <button class="cpBtn" style="background:var(--red);margin-top:8px" onclick="clearAtt()">清除考勤</button>
+    <details style="margin-top:10px"><summary style="font-size:10px;color:var(--gray);cursor:pointer">⚠ 清除資料</summary>
+      <button class="hb" style="background:var(--red);color:#fff;border-color:var(--red);margin-top:8px" onclick="clearAtt()">清除考勤</button>
     </details>
   </div>
 </div>
 
-<!-- 新增 Modal -->
+<!-- Modal -->
 <div class="mbg" id="addModal">
   <div class="mbox">
-    <h3 id="modal-add-title">＋ 新增考勤記錄</h3>
-    <div style="display:flex;flex-direction:column;gap:7px">
-      <input class="cpInput" id="add-date" type="date" style="width:100%">
-      <input class="cpInput" id="add-line" placeholder="組別/線 (e.g. Line 1, L1)" style="width:100%">
-      <input class="cpInput" id="add-hc"     type="number" placeholder="在職人數 HC" style="width:100%">
-      <input class="cpInput" id="add-att"    type="number" placeholder="出勤人數 Att" style="width:100%">
-      <input class="cpInput" id="add-join"   type="number" placeholder="新進 Join" style="width:100%">
-      <input class="cpInput" id="add-resign" type="number" placeholder="離職 Resign" style="width:100%">
+    <h3>✏ 新增/編輯 Alias</h3>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <div><label style="font-size:11px;color:var(--gray)">別名（原始名稱，如 APRON01、L21、A1）</label>
+        <input id="alias-from" class="cp-input" style="width:100%;margin-top:3px" placeholder="APRON01"></div>
+      <div><label style="font-size:11px;color:var(--gray)">對應標準 LINE（如 LINE_1、LINE_20、CUT）</label>
+        <input id="alias-to" class="cp-input" style="width:100%;margin-top:3px" placeholder="LINE_1"></div>
     </div>
     <div class="mbtns">
       <button class="mbtn cl" onclick="document.getElementById('addModal').classList.remove('show')">取消</button>
-      <button class="mbtn ok" onclick="saveRec()">儲存</button>
+      <button class="mbtn ok" onclick="confirmAlias()">確認</button>
     </div>
   </div>
 </div>
 <div id="toast"></div>
 
-<!-- ═══════════════════════════════════════════════════════════
-     JAVASCRIPT
-═══════════════════════════════════════════════════════════ -->
+<!-- ═══════════════════════════════════════════════════════
+     UNIFIED DATA ENGINE v5
+═══════════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
-// ── GAS URL keys ──────────────────────────────────────────────
-const LS_HRA_GAS  = 'vrt_att_cloud_v1_url';    // 考勤/合約/孕假 GAS（AC HRA CloudSync）
-const LS_PROD_GAS = 'vrt_portal_gas_url';       // 生產 GAS（VRT Portal / sewing）
-const LS_ATT      = 'vrt_complete_att';         // 本工具自存的考勤資料
-
-// ── IDB 連接設定（仿 sewing 讀 cutting 的方式）──────────────
-const IDB_ATT  = [{db:'AC_HRA_Attendance', ver:1, store:'records'}];
-const IDB_SEW  = [{db:'SewingCloudProd',   ver:1, store:'cloud_records'}];
-const IDB_CONT = [
-  {db:'vrt_contract_db', ver:1, store:'dashConts'},
-  {db:'ContractDB',      ver:1, store:'dashConts'},
-];
-const IDB_PROB = [
-  {db:'vrt_contract_db', ver:1, store:'dashProbs'},
-  {db:'ContractDB',      ver:1, store:'dashProbs'},
-];
-
-// ── 全域資料 ──────────────────────────────────────────────────
-let ATT_DB  = [];   // [{date,line,lineRaw,hc,att,join,resign,ml,al,pl,sl,np}]
-let SEW_DB  = [];   // [{date,section,line,lineRaw,workers,pieces,eff}]
-let CONT_DB = [];   // dashConts records
-let PROB_DB = [];   // dashProbs records
-let MAT_DB  = [];   // maternity employees
-
-// ── 期間狀態 ──────────────────────────────────────────────────
-const PS = {
-  sum:{m:'month',idx:0,list:[]},
-  as: {m:'month',idx:0,list:[]},
-  ac: {m:'month',idx:0,list:[]},
-  am: {m:'month',idx:0,list:[]},
+// ── LS Keys ──────────────────────────────────────────────
+const LS = {
+  HRA_GAS  : 'vrt_att_cloud_v1_url',
+  PROD_GAS : 'vrt_portal_gas_url',
+  ATT      : 'vrt_complete_att',
+  ALIAS    : 'localStorage.lineAliasMap',
 };
 
-let VIEW = 'card';
-let LANG = 'zh';
-let chartSum = null;
-
-// ── i18n 詞典 ─────────────────────────────────────────────────
-const I18N = {
-  zh:{
-    navSum:'總表', navAS:'出勤×車縫', navAC:'出勤×入離職', navAM:'出勤×孕假',
-    navList:'列表', navCfg:'設定',
-    pDay:'日', pWeek:'週', pMonth:'月', pYear:'年',
-    attHC:'考勤在職', sewWk:'車縫工人', diff:'差異', rate:'差%',
-    join:'新進', resign:'離職', ml:'產假ML', preg:'孕婦', mat:'產假中',
-    ret:'復工', contract:'合約', probation:'試用',
-    dept:'部門', line:'組別/線', date:'日期', status:'狀態',
-    card:'🃏 卡片', table:'📋 表格',
-    source:'來源', search:'搜尋',
-    match:'✓ 吻合', slight:'⚠ 略差', large:'✗ 差異大',
-    attTitle:'考勤在職 vs 車縫工人（組別比對）',
-    acTitle:'考勤新進/離職 vs 合約異動',
-    amTitle:'出勤 vs 孕婦/產假請假',
-    sumTitle:'五系統 KPI 總覽',
-    cfg_att:'考勤', cfg_sew:'車縫', cfg_cont:'合約', cfg_mat:'孕假',
-    uz_hint:'拖入考勤 Excel / .msg 或點此選擇',
-    cp_hra:'HRA GAS', cp_prod:'生產 GAS',
-  },
-  en:{
-    navSum:'Summary', navAS:'Att×Sewing', navAC:'Att×Contract', navAM:'Att×Maternity',
-    navList:'List', navCfg:'Settings',
-    pDay:'Day', pWeek:'Week', pMonth:'Month', pYear:'Year',
-    attHC:'Att HC', sewWk:'Sew Workers', diff:'Diff', rate:'Diff%',
-    join:'Join', resign:'Resign', ml:'Mat.Leave', preg:'Pregnant', mat:'On Leave',
-    ret:'Returned', contract:'Contract', probation:'Probation',
-    dept:'Dept', line:'Line', date:'Date', status:'Status',
-    card:'🃏 Card', table:'📋 Table',
-    source:'Source', search:'Search',
-    match:'✓ Match', slight:'⚠ Slight', large:'✗ Large diff',
-    attTitle:'Attendance HC vs Sewing Workers (by Line)',
-    acTitle:'Att Join/Resign vs Contract Changes',
-    amTitle:'Attendance vs Maternity Leave',
-    sumTitle:'5-System KPI Overview',
-    cfg_att:'Attendance', cfg_sew:'Sewing', cfg_cont:'Contract', cfg_mat:'Maternity',
-    uz_hint:'Drop Attendance Excel / .msg or click',
-    cp_hra:'HRA GAS', cp_prod:'Prod GAS',
-  },
+// ── IDB Config ───────────────────────────────────────────
+const IDB_CFG = {
+  att  : [{db:'AC_HRA_Attendance', store:'records'}],
+  sew  : [{db:'SewingCloudProd',   store:'cloud_records'}],
+  cont : [{db:'vrt_contract_db',   store:'dashConts'}, {db:'ContractDB', store:'dashConts'}],
+  prob : [{db:'vrt_contract_db',   store:'dashProbs'}, {db:'ContractDB', store:'dashProbs'}],
 };
-const t = k => I18N[LANG][k] || I18N.zh[k] || k;
 
-function setLang(l) {
-  LANG = l;
-  document.getElementById('btn-zh').classList.toggle('on', l==='zh');
-  document.getElementById('btn-en').classList.toggle('on', l==='en');
-  document.querySelectorAll('[data-i18n]').forEach(el => {
-    const k = el.dataset.i18n;
-    if (I18N[l][k]) el.textContent = I18N[l][k];
+// ── Unified Data Store ───────────────────────────────────
+window.COMPLETE_DB = {
+  attendance   : [],  // normalized attendance records
+  sewing       : [],  // normalized sewing records
+  onboarding   : [],  // join/resign records (from onboarding HTML)
+  maternity    : [],  // maternity employee records
+  contract     : [],  // contract records
+  probation    : [],  // probation records
+  compareResults:[],
+  mappings     : {},
+};
+
+// ── Normalized Records Cache ─────────────────────────────
+let _attNorm = [];    // {date, lineId, hc, att, join, resign, ml, al, pl, sl, np}
+let _sewNorm = [];    // {date, lineId, workers, pieces, eff}
+let _joinNorm= [];    // {date, lineId, type:'join'|'resign', dept, name}
+let _matByLine=new Map(); // lineId → {preg, mat, ret}
+
+// ── Unmatched tracking ──────────────────────────────────
+const _unmatchedHard = new Set();
+const _unmatchedHist = new Set();
+const HIST_LINES = new Set(['LINE_19','LINE_20','LINE_21','LINE_22','LINE_23','LINE_24']);
+
+// ══════════════════════════════════════════════════════════
+//  LINE ALIAS SYSTEM
+// ══════════════════════════════════════════════════════════
+const DEFAULT_ALIASES = {
+  // A/B/C variants → LINE_N
+  'A0':'LINE_0','B0':'LINE_0','C0':'LINE_0',
+  'A1':'LINE_1','B1':'LINE_1','C1':'LINE_1',
+  'A2':'LINE_2','B2':'LINE_2','C2':'LINE_2',
+  'A3':'LINE_3','B3':'LINE_3','C3':'LINE_3',
+  'A4':'LINE_4','B4':'LINE_4','C4':'LINE_4',
+  'A5':'LINE_5','B5':'LINE_5','C5':'LINE_5',
+  'A6':'LINE_6','B6':'LINE_6','C6':'LINE_6',
+  'A7':'LINE_7','B7':'LINE_7','C7':'LINE_7',
+  'A8':'LINE_8','B8':'LINE_8','C8':'LINE_8',
+  'A9':'LINE_9','B9':'LINE_9','C9':'LINE_9',
+  // APRON → LINE
+  'APRON1':'LINE_1','APRON01':'LINE_1','APRON2':'LINE_2','APRON02':'LINE_2',
+  'APRON3':'LINE_3','APRON03':'LINE_3','APRON4':'LINE_4','APRON04':'LINE_4',
+  // GARMENT → LINE
+  'GARMENT1':'LINE_1','GARMENT01':'LINE_1','GARMENT2':'LINE_2','GARMENT02':'LINE_2',
+  'GARMENT3':'LINE_3','GARMENT03':'LINE_3',
+  // Common historical aliases
+  'L21':'LINE_20','LINE21':'LINE_20','LINE 21':'LINE_20',
+  'L20':'LINE_20','LINE 20':'LINE_20','LINE20':'LINE_20',
+  // Non-sewing depts
+  'CUT':'CUT','CUTTING':'CUT','CUTLEADER':'CUT','CUTTER':'CUT',
+  'QCA':'QC','QCB':'QC','QCINSPECT':'QC','INSPECTOR':'QC',
+  'PACKING':'PACK','PACKINGA':'PACK','PACKINGB':'PACK',
+  'MAINTEN':'MAINT','MAINTENANCE':'MAINT',
+  'OFFICE':'ADMIN','ADMIN':'ADMIN',
+  'WAREHOUSE':'WH','STORE':'WH',
+};
+
+window.LINE_ALIAS = {};
+function loadAliases() {
+  try { window.LINE_ALIAS = JSON.parse(localStorage.getItem(LS.ALIAS)||'{}'); } catch(e){}
+  if (!Object.keys(window.LINE_ALIAS).length) window.LINE_ALIAS = {...DEFAULT_ALIASES};
+}
+function saveAliases() {
+  // collect from table
+  const rows = document.querySelectorAll('#alias-tbody tr');
+  const m = {};
+  rows.forEach(tr => {
+    const from = tr.querySelector('.af')?.value?.trim().toUpperCase();
+    const to   = tr.querySelector('.at2')?.value?.trim().toUpperCase();
+    if (from && to) m[from] = to;
   });
-  const uzEl = document.getElementById('uz-hint');
-  if (uzEl) uzEl.textContent = t('uz_hint');
-  const hraEl = document.getElementById('cp-hra-lbl'), prodEl = document.getElementById('cp-prod-lbl');
-  if (hraEl) hraEl.textContent = t('cp_hra');
-  if (prodEl) prodEl.textContent = t('cp_prod');
+  window.LINE_ALIAS = m;
+  localStorage.setItem(LS.ALIAS, JSON.stringify(m));
+  rebuildNorm();
   renderAll();
+  toast('✅ Alias 已儲存並重新計算');
+}
+function resetAliases() {
+  if (!confirm('重設為預設 Alias？')) return;
+  window.LINE_ALIAS = {...DEFAULT_ALIASES};
+  localStorage.setItem(LS.ALIAS, JSON.stringify(window.LINE_ALIAS));
+  renderAliasTable();
+  rebuildNorm(); renderAll();
+  toast('✅ 已重設');
 }
 
-// ═══════════════════════════════════════════════════════════
-//  IDB READER (仿 sewing 讀 cutting 的 pattern)
-// ═══════════════════════════════════════════════════════════
-async function readIDB(attempts) {
-  for (const {db, ver, store} of attempts) {
+// ══════════════════════════════════════════════════════════
+//  NAME NORMALIZATION ENGINE
+// ══════════════════════════════════════════════════════════
+const _normCache = new Map();
+
+function normalizeLineName(raw) {
+  if (!raw) return null;
+  const key = String(raw).toUpperCase().trim();
+  if (_normCache.has(key)) return _normCache.get(key);
+  const result = _doNorm(key);
+  _normCache.set(key, result);
+  return result;
+}
+
+function _doNorm(s) {
+  // 1. Clean: remove non-alphanumeric except space, then compress
+  const clean = s.replace(/[^A-Z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+
+  // 2. Check alias table first (exact match)
+  const noSpace = clean.replace(/ /g,'');
+  if (window.LINE_ALIAS[noSpace]) return window.LINE_ALIAS[noSpace];
+  if (window.LINE_ALIAS[clean])   return window.LINE_ALIAS[clean];
+
+  // 3. Skip totals / headers
+  if (/^(GRAND|TOTAL|TTL|ALL|SUM|SUMMARY|HEADER|AVG|AVERAGE)/.test(noSpace)) return null;
+
+  // 4. Standard LINE patterns: LINE1, LINE 1, L1, L01
+  let m;
+  if (m = noSpace.match(/^(?:LINE|L)0*(\d+)$/)) return 'LINE_' + parseInt(m[1]);
+  if (m = clean.match(/^LINE\s*0*(\d+)$/))       return 'LINE_' + parseInt(m[1]);
+
+  // 5. A/B/C prefix: A01, B5, C10
+  if (m = noSpace.match(/^[ABC]0*(\d+)$/)) return 'LINE_' + parseInt(m[1]);
+
+  // 6. APRON / GARMENT
+  if (m = noSpace.match(/^(?:APRON|GARMENT)0*(\d+)$/)) return 'LINE_' + parseInt(m[1]);
+
+  // 7. Known non-sewing depts
+  if (/^CUT/.test(noSpace))   return 'CUT';
+  if (/^QC/.test(noSpace))    return 'QC';
+  if (/^PACK/.test(noSpace))  return 'PACK';
+  if (/^MAINT/.test(noSpace)) return 'MAINT';
+  if (/^ADMIN|OFFICE/.test(noSpace)) return 'ADMIN';
+  if (/^WH|WARE/.test(noSpace))      return 'WH';
+
+  // 8. Partial match: contains LINE + number
+  if (m = noSpace.match(/LINE0*(\d+)/)) return 'LINE_' + parseInt(m[1]);
+
+  // 9. Unmatched
+  return null;
+}
+
+function displayLine(lineId) {
+  if (!lineId) return '?';
+  if (lineId.startsWith('LINE_')) return 'LINE ' + lineId.slice(5);
+  return lineId;
+}
+
+function normalizeDept(raw) {
+  const s = String(raw||'').toUpperCase().replace(/[^A-Z]/g,'');
+  if (/PRODUCT|GARMENT|SEW/.test(s)) return 'Production';
+  if (/QC|QUALITY/.test(s))          return 'QC';
+  if (/CUT/.test(s))                 return 'Cutting';
+  if (/PACK/.test(s))                return 'Packing';
+  if (/MAINT/.test(s))               return 'Maintenance';
+  if (/ADMIN|OFFICE/.test(s))        return 'Admin';
+  if (/WH|WARE/.test(s))             return 'Warehouse';
+  return raw?.trim() || '(other)';
+}
+
+// ══════════════════════════════════════════════════════════
+//  IDB READER (same pattern as sewing reads cutting)
+// ══════════════════════════════════════════════════════════
+async function readIDB(cfgList) {
+  for (const {db, store} of cfgList) {
     try {
       const result = await new Promise(res => {
-        const req = indexedDB.open(db, ver);
-        req.onupgradeneeded = e => {
-          const d = e.target.result;
-          if (!d.objectStoreNames.contains(store))
-            d.createObjectStore(store, {keyPath:'id', autoIncrement:true});
-        };
-        req.onerror  = () => res([]);
-        req.onblocked = () => res([]);
+        const req = indexedDB.open(db);
+        req.onerror = () => res([]);
         req.onsuccess = e => {
           const d = e.target.result;
           if (!d.objectStoreNames.contains(store)) { d.close(); res([]); return; }
-          try {
-            const all = [];
-            const cursor = d.transaction(store,'readonly').objectStore(store).openCursor();
-            cursor.onsuccess = ev => {
-              if (ev.target.result) { all.push(ev.target.result.value); ev.target.result.continue(); }
-              else { d.close(); res(all); }
-            };
-            cursor.onerror = () => { d.close(); res([]); };
-          } catch(e2) { d.close(); res([]); }
+          const all = [];
+          const cursor = d.transaction(store,'readonly').objectStore(store).openCursor();
+          cursor.onsuccess = ev => {
+            if (ev.target.result) { all.push(ev.target.result.value); ev.target.result.continue(); }
+            else { d.close(); res(all); }
+          };
+          cursor.onerror = () => { d.close(); res([]); };
         };
       });
       if (result.length > 0) return result;
@@ -445,828 +533,910 @@ async function readIDB(attempts) {
   return [];
 }
 
-// ═══════════════════════════════════════════════════════════
-//  LOAD ALL DATA
-// ═══════════════════════════════════════════════════════════
-function loadAttFromLS() {
-  try { ATT_DB = JSON.parse(localStorage.getItem(LS_ATT)||'[]'); } catch(e) { ATT_DB = []; }
+// ══════════════════════════════════════════════════════════
+//  DATA LOADERS
+// ══════════════════════════════════════════════════════════
+
+function loadAttLS() {
+  try { COMPLETE_DB.attendance = JSON.parse(localStorage.getItem(LS.ATT)||'[]'); } catch(e){ COMPLETE_DB.attendance=[]; }
 }
-function loadSewFromLS() {
+function loadSewLS() {
   try {
-    SEW_DB = JSON.parse(localStorage.getItem('sewing_prod_v1')||'[]')
-      .filter(r=>r.date&&r.lineNo)
-      .map(r=>({
-        date:r.date, line:normLine(r.lineNo), lineRaw:r.lineNo,
-        section:r.section||'', workers:+r.workers||0,
-        pieces:+r.pieces||0, eff:+r.efficiency||0,
-      }));
-  } catch(e) { SEW_DB = []; }
+    const raw = JSON.parse(localStorage.getItem('sewing_prod_v1')||'[]');
+    COMPLETE_DB.sewing = raw.filter(r=>r.date&&r.lineNo);
+  } catch(e) { COMPLETE_DB.sewing=[]; }
 }
-function loadMatFromLS() {
+function loadMatLS() {
   try {
     const raw = JSON.parse(localStorage.getItem('vrt_maternity_v1')||'{}');
-    MAT_DB = (raw.employees||[]).filter(e=>['pregnant','maternity','returned'].includes(e.status));
-  } catch(e) { MAT_DB = []; }
+    COMPLETE_DB.maternity = (raw.employees||[]).filter(e=>e.status);
+  } catch(e) { COMPLETE_DB.maternity=[]; }
+}
+function loadOnboardLS() {
+  // Try multiple keys used by onboarding HTML
+  for (const key of ['vrt_onboard_v1','vrt_onboarding','vrt_joinresign','ac_hra_onboarding']) {
+    try {
+      const raw = JSON.parse(localStorage.getItem(key)||'[]');
+      if (raw.length) { COMPLETE_DB.onboarding = raw; return; }
+    } catch(e) {}
+  }
 }
 
 async function reloadAll() {
-  cpLog('讀取外部 IDB…');
-  loadAttFromLS();
-  loadSewFromLS();
-  loadMatFromLS();
+  cpLog('🔄 讀取 IDB…');
+  loadAttLS(); loadSewLS(); loadMatLS(); loadOnboardLS();
 
-  // 讀考勤 IDB
-  const attIDB = await readIDB(IDB_ATT);
-  if (attIDB.length > ATT_DB.length) {
-    ATT_DB = attIDB.map(r=>{
-      const rawLine=r.lineNo||r.group||r.section||r.line||'';
-      const lineN=normLine(rawLine);
-      if(!r.date||!rawLine||lineN==='?'||/grand|total|ttl|sum|^all$/i.test(rawLine))return null;
-      return {date:r.date,line:lineN,lineRaw:rawLine,
-        hc:+r.ttl||+r.hc||(+r.m||0)+(+r.f||0)||0,
-        att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
-        ml:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0};
-    }).filter(Boolean);
+  // Attendance IDB
+  const attIDB = await readIDB(IDB_CFG.att);
+  if (attIDB.length > COMPLETE_DB.attendance.length) {
+    COMPLETE_DB.attendance = attIDB;
+    cpLog(`考勤 IDB: ${attIDB.length} 筆`,'ok');
   }
 
-  // 讀車縫 IDB（仿 sewing 讀 cutting）
-  const sewIDB = await readIDB(IDB_SEW);
-  if (sewIDB.length > SEW_DB.length) {
-    SEW_DB = sewIDB.filter(r=>r.date&&r.lineNo).map(r=>({
-      date:r.date, line:normLine(r.lineNo), lineRaw:r.lineNo,
-      section:r.section||'', workers:+r.workers||0,
-      pieces:+r.pieces||0, eff:+r.efficiency||0,
-    }));
+  // Sewing IDB (same as sewing tool reads cutting IDB)
+  const sewIDB = await readIDB(IDB_CFG.sew);
+  if (sewIDB.length > COMPLETE_DB.sewing.length) {
+    COMPLETE_DB.sewing = sewIDB;
+    cpLog(`車縫 IDB: ${sewIDB.length} 筆`,'ok');
   }
 
-  // 讀合約 IDB
-  const contIDB = await readIDB(IDB_CONT);
-  const probIDB = await readIDB(IDB_PROB);
-  // Also try localStorage
-  let contLS=[], probLS=[];
-  try { contLS = JSON.parse(localStorage.getItem('vrt_dashConts')||'[]'); } catch(e){}
-  try { probLS = JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]'); } catch(e){}
-  CONT_DB = contIDB.length ? contIDB : contLS;
-  PROB_DB = probIDB.length ? probIDB : probLS;
+  // Contract IDB
+  const contIDB = await readIDB(IDB_CFG.cont);
+  let contLS=[]; try{ contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]'); }catch(e){}
+  COMPLETE_DB.contract = contIDB.length ? contIDB : contLS;
 
-  rebuildPeriods();
+  const probIDB = await readIDB(IDB_CFG.prob);
+  let probLS=[]; try{ probLS=JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]'); }catch(e){}
+  COMPLETE_DB.probation = probIDB.length ? probIDB : probLS;
+
+  rebuildNorm();
   renderAll();
-  updateCfgKpis();
-  cpLog(`完成：考勤${ATT_DB.length} 車縫${SEW_DB.length} 合約${CONT_DB.length} 孕假${MAT_DB.length}`,'ok');
+  updateSrcKpi();
 }
 
-// ═══════════════════════════════════════════════════════════
-//  GAS PULL（仿 sewing vcAutoSync 的 chunked 模式）
-// ═══════════════════════════════════════════════════════════
-async function doPull() {
-  const hraUrl  = localStorage.getItem(LS_HRA_GAS)||'';
-  const prodUrl = localStorage.getItem(LS_PROD_GAS)||'';
-  if (!hraUrl && !prodUrl) { toast('請先在雲端設定填入 GAS URL'); return; }
+// ══════════════════════════════════════════════════════════
+//  GAS PULL (chunked, same as sewing vcAutoSync)
+// ══════════════════════════════════════════════════════════
+async function doLoad() {
+  const hraUrl  = localStorage.getItem(LS.HRA_GAS)||'';
+  const prodUrl = localStorage.getItem(LS.PROD_GAS)||'';
+  setST('☁ 讀取中…');
 
-  setSyncTip('☁ 拉取中…');
-  let total = 0;
+  // Read IDB first (local, no network)
+  await reloadAll();
 
-  // ── 拉取考勤（HRA GAS）──
+  // Then try cloud pull
   if (hraUrl) {
-    try {
-      const attData = await pullTool(hraUrl, 'attendance');
-      if (attData.length) {
-        ATT_DB = attData.map(r=>{
-          const rawLine=r.lineNo||r.group||r.section||r.line||'';
-          const lineN=normLine(rawLine);
-          if(!r.date||!rawLine||lineN==='?'||/grand|total|ttl|^all$/i.test(rawLine))return null;
-          return {date:r.date,line:lineN,lineRaw:rawLine,
-            hc:+r.ttl||+r.hc||(+r.m||0)+(+r.f||0)||0,
-            att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
-            ml:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0};
-        }).filter(Boolean);
-        saveAttLS();
-        total += ATT_DB.length;
-        cpLog(`考勤 ${ATT_DB.length} 筆 ✓`, 'ok');
-      }
-    } catch(e) { cpLog('考勤拉取失敗：' + e.message); }
-
-    // 拉取合約
-    try {
-      const contData = await pullTool(hraUrl, 'contract');
-      if (contData.length) { CONT_DB = contData; cpLog(`合約 ${CONT_DB.length} 筆 ✓`, 'ok'); }
-    } catch(e) { cpLog('合約拉取失敗：' + e.message); }
-
-    // 拉取孕假
-    try {
-      const matData = await pullTool(hraUrl, 'maternity');
-      if (matData.length) {
-        MAT_DB = matData.filter(e=>['pregnant','maternity','returned'].includes(e.status));
-        cpLog(`孕假 ${MAT_DB.length} 人 ✓`, 'ok');
-      }
-    } catch(e) { cpLog('孕假拉取失敗：' + e.message); }
+    for (const tool of ['attendance','contract','maternity']) {
+      try {
+        const data = await pullTool(hraUrl, tool);
+        if (data.length) {
+          if (tool==='attendance') COMPLETE_DB.attendance = data;
+          if (tool==='contract')   COMPLETE_DB.contract   = data;
+          if (tool==='maternity')  COMPLETE_DB.maternity  = (data.employees||data).filter(e=>e.status);
+          cpLog(`${tool}: ${data.length} 筆 ✓`, 'ok');
+        }
+      } catch(e) { cpLog(`${tool}: ${e.message}`); }
+    }
   }
-
-  // ── 拉取車縫（Production GAS）──
   if (prodUrl) {
     try {
-      const sewData = await pullTool(prodUrl, 'sewing');
-      if (sewData.length) {
-        SEW_DB = sewData.filter(r=>r.date&&r.lineNo).map(r=>({
-          date:r.date, line:normLine(r.lineNo), lineRaw:r.lineNo,
-          section:r.section||'', workers:+r.workers||0,
-          pieces:+r.pieces||0, eff:+r.efficiency||0,
-        }));
-        total += SEW_DB.length;
-        cpLog(`車縫 ${SEW_DB.length} 筆 ✓`, 'ok');
-      }
-    } catch(e) { cpLog('車縫拉取失敗（Production GAS）：' + e.message); }
+      const data = await pullTool(prodUrl, 'sewing');
+      if (data.length) { COMPLETE_DB.sewing = data; cpLog(`車縫: ${data.length} 筆 ✓`,'ok'); }
+    } catch(e) { cpLog(`車縫: ${e.message}`); }
   }
 
-  rebuildPeriods();
+  rebuildNorm();
   renderAll();
-  updateCfgKpis();
-  const ts = new Date().toLocaleTimeString();
-  setSyncTip(`☁ 同步完成 ${ts}`, 'ok');
-  toast(`✅ 拉取完成，共 ${total} 筆`);
+  updateSrcKpi();
+  setST(`✓ ${new Date().toLocaleTimeString()}`, 'ok');
+  toast('✅ 資料讀取完成');
 }
 
-// GAS chunked pull（與 sewing 一樣的 meta+chunk 模式）
 async function pullTool(gasUrl, tool) {
-  const mr = await fetch(`${gasUrl}?action=pull&tool=${tool}&meta=1`, {method:'GET', redirect:'follow'});
+  const mr = await fetch(`${gasUrl}?action=pull&tool=${tool}&meta=1`, {method:'GET',redirect:'follow'});
   const md = await mr.json();
   if (!md.ok || !md.data) return [];
-
   if (md.data.chunked) {
-    const total = md.data.meta.totalChunks;
+    const tot = md.data.meta?.totalChunks||1;
     let all = [];
-    for (let i = 0; i < total; i++) {
-      for (let t2 = 0; t2 < 3; t2++) {
+    for (let i=0;i<tot;i++) {
+      for (let t=0;t<3;t++) {
         try {
-          const cr = await fetch(`${gasUrl}?action=pull&tool=${tool}&chunk=${i}`, {method:'GET', redirect:'follow'});
+          const cr = await fetch(`${gasUrl}?action=pull&tool=${tool}&chunk=${i}`,{method:'GET',redirect:'follow'});
           const cd = await cr.json();
-          if (cd.ok) { all = all.concat(cd.data.records||[]); break; }
-        } catch(e) { if (t2===2) throw e; await new Promise(r=>setTimeout(r,2000)); }
+          if (cd.ok) { all=all.concat(cd.data.records||[]); break; }
+        } catch(e) { if(t===2)throw e; await new Promise(r=>setTimeout(r,2000)); }
       }
     }
     return all;
   }
-  // Non-chunked
-  const payload = md.data.data;
-  if (!payload) return [];
-  if (payload.records) return payload.records;
-  const lsKey = {attendance:'vrt_att_v5_db', sewing:'sewing_prod_v1', maternity:'vrt_maternity_v1'}[tool];
-  if (lsKey && payload.lsKeys?.[lsKey]) return JSON.parse(payload.lsKeys[lsKey]);
+  const pay = md.data.data||md.data;
+  if (pay.records) return pay.records;
   return [];
 }
 
-async function doPush() {
-  const url = localStorage.getItem(LS_HRA_GAS)||'';
+async function doSave() {
+  const url = localStorage.getItem(LS.HRA_GAS)||'';
   if (!url) { toast('請先設定 HRA GAS URL'); return; }
-  setSyncTip('☁ 推送中…');
+  setST('☁ 推送…');
   try {
-    const r = await fetch(url, {
-      method:'POST', redirect:'follow',
+    const r = await fetch(url,{method:'POST',redirect:'follow',
       headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({action:'complete_push', tool:'complete', attDb:ATT_DB, timestamp:new Date().toISOString()}),
+      body:JSON.stringify({action:'complete_push',tool:'complete',attDb:COMPLETE_DB.attendance,ts:new Date().toISOString()})});
+    if(r.ok){toast('✅ 推送成功');setST('✓ 已推送','ok');}
+    else toast('❌ 推送失敗：'+r.status);
+  }catch(e){toast('❌ '+e.message);setST('');}
+}
+
+// ══════════════════════════════════════════════════════════
+//  NORMALIZATION ENGINE (rebuilds normalized records)
+// ══════════════════════════════════════════════════════════
+function rebuildNorm() {
+  _normCache.clear();
+  _unmatchedHard.clear();
+  _unmatchedHist.clear();
+  _attNorm = [];
+  _sewNorm = [];
+  _joinNorm= [];
+  _matByLine = new Map();
+
+  // ── Attendance normalization ──
+  for (const r of COMPLETE_DB.attendance) {
+    const rawLine = r.lineNo||r.group||r.section||r.line||'';
+    if (!rawLine || !r.date) continue;
+    const lineId = normalizeLineName(rawLine);
+    if (!lineId) {
+      // Track unmatched
+      const hist = /\d{2,}/.test(rawLine) && parseInt(rawLine.replace(/\D/g,''))>=19;
+      if (hist) _unmatchedHist.add(rawLine);
+      else _unmatchedHard.add(rawLine);
+      continue;
+    }
+    _attNorm.push({
+      date   : String(r.date).slice(0,10),
+      lineId,
+      lineRaw: rawLine,
+      hc  : +r.ttl||+r.hc||(+r.m||0)+(+r.f||0)||0,
+      att : +r.att||0,
+      join: +r.join||0,
+      resign:+r.resign||0,
+      ml  : +r.ml||0,
+      al  : +r.al||0,
+      pl  : +r.pl||0,
+      sl  : +r.sl||0,
+      np  : +r.np||0,
     });
-    if (r.ok) { toast('✅ 推送成功'); setSyncTip('☁ 推送完成', 'ok'); }
-    else toast('❌ 推送失敗：' + r.status);
-  } catch(e) { toast('❌ ' + e.message); setSyncTip(''); }
-}
-
-// ═══════════════════════════════════════════════════════════
-//  LINE / DEPT NORMALISATION
-// ═══════════════════════════════════════════════════════════
-function normLine(s) {
-  const v = String(s||'').toLowerCase()
-    .replace(/[^\w\d]/g,'').replace(/^garment/,'').replace(/^sewing/,'')
-    .replace(/^apron/,'ap').replace(/^cutting/,'cut')
-    .replace(/^line/,'').replace(/^l0*/,'');
-  const num = parseInt(v, 10);
-  if (!isNaN(num) && num > 0 && num <= 60) return 'L' + num;
-  const ma = v.match(/^([a-z])0*(\d+)$/);
-  if (ma) return ma[1].toUpperCase() + parseInt(ma[2], 10);
-  if(v.length>=1&&v.length<=10) return v.slice(0,10).toUpperCase();
-  return '?';
-}
-function normDept(s) {
-  const v = String(s||'').toLowerCase();
-  if (/product|garment|sewing/i.test(v)) return 'Production';
-  if (/qc|quality/i.test(v)) return 'QC';
-  if (/cut/i.test(v)) return 'Cutting';
-  if (/maint|mech/i.test(v)) return 'Maintenance';
-  if (/office|admin/i.test(v)) return 'Admin';
-  if (/pack/i.test(v)) return 'Packing';
-  if (/store|ware/i.test(v)) return 'Warehouse';
-  return String(s||'').trim() || '(other)';
-}
-
-// ── 期間聚合輔助（月/週/年→每日平均，日→合計）──────────
-function aggHC(recs, line) {
-  const lr = line ? recs.filter(r=>r.line===line) : recs;
-  if (!lr.length) return 0;
-  const byDate = {};
-  lr.forEach(r => { byDate[r.date] = (byDate[r.date]||0) + (+r.hc||0); });
-  const days = Object.keys(byDate).length;
-  return Math.round(Object.values(byDate).reduce((s,v)=>s+v,0) / Math.max(1,days));
-}
-function aggSewW(recs, line) {
-  const lr = line ? recs.filter(r=>r.line===line) : recs;
-  if (!lr.length) return 0;
-  const byDate = {};
-  lr.forEach(r => { byDate[r.date] = (byDate[r.date]||0) + (+r.workers||0); });
-  const days = Object.keys(byDate).length;
-  return Math.round(Object.values(byDate).reduce((s,v)=>s+v,0) / Math.max(1,days));
-}
-// ═══════════════════════════════════════════════════════════
-//  PERIOD HELPERS
-// ═══════════════════════════════════════════════════════════
-function periodKey(d, mode) {
-  if (!d) return '?';
-  if (mode === 'day')   return String(d).slice(0,10);
-  if (mode === 'month') return String(d).slice(0,7);
-  if (mode === 'year')  return String(d).slice(0,4);
-  if (mode === 'week') {
-    const dt = new Date(d), jan = new Date(dt.getFullYear(),0,1);
-    const w = Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);
-    return `${dt.getFullYear()}-W${String(w).padStart(2,'0')}`;
   }
-  return String(d).slice(0,10);
-}
-function allDates() {
-  return [
-    ...ATT_DB.map(r=>r.date), ...SEW_DB.map(r=>r.date),
-    ...CONT_DB.map(r=>r.entryDate).filter(Boolean),
-    ...MAT_DB.filter(e=>e.leaveStart).map(e=>e.leaveStart),
-  ].filter(Boolean);
-}
-function buildList(mode) {
-  return [...new Set(allDates().map(d=>periodKey(d,mode)).filter(k=>k!=='?'))].sort();
-}
-function rebuildPeriods() {
-  for (const [k,P] of Object.entries(PS)) {
-    P.list = buildList(P.m);
-    if (P.idx < 0 || P.idx >= P.list.length) P.idx = Math.max(0, P.list.length-1);
+
+  // ── Sewing normalization ──
+  for (const r of COMPLETE_DB.sewing) {
+    const rawLine = r.lineNo||r.group||r.section||'';
+    if (!rawLine || !r.date) continue;
+    const lineId = normalizeLineName(rawLine);
+    if (!lineId) continue;
+    _sewNorm.push({
+      date   : String(r.date).slice(0,10),
+      lineId,
+      lineRaw: rawLine,
+      workers: +r.workers||0,
+      pieces : +r.pieces||0,
+      eff    : +r.efficiency||+r.eff||0,
+    });
   }
-}
-function curKey(pk) {
-  const P = PS[pk];
-  return P.list[Math.max(0,Math.min(P.idx,P.list.length-1))] || null;
-}
-function pLabel(key, mode) {
-  if (!key) return '—';
-  if (mode==='week') { const [y,w]=key.split('-W'); return `${y} W${parseInt(w)}`; }
-  if (mode==='month') { const [y,m]=key.split('-'); const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]; return `${y} ${mn}`; }
-  return key;
-}
-function inP(d, pk) {
-  const k = curKey(pk); if (!k||!d) return true;
-  return periodKey(d, PS[pk].m) === k;
+
+  // ── Onboarding/Contract normalization ──
+  for (const r of COMPLETE_DB.onboarding||[]) {
+    const rawLine = r.dept||r.section||r.lineNo||'';
+    const lineId  = normalizeLineName(rawLine)||normalizeDept(rawLine);
+    if (r.joinDate||r.entryDate)
+      _joinNorm.push({date:(r.joinDate||r.entryDate||'').slice(0,10), lineId, type:'join', name:r.name||''});
+    if (r.resignDate||r.leaveDate)
+      _joinNorm.push({date:(r.resignDate||r.leaveDate||'').slice(0,10), lineId, type:'resign', name:r.name||''});
+  }
+  for (const r of COMPLETE_DB.contract||[]) {
+    const rawLine = r.section||r.dept||'';
+    const lineId  = normalizeLineName(rawLine)||normalizeDept(r.dept||'');
+    if (r.entryDate)
+      _joinNorm.push({date:String(r.entryDate).slice(0,10), lineId, type:'join', name:r.name||''});
+  }
+
+  // ── Maternity by line ──
+  for (const e of COMPLETE_DB.maternity||[]) {
+    const rawLine = e.section||e.dept||'';
+    const lineId  = normalizeLineName(rawLine)||normalizeDept(e.dept||'');
+    if (!lineId) continue;
+    if (!_matByLine.has(lineId)) _matByLine.set(lineId, {preg:0,mat:0,ret:0});
+    const v = _matByLine.get(lineId);
+    if (e.status==='pregnant')  v.preg++;
+    if (e.status==='maternity') v.mat++;
+    if (e.status==='returned')  v.ret++;
+  }
+
+  // Update unmatched badge
+  const total = _unmatchedHard.size + _unmatchedHist.size;
+  const umEl = document.getElementById('um-cnt');
+  if (umEl) { umEl.textContent=total; umEl.style.display=total?'':'none'; }
+
+  rebuildPeriods();
 }
 
-// Period bar HTML
-function pbarHtml(pk, onChangeFn) {
-  const P = PS[pk], cur = curKey(pk);
-  const modes = ['day','week','month','year'];
-  const labels = [t('pDay'), t('pWeek'), t('pMonth'), t('pYear')];
-  const periodOpts = P.list.map(k => `<option value="${k}"${k===cur?' selected':''}>${pLabel(k,P.m)}</option>`).join('');
-  const lineOpts = getAllLines().map(l=>`<option${getSavedFilter(pk,'line')===l?' selected':''}>${l}</option>`).join('');
-  const deptOpts = getAllDepts().map(d=>`<option${getSavedFilter(pk,'dept')===d?' selected':''}>${d}</option>`).join('');
-  return `
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      ${modes.map((m,i)=>`<button class="ptab${P.m===m?' on':''}" onclick="setPM('${pk}','${m}')">${labels[i]}</button>`).join('')}
-      <button class="pnav" onclick="navP('${pk}',-1)">◀</button>
-      <select class="psel" id="sel-period-${pk}" style="min-width:100px" onchange="jumpPeriod('${pk}',this.value)">
-        ${periodOpts||'<option>—</option>'}
-      </select>
-      <button class="pnav" onclick="navP('${pk}',1)">▶</button>
+// ══════════════════════════════════════════════════════════
+//  AGGREGATION ENGINE (Attendance = primary baseline)
+// ══════════════════════════════════════════════════════════
 
-      <select class="psel" id="sel-line-${pk}" onchange="saveFilter('${pk}','line',this.value);${onChangeFn}">
-        <option value="">— ${t('line')} —</option>
-        ${lineOpts}
-      </select>
-      <select class="psel" id="sel-dept-${pk}" onchange="saveFilter('${pk}','dept',this.value);${onChangeFn}">
-        <option value="">— ${t('dept')} —</option>
-        ${deptOpts}
-      </select>
-      <button class="hbtn" style="background:${VIEW==='card'?'var(--navy)':'transparent'};color:${VIEW==='card'?'#fff':'var(--gray)'};border-color:var(--brd2);font-size:10px" onclick="VIEW=VIEW==='card'?'table':'card';renderAll()">
-        ${VIEW==='card'?t('card'):t('table')}
-      </button>
-    </div>`;
-}
-const _filters = {};
-function saveFilter(pk,type,val){if(!_filters[pk])_filters[pk]={};_filters[pk][type]=val;}
-function getSavedFilter(pk,type){return _filters[pk]?.[type]||'';}
-function jumpPeriod(pk,key){const P=PS[pk],i=P.list.indexOf(key);if(i>=0){P.idx=i;renderPk(pk);}}
-function setPM(pk, mode) { PS[pk].m=mode; PS[pk].list=buildList(mode); PS[pk].idx=Math.max(0,PS[pk].list.length-1); renderPk(pk); }
-function navP(pk, d) { const P=PS[pk]; P.idx=Math.max(0,Math.min(P.idx+d,P.list.length-1)); renderPk(pk); }
-function renderPk(pk) { if(pk==='sum')renderSum(); else if(pk==='as')renderAS(); else if(pk==='ac')renderAC(); else if(pk==='am')renderAM(); }
-
-function getAllLines() {
-  return [...new Set([...ATT_DB.map(r=>r.line),...SEW_DB.map(r=>r.line)])].sort((a,b)=>{
-    const na=parseInt(a.slice(1)||0), nb=parseInt(b.slice(1)||0); return na-nb||a.localeCompare(b);
-  });
-}
-function getAllDepts() {
-  return [...new Set([...ATT_DB.map(r=>normDept(r.lineRaw||r.line)),...CONT_DB.map(r=>normDept(r.dept||'')),...MAT_DB.map(e=>normDept(e.dept||''))])].sort();
-}
-
-function getLineFilter(pk)  { return getSavedFilter(pk,'line'); }
-function getDeptFilter(pk)  { return getSavedFilter(pk,'dept'); }
-
-// ═══════════════════════════════════════════════════════════
-//  AGG
-// ═══════════════════════════════════════════════════════════
-function aggA(recs) {
+// For a lineId in a period: average daily headcount
+function getAttStats(lineId, dates) {
+  const recs = lineId
+    ? _attNorm.filter(r=>r.lineId===lineId && dates.has(r.date))
+    : _attNorm.filter(r=>dates.has(r.date));
+  if (!recs.length) return {hc:0,att:0,join:0,resign:0,ml:0,days:0};
+  const byDate = new Map();
+  for (const r of recs) {
+    if (!byDate.has(r.date)) byDate.set(r.date,{hc:0,att:0,join:0,resign:0,ml:0});
+    const v = byDate.get(r.date);
+    v.hc+=r.hc; v.att+=r.att; v.join+=r.join; v.resign+=r.resign; v.ml+=r.ml;
+  }
+  const days = byDate.size;
+  const vals = [...byDate.values()];
   return {
-    hc: recs.reduce((s,r)=>s+(+r.hc||0),0),
-    att: recs.reduce((s,r)=>s+(+r.att||0),0),
-    join: recs.reduce((s,r)=>s+(+r.join||0),0),
-    resign: recs.reduce((s,r)=>s+(+r.resign||0),0),
-    ml: recs.reduce((s,r)=>s+(+r.ml||0),0),
-    days: new Set(recs.map(r=>r.date)).size,
+    hc    : Math.round(vals.reduce((s,v)=>s+v.hc,0)/days),
+    att   : Math.round(vals.reduce((s,v)=>s+v.att,0)/days),
+    join  : vals.reduce((s,v)=>s+v.join,0),
+    resign: vals.reduce((s,v)=>s+v.resign,0),
+    ml    : vals.reduce((s,v)=>s+v.ml,0),
+    days,
   };
 }
-function aggS(recs) {
+
+function getSewStats(lineId, dates) {
+  const recs = lineId
+    ? _sewNorm.filter(r=>r.lineId===lineId && dates.has(r.date))
+    : _sewNorm.filter(r=>dates.has(r.date));
+  if (!recs.length) return {workers:0,pieces:0,eff:0,days:0};
+  const byDate = new Map();
+  for (const r of recs) {
+    if (!byDate.has(r.date)) byDate.set(r.date,{workers:0,pieces:0,eff:0,cnt:0});
+    const v = byDate.get(r.date);
+    v.workers+=r.workers; v.pieces+=r.pieces; v.eff+=r.eff; v.cnt++;
+  }
+  const days = byDate.size;
+  const vals = [...byDate.values()];
   return {
-    workers: recs.reduce((s,r)=>s+(+r.workers||0),0),
-    pieces: recs.reduce((s,r)=>s+(+r.pieces||0),0),
-    eff: recs.length ? (recs.reduce((s,r)=>s+(+r.eff||0),0)/recs.length).toFixed(1) : '—',
-    days: new Set(recs.map(r=>r.date)).size,
+    workers: Math.round(vals.reduce((s,v)=>s+v.workers,0)/days),
+    pieces : vals.reduce((s,v)=>s+v.pieces,0),
+    eff    : vals.length? (vals.reduce((s,v)=>s+v.eff,0)/vals.length).toFixed(1) : 0,
+    days,
   };
 }
-function diffCls(diff, base) {
-  if (!base) return 'muted'; const p=Math.abs(diff)/base*100;
-  return p<=3?'ok':p<=10?'warn':'bad';
+
+function getJoinStats(lineId, dates) {
+  const recs = lineId
+    ? _joinNorm.filter(r=>r.lineId===lineId && dates.has(r.date))
+    : _joinNorm.filter(r=>dates.has(r.date));
+  return {
+    join  : recs.filter(r=>r.type==='join').length,
+    resign: recs.filter(r=>r.type==='resign').length,
+  };
+}
+
+function getMatStats(lineId) {
+  if (lineId) return _matByLine.get(lineId)||{preg:0,mat:0,ret:0};
+  let preg=0,mat=0,ret=0;
+  _matByLine.forEach(v=>{preg+=v.preg;mat+=v.mat;ret+=v.ret;});
+  return {preg,mat,ret};
+}
+
+// Diff classification
+function dc(diff, base) {
+  if (!base||base===0) return 'na';
+  const a = Math.abs(diff);
+  return a<=1?'ok':a<=3?'warn':'bad';
 }
 function diffBadge(d) {
-  const s=d>=0?'+':'', cls=d===0?'ok':Math.abs(d)<=5?'warn':'bad';
+  const s=d>=0?'+':'';
+  const cls=d===0?'ok':Math.abs(d)<=3?'warn':'bad';
   return `<span class="badge ${cls}">${s}${d}</span>`;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  TAB 1：總表
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  PERIOD SYSTEM
+// ══════════════════════════════════════════════════════════
+const PS = {
+  sum:{m:'month',idx:0,list:[]},
+  as: {m:'day',  idx:0,list:[]},
+  ac: {m:'month',idx:0,list:[]},
+  am: {m:'month',idx:0,list:[]},
+  uni:{m:'month',idx:0,list:[]},
+};
+
+function pKey(date, mode) {
+  const d = String(date||'').slice(0,10);
+  if (!d||d==='?') return null;
+  if (mode==='day')   return d;
+  if (mode==='month') return d.slice(0,7);
+  if (mode==='year')  return d.slice(0,4);
+  if (mode==='week') {
+    const dt=new Date(d), jan=new Date(dt.getFullYear(),0,1);
+    const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);
+    return `${dt.getFullYear()}-W${String(w).padStart(2,'0')}`;
+  }
+  return d.slice(0,7);
+}
+
+function rebuildPeriods() {
+  const allDates = [...new Set([..._attNorm.map(r=>r.date),..._sewNorm.map(r=>r.date),..._joinNorm.map(r=>r.date)].filter(Boolean))];
+  for (const [pk,P] of Object.entries(PS)) {
+    const keys = [...new Set(allDates.map(d=>pKey(d,P.m)).filter(Boolean))].sort();
+    P.list = keys;
+    if (P.idx<0||P.idx>=keys.length) P.idx=Math.max(0,keys.length-1);
+  }
+}
+
+function getDates(pk) {
+  const P=PS[pk], key=P.list[P.idx];
+  if (!key) return new Set();
+  return new Set([..._attNorm.map(r=>r.date),..._sewNorm.map(r=>r.date)].filter(d=>pKey(d,P.m)===key));
+}
+function curKey(pk){ const P=PS[pk]; return P.list[Math.max(0,Math.min(P.idx,P.list.length-1))]||null; }
+function pLabel(key,mode) {
+  if (!key) return '—';
+  if (mode==='week') { const[y,w]=key.split('-W'); return `${y} W${parseInt(w)}`; }
+  if (mode==='month') { const[y,m]=key.split('-'); const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]||m; return `${y} ${mn}`; }
+  return key;
+}
+
+function setPM(pk,m) {
+  PS[pk].m=m;
+  rebuildPeriods();
+  renderPk(pk);
+}
+function navP(pk,d) {
+  const P=PS[pk];
+  P.idx=Math.max(0,Math.min(P.idx+d,P.list.length-1));
+  renderPk(pk);
+}
+function jumpP(pk,key) {
+  const P=PS[pk], i=P.list.indexOf(key);
+  if(i>=0){P.idx=i;renderPk(pk);}
+}
+function renderPk(pk){
+  if(pk==='sum')renderSum();
+  else if(pk==='as') renderAS();
+  else if(pk==='ac') renderAC();
+  else if(pk==='am') renderAM();
+  else if(pk==='uni')renderUnified();
+}
+
+function getAllLines() {
+  return [...new Set([..._attNorm.map(r=>r.lineId),..._sewNorm.map(r=>r.lineId)].filter(Boolean))]
+    .sort((a,b)=>{ const na=parseInt(a.slice(5)||0),nb=parseInt(b.slice(5)||0); return na-nb||a.localeCompare(b); });
+}
+
+function pbarHtml(pk, extraSel='') {
+  const P=PS[pk], cur=curKey(pk);
+  const modes=['day','week','month','year'];
+  const mLabels=[t('pDay'),t('pWeek'),t('pMonth'),t('pYear')];
+  const opts=P.list.map(k=>`<option value="${k}"${k===cur?' selected':''}>${pLabel(k,P.m)}</option>`).join('');
+  const lines=getAllLines();
+  return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    ${modes.map((m,i)=>`<button class="pt${P.m===m?' on':''}" onclick="setPM('${pk}','${m}')">${mLabels[i]}</button>`).join('')}
+    <button class="pnav" onclick="navP('${pk}',-1)">◀</button>
+    <select class="psel" style="min-width:100px" onchange="jumpP('${pk}',this.value)">
+      ${opts||'<option>—</option>'}
+    </select>
+    <button class="pnav" onclick="navP('${pk}',1)">▶</button>
+    <select class="psel" id="lf-${pk}" onchange="renderPk('${pk}')">
+      <option value="">— LINE —</option>
+      ${lines.map(l=>`<option value="${l}">${displayLine(l)}</option>`).join('')}
+    </select>
+    ${extraSel}
+    <button class="hb" style="background:${VIEW==='card'?'var(--navy)':'transparent'};color:${VIEW==='card'?'#fff':'var(--gray)'};border-color:var(--brd);font-size:10px" onclick="VIEW=VIEW==='card'?'table':'card';renderAll()">
+      ${VIEW==='card'?'🃏':'📋'} ${t(VIEW==='card'?'card':'table')}
+    </button>
+  </div>`;
+}
+function getLF(pk){ return document.getElementById('lf-'+pk)?.value||''; }
+
+// ══════════════════════════════════════════════════════════
+//  COMPARE FUNCTIONS
+// ══════════════════════════════════════════════════════════
+function compareAttendanceVsSewing(lineId, dates) {
+  const a=getAttStats(lineId,dates), s=getSewStats(lineId,dates);
+  const diff=a.hc-s.workers;
+  return {attHC:a.hc, sewW:s.workers, diff, diffCls:dc(diff,a.hc), attAtt:a.att, eff:s.eff, pieces:s.pieces};
+}
+function compareAttendanceVsOnboarding(lineId, dates) {
+  const a=getAttStats(lineId,dates), j=getJoinStats(lineId,dates);
+  const jDiff=a.join-j.join, rDiff=a.resign-j.resign;
+  return {attJoin:a.join, contJoin:j.join, jDiff, jDiffCls:dc(jDiff,a.join),
+          attResign:a.resign, contResign:j.resign, rDiff, rDiffCls:dc(rDiff,a.resign)};
+}
+function compareAttendanceVsMaternity(lineId) {
+  const m=getMatStats(lineId);
+  return {preg:m.preg, mat:m.mat, ret:m.ret, total:m.preg+m.mat};
+}
+
+// ══════════════════════════════════════════════════════════
+//  RENDER: TOTAL SUMMARY
+// ══════════════════════════════════════════════════════════
+let _chart=null;
+let VIEW='card';
 function renderSum() {
-  document.getElementById('sum-pbar').innerHTML = pbarHtml('sum','renderSum()');
-  const cur = curKey('sum'), P = PS.sum;
-  const aAll=aggA(ATT_DB); const aAvgDays=aAll.days||1;
-  const sAll=aggS(SEW_DB);
-  const matAct=MAT_DB.filter(e=>e.status==='maternity').length;
-  const matPrg=MAT_DB.filter(e=>e.status==='pregnant').length;
-  const contN=CONT_DB.filter(c=>!c.status||c.status==='active').length;
-  const probN=PROB_DB.filter(p=>p.result==='pending').length;
+  document.getElementById('pbar-sum').innerHTML=pbarHtml('sum');
+  const pk='sum', cur=curKey(pk), P=PS[pk];
+  const dates=getDates(pk);
+  const lf=getLF(pk);
+
+  const aAll=getAttStats(lf,dates);
+  const sAll=getSewStats(lf,dates);
+  const mAll=getMatStats(lf);
+  const jAll=getJoinStats(lf,dates);
+  const contN=COMPLETE_DB.contract?.length||0;
+  const probN=COMPLETE_DB.probation?.length||0;
+  const diff=aAll.hc-sAll.workers;
+  const diffCls=dc(diff,aAll.hc);
+
   document.getElementById('kpi-sum').innerHTML=[
-    {l:t('attHC'),  v:aAll.days?Math.round(aAll.hc/aAll.days):'—', s:`${aAll.days}天`, c:'nv'},
-    {l:t('sewWk'),  v:sAll.days?Math.round(sAll.workers/sAll.days):'—', s:`${SEW_DB.length}筆`, c:'tl'},
-    {l:t('contract'),v:contN||'—', s:`${t('probation')} ${probN}`, c:'gd'},
-    {l:t('preg')+'/'+t('mat'), v:(matPrg+matAct)||'—', s:`🤰${matPrg} 🍼${matAct}`, c:'pu'},
-    {l:t('join')+'/'+t('resign'), v:aAll.join||'—', s:`↓${aAll.resign}`, c:'gn'},
+    {l:'考勤在職 (均)',v:aAll.hc||'—',s:`${aAll.days}天`,c:'nv'},
+    {l:'車縫工人 (均)',v:sAll.workers||'—',s:`${sAll.days}天`,c:'tl'},
+    {l:'考勤-車縫 差',v:aAll.hc&&sAll.workers?(diff>=0?'+':'')+diff:'—',s:diffCls==='ok'?'✓ 吻合':diffCls==='warn'?'⚠ 略差':'✗ 差異',c:diffCls==='ok'?'gn':diffCls==='warn'?'gd':'rd'},
+    {l:'孕婦/產假',v:(mAll.preg+mAll.mat)||'—',s:`🤰${mAll.preg} 🍼${mAll.mat}`,c:'pu'},
+    {l:'合約/試用',v:contN?`${contN}/${probN}`:'—',s:'新進'+jAll.join+' 離職'+jAll.resign,c:'gd'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');
 
-  if (!cur) { document.getElementById('sum-detail').innerHTML='<div style="color:var(--gray);padding:20px;text-align:center">無資料 — 請匯入考勤 Excel 或拉取雲端</div>'; return; }
-  const lf=getLineFilter('sum'), df=getDeptFilter('sum');
-  const attR=ATT_DB.filter(r=>inP(r.date,'sum')&&(!lf||r.line===lf)&&(!df||normDept(r.lineRaw||r.line)===df));
-  const sewR=SEW_DB.filter(r=>inP(r.date,'sum')&&(!lf||r.line===lf));
-  const contJ=CONT_DB.filter(r=>r.entryDate&&inP(r.entryDate,'sum'));
-  const matR=MAT_DB.filter(e=>e.leaveStart&&inP(e.leaveStart,'sum'));
-  const agg_a=aggA(attR), agg_s=aggS(sewR);
-  const allLines=[...new Set([...attR.map(r=>r.line),...sewR.map(r=>r.line)])].filter(l=>l&&l!=='?').sort((a,b)=>parseInt(a.slice(1)||0)-parseInt(b.slice(1)||0));
-
+  // Per-line cards
+  const lines=getAllLines().filter(l=>!lf||l===lf);
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
     html+=`<div class="card"><div class="card-hd">📊 ${pLabel(cur,P.m)}</div>
-      <div class="row"><span class="lbl">${t('attHC')}</span><span class="val">${agg_a.hc}</span></div>
-      <div class="row"><span class="lbl">${t('sewWk')}</span><span class="val">${agg_s.workers}</span></div>
-      <div class="row"><span class="lbl">${t('diff')}</span><span class="val">${diffBadge(agg_a.hc-agg_s.workers)}</span></div>
-      <div class="row"><span class="lbl">${t('join')}</span><span class="val">${agg_a.join} / ${contJ.length}</span></div>
-      <div class="row"><span class="lbl">${t('resign')}</span><span class="val">${agg_a.resign}</span></div>
-      <div class="row"><span class="lbl">${t('mat')}</span><span class="val">${matR.length}</span></div>
+      <div class="row"><span class="l">考勤在職</span><span class="v">${aAll.hc||'—'}</span></div>
+      <div class="row"><span class="l">車縫工人</span><span class="v">${sAll.workers||'—'}</span></div>
+      <div class="row"><span class="l">差異</span><span class="v">${diffBadge(diff)}</span></div>
+      <div class="row"><span class="l">新進/離職</span><span class="v">${aAll.join}/${aAll.resign}</span></div>
+      <div class="row"><span class="l">孕婦/產假</span><span class="v">${mAll.preg}/${mAll.mat}</span></div>
+      <div class="row"><span class="l">合約/試用</span><span class="v">${contN}/${probN}</span></div>
     </div>`;
-    allLines.slice(0,24).forEach(line=>{
-      const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
-      const diff=lahc-lsw, dc=diffCls(diff,Math.max(lahc,lsw));
-      html+=`<div class="card"><div class="card-hd"><span class="dot ${dc}"></span> ${line}</div>
-        <div class="row"><span class="lbl">${t('attHC')}</span><span class="val">${lahc}</span></div>
-        <div class="row"><span class="lbl">${t('sewWk')}</span><span class="val">${lsw||'—'}</span></div>
-        <div class="row"><span class="lbl">${t('diff')}</span><span class="val">${diffBadge(diff)}</span></div>
-        <div class="row"><span class="lbl">${t('join')}/${t('resign')}</span><span class="val">${la.reduce((s,r)=>s+(+r.join||0),0)}/${la.reduce((s,r)=>s+(+r.resign||0),0)}</span></div>
+    lines.slice(0,20).forEach(line=>{
+      const a=getAttStats(line,dates), s=getSewStats(line,dates);
+      const df=a.hc-s.workers, dcl=dc(df,a.hc);
+      html+=`<div class="card"><div class="card-hd"><span class="dot ${dcl}"></span> ${displayLine(line)}</div>
+        <div class="row"><span class="l">考勤</span><span class="v">${a.hc||'—'}</span></div>
+        <div class="row"><span class="l">車縫</span><span class="v">${s.workers||'—'}</span></div>
+        <div class="row"><span class="l">差異</span><span class="v">${diffBadge(df)}</span></div>
+        <div class="row"><span class="l">新進/離職</span><span class="v">${a.join}/${a.resign}</span></div>
       </div>`;
     });
     html+='</div>';
   } else {
-    html=`<div class="twrap"><table><thead><tr>
-      <th>${t('line')}</th><th>${t('attHC')}</th><th>${t('sewWk')}</th><th>${t('diff')}</th><th>${t('rate')}</th><th>${t('join')}</th><th>${t('resign')}</th><th>${t('status')}</th>
-    </tr></thead><tbody>${allLines.map(line=>{
-      const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
-      const diff=lahc-lsw, pct=lsw?(diff/lsw*100).toFixed(1)+'%':'—', dc=diffCls(diff,Math.max(lahc,lsw));
-      return `<tr><td><b>${line}</b></td><td>${lahc}</td><td>${lsw||'—'}</td><td>${diffBadge(diff)}</td><td>${pct}</td>
-        <td>${la.reduce((s,r)=>s+(+r.join||0),0)}</td><td>${la.reduce((s,r)=>s+(+r.resign||0),0)}</td>
-        <td><span class="badge ${dc}">${dc==='ok'?t('match'):dc==='warn'?t('slight'):t('large')}</span></td></tr>`;
+    html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">考勤</th><th class="center">車縫</th><th class="center">差異</th><th class="center">新進</th><th class="center">離職</th><th class="center">孕婦</th><th class="center">產假</th></tr></thead><tbody>
+    ${lines.map(line=>{
+      const a=getAttStats(line,dates),s=getSewStats(line,dates),m=getMatStats(line);
+      const df=a.hc-s.workers, dcl=dc(df,a.hc);
+      return `<tr><td><b>${displayLine(line)}</b></td><td class="center">${a.hc||'—'}</td><td class="center">${s.workers||'—'}</td>
+        <td class="center dc ${dcl}">${a.hc&&s.workers?(df>=0?'+':'')+df:'—'}</td>
+        <td class="center">${a.join}</td><td class="center">${a.resign}</td>
+        <td class="center">${m.preg||'—'}</td><td class="center">${m.mat||'—'}</td></tr>`;
     }).join('')||'<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
   }
-  document.getElementById('sum-detail').innerHTML = html;
+  document.getElementById('sum-cards').innerHTML=html;
 
-  // Chart
-  const labels=allLines.slice(0,16);
-  if (chartSum) chartSum.destroy();
-  chartSum = new Chart(document.getElementById('chartSum').getContext('2d'), {
+  // Chart (top 12 lines, compare att vs sewing)
+  const chartLines=lines.slice(0,12);
+  if (_chart) _chart.destroy();
+  _chart=new Chart(document.getElementById('chartSum').getContext('2d'),{
     type:'bar',
-    data:{labels, datasets:[
-      {label:t('attHC'), data:labels.map(l=>attR.filter(r=>r.line===l).reduce((s,r)=>s+(+r.hc||0),0)), backgroundColor:'rgba(30,58,95,.75)', borderRadius:4, borderSkipped:false},
-      {label:t('sewWk'), data:labels.map(l=>sewR.filter(r=>r.line===l).reduce((s,r)=>s+(+r.workers||0),0)), backgroundColor:'rgba(15,118,110,.7)', borderRadius:4, borderSkipped:false},
-    ]},
+    data:{
+      labels:chartLines.map(displayLine),
+      datasets:[
+        {label:'考勤在職',data:chartLines.map(l=>getAttStats(l,dates).hc),backgroundColor:'rgba(30,58,95,.78)',borderRadius:4,borderSkipped:false},
+        {label:'車縫工人',data:chartLines.map(l=>getSewStats(l,dates).workers),backgroundColor:'rgba(15,118,110,.72)',borderRadius:4,borderSkipped:false},
+      ]
+    },
     options:{responsive:true,maintainAspectRatio:false,
       plugins:{legend:{position:'bottom',labels:{font:{size:10}}}},
       scales:{x:{ticks:{font:{size:9}}},y:{beginAtZero:true,ticks:{font:{size:10}}}}}
   });
 }
 
-// ═══════════════════════════════════════════════════════════
-//  TAB 2：出勤×車縫
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  RENDER: ATTENDANCE VS SEWING
+// ══════════════════════════════════════════════════════════
 function renderAS() {
-  document.getElementById('as-pbar').innerHTML = pbarHtml('as','renderAS()');
-  const cur=curKey('as'); if(!cur){document.getElementById('as-detail').innerHTML='<div style="color:var(--gray);padding:20px">無資料</div>';return;}
-  const lf=getLineFilter('as');
-  const attR=ATT_DB.filter(r=>inP(r.date,'as')&&(!lf||r.line===lf));
-  const sewR=SEW_DB.filter(r=>inP(r.date,'as')&&(!lf||r.line===lf));
-  const agg_a=aggA(attR), agg_s=aggS(sewR);
-  const diff=agg_a.hc-agg_s.workers;
+  document.getElementById('pbar-as').innerHTML=pbarHtml('as');
+  const dates=getDates('as'), lf=getLF('as');
+  const res=compareAttendanceVsSewing(lf,dates);
+
   document.getElementById('kpi-as').innerHTML=[
-    {l:t('attHC'),v:agg_a.hc,c:'nv'},{l:t('sewWk'),v:agg_s.workers,c:'tl'},
-    {l:t('diff'),v:(diff>=0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<=10?'gd':'rd'},
-    {l:t('rate'),v:agg_s.workers?(diff/agg_s.workers*100).toFixed(1)+'%':'—',c:'pu'},
+    {l:'考勤在職 (均)',v:res.attHC||'—',c:'nv'},
+    {l:'車縫工人 (均)',v:res.sewW||'—',c:'tl'},
+    {l:'差異',v:res.attHC&&res.sewW?(res.diff>=0?'+':'')+res.diff:'—',c:res.diffCls==='ok'?'gn':res.diffCls==='warn'?'gd':'rd'},
+    {l:'差%',v:res.sewW?(res.diff/res.sewW*100).toFixed(1)+'%':'—',c:'pu'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
-  const allLines=[...new Set([...attR.map(r=>r.line),...sewR.map(r=>r.line)])].filter(l=>l&&l!=='?').sort((a,b)=>parseInt(a.slice(1)||0)-parseInt(b.slice(1)||0));
-  const maxV=Math.max(1,...allLines.map(l=>Math.max(aggHC(attR,l),aggSewW(sewR,l))));
+  const lines=getAllLines().filter(l=>!lf||l===lf);
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
-    allLines.forEach(line=>{
-      const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
-      const diff2=lahc-lsw, dc=diffCls(diff2,Math.max(lahc,lsw));
-      const effAvg=ls.length?(ls.reduce((s,r)=>s+(+r.eff||0),0)/ls.length).toFixed(1):'—';
-      html+=`<div class="card"><div class="card-hd"><span class="dot ${dc}"></span> ${line}</div>
-        <div class="row"><span class="lbl">${t('attHC')}</span><span class="val">${lahc}</span></div>
-        <div class="row"><span class="lbl">${t('sewWk')}</span><span class="val">${lsw||'—'}</span></div>
-        <div class="row"><span class="lbl">${t('diff')}</span><span class="val">${diffBadge(diff2)}</span></div>
-        <div class="row"><span class="lbl">效率 Eff%</span><span class="val">${effAvg}%</span></div>
-        <div class="row"><span class="lbl">產量 Pcs</span><span class="val">${ls.reduce((s,r)=>s+(+r.pieces||0),0)||'—'}</span></div>
+    lines.forEach(line=>{
+      const r=compareAttendanceVsSewing(line,dates), dcl=r.diffCls;
+      html+=`<div class="card"><div class="card-hd"><span class="dot ${dcl}"></span> ${displayLine(line)}</div>
+        <div class="row"><span class="l">考勤在職</span><span class="v">${r.attHC||'—'}</span></div>
+        <div class="row"><span class="l">車縫工人</span><span class="v">${r.sewW||'—'}</span></div>
+        <div class="row"><span class="l">差異</span><span class="v">${diffBadge(r.diff)}</span></div>
+        <div class="row"><span class="l">效率%</span><span class="v">${r.eff||'—'}</span></div>
+        <div class="row"><span class="l">產量 pcs</span><span class="v">${r.pieces||'—'}</span></div>
       </div>`;
     });
     html+='</div>';
-    // Diff bar
-    html+='<div class="panel"><h3>📊 差異圖</h3><div class="dbars">';
-    allLines.forEach(line=>{
-      const lahc=aggHC(attR,line);
-      const lsw=aggSewW(sewR,line);
-      html+=`<div class="dbar"><span class="dl">${line}</span>
-        <div class="dw"><div class="da" style="width:${(lahc/maxV*100).toFixed(1)}%"></div></div>
-        <div class="dw" style="flex:.7"><div class="db" style="width:${(lsw/maxV*100).toFixed(1)}%"></div></div>
-        <span class="dv">${lahc}/${lsw||'—'}</span></div>`;
+    // Diff bars
+    const maxV=Math.max(1,...lines.map(l=>{const r=compareAttendanceVsSewing(l,dates); return Math.max(r.attHC,r.sewW);}));
+    html+='<div class="panel"><h3>📊 差異圖</h3>';
+    lines.forEach(line=>{
+      const r=compareAttendanceVsSewing(line,dates);
+      html+=`<div style="display:flex;align-items:center;gap:7px;padding:3px 0">
+        <span style="font-size:10px;color:var(--gray);width:55px;text-align:right;flex-shrink:0">${displayLine(line)}</span>
+        <div style="flex:1;height:12px;background:var(--bg3);border-radius:2px;overflow:hidden"><div style="height:100%;background:var(--navy);width:${(r.attHC/maxV*100).toFixed(1)}%;border-radius:2px"></div></div>
+        <div style="flex:.7;height:12px;background:var(--bg3);border-radius:2px;overflow:hidden"><div style="height:100%;background:var(--teal);width:${(r.sewW/maxV*100).toFixed(1)}%;border-radius:2px"></div></div>
+        <span style="font-size:10px;color:var(--gray);width:70px">${r.attHC}/${r.sewW||'—'}</span>
+      </div>`;
     });
-    html+='</div></div>';
+    html+='</div>';
   } else {
-    html=`<div class="twrap"><table><thead><tr>
-      <th>${t('line')}</th><th>${t('attHC')}</th><th>${t('sewWk')}</th><th>${t('diff')}</th><th>${t('rate')}</th><th>Eff%</th><th>Pcs</th><th>${t('status')}</th>
-    </tr></thead><tbody>${allLines.map(line=>{
-      const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
-      const d2=lahc-lsw, pct=lsw?(d2/lsw*100).toFixed(1)+'%':'—', dc=diffCls(d2,Math.max(lahc,lsw));
-      const eff=ls.length?(ls.reduce((s,r)=>s+(+r.eff||0),0)/ls.length).toFixed(1):'—';
-      return `<tr><td><b>${line}</b></td><td>${lahc}</td><td>${lsw||'—'}</td><td>${diffBadge(d2)}</td><td>${pct}</td><td>${eff}</td><td>${ls.reduce((s,r)=>s+(+r.pieces||0),0)||'—'}</td><td><span class="badge ${dc}">${dc==='ok'?t('match'):dc==='warn'?t('slight'):t('large')}</span></td></tr>`;
-    }).join('')||'<tr><td colspan="8" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
+    html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">考勤</th><th class="center">車縫</th><th class="center">差異</th><th class="center">差%</th><th class="center">效率%</th><th class="center">產量</th></tr></thead><tbody>
+    ${lines.map(line=>{
+      const r=compareAttendanceVsSewing(line,dates);
+      return `<tr><td><b>${displayLine(line)}</b></td><td class="center">${r.attHC||'—'}</td><td class="center">${r.sewW||'—'}</td>
+        <td class="center dc ${r.diffCls}">${r.attHC&&r.sewW?(r.diff>=0?'+':'')+r.diff:'—'}</td>
+        <td class="center">${r.sewW?(r.diff/r.sewW*100).toFixed(1)+'%':'—'}</td>
+        <td class="center">${r.eff||'—'}</td><td class="center">${r.pieces||'—'}</td></tr>`;
+    }).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
   }
-  document.getElementById('as-detail').innerHTML = html;
+  document.getElementById('as-content').innerHTML=html;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  TAB 3：出勤×入離職
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  RENDER: ATTENDANCE VS JOIN/RESIGN
+// ══════════════════════════════════════════════════════════
 function renderAC() {
-  document.getElementById('ac-pbar').innerHTML = pbarHtml('ac','renderAC()');
-  const cur=curKey('ac'), P=PS.ac;
-  if(!cur){document.getElementById('ac-detail').innerHTML='<div style="color:var(--gray);padding:20px">無資料</div>';return;}
-  const attR=ATT_DB.filter(r=>inP(r.date,'ac'));
-  // 考勤新進/離職
-  const aJ=attR.reduce((s,r)=>s+(+r.join||0),0);
-  const aR=attR.reduce((s,r)=>s+(+r.resign||0),0);
-  const aRatio=aJ>0?(aR/aJ*100).toFixed(1):'—';
-  // 合約/試用
-  const contR=CONT_DB.filter(r=>r.entryDate&&inP(r.entryDate,'ac'));
-  const probR=PROB_DB.filter(r=>r.joinDate&&inP(r.joinDate,'ac'));
-  // 各部門考勤新進離職
-  const deptAtt=new Map();
-  attR.forEach(r=>{
-    const d=normDept(r.lineRaw||r.line);
-    if(!deptAtt.has(d))deptAtt.set(d,{j:0,r:0,lines:new Set()});
-    deptAtt.get(d).j+=(+r.join||0); deptAtt.get(d).r+=(+r.resign||0); deptAtt.get(d).lines.add(r.line);
-  });
-  // 各部門合約新進
-  const deptCont=new Map();
-  contR.forEach(r=>{const d=normDept(r.dept); if(!deptCont.has(d))deptCont.set(d,{j:0,ids:[]}); deptCont.get(d).j++; deptCont.get(d).ids.push(r.factoryId||'');});
-  const allDepts=[...new Set([...deptAtt.keys(),...deptCont.keys()])].sort();
+  document.getElementById('pbar-ac').innerHTML=pbarHtml('ac');
+  const dates=getDates('ac'), lf=getLF('ac');
+  const a=getAttStats(lf,dates), j=getJoinStats(lf,dates);
+  const jDiff=a.join-j.join, rDiff=a.resign-j.resign;
+  const ratio=a.join>0?(a.resign/a.join*100).toFixed(1):'—';
 
   document.getElementById('kpi-ac').innerHTML=[
-    {l:`考勤 ${t('join')}`,v:aJ,c:'nv'},{l:`考勤 ${t('resign')}`,v:aR,c:'rd'},
-    {l:'入/離職比',v:aRatio+'%',c:aRatio==='—'?'gray':+aRatio<=30?'gn':'gd'},
-    {l:`合約新進 / 試用`,v:`${contR.length} / ${probR.length}`,c:'tl'},
+    {l:'考勤 新進',v:a.join,c:'nv'},{l:'考勤 離職',v:a.resign,c:'rd'},
+    {l:'入/離職比',v:ratio+'%',c:ratio==='—'?'gd':+ratio<=30?'gn':+ratio<=60?'gd':'rd'},
+    {l:'合約 新進',v:j.join+'/ 退:'+j.resign,c:'tl'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
+
+  // Dept breakdown from attendance
+  const deptMap=new Map();
+  _attNorm.filter(r=>dates.has(r.date)&&(!lf||r.lineId===lf)).forEach(r=>{
+    const key=r.lineId||'?';
+    if(!deptMap.has(key))deptMap.set(key,{join:0,resign:0,hc:0,cnt:0});
+    const v=deptMap.get(key); v.join+=r.join; v.resign+=r.resign; v.hc+=r.hc; v.cnt++;
+  });
 
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
-    html+=`<div class="card"><div class="card-hd">📊 ${pLabel(cur,P.m)}</div>
-      <div class="row"><span class="lbl">考勤 ${t('join')}</span><span class="val">${aJ}</span></div>
-      <div class="row"><span class="lbl">考勤 ${t('resign')}</span><span class="val">${aR}</span></div>
-      <div class="row"><span class="lbl">入/離職比</span><span class="val">${aRatio}%</span></div>
-      <div class="row"><span class="lbl">合約新進</span><span class="val">${contR.length}</span></div>
-      <div class="row"><span class="lbl">考-合 差異</span><span class="val">${diffBadge(aJ-contR.length)}</span></div>
-      <div class="row"><span class="lbl">試用新增</span><span class="val">${probR.length}</span></div>
+    html+=`<div class="card"><div class="card-hd">📊 ${pLabel(curKey('ac'),PS.ac.m)}</div>
+      <div class="row"><span class="l">考勤 新進</span><span class="v">${a.join}</span></div>
+      <div class="row"><span class="l">考勤 離職</span><span class="v">${a.resign}</span></div>
+      <div class="row"><span class="l">入/離職比</span><span class="v" style="color:${+ratio>50?'var(--red)':'var(--navy)'}">${ratio}%</span></div>
+      <div class="row"><span class="l">合約新進/退</span><span class="v">${j.join}/${j.resign}</span></div>
+      <div class="row"><span class="l">差異(新進)</span><span class="v">${diffBadge(jDiff)}</span></div>
     </div>`;
-    allDepts.forEach(dept=>{
-      const da=deptAtt.get(dept)||{j:0,r:0,lines:new Set()};
-      const dc2=deptCont.get(dept)||{j:0,ids:[]};
-      const ratio=da.j>0?(da.r/da.j*100).toFixed(1):'—';
-      const diff2=da.j-dc2.j, dcls=diffCls(diff2,Math.max(da.j,dc2.j));
-      html+=`<div class="card"><div class="card-hd"><span class="dot ${dcls}"></span> 🏭 ${dept}</div>
-        <div class="row"><span class="lbl">考勤 ${t('join')}</span><span class="val">${da.j}</span></div>
-        <div class="row"><span class="lbl">考勤 ${t('resign')}</span><span class="val">${da.r}</span></div>
-        <div class="row"><span class="lbl">入/離職比</span><span class="val" style="color:${+ratio>50?'var(--red)':'var(--navy)'}">${ratio}%</span></div>
-        <div class="row"><span class="lbl">合約新進</span><span class="val">${dc2.j}</span></div>
-        <div class="row"><span class="lbl">差異</span><span class="val">${diffBadge(diff2)}</span></div>
-        <div class="row"><span class="lbl">組別</span><span class="val" style="font-size:10px">${[...da.lines].slice(0,4).join(', ')}</span></div>
+    [...deptMap.entries()].sort((a,b)=>(b[1].join+b[1].resign)-(a[1].join+a[1].resign)).slice(0,16).forEach(([lineId,v])=>{
+      const rat=v.join>0?(v.resign/v.join*100).toFixed(1):'—';
+      const avgHC=v.cnt?Math.round(v.hc/v.cnt):0;
+      html+=`<div class="card"><div class="card-hd">📋 ${displayLine(lineId)}</div>
+        <div class="row"><span class="l">均在職</span><span class="v">${avgHC}</span></div>
+        <div class="row"><span class="l">新進</span><span class="v">${v.join}</span></div>
+        <div class="row"><span class="l">離職</span><span class="v">${v.resign}</span></div>
+        <div class="row"><span class="l">入/離比</span><span class="v" style="color:${+rat>50?'var(--red)':'var(--navy)'}">${rat}%</span></div>
       </div>`;
     });
     html+='</div>';
   } else {
-    html=`<div class="twrap"><table><thead><tr>
-      <th>${t('dept')}</th><th>考勤 ${t('join')}</th><th>考勤 ${t('resign')}</th><th>入/離職比</th><th>合約新進</th><th>差異</th>
-    </tr></thead><tbody>${allDepts.map(dept=>{
-      const da=deptAtt.get(dept)||{j:0,r:0}; const dc2=deptCont.get(dept)||{j:0};
-      const ratio=da.j>0?(da.r/da.j*100).toFixed(1)+'%':'—';
-      return `<tr><td><b>${dept}</b></td><td>${da.j}</td><td>${da.r}</td><td style="color:${+ratio>50?'var(--red)':'var(--navy)'};font-weight:700">${ratio}</td><td>${dc2.j}</td><td>${diffBadge(da.j-dc2.j)}</td></tr>`;
-    }).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>
-    <div class="twrap" style="margin-top:8px"><table><thead><tr>
-      <th>廠號</th><th>姓名</th><th>${t('dept')}</th><th>${t('line')}</th><th>入職日</th><th>${t('contract')}</th>
-    </tr></thead><tbody>${contR.map(r=>`<tr><td>${r.factoryId||'—'}</td><td>${r.name||'—'}</td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.entryDate||'—'}</td><td><span class="badge info">${r.contractType||'—'}</span></td></tr>`).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無合約資料</td></tr>'}</tbody></table></div>`;
+    html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">均在職</th><th class="center">新進</th><th class="center">離職</th><th class="center">入/離比</th></tr></thead><tbody>
+    ${[...deptMap.entries()].map(([lineId,v])=>{
+      const avgHC=v.cnt?Math.round(v.hc/v.cnt):0;
+      const rat=v.join>0?(v.resign/v.join*100).toFixed(1)+'%':'—';
+      return `<tr><td><b>${displayLine(lineId)}</b></td><td class="center">${avgHC}</td><td class="center">${v.join}</td><td class="center">${v.resign}</td>
+        <td class="center" style="font-weight:700;color:${+rat>50?'var(--red)':'var(--navy)'}">${rat}</td></tr>`;
+    }).join('')||'<tr><td colspan="5" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
   }
-  document.getElementById('ac-detail').innerHTML = html;
+  document.getElementById('ac-content').innerHTML=html;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  TAB 4：出勤×孕假
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  RENDER: ATTENDANCE VS MATERNITY
+// ══════════════════════════════════════════════════════════
 function renderAM() {
-  document.getElementById('am-pbar').innerHTML = pbarHtml('am','renderAM()');
-  const cur=curKey('am'), df=getDeptFilter('am');
-  if(!cur){document.getElementById('am-detail').innerHTML='<div style="color:var(--gray);padding:20px">無資料</div>';return;}
-  const attR=ATT_DB.filter(r=>inP(r.date,'am')&&(!df||normDept(r.lineRaw||r.line)===df));
-  const matAll=MAT_DB, matPrg=matAll.filter(e=>e.status==='pregnant').length, matMat=matAll.filter(e=>e.status==='maternity').length;
-  const attML=attR.reduce((s,r)=>s+(+r.ml||0),0);
+  document.getElementById('pbar-am').innerHTML=pbarHtml('am');
+  const dates=getDates('am'), lf=getLF('am');
+  const a=getAttStats(lf,dates);
+  const mAll=getMatStats(lf);
+
   document.getElementById('kpi-am').innerHTML=[
-    {l:t('preg'),v:matPrg,c:'pu'},{l:t('mat'),v:matMat,c:'rd'},{l:`${t('ml')} (${t('attHC')})`,v:attML,c:'gd'},
+    {l:'孕婦',v:mAll.preg||'—',c:'pu'},
+    {l:'產假中',v:mAll.mat||'—',c:'rd'},
+    {l:'考勤 ML假',v:a.ml||'—',c:'gd'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
-  const dm=new Map();
-  matAll.filter(e=>e.dept).forEach(e=>{const d=normDept(e.dept||''); if(!dm.has(d))dm.set(d,{preg:0,mat:0,ret:0}); const v=dm.get(d); if(e.status==='pregnant')v.preg++; else if(e.status==='maternity')v.mat++; else if(e.status==='returned')v.ret++; });
-  const byLine=new Map();
-  attR.filter(r=>r.line&&r.line!=='?').forEach(r=>{if(!byLine.has(r.line))byLine.set(r.line,{hc:0,ml:0,d:new Set()}); const v=byLine.get(r.line); v.hc+=(+r.hc||0); v.ml+=(+r.ml||0); v.d.add(r.date);});
-
+  const lines=getAllLines().filter(l=>!lf||l===lf);
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
-    [...dm.entries()].sort((a,b)=>(b[1].preg+b[1].mat)-(a[1].preg+a[1].mat)).forEach(([d,v])=>{
-      const dML=attR.filter(r=>normDept(r.lineRaw||r.line)===d).reduce((s,r)=>s+(+r.ml||0),0);
-      const tot=v.preg+v.mat, diff=dML-tot, dc=diffCls(diff,Math.max(dML,tot));
-      html+=`<div class="card"><div class="card-hd"><span class="dot ${dc}"></span> 🏭 ${d}</div>
-        <div class="row"><span class="lbl">🤰 ${t('preg')}</span><span class="val">${v.preg}</span></div>
-        <div class="row"><span class="lbl">🍼 ${t('mat')}</span><span class="val">${v.mat}</span></div>
-        <div class="row"><span class="lbl">✅ ${t('ret')}</span><span class="val">${v.ret||0}</span></div>
-        <div class="row"><span class="lbl">${t('ml')} (考勤)</span><span class="val">${dML}</span></div>
-        <div class="row"><span class="lbl">${t('diff')}</span><span class="val">${diffBadge(diff)}</span></div>
-      </div>`;
-    });
-    [...byLine.entries()].filter(([,v])=>v.ml>0).sort().forEach(([l,v])=>{
-      html+=`<div class="card"><div class="card-hd">📋 ${l}</div>
-        <div class="row"><span class="lbl">均在職</span><span class="val">${v.d.size?Math.round(v.hc/v.d.size):v.hc}</span></div>
-        <div class="row"><span class="lbl">${t('ml')} 天次</span><span class="val" style="color:var(--pu);font-weight:700">${v.ml}</span></div>
-        <div class="row"><span class="lbl">天數</span><span class="val">${v.d.size}</span></div>
+    lines.forEach(line=>{
+      const a2=getAttStats(line,dates), m=compareAttendanceVsMaternity(line);
+      const attML=a2.ml, matCount=m.preg+m.mat, diff=attML-matCount;
+      if(!a2.hc&&!matCount) return;
+      html+=`<div class="card"><div class="card-hd"><span class="dot ${dc(diff,matCount||1)}"></span> ${displayLine(line)}</div>
+        <div class="row"><span class="l">均在職</span><span class="v">${a2.hc||'—'}</span></div>
+        <div class="row"><span class="l">🤰 孕婦</span><span class="v">${m.preg}</span></div>
+        <div class="row"><span class="l">🍼 產假中</span><span class="v">${m.mat}</span></div>
+        <div class="row"><span class="l">✅ 復工</span><span class="v">${m.ret}</span></div>
+        <div class="row"><span class="l">ML假(考勤)</span><span class="v">${attML}</span></div>
+        <div class="row"><span class="l">差異</span><span class="v">${diffBadge(diff)}</span></div>
       </div>`;
     });
     html+='</div>';
   } else {
-    html=`<div class="twrap"><table><thead><tr>
-      <th>${t('dept')}</th><th>🤰${t('preg')}</th><th>🍼${t('mat')}</th><th>✅${t('ret')}</th><th>${t('ml')} (考勤)</th><th>${t('diff')}</th>
-    </tr></thead><tbody>${[...dm.entries()].map(([d,v])=>{
-      const dML=attR.filter(r=>normDept(r.lineRaw||r.line)===d).reduce((s,r)=>s+(+r.ml||0),0);
-      return `<tr><td><b>${d}</b></td><td>${v.preg}</td><td>${v.mat}</td><td>${v.ret||0}</td><td>${dML}</td><td>${diffBadge(dML-(v.preg+v.mat))}</td></tr>`;
-    }).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無孕假資料</td></tr>'}</tbody></table></div>
-    <div class="twrap" style="margin-top:8px"><table><thead><tr>
-      <th>${t('line')}</th><th>均在職</th><th>${t('ml')} 天次</th><th>天數</th>
-    </tr></thead><tbody>${[...byLine.entries()].filter(([,v])=>v.ml>0).map(([l,v])=>`<tr><td>${l}</td><td>${v.d.size?Math.round(v.hc/v.d.size):v.hc}</td><td style="color:var(--pu);font-weight:700">${v.ml}</td><td>${v.d.size}</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--gray);text-align:center;padding:20px">無 ML 請假資料</td></tr>'}</tbody></table></div>`;
+    html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">均在職</th><th class="center">🤰孕婦</th><th class="center">🍼產假</th><th class="center">✅復工</th><th class="center">ML假</th><th class="center">差異</th></tr></thead><tbody>
+    ${lines.map(line=>{
+      const a2=getAttStats(line,dates),m=compareAttendanceVsMaternity(line);
+      if(!a2.hc&&!m.preg&&!m.mat) return '';
+      const diff=a2.ml-(m.preg+m.mat);
+      return `<tr><td><b>${displayLine(line)}</b></td><td class="center">${a2.hc||'—'}</td><td class="center">${m.preg}</td><td class="center">${m.mat}</td><td class="center">${m.ret}</td><td class="center">${a2.ml}</td><td class="center dc ${dc(diff,m.preg+m.mat||1)}">${diffBadge(diff)}</td></tr>`;
+    }).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
   }
-  document.getElementById('am-detail').innerHTML = html;
+  document.getElementById('am-content').innerHTML=html;
 }
 
-// ═══════════════════════════════════════════════════════════
-//  TAB 5：列表
-// ═══════════════════════════════════════════════════════════
-function renderList() {
-  const src=document.getElementById('list-src')?.value||'att';
-  const q=(document.getElementById('list-q')?.value||'').toLowerCase();
-  const period=document.getElementById('list-period')?.value||'';
-  let rows=[], headers=[];
-  if (src==='att') {
-    headers=['','日期','線別','在職','出勤','新進','離職','ML'];
-    rows=ATT_DB.filter(r=>(!period||r.date.startsWith(period))&&(!q||(r.date+r.line+r.lineRaw).toLowerCase().includes(q))).sort((a,b)=>a.date.localeCompare(b.date)||a.line.localeCompare(b.line));
-  } else if (src==='sew') {
-    headers=['日期','線別','原始名稱','工人','產量','效率%','Section'];
-    rows=SEW_DB.filter(r=>(!period||r.date.startsWith(period))&&(!q||(r.date+r.line+r.lineRaw).toLowerCase().includes(q))).sort((a,b)=>a.date.localeCompare(b.date)||a.line.localeCompare(b.line));
-  } else if (src==='cont') {
-    headers=['廠號','姓名','部門','組別/線','入職日','合約類型','到期日'];
-    rows=CONT_DB.filter(r=>!q||(r.factoryId+r.name+r.dept+r.section).toLowerCase().includes(q));
-  } else {
-    headers=['姓名','部門','狀態','預產期','請假日','復工日'];
-    rows=MAT_DB.filter(e=>!q||(e.name+e.dept).toLowerCase().includes(q));
-  }
-  document.getElementById('list-cnt').textContent=`${rows.length} 筆`;
-  document.getElementById('listTh').innerHTML=(src==='att'?headers.map((h,i)=>i===0?`<th><input type="checkbox" onchange="toggleAll(this)"></th>`:` <th>${h}</th>`):headers.map(h=>`<th>${h}</th>`)).join('');
-  let tb='';
-  if (src==='att') tb=rows.map((r,i)=>`<tr data-i="${i}"><td><input type="checkbox" class="rcb"></td><td>${r.date}</td><td><b>${r.line}</b></td><td>${r.hc}</td><td>${r.att}</td><td>${r.join}</td><td>${r.resign}</td><td>${r.ml}</td></tr>`).join('');
-  else if (src==='sew') tb=rows.map(r=>`<tr><td>${r.date}</td><td><b>${r.line}</b></td><td>${r.lineRaw}</td><td>${r.workers}</td><td>${r.pieces}</td><td>${r.eff}</td><td>${r.section}</td></tr>`).join('');
-  else if (src==='cont') tb=rows.map(r=>`<tr><td>${r.factoryId||'—'}</td><td>${r.name||'—'}</td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.entryDate||'—'}</td><td><span class="badge info">${r.contractType||'—'}</span></td><td>${r.endDate||'—'}</td></tr>`).join('');
-  else tb=rows.map(e=>`<tr><td>${e.name||'—'}</td><td>${e.dept||'—'}</td><td><span class="badge ${e.status==='maternity'?'warn':e.status==='pregnant'?'info':'ok'}">${e.status||'—'}</span></td><td>${e.edd||'—'}</td><td>${e.leaveStart||'—'}</td><td>${e.returnDate||'—'}</td></tr>`).join('');
-  document.getElementById('listTb').innerHTML=tb||'<tr><td colspan="9" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>';
-  const pSel=document.getElementById('list-period');
-  if (pSel&&src==='att'){const cv=pSel.value,ms=[...new Set(ATT_DB.map(r=>r.date.slice(0,7)))].sort().reverse();pSel.innerHTML='<option value="">— 全部 —</option>'+ms.map(m=>`<option${m===cv?' selected':''}>${m}</option>`).join('');}
-}
-function toggleAll(cb){document.querySelectorAll('.rcb').forEach(c=>c.checked=cb.checked);}
-function addRec(){document.getElementById('add-date').value=new Date().toISOString().slice(0,10);document.getElementById('addModal').classList.add('show');}
-function saveRec(){
-  const date=document.getElementById('add-date').value,lr=document.getElementById('add-line').value.trim();
-  if(!date||!lr){toast('請填寫日期和組別');return;}
-  ATT_DB.push({id:'m'+Date.now(),date,line:normLine(lr),lineRaw:lr,hc:parseInt(document.getElementById('add-hc').value)||0,att:parseInt(document.getElementById('add-att').value)||0,join:parseInt(document.getElementById('add-join').value)||0,resign:parseInt(document.getElementById('add-resign').value)||0,ml:0,al:0,pl:0,sl:0,np:0});
-  saveAttLS();rebuildPeriods();document.getElementById('addModal').classList.remove('show');renderAll();toast('✅ 已新增');
-}
-function delSelected(){
-  if(document.getElementById('list-src')?.value!=='att'){toast('目前只支援刪除考勤記錄');return;}
-  const idxs=new Set([...document.querySelectorAll('.rcb:checked')].map(cb=>parseInt(cb.closest('tr').dataset.i)));
-  if(!idxs.size){toast('請先勾選記錄');return;}
-  if(!confirm(`確定刪除 ${idxs.size} 筆？`))return;
-  ATT_DB=ATT_DB.filter((_,i)=>!idxs.has(i));saveAttLS();renderList();toast(`✅ 已刪除 ${idxs.size} 筆`);
+// ══════════════════════════════════════════════════════════
+//  RENDER: UNIFIED COMPARE TABLE (整合總表)
+// ══════════════════════════════════════════════════════════
+function renderUnified() {
+  document.getElementById('pbar-uni').innerHTML=pbarHtml('uni');
+  const dates=getDates('uni'), lf=getLF('uni');
+  const lines=getAllLines().filter(l=>!lf||l===lf);
+  const contByLine=new Map();
+  (COMPLETE_DB.contract||[]).forEach(r=>{
+    const lid=normalizeLineName(r.section||'')||normalizeLineName(r.dept||'');
+    if(!lid)return;
+    if(!contByLine.has(lid))contByLine.set(lid,0);
+    contByLine.set(lid,contByLine.get(lid)+1);
+  });
+  const probByLine=new Map();
+  (COMPLETE_DB.probation||[]).forEach(r=>{
+    const lid=normalizeLineName(r.section||r.dept||'')||'?';
+    if(!probByLine.has(lid))probByLine.set(lid,0);
+    probByLine.set(lid,probByLine.get(lid)+1);
+  });
+
+  const tbody=lines.map(line=>{
+    const a=getAttStats(line,dates), s=getSewStats(line,dates), m=getMatStats(line);
+    const j=getJoinStats(line,dates), df=a.hc-s.workers, dcl=dc(df,a.hc);
+    const cont=contByLine.get(line)||0, prob=probByLine.get(line)||0;
+    return `<tr>
+      <td><b>${displayLine(line)}</b></td>
+      <td class="center">${a.hc||'—'}</td>
+      <td class="center">${s.workers||'—'}</td>
+      <td class="center dc ${dcl}">${a.hc&&s.workers?(df>=0?'+':'')+df:'—'}</td>
+      <td class="center">${a.join||'—'}</td>
+      <td class="center">${a.resign||'—'}</td>
+      <td class="center">${m.preg||'—'}</td>
+      <td class="center">${m.mat||'—'}</td>
+      <td class="center">${cont||'—'}</td>
+      <td class="center">${prob||'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('unified-tbody').innerHTML=tbody||
+    '<tr><td colspan="10" style="color:var(--gray);text-align:center;padding:20px">無資料 — 請先讀取或匯入考勤</td></tr>';
 }
 
-// ═══════════════════════════════════════════════════════════
-//  CONFIG TAB
-// ═══════════════════════════════════════════════════════════
-function updateCfgKpis(){
-  document.getElementById('cfg-status-kpi').innerHTML=[
-    {l:t('cfg_att'), v:ATT_DB.length, s:'AC_HRA_Attendance IDB', c:'nv'},
-    {l:t('cfg_sew'), v:SEW_DB.length, s:'SewingCloudProd IDB', c:'tl'},
-    {l:t('cfg_cont'),v:CONT_DB.length,s:'Contract IDB', c:'gd'},
-    {l:t('cfg_mat'), v:MAT_DB.length, s:'vrt_maternity_v1', c:'pu'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v||'—'}</div><div class="ks2">${k.s}</div></div>`).join('');
+// ══════════════════════════════════════════════════════════
+//  RENDER: ALIAS MANAGER
+// ══════════════════════════════════════════════════════════
+function renderAliasTable() {
+  const entries=Object.entries(window.LINE_ALIAS).sort((a,b)=>a[0].localeCompare(b[0]));
+  document.getElementById('alias-tbody').innerHTML=entries.map(([from,to],i)=>`
+    <tr>
+      <td><input class="af" value="${from}" placeholder="別名"></td>
+      <td><input class="at2" value="${to}" placeholder="LINE_N"></td>
+      <td><button onclick="this.closest('tr').remove()" style="background:var(--red);color:#fff;border:none;border-radius:3px;padding:2px 7px;cursor:pointer;font-size:10px">🗑</button></td>
+    </tr>`).join('');
+}
+function addAlias() { document.getElementById('alias-from').value=''; document.getElementById('alias-to').value=''; document.getElementById('addModal').classList.add('show'); }
+function confirmAlias() {
+  const from=document.getElementById('alias-from').value.trim().toUpperCase();
+  const to=document.getElementById('alias-to').value.trim().toUpperCase();
+  if(!from||!to){toast('請填寫別名和對應');return;}
+  window.LINE_ALIAS[from]=to;
+  renderAliasTable();
+  document.getElementById('addModal').classList.remove('show');
 }
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  RENDER: UNMATCHED
+// ══════════════════════════════════════════════════════════
+function renderUnmatched() {
+  const hb=document.getElementById('um-hard-body'), hib=document.getElementById('um-hist-body');
+  if(hb) hb.innerHTML=_unmatchedHard.size?[..._unmatchedHard].map(s=>`<span class="badge bad" style="margin:2px">${s}</span>`).join(''):'<span style="color:var(--gray);font-size:11px">無</span>';
+  if(hib) hib.innerHTML=_unmatchedHist.size?[..._unmatchedHist].map(s=>`<span class="badge warn" style="margin:2px">⚠ ${s}</span>`).join(''):'<span style="color:var(--gray);font-size:11px">無</span>';
+}
+
+// ══════════════════════════════════════════════════════════
+//  SRC STATUS KPI
+// ══════════════════════════════════════════════════════════
+function updateSrcKpi() {
+  const el=document.getElementById('src-kpi');
+  if(!el)return;
+  el.innerHTML=[
+    {l:'考勤 (原始)',v:COMPLETE_DB.attendance.length,s:'→ 正規化: '+_attNorm.length,c:'nv'},
+    {l:'車縫',v:COMPLETE_DB.sewing.length,s:'→ 正規化: '+_sewNorm.length,c:'tl'},
+    {l:'合約/試用',v:COMPLETE_DB.contract.length+'/'+COMPLETE_DB.probation.length,s:'Contract+Prob',c:'gd'},
+    {l:'孕假',v:COMPLETE_DB.maternity.length,s:'→ 已匹配組別: '+_matByLine.size,c:'pu'},
+  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════════
 //  ATTENDANCE EXCEL IMPORT
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 function dropAtt(ev){ev.preventDefault();document.getElementById('attUz').classList.remove('drag');importAtt({target:{files:ev.dataTransfer.files}});}
 async function importAtt(evt){
   const files=[...evt.target.files];if(!files.length)return;
-  let added=0,errs=[];
+  let added=0;
   document.getElementById('attLog').textContent='解析中…';
   for(const f of files){
     try{
       const buf=await f.arrayBuffer();
       const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
-      const r=parseAttWb(wb);
-      mergeAtt(r);added+=r.length;
-    }catch(e){errs.push(f.name+': '+e.message);}
+      const recs=parseAttWb(wb);
+      mergeAtt(recs); added+=recs.length;
+    }catch(e){cpLog('匯入失敗: '+e.message);}
   }
-  saveAttLS();rebuildPeriods();renderAll();updateCfgKpis();
-  const msg=`✅ 匯入 ${added} 筆`+(errs.length?`，錯誤${errs.length}個`:'');
-  document.getElementById('attLog').textContent=msg;toast(msg);evt.target.value='';
+  saveAttLS(); rebuildNorm(); renderAll(); updateSrcKpi();
+  const msg=`✅ 匯入 ${added} 筆`;
+  document.getElementById('attLog').textContent=msg; toast(msg); evt.target.value='';
 }
 function parseAttWb(wb){
-  // Phase 0：共識年月
   const ym={};
-  for(const sn of wb.SheetNames){const m=guessYM(wb.Sheets[sn]);if(m)ym[m]=(ym[m]||0)+1;}
+  wb.SheetNames.forEach(sn=>{const m=guessYM(wb.Sheets[sn]);if(m)ym[m]=(ym[m]||0)+1;});
   let consensusYM=null,maxV=0;
-  for(const[k,v] of Object.entries(ym)){if(v>maxV&&+k.slice(0,4)>=2020){consensusYM=k;maxV=v;}}
+  Object.entries(ym).forEach(([k,v])=>{if(v>maxV&&+k.slice(0,4)>=2020){consensusYM=k;maxV=v;}});
   const recs=[];
-  for(const sn of wb.SheetNames){
-    if(!/^\d+$/.test(sn.trim()))continue;
-    const day=parseInt(sn.trim(),10);if(day<1||day>31)continue;
+  wb.SheetNames.forEach(sn=>{
+    if(!/^\d+$/.test(sn.trim()))return;
+    const day=parseInt(sn.trim(),10);if(day<1||day>31)return;
     let ym2=guessYM(wb.Sheets[sn]);
     if(ym2&&consensusYM&&ym2!==consensusYM)ym2=consensusYM;
-    if(!ym2)ym2=consensusYM;if(!ym2)continue;
+    if(!ym2)ym2=consensusYM;if(!ym2)return;
     const dateStr=`${ym2}-${String(day).padStart(2,'0')}`;
-    if(isNaN(new Date(dateStr)))continue;
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});
-    for(const row of rows){
+    if(isNaN(new Date(dateStr)))return;
+    XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true}).forEach(row=>{
       for(let c=0;c<Math.min(row.length,12);c++){
         const cell=String(row[c]||'').trim();
-        if(!cell||!/^[lLaAgG]\s*\d|^[Ll]ine\s*\d|sewing|garment/i.test(cell))continue;
+        if(!cell||!/[A-Za-z].*\d|^\d.*[A-Za-z]/i.test(cell))continue;
+        if(/grand|total|ttl|sum|all|avg/i.test(cell))continue;
         const nexts=row.slice(c+1,c+10).map(v=>parseFloat(v)||0);
-        const hc=nexts[0]||0;if(hc<1||hc>1000)continue;
-        recs.push({id:`a_${dateStr}_${normLine(cell)}_${Math.random().toString(36).slice(2,5)}`,date:dateStr,line:normLine(cell),lineRaw:cell,hc,att:nexts[1]||hc,join:nexts[2]||0,resign:nexts[3]||0,ml:nexts[4]||0,al:0,pl:0,sl:0,np:0});
+        const hc=nexts[0]||0;if(hc<1||hc>2000)continue;
+        recs.push({id:`a_${dateStr}_${cell}_${Math.random().toString(36).slice(2,5)}`,
+          date:dateStr,lineNo:cell,m:0,f:0,ttl:hc,att:nexts[1]||hc,
+          join:nexts[2]||0,resign:nexts[3]||0,ml:nexts[4]||0,al:0,pl:0,sl:0,np:0});
         break;
       }
-    }
-  }
+    });
+  });
   return recs;
 }
 function guessYM(ws){
   for(let r=0;r<6;r++)for(let c=0;c<30;c++){
     const a=XLSX.utils.encode_cell({r,c}),cell=ws[a];if(!cell)continue;
-    if(/^date:?$/i.test(String(cell.v||'').trim())){
-      const nc=ws[XLSX.utils.encode_cell({r,c:c+1})];if(!nc)continue;
-      let d=null;
-      if(nc.v instanceof Date)d=nc.v;
-      else if(typeof nc.v==='number'&&nc.v>40000)d=new Date(Math.round((nc.v-25568)*86400000));
-      if(d&&!isNaN(d)&&d.getFullYear()>=2020)return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-    }
+    if(!/^date:?$/i.test(String(cell.v||'').trim()))continue;
+    const nc=ws[XLSX.utils.encode_cell({r,c:c+1})];if(!nc)continue;
+    let d=null;
+    if(nc.v instanceof Date)d=nc.v;
+    else if(typeof nc.v==='number'&&nc.v>40000)d=new Date(Math.round((nc.v-25568)*86400000));
+    if(d&&!isNaN(d)&&d.getFullYear()>=2020)return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
   }
   return null;
 }
-function mergeAtt(recs){const ex=new Set(ATT_DB.map(r=>r.date+'_'+r.line));recs.forEach(r=>{if(!ex.has(r.date+'_'+r.line))ATT_DB.push(r);});}
-function saveAttLS(){try{localStorage.setItem(LS_ATT,JSON.stringify(ATT_DB));}catch(e){}}
+function mergeAtt(recs){const ex=new Set(COMPLETE_DB.attendance.map(r=>r.date+'_'+(r.lineNo||r.group||'')));recs.forEach(r=>{if(!ex.has(r.date+'_'+r.lineNo))COMPLETE_DB.attendance.push(r);});}
+function saveAttLS(){try{localStorage.setItem(LS.ATT,JSON.stringify(COMPLETE_DB.attendance));}catch(e){}}
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 //  EXPORT / IMPORT
-// ═══════════════════════════════════════════════════════════
-function exportJSON(){const b=new Blob([JSON.stringify({attDb:ATT_DB,savedAt:new Date().toISOString()},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='VRT_Complete_'+new Date().toISOString().slice(0,10)+'.json';a.click();toast('✅ 已匯出');}
-function restoreJSON(evt){const f=evt.target.files[0];if(!f)return;const rdr=new FileReader();rdr.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.attDb){ATT_DB=d.attDb;saveAttLS();}rebuildPeriods();renderAll();toast('✅ 還原完成：'+ATT_DB.length+'筆');}catch(ex){toast('❌ 還原失敗：'+ex.message);}};rdr.readAsText(f);evt.target.value='';}
-function clearAtt(){if(!confirm(`確定清除全部 ${ATT_DB.length} 筆考勤記錄？`))return;ATT_DB=[];saveAttLS();rebuildPeriods();renderAll();toast('✅ 已清除');}
+// ══════════════════════════════════════════════════════════
+function exportJS(){const b=new Blob([JSON.stringify({attDb:COMPLETE_DB.attendance,aliases:window.LINE_ALIAS,ver:5},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='VRT_Complete_'+new Date().toISOString().slice(0,10)+'.json';a.click();toast('✅ 已匯出');}
+function restoreJS(evt){const f=evt.target.files[0];if(!f)return;const rdr=new FileReader();rdr.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.attDb){COMPLETE_DB.attendance=d.attDb;saveAttLS();}if(d.aliases){window.LINE_ALIAS=d.aliases;localStorage.setItem(LS.ALIAS,JSON.stringify(d.aliases));}rebuildNorm();renderAll();toast('✅ 還原完成');}catch(ex){toast('❌ '+ex.message);}};rdr.readAsText(f);evt.target.value='';}
+function clearAtt(){if(!confirm(`確定清除 ${COMPLETE_DB.attendance.length} 筆考勤？`))return;COMPLETE_DB.attendance=[];saveAttLS();rebuildNorm();renderAll();toast('✅ 已清除');}
 
-// ═══════════════════════════════════════════════════════════
-//  GAS URL SETTINGS
-// ═══════════════════════════════════════════════════════════
-function saveGas(type){
-  if(type==='hra'){const v=document.getElementById('hraGasInput').value.trim();if(v){localStorage.setItem(LS_HRA_GAS,v);toast('✅ HRA GAS URL 已儲存');cpLog('HRA GAS 已儲存','ok');}}
-  else{const v=document.getElementById('prodGasInput').value.trim();if(v){localStorage.setItem(LS_PROD_GAS,v);toast('✅ 生產 GAS URL 已儲存');cpLog('生產 GAS 已儲存','ok');}}
+// ══════════════════════════════════════════════════════════
+//  GAS SETTINGS
+// ══════════════════════════════════════════════════════════
+function saveUrl(t2){const v=document.getElementById(t2==='hra'?'hraUrl':'prodUrl').value.trim();if(v){localStorage.setItem(t2==='hra'?LS.HRA_GAS:LS.PROD_GAS,v);toast('✅ '+t2+' GAS URL 已儲存');}}
+async function testUrl(t2){
+  const v=localStorage.getItem(t2==='hra'?LS.HRA_GAS:LS.PROD_GAS)||'';
+  if(!v){toast('未設定 URL');return;}
+  try{const r=await fetch(v+'?action=heartbeat',{method:'GET',redirect:'follow'});const d=await r.json();toast('✅ 連線正常: '+JSON.stringify(d).slice(0,40));}
+  catch(e){toast('❌ '+e.message);}
 }
-function toggleCloud(){document.getElementById('cloudPanel').classList.toggle('open');}
-function setSyncTip(msg,cls=''){const el=document.getElementById('syncTip');el.textContent=msg;el.className='sync-tip'+(cls?' '+cls:'');}
-function cpLog(msg,cls=''){const el=document.getElementById('cpLog');const line=document.createElement('div');line.textContent='['+new Date().toLocaleTimeString()+']: '+msg;if(cls==='ok')line.style.color='#16a34a';el.appendChild(line);el.scrollTop=el.scrollHeight;}
-function updateCpStatus(msg,cls='info'){const el=document.getElementById('cpStatus');el.textContent=msg;el.className='cpStatus '+cls;}
+function toggleCP(){document.getElementById('cpanel').classList.toggle('open');}
+function setST(msg,cls=''){const el=document.getElementById('syncTip');el.textContent=msg;el.className='sync'+(cls?' '+cls:'');}
+function cpLog(msg,cls){const el=document.getElementById('cplog');const d=document.createElement('div');d.textContent='['+new Date().toLocaleTimeString()+']: '+msg;if(cls==='ok')d.style.color='#16a34a';el.appendChild(d);el.scrollTop=el.scrollHeight;}
 
-// ═══════════════════════════════════════════════════════════
-//  TABS
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
+//  i18n (minimal)
+// ══════════════════════════════════════════════════════════
+const I18N={zh:{navSum:'總表',navAS:'出勤×車縫',navAC:'出勤×入離職',navAM:'出勤×孕假',navUni:'整合總表',navMap:'對應設定',navUm:'未匹配',navCfg:'設定',pDay:'日',pWeek:'週',pMonth:'月',pYear:'年',card:'卡片',table:'表格',cfgAtt:'考勤 Excel 匯入',mapTitle:'Line Alias 管理',mapDesc:'設定別名對應關係',srcStatus:'資料來源狀態',uniTitle:'跨模組整合比較表',stSum:'期間明細',thAtt:'考勤',thSew:'車縫',thDiff:'差異',thJoin:'新進',thResign:'離職',thPreg:'孕婦',thMat:'產假',thCont:'合約',thProb:'試用'},en:{navSum:'Summary',navAS:'Att×Sewing',navAC:'Att×Onboard',navAM:'Att×Maternity',navUni:'Unified Table',navMap:'Mapping',navUm:'Unmatched',navCfg:'Settings',pDay:'Day',pWeek:'Week',pMonth:'Month',pYear:'Year',card:'Card',table:'Table',cfgAtt:'Attendance Import',mapTitle:'Line Alias Manager',mapDesc:'Set alias mappings',srcStatus:'Data Source Status',uniTitle:'Unified Cross-Module Compare',stSum:'Period Detail',thAtt:'Attendance',thSew:'Sewing',thDiff:'Diff',thJoin:'Join',thResign:'Resign',thPreg:'Preg.',thMat:'Mat.',thCont:'Contract',thProb:'Prob.'}};
+let LANG='zh';
+const t=k=>I18N[LANG][k]||I18N.zh[k]||k;
+function setL(l){LANG=l;document.getElementById('btn-zh').classList.toggle('on',l==='zh');document.getElementById('btn-en').classList.toggle('on',l==='en');document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});renderAll();}
+
+// ══════════════════════════════════════════════════════════
+//  TABS & RENDER ALL
+// ══════════════════════════════════════════════════════════
 function switchTab(t2){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t2));
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t2));
-  if(t2==='sum')renderSum();else if(t2==='as')renderAS();else if(t2==='ac')renderAC();else if(t2==='am')renderAM();else if(t2==='list')renderList();else if(t2==='cfg')updateCfgKpis();
+  renderPk2(t2);
+}
+function renderPk2(t2){
+  if(t2==='sum')renderSum();
+  else if(t2==='as')renderAS();
+  else if(t2==='ac')renderAC();
+  else if(t2==='am')renderAM();
+  else if(t2==='unified')renderUnified();
+  else if(t2==='map'){renderAliasTable();updateSrcKpi();}
+  else if(t2==='unmatched')renderUnmatched();
+  else if(t2==='cfg')updateSrcKpi();
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
-
-function renderAll(){
-  const a=document.querySelector('.pane.on')?.id?.replace('pane-','');
-  if(a==='sum')renderSum();else if(a==='as')renderAS();else if(a==='ac')renderAC();else if(a==='am')renderAM();else if(a==='list')renderList();else if(a==='cfg')updateCfgKpis();
-}
+function renderAll(){const a=document.querySelector('.pane.on')?.id?.replace('pane-','');if(a)renderPk2(a);}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),3200);}
 
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 //  INIT
-// ═══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════
 (async()=>{
-  loadAttFromLS();loadSewFromLS();loadMatFromLS();
-  // 讀 IDB（仿 sewing 讀 cutting）
-  const attIDB=await readIDB(IDB_ATT);
-  if(attIDB.length>ATT_DB.length){
-    ATT_DB=attIDB.map(r=>{
-      const rawLine = r.lineNo||r.group||r.section||r.line||'';
-      const lineN = normLine(rawLine);
-      if(!r.date||!rawLine||lineN==='?'||/grand|total|ttl|sum|all/i.test(rawLine))return null;
-      return {date:r.date,line:lineN,lineRaw:rawLine,
-        hc:+r.ttl||+r.hc||+(r.m||0)+(+r.f||0)||0,
-        att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
-        ml:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0};
-    }).filter(Boolean);
-  }
-  const sewIDB=await readIDB(IDB_SEW);
-  if(sewIDB.length>SEW_DB.length){SEW_DB=sewIDB.filter(r=>r.date&&r.lineNo).map(r=>({date:r.date,line:normLine(r.lineNo),lineRaw:r.lineNo,section:r.section||'',workers:+r.workers||0,pieces:+r.pieces||0,eff:+r.efficiency||0}));}
-  const contIDB=await readIDB(IDB_CONT);let contLS=[];try{contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]');}catch(e){}
-  CONT_DB=contIDB.length?contIDB:contLS;
-  const probIDB=await readIDB(IDB_PROB);let probLS=[];try{probLS=JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]');}catch(e){}
-  PROB_DB=probIDB.length?probIDB:probLS;
-  // GAS URLs
-  const hraG=localStorage.getItem(LS_HRA_GAS)||'';
-  const prodG=localStorage.getItem(LS_PROD_GAS)||'';
-  if(document.getElementById('hraGasInput'))document.getElementById('hraGasInput').value=hraG;
-  if(document.getElementById('prodGasInput'))document.getElementById('prodGasInput').value=prodG;
-  // Auto pull from cloud if GAS URLs exist
-  if(hraG||prodG){
-    setSyncTip('☁ 自動同步中…');
-    doPull().then(()=>{}).catch(()=>{setSyncTip('');});
-  }
-  rebuildPeriods();renderAll();updateCfgKpis();
-  cpLog('初始化完成：考勤'+ATT_DB.length+' 車縫'+SEW_DB.length+' 合約'+CONT_DB.length+' 孕假'+MAT_DB.length,'ok');
+  loadAliases();
+  loadAttLS(); loadSewLS(); loadMatLS(); loadOnboardLS();
+
+  // Try IDB reads immediately
+  const attIDB=await readIDB(IDB_CFG.att);
+  if(attIDB.length>COMPLETE_DB.attendance.length) COMPLETE_DB.attendance=attIDB;
+
+  const sewIDB=await readIDB(IDB_CFG.sew);
+  if(sewIDB.length>COMPLETE_DB.sewing.length) COMPLETE_DB.sewing=sewIDB;
+
+  const contIDB=await readIDB(IDB_CFG.cont);
+  let contLS=[];try{contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]');}catch(e){}
+  COMPLETE_DB.contract=contIDB.length?contIDB:contLS;
+
+  const probIDB=await readIDB(IDB_CFG.prob);
+  let probLS=[];try{probLS=JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]');}catch(e){}
+  COMPLETE_DB.probation=probIDB.length?probIDB:probLS;
+
+  // Restore URLs
+  const hu=localStorage.getItem(LS.HRA_GAS)||'';
+  const pu=localStorage.getItem(LS.PROD_GAS)||'';
+  if(document.getElementById('hraUrl')) document.getElementById('hraUrl').value=hu;
+  if(document.getElementById('prodUrl')) document.getElementById('prodUrl').value=pu;
+
+  rebuildNorm();
+  renderAll();
+  updateSrcKpi();
+  cpLog('初始化：考勤'+COMPLETE_DB.attendance.length+' 車縫'+COMPLETE_DB.sewing.length+' 合約'+COMPLETE_DB.contract.length+' 孕假'+COMPLETE_DB.maternity.length,'ok');
+
+  // Auto cloud pull if URLs set
+  if(hu||pu) setTimeout(()=>doLoad().catch(()=>{}),1500);
 })();
 </script>
 </body>
