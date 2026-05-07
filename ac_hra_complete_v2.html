@@ -478,13 +478,15 @@ async function reloadAll() {
   // 讀考勤 IDB
   const attIDB = await readIDB(IDB_ATT);
   if (attIDB.length > ATT_DB.length) {
-    ATT_DB = attIDB.map(r=>({
-      date:r.date||'', line:normLine(r.group||r.lineNo||r.section||''),
-      lineRaw:r.group||r.lineNo||r.section||'',
-      hc:+r.ttl||+r.hc||0, att:+r.att||0,
-      join:+r.join||0, resign:+r.resign||0,
-      ml:+r.ml||0, al:+r.al||0, pl:+r.pl||0, sl:+r.sl||0, np:+r.np||0,
-    })).filter(r=>r.date&&r.line);
+    ATT_DB = attIDB.map(r=>{
+      const rawLine=r.lineNo||r.group||r.section||r.line||'';
+      const lineN=normLine(rawLine);
+      if(!r.date||!rawLine||lineN==='?'||/grand|total|ttl|sum|^all$/i.test(rawLine))return null;
+      return {date:r.date,line:lineN,lineRaw:rawLine,
+        hc:+r.ttl||+r.hc||(+r.m||0)+(+r.f||0)||0,
+        att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
+        ml:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0};
+    }).filter(Boolean);
   }
 
   // 讀車縫 IDB（仿 sewing 讀 cutting）
@@ -529,13 +531,15 @@ async function doPull() {
     try {
       const attData = await pullTool(hraUrl, 'attendance');
       if (attData.length) {
-        ATT_DB = attData.map(r=>({
-          date:r.date||'', line:normLine(r.group||r.lineNo||r.section||''),
-          lineRaw:r.group||r.lineNo||r.section||'',
-          hc:+r.ttl||+r.hc||0, att:+r.att||0,
-          join:+r.join||0, resign:+r.resign||0,
-          ml:+r.ml||0, al:+r.al||0, pl:+r.pl||0, sl:+r.sl||0, np:+r.np||0,
-        })).filter(r=>r.date&&r.line);
+        ATT_DB = attData.map(r=>{
+          const rawLine=r.lineNo||r.group||r.section||r.line||'';
+          const lineN=normLine(rawLine);
+          if(!r.date||!rawLine||lineN==='?'||/grand|total|ttl|^all$/i.test(rawLine))return null;
+          return {date:r.date,line:lineN,lineRaw:rawLine,
+            hc:+r.ttl||+r.hc||(+r.m||0)+(+r.f||0)||0,
+            att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
+            ml:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0};
+        }).filter(Boolean);
         saveAttLS();
         total += ATT_DB.length;
         cpLog(`考勤 ${ATT_DB.length} 筆 ✓`, 'ok');
@@ -638,7 +642,8 @@ function normLine(s) {
   if (!isNaN(num) && num > 0 && num <= 60) return 'L' + num;
   const ma = v.match(/^([a-z])0*(\d+)$/);
   if (ma) return ma[1].toUpperCase() + parseInt(ma[2], 10);
-  return v.slice(0,8).toUpperCase() || '?';
+  if(v.length>=1&&v.length<=10) return v.slice(0,10).toUpperCase();
+  return '?';
 }
 function normDept(s) {
   const v = String(s||'').toLowerCase();
@@ -652,6 +657,23 @@ function normDept(s) {
   return String(s||'').trim() || '(other)';
 }
 
+// ── 期間聚合輔助（月/週/年→每日平均，日→合計）──────────
+function aggHC(recs, line) {
+  const lr = line ? recs.filter(r=>r.line===line) : recs;
+  if (!lr.length) return 0;
+  const byDate = {};
+  lr.forEach(r => { byDate[r.date] = (byDate[r.date]||0) + (+r.hc||0); });
+  const days = Object.keys(byDate).length;
+  return Math.round(Object.values(byDate).reduce((s,v)=>s+v,0) / Math.max(1,days));
+}
+function aggSewW(recs, line) {
+  const lr = line ? recs.filter(r=>r.line===line) : recs;
+  if (!lr.length) return 0;
+  const byDate = {};
+  lr.forEach(r => { byDate[r.date] = (byDate[r.date]||0) + (+r.workers||0); });
+  const days = Object.keys(byDate).length;
+  return Math.round(Object.values(byDate).reduce((s,v)=>s+v,0) / Math.max(1,days));
+}
 // ═══════════════════════════════════════════════════════════
 //  PERIOD HELPERS
 // ═══════════════════════════════════════════════════════════
@@ -703,25 +725,35 @@ function pbarHtml(pk, onChangeFn) {
   const P = PS[pk], cur = curKey(pk);
   const modes = ['day','week','month','year'];
   const labels = [t('pDay'), t('pWeek'), t('pMonth'), t('pYear')];
+  const periodOpts = P.list.map(k => `<option value="${k}"${k===cur?' selected':''}>${pLabel(k,P.m)}</option>`).join('');
+  const lineOpts = getAllLines().map(l=>`<option${getSavedFilter(pk,'line')===l?' selected':''}>${l}</option>`).join('');
+  const deptOpts = getAllDepts().map(d=>`<option${getSavedFilter(pk,'dept')===d?' selected':''}>${d}</option>`).join('');
   return `
     <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       ${modes.map((m,i)=>`<button class="ptab${P.m===m?' on':''}" onclick="setPM('${pk}','${m}')">${labels[i]}</button>`).join('')}
       <button class="pnav" onclick="navP('${pk}',-1)">◀</button>
-      <span class="plabel">${pLabel(cur,P.m)}</span>
-      <button class="pnav" onclick="navP('${pk}',1)">▶</button>
-      <select class="psel" id="sel-line-${pk}" onchange="${onChangeFn}">
-        <option value="">— ${t('line')} —</option>
-        ${getAllLines().map(l=>`<option>${l}</option>`).join('')}
+      <select class="psel" id="sel-period-${pk}" style="min-width:100px" onchange="jumpPeriod('${pk}',this.value)">
+        ${periodOpts||'<option>—</option>'}
       </select>
-      <select class="psel" id="sel-dept-${pk}" onchange="${onChangeFn}">
+      <button class="pnav" onclick="navP('${pk}',1)">▶</button>
+
+      <select class="psel" id="sel-line-${pk}" onchange="saveFilter('${pk}','line',this.value);${onChangeFn}">
+        <option value="">— ${t('line')} —</option>
+        ${lineOpts}
+      </select>
+      <select class="psel" id="sel-dept-${pk}" onchange="saveFilter('${pk}','dept',this.value);${onChangeFn}">
         <option value="">— ${t('dept')} —</option>
-        ${getAllDepts().map(d=>`<option>${d}</option>`).join('')}
+        ${deptOpts}
       </select>
       <button class="hbtn" style="background:${VIEW==='card'?'var(--navy)':'transparent'};color:${VIEW==='card'?'#fff':'var(--gray)'};border-color:var(--brd2);font-size:10px" onclick="VIEW=VIEW==='card'?'table':'card';renderAll()">
         ${VIEW==='card'?t('card'):t('table')}
       </button>
     </div>`;
 }
+const _filters = {};
+function saveFilter(pk,type,val){if(!_filters[pk])_filters[pk]={};_filters[pk][type]=val;}
+function getSavedFilter(pk,type){return _filters[pk]?.[type]||'';}
+function jumpPeriod(pk,key){const P=PS[pk],i=P.list.indexOf(key);if(i>=0){P.idx=i;renderPk(pk);}}
 function setPM(pk, mode) { PS[pk].m=mode; PS[pk].list=buildList(mode); PS[pk].idx=Math.max(0,PS[pk].list.length-1); renderPk(pk); }
 function navP(pk, d) { const P=PS[pk]; P.idx=Math.max(0,Math.min(P.idx+d,P.list.length-1)); renderPk(pk); }
 function renderPk(pk) { if(pk==='sum')renderSum(); else if(pk==='as')renderAS(); else if(pk==='ac')renderAC(); else if(pk==='am')renderAM(); }
@@ -735,8 +767,8 @@ function getAllDepts() {
   return [...new Set([...ATT_DB.map(r=>normDept(r.lineRaw||r.line)),...CONT_DB.map(r=>normDept(r.dept||'')),...MAT_DB.map(e=>normDept(e.dept||''))])].sort();
 }
 
-function getLineFilter(pk)  { return document.getElementById('sel-line-'+pk)?.value||''; }
-function getDeptFilter(pk)  { return document.getElementById('sel-dept-'+pk)?.value||''; }
+function getLineFilter(pk)  { return getSavedFilter(pk,'line'); }
+function getDeptFilter(pk)  { return getSavedFilter(pk,'dept'); }
 
 // ═══════════════════════════════════════════════════════════
 //  AGG
@@ -774,7 +806,8 @@ function diffBadge(d) {
 function renderSum() {
   document.getElementById('sum-pbar').innerHTML = pbarHtml('sum','renderSum()');
   const cur = curKey('sum'), P = PS.sum;
-  const aAll=aggA(ATT_DB), sAll=aggS(SEW_DB);
+  const aAll=aggA(ATT_DB); const aAvgDays=aAll.days||1;
+  const sAll=aggS(SEW_DB);
   const matAct=MAT_DB.filter(e=>e.status==='maternity').length;
   const matPrg=MAT_DB.filter(e=>e.status==='pregnant').length;
   const contN=CONT_DB.filter(c=>!c.status||c.status==='active').length;
@@ -794,7 +827,7 @@ function renderSum() {
   const contJ=CONT_DB.filter(r=>r.entryDate&&inP(r.entryDate,'sum'));
   const matR=MAT_DB.filter(e=>e.leaveStart&&inP(e.leaveStart,'sum'));
   const agg_a=aggA(attR), agg_s=aggS(sewR);
-  const allLines=[...new Set([...attR.map(r=>r.line),...sewR.map(r=>r.line)])].sort((a,b)=>parseInt(a.slice(1)||0)-parseInt(b.slice(1)||0));
+  const allLines=[...new Set([...attR.map(r=>r.line),...sewR.map(r=>r.line)])].filter(l=>l&&l!=='?').sort((a,b)=>parseInt(a.slice(1)||0)-parseInt(b.slice(1)||0));
 
   let html='';
   if (VIEW==='card') {
@@ -809,7 +842,7 @@ function renderSum() {
     </div>`;
     allLines.slice(0,24).forEach(line=>{
       const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=la.reduce((s,r)=>s+(+r.hc||0),0), lsw=ls.reduce((s,r)=>s+(+r.workers||0),0);
+      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
       const diff=lahc-lsw, dc=diffCls(diff,Math.max(lahc,lsw));
       html+=`<div class="card"><div class="card-hd"><span class="dot ${dc}"></span> ${line}</div>
         <div class="row"><span class="lbl">${t('attHC')}</span><span class="val">${lahc}</span></div>
@@ -824,7 +857,7 @@ function renderSum() {
       <th>${t('line')}</th><th>${t('attHC')}</th><th>${t('sewWk')}</th><th>${t('diff')}</th><th>${t('rate')}</th><th>${t('join')}</th><th>${t('resign')}</th><th>${t('status')}</th>
     </tr></thead><tbody>${allLines.map(line=>{
       const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=la.reduce((s,r)=>s+(+r.hc||0),0), lsw=ls.reduce((s,r)=>s+(+r.workers||0),0);
+      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
       const diff=lahc-lsw, pct=lsw?(diff/lsw*100).toFixed(1)+'%':'—', dc=diffCls(diff,Math.max(lahc,lsw));
       return `<tr><td><b>${line}</b></td><td>${lahc}</td><td>${lsw||'—'}</td><td>${diffBadge(diff)}</td><td>${pct}</td>
         <td>${la.reduce((s,r)=>s+(+r.join||0),0)}</td><td>${la.reduce((s,r)=>s+(+r.resign||0),0)}</td>
@@ -865,14 +898,14 @@ function renderAS() {
     {l:t('rate'),v:agg_s.workers?(diff/agg_s.workers*100).toFixed(1)+'%':'—',c:'pu'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
-  const allLines=[...new Set([...attR.map(r=>r.line),...sewR.map(r=>r.line)])].sort((a,b)=>parseInt(a.slice(1)||0)-parseInt(b.slice(1)||0));
-  const maxV=Math.max(1,...allLines.map(l=>Math.max(attR.filter(r=>r.line===l).reduce((s,r)=>s+(+r.hc||0),0),sewR.filter(r=>r.line===l).reduce((s,r)=>s+(+r.workers||0),0))));
+  const allLines=[...new Set([...attR.map(r=>r.line),...sewR.map(r=>r.line)])].filter(l=>l&&l!=='?').sort((a,b)=>parseInt(a.slice(1)||0)-parseInt(b.slice(1)||0));
+  const maxV=Math.max(1,...allLines.map(l=>Math.max(aggHC(attR,l),aggSewW(sewR,l))));
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
     allLines.forEach(line=>{
       const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=la.reduce((s,r)=>s+(+r.hc||0),0), lsw=ls.reduce((s,r)=>s+(+r.workers||0),0);
+      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
       const diff2=lahc-lsw, dc=diffCls(diff2,Math.max(lahc,lsw));
       const effAvg=ls.length?(ls.reduce((s,r)=>s+(+r.eff||0),0)/ls.length).toFixed(1):'—';
       html+=`<div class="card"><div class="card-hd"><span class="dot ${dc}"></span> ${line}</div>
@@ -887,8 +920,8 @@ function renderAS() {
     // Diff bar
     html+='<div class="panel"><h3>📊 差異圖</h3><div class="dbars">';
     allLines.forEach(line=>{
-      const lahc=attR.filter(r=>r.line===line).reduce((s,r)=>s+(+r.hc||0),0);
-      const lsw=sewR.filter(r=>r.line===line).reduce((s,r)=>s+(+r.workers||0),0);
+      const lahc=aggHC(attR,line);
+      const lsw=aggSewW(sewR,line);
       html+=`<div class="dbar"><span class="dl">${line}</span>
         <div class="dw"><div class="da" style="width:${(lahc/maxV*100).toFixed(1)}%"></div></div>
         <div class="dw" style="flex:.7"><div class="db" style="width:${(lsw/maxV*100).toFixed(1)}%"></div></div>
@@ -900,7 +933,7 @@ function renderAS() {
       <th>${t('line')}</th><th>${t('attHC')}</th><th>${t('sewWk')}</th><th>${t('diff')}</th><th>${t('rate')}</th><th>Eff%</th><th>Pcs</th><th>${t('status')}</th>
     </tr></thead><tbody>${allLines.map(line=>{
       const la=attR.filter(r=>r.line===line), ls=sewR.filter(r=>r.line===line);
-      const lahc=la.reduce((s,r)=>s+(+r.hc||0),0), lsw=ls.reduce((s,r)=>s+(+r.workers||0),0);
+      const lahc=aggHC(attR,line), lsw=aggSewW(sewR,line);
       const d2=lahc-lsw, pct=lsw?(d2/lsw*100).toFixed(1)+'%':'—', dc=diffCls(d2,Math.max(lahc,lsw));
       const eff=ls.length?(ls.reduce((s,r)=>s+(+r.eff||0),0)/ls.length).toFixed(1):'—';
       return `<tr><td><b>${line}</b></td><td>${lahc}</td><td>${lsw||'—'}</td><td>${diffBadge(d2)}</td><td>${pct}</td><td>${eff}</td><td>${ls.reduce((s,r)=>s+(+r.pieces||0),0)||'—'}</td><td><span class="badge ${dc}">${dc==='ok'?t('match'):dc==='warn'?t('slight'):t('large')}</span></td></tr>`;
@@ -914,51 +947,70 @@ function renderAS() {
 // ═══════════════════════════════════════════════════════════
 function renderAC() {
   document.getElementById('ac-pbar').innerHTML = pbarHtml('ac','renderAC()');
-  const cur=curKey('ac'); if(!cur){document.getElementById('ac-detail').innerHTML='<div style="color:var(--gray);padding:20px">無資料</div>';return;}
+  const cur=curKey('ac'), P=PS.ac;
+  if(!cur){document.getElementById('ac-detail').innerHTML='<div style="color:var(--gray);padding:20px">無資料</div>';return;}
   const attR=ATT_DB.filter(r=>inP(r.date,'ac'));
+  // 考勤新進/離職
+  const aJ=attR.reduce((s,r)=>s+(+r.join||0),0);
+  const aR=attR.reduce((s,r)=>s+(+r.resign||0),0);
+  const aRatio=aJ>0?(aR/aJ*100).toFixed(1):'—';
+  // 合約/試用
   const contR=CONT_DB.filter(r=>r.entryDate&&inP(r.entryDate,'ac'));
   const probR=PROB_DB.filter(r=>r.joinDate&&inP(r.joinDate,'ac'));
-  const aJ=attR.reduce((s,r)=>s+(+r.join||0),0), aR=attR.reduce((s,r)=>s+(+r.resign||0),0);
-  const cJ=contR.length, pJ=probR.length, jDiff=aJ-cJ;
-  document.getElementById('kpi-ac').innerHTML=[
-    {l:`${t('attHC')} ${t('join')}`,v:aJ,c:'nv'},{l:`${t('contract')} ${t('join')}`,v:cJ,c:'tl'},
-    {l:`${t('probation')} ${t('join')}`,v:pJ,c:'gd'},{l:t('diff'),v:(jDiff>=0?'+':'')+jDiff,c:jDiff===0?'gn':Math.abs(jDiff)<=3?'gd':'rd'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
+  // 各部門考勤新進離職
+  const deptAtt=new Map();
+  attR.forEach(r=>{
+    const d=normDept(r.lineRaw||r.line);
+    if(!deptAtt.has(d))deptAtt.set(d,{j:0,r:0,lines:new Set()});
+    deptAtt.get(d).j+=(+r.join||0); deptAtt.get(d).r+=(+r.resign||0); deptAtt.get(d).lines.add(r.line);
+  });
+  // 各部門合約新進
+  const deptCont=new Map();
+  contR.forEach(r=>{const d=normDept(r.dept); if(!deptCont.has(d))deptCont.set(d,{j:0,ids:[]}); deptCont.get(d).j++; deptCont.get(d).ids.push(r.factoryId||'');});
+  const allDepts=[...new Set([...deptAtt.keys(),...deptCont.keys()])].sort();
 
-  // Group by dept
-  const dm=new Map();
-  contR.forEach(r=>{const d=normDept(r.dept); if(!dm.has(d))dm.set(d,{j:0,ids:[]}); dm.get(d).j++; dm.get(d).ids.push(r.factoryId||r.name);});
+  document.getElementById('kpi-ac').innerHTML=[
+    {l:`考勤 ${t('join')}`,v:aJ,c:'nv'},{l:`考勤 ${t('resign')}`,v:aR,c:'rd'},
+    {l:'入/離職比',v:aRatio+'%',c:aRatio==='—'?'gray':+aRatio<=30?'gn':'gd'},
+    {l:`合約新進 / 試用`,v:`${contR.length} / ${probR.length}`,c:'tl'},
+  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
-    html+=`<div class="card"><div class="card-hd">📊 ${pLabel(cur,PS.ac.m)}</div>
-      <div class="row"><span class="lbl">${t('attHC')} ${t('join')}</span><span class="val">${aJ}</span></div>
-      <div class="row"><span class="lbl">${t('contract')} ${t('join')}</span><span class="val">${cJ}</span></div>
-      <div class="row"><span class="lbl">${t('diff')}</span><span class="val">${diffBadge(jDiff)}</span></div>
-      <div class="row"><span class="lbl">${t('resign')}</span><span class="val">${aR}</span></div>
-      <div class="row"><span class="lbl">${t('probation')}</span><span class="val">${pJ}</span></div>
+    html+=`<div class="card"><div class="card-hd">📊 ${pLabel(cur,P.m)}</div>
+      <div class="row"><span class="lbl">考勤 ${t('join')}</span><span class="val">${aJ}</span></div>
+      <div class="row"><span class="lbl">考勤 ${t('resign')}</span><span class="val">${aR}</span></div>
+      <div class="row"><span class="lbl">入/離職比</span><span class="val">${aRatio}%</span></div>
+      <div class="row"><span class="lbl">合約新進</span><span class="val">${contR.length}</span></div>
+      <div class="row"><span class="lbl">考-合 差異</span><span class="val">${diffBadge(aJ-contR.length)}</span></div>
+      <div class="row"><span class="lbl">試用新增</span><span class="val">${probR.length}</span></div>
     </div>`;
-    [...dm.entries()].sort((a,b)=>b[1].j-a[1].j).forEach(([d,v])=>{
-      const dAJ=attR.filter(r=>normDept(r.lineRaw||r.line)===d).reduce((s,r)=>s+(+r.join||0),0);
-      const dd=dAJ-v.j, dc=diffCls(dd,Math.max(dAJ,v.j));
-      html+=`<div class="card"><div class="card-hd"><span class="dot ${dc}"></span> 🏭 ${d}</div>
-        <div class="row"><span class="lbl">${t('attHC')} ${t('join')}</span><span class="val">${dAJ}</span></div>
-        <div class="row"><span class="lbl">${t('contract')} ${t('join')}</span><span class="val">${v.j}</span></div>
-        <div class="row"><span class="lbl">${t('diff')}</span><span class="val">${diffBadge(dd)}</span></div>
-        <div class="row"><span class="lbl">ID</span><span class="val" style="font-size:10px">${v.ids.slice(0,5).join(', ')}</span></div>
+    allDepts.forEach(dept=>{
+      const da=deptAtt.get(dept)||{j:0,r:0,lines:new Set()};
+      const dc2=deptCont.get(dept)||{j:0,ids:[]};
+      const ratio=da.j>0?(da.r/da.j*100).toFixed(1):'—';
+      const diff2=da.j-dc2.j, dcls=diffCls(diff2,Math.max(da.j,dc2.j));
+      html+=`<div class="card"><div class="card-hd"><span class="dot ${dcls}"></span> 🏭 ${dept}</div>
+        <div class="row"><span class="lbl">考勤 ${t('join')}</span><span class="val">${da.j}</span></div>
+        <div class="row"><span class="lbl">考勤 ${t('resign')}</span><span class="val">${da.r}</span></div>
+        <div class="row"><span class="lbl">入/離職比</span><span class="val" style="color:${+ratio>50?'var(--red)':'var(--navy)'}">${ratio}%</span></div>
+        <div class="row"><span class="lbl">合約新進</span><span class="val">${dc2.j}</span></div>
+        <div class="row"><span class="lbl">差異</span><span class="val">${diffBadge(diff2)}</span></div>
+        <div class="row"><span class="lbl">組別</span><span class="val" style="font-size:10px">${[...da.lines].slice(0,4).join(', ')}</span></div>
       </div>`;
     });
     html+='</div>';
   } else {
     html=`<div class="twrap"><table><thead><tr>
-      <th>${t('dept')}</th><th>${t('attHC')} ${t('join')}</th><th>${t('contract')} ${t('join')}</th><th>${t('diff')}</th>
-    </tr></thead><tbody>${[...dm.entries()].map(([d,v])=>{
-      const dAJ=attR.filter(r=>normDept(r.lineRaw||r.line)===d).reduce((s,r)=>s+(+r.join||0),0);
-      return `<tr><td><b>${d}</b></td><td>${dAJ}</td><td>${v.j}</td><td>${diffBadge(dAJ-v.j)}</td></tr>`;
-    }).join('')||'<tr><td colspan="4" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>
+      <th>${t('dept')}</th><th>考勤 ${t('join')}</th><th>考勤 ${t('resign')}</th><th>入/離職比</th><th>合約新進</th><th>差異</th>
+    </tr></thead><tbody>${allDepts.map(dept=>{
+      const da=deptAtt.get(dept)||{j:0,r:0}; const dc2=deptCont.get(dept)||{j:0};
+      const ratio=da.j>0?(da.r/da.j*100).toFixed(1)+'%':'—';
+      return `<tr><td><b>${dept}</b></td><td>${da.j}</td><td>${da.r}</td><td style="color:${+ratio>50?'var(--red)':'var(--navy)'};font-weight:700">${ratio}</td><td>${dc2.j}</td><td>${diffBadge(da.j-dc2.j)}</td></tr>`;
+    }).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>
     <div class="twrap" style="margin-top:8px"><table><thead><tr>
-      <th>廠號</th><th>姓名</th><th>${t('dept')}</th><th>${t('line')}</th><th>${t('date')}</th><th>${t('contract')}</th>
+      <th>廠號</th><th>姓名</th><th>${t('dept')}</th><th>${t('line')}</th><th>入職日</th><th>${t('contract')}</th>
     </tr></thead><tbody>${contR.map(r=>`<tr><td>${r.factoryId||'—'}</td><td>${r.name||'—'}</td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.entryDate||'—'}</td><td><span class="badge info">${r.contractType||'—'}</span></td></tr>`).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無合約資料</td></tr>'}</tbody></table></div>`;
   }
   document.getElementById('ac-detail').innerHTML = html;
@@ -979,9 +1031,9 @@ function renderAM() {
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
   const dm=new Map();
-  matAll.forEach(e=>{const d=normDept(e.dept||''); if(!dm.has(d))dm.set(d,{preg:0,mat:0,ret:0}); const v=dm.get(d); v[e.status]=(v[e.status]||0)+1;});
+  matAll.filter(e=>e.dept).forEach(e=>{const d=normDept(e.dept||''); if(!dm.has(d))dm.set(d,{preg:0,mat:0,ret:0}); const v=dm.get(d); if(e.status==='pregnant')v.preg++; else if(e.status==='maternity')v.mat++; else if(e.status==='returned')v.ret++; });
   const byLine=new Map();
-  attR.forEach(r=>{if(!byLine.has(r.line))byLine.set(r.line,{hc:0,ml:0,d:new Set()}); const v=byLine.get(r.line); v.hc+=(+r.hc||0); v.ml+=(+r.ml||0); v.d.add(r.date);});
+  attR.filter(r=>r.line&&r.line!=='?').forEach(r=>{if(!byLine.has(r.line))byLine.set(r.line,{hc:0,ml:0,d:new Set()}); const v=byLine.get(r.line); v.hc+=(+r.hc||0); v.ml+=(+r.ml||0); v.d.add(r.date);});
 
   let html='';
   if (VIEW==='card') {
@@ -1186,7 +1238,17 @@ function toast(msg){const el=document.getElementById('toast');el.textContent=msg
   loadAttFromLS();loadSewFromLS();loadMatFromLS();
   // 讀 IDB（仿 sewing 讀 cutting）
   const attIDB=await readIDB(IDB_ATT);
-  if(attIDB.length>ATT_DB.length){ATT_DB=attIDB.map(r=>({date:r.date||'',line:normLine(r.group||r.lineNo||r.section||''),lineRaw:r.group||r.lineNo||r.section||'',hc:+r.ttl||+r.hc||0,att:+r.att||0,join:+r.join||0,resign:+r.resign||0,ml:+r.ml||0,al:0,pl:0,sl:0,np:0})).filter(r=>r.date&&r.line);}
+  if(attIDB.length>ATT_DB.length){
+    ATT_DB=attIDB.map(r=>{
+      const rawLine = r.lineNo||r.group||r.section||r.line||'';
+      const lineN = normLine(rawLine);
+      if(!r.date||!rawLine||lineN==='?'||/grand|total|ttl|sum|all/i.test(rawLine))return null;
+      return {date:r.date,line:lineN,lineRaw:rawLine,
+        hc:+r.ttl||+r.hc||+(r.m||0)+(+r.f||0)||0,
+        att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
+        ml:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0};
+    }).filter(Boolean);
+  }
   const sewIDB=await readIDB(IDB_SEW);
   if(sewIDB.length>SEW_DB.length){SEW_DB=sewIDB.filter(r=>r.date&&r.lineNo).map(r=>({date:r.date,line:normLine(r.lineNo),lineRaw:r.lineNo,section:r.section||'',workers:+r.workers||0,pieces:+r.pieces||0,eff:+r.efficiency||0}));}
   const contIDB=await readIDB(IDB_CONT);let contLS=[];try{contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]');}catch(e){}
