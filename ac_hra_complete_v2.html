@@ -224,7 +224,9 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 <!-- ══ 整合總表 ══ -->
 <div class="pane on" id="pane-unified">
   <div id="pbar-uni" class="pbar"></div>
-  <div class="stit" data-i="uniTitle">📑 跨模組整合比較表</div>
+  <div class="stit">📊 整合 KPI 摘要</div>
+  <div class="ks ks3" id="kpi-unified" style="margin-bottom:14px"></div>
+  <div class="stit" data-i="uniTitle">📑 跨模組整合比較表（依 Attendance 順序）</div>
   <div class="utable" id="unified-table">
     <table><thead><tr>
       <th>LINE</th>
@@ -378,39 +380,29 @@ const HIST_LINES = new Set(['LINE_19','LINE_20','LINE_21','LINE_22','LINE_23','L
 //  LINE ALIAS SYSTEM
 // ══════════════════════════════════════════════════════════
 const DEFAULT_ALIASES = {
-  // A/B/C variants → LINE_N
-  'A0':'LINE_0','B0':'LINE_0','C0':'LINE_0',
-  'A1':'LINE_1','B1':'LINE_1','C1':'LINE_1',
-  'A2':'LINE_2','B2':'LINE_2','C2':'LINE_2',
-  'A3':'LINE_3','B3':'LINE_3','C3':'LINE_3',
-  'A4':'LINE_4','B4':'LINE_4','C4':'LINE_4',
-  'A5':'LINE_5','B5':'LINE_5','C5':'LINE_5',
-  'A6':'LINE_6','B6':'LINE_6','C6':'LINE_6',
-  'A7':'LINE_7','B7':'LINE_7','C7':'LINE_7',
-  'A8':'LINE_8','B8':'LINE_8','C8':'LINE_8',
-  'A9':'LINE_9','B9':'LINE_9','C9':'LINE_9',
-  // APRON → LINE
+  // ── Sewing Line 別名（A/B/C 前綴）─────────────────────────
+  'A1':'LINE_1','A2':'LINE_2','A3':'LINE_3','A4':'LINE_4','A5':'LINE_5',
+  'A6':'LINE_6','A7':'LINE_7','A8':'LINE_8','A9':'LINE_9','A10':'LINE_10',
+  'A11':'LINE_11','A12':'LINE_12','A13':'LINE_13','A14':'LINE_14','A15':'LINE_15',
+  'A16':'LINE_16','A17':'LINE_17','A18':'LINE_18','A19':'LINE_19','A20':'LINE_20',
+  'A21':'LINE_21','A22':'LINE_22','A23':'LINE_23','A24':'LINE_24','A25':'LINE_25',
+  'A26':'LINE_26','A27':'LINE_27','A28':'LINE_28','A29':'LINE_29','A30':'LINE_30',
+  'B21':'LINE_21','B22':'LINE_22','B23':'LINE_23','B24':'LINE_24','B25':'LINE_25',
+  'B26':'LINE_26','B27':'LINE_27',
+  // ── L 前綴 ──────────────────────────────────────────────────
+  'L1':'LINE_1','L2':'LINE_2','L3':'LINE_3','L4':'LINE_4','L5':'LINE_5',
+  'L6':'LINE_6','L7':'LINE_7','L8':'LINE_8','L9':'LINE_9','L10':'LINE_10',
+  'L11':'LINE_11','L12':'LINE_12','L13':'LINE_13','L14':'LINE_14','L15':'LINE_15',
+  'L16':'LINE_16','L17':'LINE_17','L18':'LINE_18','L19':'LINE_19','L20':'LINE_20',
+  'L21':'LINE_21','L22':'LINE_22','L23':'LINE_23','L24':'LINE_24','L25':'LINE_25',
+  'L26':'LINE_26','L27':'LINE_27',
+  // ── APRON 前綴 ───────────────────────────────────────────────
   'APRON1':'LINE_1','APRON01':'LINE_1','APRON2':'LINE_2','APRON02':'LINE_2',
-  'APRON3':'LINE_3','APRON03':'LINE_3','APRON4':'LINE_4','APRON04':'LINE_4',
-  // GARMENT → LINE
-  'GARMENT1':'LINE_1','GARMENT01':'LINE_1','GARMENT2':'LINE_2','GARMENT02':'LINE_2',
-  'GARMENT3':'LINE_3','GARMENT03':'LINE_3',
-  // Common historical aliases
-  'L21':'LINE_21','LINE21':'LINE_21','L22':'LINE_22','LINE22':'LINE_22',
-  'L23':'LINE_23','LINE23':'LINE_23','L24':'LINE_24','LINE24':'LINE_24',
-  'L25':'LINE_25','LINE25':'LINE_25','L26':'LINE_26','LINE26':'LINE_26',
-  'L27':'LINE_27','LINE27':'LINE_27',
-  'B21':'LINE_21','B22':'LINE_22','B23':'LINE_23','B24':'LINE_24',
-  'B25':'LINE_25','B26':'LINE_26','B27':'LINE_27',
-  'PACKING A':'LINE_27','PACKING GARMENT':'LINE_27','PRESSING':'LINE_27',
-  'L20':'LINE_20','LINE 20':'LINE_20','LINE20':'LINE_20',
-  // Non-sewing depts
-  'CUT':'CUT','CUTTING':'CUT','CUTLEADER':'CUT','CUTTER':'CUT',
-  'QCA':'QC','QCB':'QC','QCINSPECT':'QC','INSPECTOR':'QC',
-  'PACKING':'PACK','PACKINGA':'PACK','PACKINGB':'PACK',
-  'MAINTEN':'MAINT','MAINTENANCE':'MAINT',
-  'OFFICE':'ADMIN','ADMIN':'ADMIN',
-  'WAREHOUSE':'WH','STORE':'WH',
+  'APRON3':'LINE_3','APRON03':'LINE_3',
+  // ── GARMENT 前綴 ─────────────────────────────────────────────
+  'GARMENT1':'LINE_1','GARMENT01':'LINE_1','GARMENT2':'LINE_2','GARMENT3':'LINE_3',
+  // ── 非車縫部門（只映射到自己的 canonical 名稱，不映射到 LINE_XX）
+  // 注意：這些不是 LINE，不放在這裡對應
 };
 
 window.LINE_ALIAS = {};
@@ -752,7 +744,21 @@ const LIST_ALIASES = {
   'SUPERVISOR QC /QC 課長': 'QC_CUTTI',
   'SUPERVISOR QC /QC組長': 'QC_CUTTI',
 };
-// Total: 299
+// Total:
+
+// ── 過濾 LIST_ALIASES 中不合法的 Sewing mapping ──────────────
+// 非車縫名稱不能 mapping 到 LINE_XX（除非用戶手動設定）
+const NON_SEWING_PATTERNS = /^(PACK|PRESS|QC|CUT|ADMIN|WH|WARE|MAINT|SECU|HRA|ACCT|SHIP|IT|MARKER|FINISH|SAMPLE|OFFICE|GAS|MECHANIC|ME$)/i;
+function _isSafeLineAlias(from, to) {
+  if (!to.startsWith('LINE_')) return true; // 非 LINE 的對應都OK
+  // 如果 from 看起來像非車縫部門，拒絕
+  const fromUp = from.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  return !NON_SEWING_PATTERNS.test(fromUp);
+}
+const _filteredListAliases = Object.fromEntries(
+  Object.entries(LIST_ALIASES).filter(([k,v]) => _isSafeLineAlias(k,v))
+);
+ 299
 
 
 function normalizeLineName(raw) {
@@ -772,8 +778,8 @@ function _doNorm(orig) {
   const origTrim = orig.replace(/\s+/g,' ').trim();
   if (window.LINE_ALIAS[origTrim]) return window.LINE_ALIAS[origTrim];
   // 同時查 list.XLS alias
-  if (LIST_ALIASES[orig])     return LIST_ALIASES[orig];
-  if (LIST_ALIASES[origTrim]) return LIST_ALIASES[origTrim];
+  if (_filteredListAliases[orig])     return _filteredListAliases[orig];
+  if (_filteredListAliases[origTrim]) return _filteredListAliases[origTrim];
 
   // ② 去掉所有非字母數字字元（只保留 A-Z 和 0-9）
   const noSp = orig.replace(/[^A-Z0-9]/g,'');
@@ -1099,6 +1105,46 @@ function rebuildNorm() {
   rebuildPeriods();
 }
 
+
+// ── isSewingLine：判定是否為車縫線 ──────────────────────────
+// 只允許 LINE_1~LINE_30，或用戶手動指定的 sewing 線
+const CUSTOM_SEWING = new Set(); // 用戶可動態加入
+
+function isSewingLine(lineId) {
+  if (!lineId) return false;
+  const m = lineId.match(/^LINE_(\d+)$/);
+  if (m) {
+    const n = parseInt(m[1]);
+    return n >= 1 && n <= MAX_SEWING_LINE;
+  }
+  return CUSTOM_SEWING.has(lineId);
+}
+
+// ── getAttLines：從 Attendance 取得主資料行（保持順序）──────
+// Attendance 是 Master，所有頁面列表都以此為主
+function getAttLines() {
+  // 以 attendance 出現的 lineId 為準，保持出現順序，去重
+  const seen = new Set();
+  const result = [];
+  for (const r of _attNorm) {
+    if (!r.lineId || seen.has(r.lineId)) continue;
+    seen.add(r.lineId);
+    result.push(r.lineId);
+  }
+  // 數字排序 sewing lines，非 sewing lines 後置
+  return result.sort((a,b)=>{
+    const ma=a.match(/^LINE_(\d+)$/), mb=b.match(/^LINE_(\d+)$/);
+    if(ma&&mb) return parseInt(ma[1])-parseInt(mb[1]);
+    if(ma) return -1; if(mb) return 1;
+    return a.localeCompare(b);
+  });
+}
+
+// ── getSewAttLines：只取 Attendance 中的 Sewing 線 ──────────
+function getSewAttLines() {
+  return getAttLines().filter(isSewingLine);
+}
+
 // ══════════════════════════════════════════════════════════
 //  AGGREGATION ENGINE (Attendance = primary baseline)
 // ══════════════════════════════════════════════════════════
@@ -1257,7 +1303,7 @@ function pbarHtml(pk, extraSel='') {
   const modes=['day','week','month','year'];
   const mLabels=[t('pDay'),t('pWeek'),t('pMonth'),t('pYear')];
   const opts=P.list.map(k=>`<option value="${k}"${k===cur?' selected':''}>${pLabel(k,P.m)}</option>`).join('');
-  const lines=getAllLines();
+  const lines=getAttLines();
   return `<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
     ${modes.map((m,i)=>`<button class="pt${P.m===m?' on':''}" onclick="setPM('${pk}','${m}')">${mLabels[i]}</button>`).join('')}
     <button class="pnav" onclick="navP('${pk}',-1)">◀</button>
@@ -1423,14 +1469,15 @@ function renderAS() {
     });
     html+='</div>';
   } else {
-    html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">考勤</th><th class="center">車縫</th><th class="center">差異</th><th class="center">差%</th><th class="center">效率%</th><th class="center">產量</th></tr></thead><tbody>
+    html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">考勤車工 (均)</th><th class="center">車縫系統 (均)</th><th class="center">差異</th><th class="center">差%</th><th class="center">效率%</th><th class="center">產量</th></tr></thead><tbody>
     ${lines.map(line=>{
-      const r=compareAttendanceVsSewing(line,dates);
-      return `<tr><td><b>${displayLine(line)}</b></td><td class="center">${r.attHC||'—'}</td><td class="center">${r.sewW||'—'}</td>
-        <td class="center dc ${r.diffCls}">${r.attHC&&r.sewW?(r.diff>=0?'+':'')+r.diff:'—'}</td>
-        <td class="center">${r.sewW?(r.diff/r.sewW*100).toFixed(1)+'%':'—'}</td>
-        <td class="center">${r.eff||'—'}</td><td class="center">${r.pieces||'—'}</td></tr>`;
-    }).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
+      const a=getAttStats(line,dates), s=getSewStats(line,dates);
+      const df=a.hc-s.workers, pct=s.workers?(df/s.workers*100).toFixed(1)+'%':'—';
+      const dcl=dc(df,a.hc);
+      return `<tr><td><b>${displayLine(line)}</b></td><td class="center">${a.hc||'—'}</td><td class="center">${s.workers||'—'}</td>
+        <td class="center dc ${dcl}">${a.hc&&s.workers?(df>=0?'+':'')+df:'—'}</td>
+        <td class="center">${pct}</td><td class="center">${s.eff||'—'}</td><td class="center">${s.pieces||'—'}</td></tr>`;
+    }).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無考勤+車縫對應資料</td></tr>'}</tbody></table></div>`;
   }
   document.getElementById('as-content').innerHTML=html;
 }
@@ -1445,12 +1492,23 @@ function renderAC() {
   const jDiff=a.join-j.join, rDiff=a.resign-j.resign;
   const ratio=a.join>0?(a.resign/a.join*100).toFixed(1):'—';
 
-  document.getElementById('kpi-ac').innerHTML=[
-    {l:'考勤 新進',v:a.join,c:'nv'},{l:'考勤 離職',v:a.resign,c:'rd'},
-    {l:'入/離職比',v:ratio+'%',c:ratio==='—'?'gd':+ratio<=30?'gn':+ratio<=60?'gd':'rd'},
-    {l:'合約 新進',v:j.join+'/ 退:'+j.resign,c:'tl'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
+    // ── HR 對應資料
+  const dates_ac = getDates('ac');
+  const contRR=COMPLETE_DB.contract?.filter(r=>r.entryDate&&dates_ac.has(String(r.entryDate).slice(0,10)))||[];
+  const probRR=COMPLETE_DB.probation?.filter(r=>r.joinDate&&dates_ac.has(String(r.joinDate).slice(0,10)))||[];
+  const hrJoin2=contRR.length+probRR.length;
+  const onbRes2=_joinNorm.filter(r=>r.type==='resign'&&dates_ac.has(r.date)).length;
+  const jDiff2=a.join-hrJoin2, rDiff2=a.resign-onbRes2;
 
+  document.getElementById('kpi-ac').innerHTML=[
+    {l:'Attendance 新進',v:a.join,c:'nv'},
+    {l:'HR 新進',v:hrJoin2||'—',c:'tl'},
+    {l:'新進 差異',v:(jDiff2>=0?'+':'')+jDiff2,c:jDiff2===0?'gn':Math.abs(jDiff2)<=3?'gd':'rd'},
+    {l:'Attendance 離職',v:a.resign,c:'rd'},
+    {l:'HR 離職',v:onbRes2||'—',c:'gd'},
+    {l:'離職 差異',v:onbRes2?(rDiff2>=0?'+':'')+rDiff2:'—',c:'pu'},
+  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
+  document.getElementById('kpi-ac').style.gridTemplateColumns='repeat(3,1fr)';
   // Dept breakdown from attendance
   const deptMap=new Map();
   _attNorm.filter(r=>dates.has(r.date)&&(!lf||r.lineId===lf)).forEach(r=>{
@@ -1507,7 +1565,8 @@ function renderAM() {
     {l:'考勤 ML假',v:a.matLeave||a.ml||'—',c:'gd'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
-  const lines=getAllLines().filter(l=>!lf||l===lf);
+  // ── Attendance 為 Master：依 Attendance 線別順序 ──
+  const lines=getAttLines().filter(l=>!lf||l===lf);
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
@@ -1545,6 +1604,7 @@ function renderUnified() {
   const dates=getDates('uni'), lf=getLF('uni');
   const lines=getAllLines().filter(l=>!lf||l===lf);
   const contByLine=new Map();
+  // 合約按 line 分組
   (COMPLETE_DB.contract||[]).forEach(r=>{
     const lid=normalizeLineName(r.section||'')||normalizeLineName(r.dept||'');
     if(!lid)return;
@@ -1558,15 +1618,19 @@ function renderUnified() {
     probByLine.set(lid,probByLine.get(lid)+1);
   });
 
+  // Attendance 是 Master，行完全由 Attendance 決定
   const tbody=lines.map(line=>{
-    const a=getAttStats(line,dates), s=getSewStats(line,dates), m=getMatStats(line);
-    const j=getJoinStats(line,dates), df=a.hc-s.workers, dcl=dc(df,a.hc);
+    const a=getAttStats(line,dates), m=getMatStats(line);
+    // Sewing 只在 isSewingLine 的情況下填入
+    const sewW = isSewingLine(line) ? getSewStats(line,dates).workers : null;
+    const df = (a.hc&&sewW!=null) ? a.hc-sewW : null;
+    const dcl = df!=null ? dc(df,a.hc) : 'na';
     const cont=contByLine.get(line)||0, prob=probByLine.get(line)||0;
     return `<tr>
-      <td><b>${displayLine(line)}</b></td>
+      <td><b>${displayLine(line)}</b>${isSewingLine(line)?'':' <span style="font-size:9px;color:var(--gray)">[非車縫]</span>'}</td>
       <td class="center">${a.hc||'—'}</td>
-      <td class="center">${s.workers||'—'}</td>
-      <td class="center dc ${dcl}">${a.hc&&s.workers?(df>=0?'+':'')+df:'—'}</td>
+      <td class="center">${sewW!=null?sewW:'—'}</td>
+      <td class="center dc ${dcl}">${df!=null?(df>=0?'+':'')+df:'—'}</td>
       <td class="center">${a.join||'—'}</td>
       <td class="center">${a.resign||'—'}</td>
       <td class="center">${m.preg||'—'}</td>
