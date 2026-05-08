@@ -74,10 +74,10 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 .ks2{font-size:10px;color:var(--gray);margin-top:3px}
 
 /* CARDS */
-.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
-.card{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:13px;box-shadow:var(--sh)}
-.card-hd{font-size:11px;font-weight:700;color:var(--navy);margin-bottom:8px;display:flex;align-items:center;gap:6px}
-.row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:11px;border-bottom:1px solid var(--bg3)}
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px}
+.card{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:9px 11px;box-shadow:var(--sh)}
+.card-hd{font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px;display:flex;align-items:center;gap:5px}
+.row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10.5px;border-bottom:1px solid var(--bg3)}
 .row:last-child{border-bottom:none}
 .row .l{color:var(--gray)}
 .row .v{font-weight:700;color:var(--navy)}
@@ -192,25 +192,12 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 
 <!-- TABS -->
 <div id="tabs">
-  <button class="tab on" data-t="sum">📊 <span data-i="navSum">總表</span></button>
+  <button class="tab on" data-t="unified">📑 <span data-i="navUni">整合總表</span></button>
   <button class="tab" data-t="as">🔄 <span data-i="navAS">出勤×車縫</span></button>
   <button class="tab" data-t="ac">📋 <span data-i="navAC">出勤×入離職</span></button>
   <button class="tab" data-t="am">🤰 <span data-i="navAM">出勤×孕假</span></button>
-  <button class="tab" data-t="unified">📑 <span data-i="navUni">整合總表</span></button>
-  <button class="tab" data-t="map">🗺 <span data-i="navMap">對應設定</span></button>
   <button class="tab" data-t="unmatched">⚠ <span data-i="navUm">未匹配</span><span class="badge" id="um-cnt" style="display:none">0</span></button>
   <button class="tab" data-t="cfg">⚙️ <span data-i="navCfg">設定</span></button>
-</div>
-
-<!-- ══ 總表 ══ -->
-<div class="pane on" id="pane-sum">
-  <div id="pbar-sum" class="pbar"></div>
-  <div class="ks ks5" id="kpi-sum"></div>
-  <div class="stit" data-i="stSum">📋 期間明細</div>
-  <div id="sum-cards"></div>
-  <div class="panel"><h3 id="chart-title">📊 跨系統人數對比</h3>
-    <div style="height:240px;position:relative"><canvas id="chartSum"></canvas></div>
-  </div>
 </div>
 
 <!-- ══ 出勤×車縫 ══ -->
@@ -235,7 +222,7 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 </div>
 
 <!-- ══ 整合總表 ══ -->
-<div class="pane" id="pane-unified">
+<div class="pane on" id="pane-unified">
   <div id="pbar-uni" class="pbar"></div>
   <div class="stit" data-i="uniTitle">📑 跨模組整合比較表</div>
   <div class="utable" id="unified-table">
@@ -289,6 +276,19 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 
 <!-- ══ 設定 ══ -->
 <div class="pane" id="pane-cfg">
+  <div class="panel">
+    <h3>🗺 Line Alias 管理</h3>
+    <div style="font-size:11px;color:var(--gray);margin-bottom:8px">設定別名對應 — 存入 localStorage 後立即生效</div>
+    <div style="display:flex;gap:7px;margin-bottom:8px">
+      <button class="hb tl" onclick="addAlias()">＋ 新增別名</button>
+      <button class="hb" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveAliases()">💾 儲存</button>
+      <button class="hb bl" onclick="resetAliases()">🔄 重設預設</button>
+    </div>
+    <div style="max-height:200px;overflow-y:auto">
+      <table class="at"><thead><tr><th>別名（原始）</th><th>→ 標準 LINE</th><th>×</th></tr></thead>
+      <tbody id="alias-tbody2"></tbody></table>
+    </div>
+  </div>
   <div class="panel">
     <h3 data-i="cfgAtt">📥 考勤 Excel 匯入</h3>
     <div class="uz" id="attUz" onclick="document.getElementById('attFile').click()" ondrop="dropAtt(event)" ondragover="event.preventDefault()" ondragenter="this.classList.add('drag')" ondragleave="this.classList.remove('drag')">
@@ -396,7 +396,13 @@ const DEFAULT_ALIASES = {
   'GARMENT1':'LINE_1','GARMENT01':'LINE_1','GARMENT2':'LINE_2','GARMENT02':'LINE_2',
   'GARMENT3':'LINE_3','GARMENT03':'LINE_3',
   // Common historical aliases
-  'L21':'LINE_20','LINE21':'LINE_20','LINE 21':'LINE_20',
+  'L21':'LINE_21','LINE21':'LINE_21','L22':'LINE_22','LINE22':'LINE_22',
+  'L23':'LINE_23','LINE23':'LINE_23','L24':'LINE_24','LINE24':'LINE_24',
+  'L25':'LINE_25','LINE25':'LINE_25','L26':'LINE_26','LINE26':'LINE_26',
+  'L27':'LINE_27','LINE27':'LINE_27',
+  'B21':'LINE_21','B22':'LINE_22','B23':'LINE_23','B24':'LINE_24',
+  'B25':'LINE_25','B26':'LINE_26','B27':'LINE_27',
+  'PACKING A':'LINE_27','PACKING GARMENT':'LINE_27','PRESSING':'LINE_27',
   'L20':'LINE_20','LINE 20':'LINE_20','LINE20':'LINE_20',
   // Non-sewing depts
   'CUT':'CUT','CUTTING':'CUT','CUTLEADER':'CUT','CUTTER':'CUT',
@@ -441,6 +447,314 @@ function resetAliases() {
 // ══════════════════════════════════════════════════════════
 const _normCache = new Map();
 
+// ── MAX_SEWING_LINE：超過此數字歸為 historical/unmatched
+const MAX_SEWING_LINE = 30;
+
+// ── 從 list.XLS 提取的完整 Alias 對應表 ──────────────────────
+const LIST_ALIASES = {
+  'HR': 'HRA',
+  'HR/人力資源組': 'HRA',
+  'HR ASST': 'HRA',
+  'HR ASST/人資助理/專員': 'HRA',
+  'HRA OFFICER': 'HRA',
+  'HRA OFFIER/人資專員': 'HRA',
+  'ERP SPECIALIST/薪資專員': 'HRA',
+  'HR LEADER': 'HRA',
+  'HR SUPERVISOR': 'HRA',
+  'HR SUPERVISOR/人力資源課 課長': 'HRA',
+  'HR SUPERVISOR/人力行政主任': 'HRA',
+  'HRA SUPERVISOR/人力資源課 課長': 'HRA',
+  'ADMIN OFFICER': 'ADMIN',
+  'ADMIN. OFFICER/行政專員': 'ADMIN',
+  'ADMIN. SENIOR ASST/行政資深助理': 'ADMIN',
+  'GA/ADMIN LEADER': 'ADMIN',
+  'SECURITY/警衛': 'SECURITY',
+  'SECURITY/保安': 'SECURITY',
+  'SECURITY CAPTAIN': 'SECURITY',
+  'SECURITY CAPTAIN/警衛隊長': 'SECURITY',
+  'SECURITY CAPTAIN/保安隊長': 'SECURITY',
+  'GAS SUPERVISOR': 'GAS',
+  'GAS SUPERVISOR/總務安保主任': 'GAS',
+  'GAS OFFICER/總務安保專員': 'GAS',
+  'GA SUPERVISOR': 'GAS',
+  'GAS OFFICER': 'GAS',
+  'GAT ASSISTANT': 'GAS',
+  'GA/ADMIN': 'GAS',
+  'GA/ADMIN/行政組': 'GAS',
+  'GA /總務': 'GAS',
+  'ELECTRICIAN': 'ME',
+  'ELECTRICIAN/ 電工': 'ME',
+  'ELECTRICIAN/ME / 工務/電工': 'ME',
+  'ELECTRICIAN/ME / 工務組人員': 'ME',
+  'ME LEADER': 'ME',
+  'ME LEADER/ 工務組長': 'ME',
+  'ME LEADER/ 工務組 組長': 'ME',
+  'ME TECHNICIAN': 'ME',
+  'ME TECHNICIAN/工務技術員': 'ME',
+  'FINANCIAL': 'ACCT',
+  'FINANCIAL/財務': 'ACCT',
+  'ACCOUNTING ASST': 'ACCT',
+  'ACCOUNTING ASST/會計助理': 'ACCT',
+  'SHIPPING': 'SHIP',
+  'SHPPING': 'SHIP',
+  'SHPPING/船務': 'SHIP',
+  'SHIPPING ASST': 'SHIP',
+  'SHIPPING ASST/船務助理': 'SHIP',
+  'IT/ERP': 'IT',
+  'IE': 'IT',
+  'QC A': 'QC',
+  'QC A/ A廠 QC組': 'QC',
+  'QC A/ A組 QC': 'QC',
+  'QC A LEADER': 'QC',
+  'QC A LEADER/ A廠 QC班長': 'QC',
+  'QC A LEADER/ A組 QC班長': 'QC',
+  'MECHANIC': 'MECH',
+  'MECHANIC / 機修組': 'MECH',
+  'MECHANIC IN LINE': 'MECH',
+  'MECHANIC IN LINE/ 機修': 'MECH',
+  'MECHANIC SUPERVISOR': 'MECH',
+  'MECHANIC SUPERVISOR/ 機修組 組長': 'MECH',
+  'MECHANIC LEADER': 'MECH',
+  'MECHANIC LEADER/ 機修班長': 'MECH',
+  'MECHANIC LEADER/ 機修組 班長': 'MECH',
+  'PC/生管': 'PC',
+  'PC ASST': 'PC',
+  'PC ASST/生管助理': 'PC',
+  'PC SUPERVISOR': 'PC',
+  'PC SUPERVISOR/生管副理': 'PC',
+  'WAREHOUSE': 'WH',
+  'WAREHOUSE/LOADING': 'WH',
+  'WAREHOUSE/LOADING/ 倉庫裝卸人員': 'WH',
+  'WAREHOUSE/LOADING/ 布倉人員': 'WH',
+  'WAREHOUSE/LOADING/ 主倉庫人員': 'WH',
+  'WAREHOUSE SUPERVISOR': 'WH',
+  'WAREHOUSE SUPERVISOR/ 倉庫組長': 'WH',
+  'WAREHOUSE LEADER': 'WH',
+  'WAREHOUSE LEADER/ 倉庫班長': 'WH',
+  'WAREHOUSE TRIM': 'WH',
+  'WAREHOUSE TRIM/ 輔料倉發貨人員': 'WH',
+  'WAREHOUSE TRIM/ 輔料倉人員': 'WH',
+  'CUTTING': 'CUT',
+  'CUTTING / 裁剪': 'CUT',
+  'CUTTING A/B / 裁剪 A/B': 'CUT',
+  'CUTTER': 'CUT',
+  'CUTTER/裁剪': 'CUT',
+  'CUTTER/裁剪A': 'CUT',
+  'CUTTER/裁剪B': 'CUT',
+  'CUTTER,LAYER ETC': 'CUT',
+  'CUTTER,LAYER ETC/裁手，拉布等': 'CUT',
+  'CUTTING INSPECTOR': 'CUT',
+  'CUTTING SUPERVISOR': 'CUT',
+  'CUTTING SUPERVISOR/組長': 'CUT',
+  'CUTTING LEADER': 'CUT',
+  'CUTTING LEADER/裁剪班長': 'CUT',
+  'SUPERVISOR GARMENT': 'SEWSUP',
+  'SUPERVISOR GARMENT/ 成衣組 組長': 'SEWSUP',
+  'SUPERVISOR A': 'SEWSUP',
+  'SUPERVISOR A/ A組 組長': 'SEWSUP',
+  'SUPERVISOR IN A': 'SEWSUP',
+  'SUPERVISOR IN A/ A廠車縫 組長': 'SEWSUP',
+  'SUPERVISOR B': 'SEWSUP',
+  'SUPERVISOR B/B組 組長': 'SEWSUP',
+  'SUPERVISOR IN B': 'SEWSUP',
+  'SUPERVISOR IN B/ B廠車縫 組長': 'SEWSUP',
+  'LINE LEADER GARMENT': 'SEWSUP',
+  'LINE LEADER GARMENT/ 成衣組 班長': 'SEWSUP',
+  'LINE LEADER A': 'SEWSUP',
+  'LINE LEADER A/ A組 班長': 'SEWSUP',
+  'LINE LEADER IN A': 'SEWSUP',
+  'LINE LEADER IN A/ A廠車縫 班長': 'SEWSUP',
+  'LINE LEADER B': 'SEWSUP',
+  'LINE LEADER B/B組 班長': 'SEWSUP',
+  'LINE LEADER IN B': 'SEWSUP',
+  'LINE LEADER IN B/ B廠車縫 班長': 'SEWSUP',
+  'TRAINING': 'SEWTRAIN',
+  'TRAINING/培訓人員': 'SEWTRAIN',
+  'SAMPLE/ 樣品組': 'SAMPLE',
+  'SAMPLE LEADER': 'SAMPLE',
+  'SAMPLE LEADER/ 樣品班長': 'SAMPLE',
+  'SAMPLE LEADER/ 樣品組 組長': 'SAMPLE',
+  'FINISH GOOD': 'FINISH',
+  'FINISH GOOD/成品': 'FINISH',
+  'FINISHING WAREHOSE': 'FINISH',
+  'FINISHING WAREHOSE/成品倉': 'FINISH',
+  'MAKER ROOM': 'MARKER',
+  'MAKER ROOM /馬克室人員': 'MARKER',
+  'MAKER CUTTING': 'MARKER',
+  'MAKER CUTTING /馬克室人員': 'MARKER',
+  'A1': 'LINE_1',
+  'A1 / 1組': 'LINE_1',
+  'L1': 'LINE_1',
+  'L1 / 1組': 'LINE_1',
+  'A2': 'LINE_2',
+  'A2 / 2組': 'LINE_2',
+  'L2': 'LINE_2',
+  'L2 / 2組': 'LINE_2',
+  'A3': 'LINE_3',
+  'A3 / 3組': 'LINE_3',
+  'L3': 'LINE_3',
+  'L3 / 3組': 'LINE_3',
+  'A4': 'LINE_4',
+  'A4 / 4組': 'LINE_4',
+  'L4': 'LINE_4',
+  'L4 / 4組': 'LINE_4',
+  'A5': 'LINE_5',
+  'A5 / 5組': 'LINE_5',
+  'L5': 'LINE_5',
+  'L5 / 5組': 'LINE_5',
+  'A6': 'LINE_6',
+  'A6 / 6組': 'LINE_6',
+  'L6': 'LINE_6',
+  'L6 / 6組': 'LINE_6',
+  'A7': 'LINE_7',
+  'A7 / 7組': 'LINE_7',
+  'L7': 'LINE_7',
+  'L7 / 7組': 'LINE_7',
+  'A8': 'LINE_8',
+  'A8 / 8組': 'LINE_8',
+  'L8': 'LINE_8',
+  'L8 / 8組': 'LINE_8',
+  'A9': 'LINE_9',
+  'A9 / 9組': 'LINE_9',
+  'L9': 'LINE_9',
+  'L9 / 9組': 'LINE_9',
+  'A10': 'LINE_10',
+  'A10 / 10組': 'LINE_10',
+  'L10': 'LINE_10',
+  'L10 / 10組': 'LINE_10',
+  'A11': 'LINE_11',
+  'A11 / 11組': 'LINE_11',
+  'L11': 'LINE_11',
+  'L11 / 11組': 'LINE_11',
+  'A12': 'LINE_12',
+  'A12 /12組': 'LINE_12',
+  'L12': 'LINE_12',
+  'L12 /12組': 'LINE_12',
+  'A13': 'LINE_13',
+  'A13 /13組': 'LINE_13',
+  'L13': 'LINE_13',
+  'L13 /13組': 'LINE_13',
+  'A14': 'LINE_14',
+  'A14 /14組': 'LINE_14',
+  'L14': 'LINE_14',
+  'L14 /14組': 'LINE_14',
+  'A15': 'LINE_15',
+  'A15/ 15組': 'LINE_15',
+  'L15': 'LINE_15',
+  'L15/ 15組': 'LINE_15',
+  'A16': 'LINE_16',
+  'A16/ 16組': 'LINE_16',
+  'L16': 'LINE_16',
+  'L16/ 16組': 'LINE_16',
+  'A17': 'LINE_17',
+  'A17/ 17組': 'LINE_17',
+  'L17': 'LINE_17',
+  'L17/ 17組': 'LINE_17',
+  'A18': 'LINE_18',
+  'A18/ 18組': 'LINE_18',
+  'L18': 'LINE_18',
+  'L18/ 18組': 'LINE_18',
+  'A19': 'LINE_19',
+  'A19/ 19組': 'LINE_19',
+  'L19': 'LINE_19',
+  'L19/ 19組': 'LINE_19',
+  'A20': 'LINE_20',
+  'A20/ 20組': 'LINE_20',
+  'L20': 'LINE_20',
+  'L20/ 20組': 'LINE_20',
+  'A21': 'LINE_21',
+  'A21/21組': 'LINE_21',
+  'B21': 'LINE_21',
+  'B21 /21組': 'LINE_21',
+  'L21': 'LINE_21',
+  'L21/21組': 'LINE_21',
+  'A22': 'LINE_22',
+  'A22/ 22組': 'LINE_22',
+  'B22': 'LINE_22',
+  'B22 /22組': 'LINE_22',
+  'L22': 'LINE_22',
+  'L22 /22組': 'LINE_22',
+  'B23': 'LINE_23',
+  'B23 /23組': 'LINE_23',
+  'L23': 'LINE_23',
+  'L23 /23組': 'LINE_23',
+  'B24': 'LINE_24',
+  'B24 /24組': 'LINE_24',
+  'L24': 'LINE_24',
+  'L24 /24組': 'LINE_24',
+  'B25': 'LINE_25',
+  'B25 /25組': 'LINE_25',
+  'L25': 'LINE_25',
+  'L25 /25組': 'LINE_25',
+  'B26': 'LINE_26',
+  'B26 /26組': 'LINE_26',
+  'L26': 'LINE_26',
+  'L26 /26組': 'LINE_26',
+  'B27': 'LINE_27',
+  'B27 /27組': 'LINE_27',
+  'L27': 'LINE_27',
+  'L27 /27組': 'LINE_27',
+  'PACKING A': 'PACKING_',
+  'PACKING A/ A廠包裝': 'PACKING_',
+  'PACKING A/ A組包裝': 'PACKING_',
+  'PACKING A LEADER': 'PACKING_',
+  'PACKING A LEADER/ A包裝班長': 'PACKING_',
+  'PACKING GARMENT': 'PACKING_',
+  'PACKING GAMENT/ 成衣組包裝': 'PACKING_',
+  'PACKING NAPKIN/ APRON': 'PACKING_',
+  'PACKING NAPKIN/ APRON /圍裙組包裝': 'PACKING_',
+  'PRESSING': 'PACKING_',
+  'PRESSING/整燙': 'PACKING_',
+  'CLEANING GARMENT': 'PACKING_',
+  'CLEANING GARMENT / 成衣組清潔': 'PACKING_',
+  'CLEANER': 'ENV',
+  'CLEANER / 清潔工': 'ENV',
+  'CLEANER ASST': 'ENV',
+  'CLEANER ASST/清潔助理': 'ENV',
+  'ENV. CLEANER': 'ENV',
+  'ENV. CLEANER/環境清潔員': 'ENV',
+  'ENV. LEADER': 'ENV',
+  'ENV. LEADER/環境組組長': 'ENV',
+  'COOK': 'ENV',
+  'COOK/ 廚師': 'ENV',
+  'COOKER': 'ENV',
+  'COOKER/ 廚師': 'ENV',
+  'DRIVER': 'GTA',
+  'DRIVER/司機': 'GTA',
+  'NURSE': 'GTA',
+  'NURSE/ 護士': 'GTA',
+  'DOC.&NURSE': 'GTA',
+  'DOC.&NURSE/ 醫生&護士': 'GTA',
+  'QC B': 'QC_B',
+  'QC B / B廠 QC組': 'QC_B',
+  'QC B / B組 QC': 'QC_B',
+  'QC B LEADER': 'QC_B',
+  'QC B LEADER /B廠 QC班長': 'QC_B',
+  'QC B LEADER /B組 QC班長': 'QC_B',
+  'PACKING B': 'PACKING_',
+  'PACKING B /B廠包裝': 'PACKING_',
+  'PACKING B /B組包裝': 'PACKING_',
+  'PACKING B LEADER': 'PACKING_',
+  'PACKING B LEADER /B包裝班長': 'PACKING_',
+  'SEVICE ON LINE GARMENT': 'SERVICE_',
+  'SEVICE ON LINE GARMENT/送料': 'SERVICE_',
+  'SERVICE ON LINE GARMENT': 'SERVICE_',
+  'COMPLIANCE OFFICER': 'COMPLIAN',
+  'COMPLIANCE OFFICER /驗廠專員': 'COMPLIAN',
+  'COMPLIANCE COORDINATOR/驗廠專員': 'COMPLIAN',
+  'COMPLIANCE COORDINATOR': 'COMPLIAN',
+  'COMPLIANCE ASSISTANT': 'COMPLIAN',
+  'QC CUTTING': 'QC_CUTTI',
+  'QC CUTTING/ 裁剪QC': 'QC_CUTTI',
+  'CUT PIECES INSPECTION QC': 'QC_CUTTI',
+  'CUT PIECES INSPECTION QC/ 驗片QC': 'QC_CUTTI',
+  'SUPERVISOR QC': 'QC_CUTTI',
+  'SUPERVISOR QC /QC 課長': 'QC_CUTTI',
+  'SUPERVISOR QC /QC組長': 'QC_CUTTI',
+};
+// Total: 299
+
+
 function normalizeLineName(raw) {
   if (!raw) return null;
   const key = String(raw).toUpperCase().trim();
@@ -450,41 +764,65 @@ function normalizeLineName(raw) {
   return result;
 }
 
-function _doNorm(s) {
-  // 1. Clean: remove non-alphanumeric except space, then compress
-  const clean = s.replace(/[^A-Z0-9 ]/g,'').replace(/\s+/g,' ').trim();
+function _doNorm(orig) {
+  if (!orig) return null;
 
-  // 2. Check alias table first (exact match)
-  const noSpace = clean.replace(/ /g,'');
-  if (window.LINE_ALIAS[noSpace]) return window.LINE_ALIAS[noSpace];
-  if (window.LINE_ALIAS[clean])   return window.LINE_ALIAS[clean];
+  // ① 優先查 alias 表（原始字串，避免清理後失去對應）
+  if (window.LINE_ALIAS[orig]) return window.LINE_ALIAS[orig];
+  const origTrim = orig.replace(/\s+/g,' ').trim();
+  if (window.LINE_ALIAS[origTrim]) return window.LINE_ALIAS[origTrim];
+  // 同時查 list.XLS alias
+  if (LIST_ALIASES[orig])     return LIST_ALIASES[orig];
+  if (LIST_ALIASES[origTrim]) return LIST_ALIASES[origTrim];
 
-  // 3. Skip totals / headers
-  if (/^(GRAND|TOTAL|TTL|ALL|SUM|SUMMARY|HEADER|AVG|AVERAGE)/.test(noSpace)) return null;
+  // ② 去掉所有非字母數字字元（只保留 A-Z 和 0-9）
+  const noSp = orig.replace(/[^A-Z0-9]/g,'');
 
-  // 4. Standard LINE patterns: LINE1, LINE 1, L1, L01
+  // ③ 跳過匯總行
+  if (/^(GRAND|TOTAL|TTL|ALL|SUM|SUMMARY|HEADER|AVG|AVERAGE|SUBTOTAL)/.test(noSp)) return null;
+
+  // ④ LINE + 1~2位數（嚴格限制，防止 LINE1010 bug）
   let m;
-  if (m = noSpace.match(/^(?:LINE|L)0*(\d+)$/)) return 'LINE_' + parseInt(m[1]);
-  if (m = clean.match(/^LINE\s*0*(\d+)$/))       return 'LINE_' + parseInt(m[1]);
+  if (m = noSp.match(/^LINE0*(\d{1,2})$/)) {
+    const n = parseInt(m[1]);
+    return n >= 1 && n <= MAX_SEWING_LINE ? 'LINE_' + n : null;
+  }
 
-  // 5. A/B/C prefix: A01, B5, C10
-  if (m = noSpace.match(/^[ABC]0*(\d+)$/)) return 'LINE_' + parseInt(m[1]);
+  // ⑤ L + 1~2位數（防止 L1616 bug）
+  if (m = noSp.match(/^L0*(\d{1,2})$/)) {
+    const n = parseInt(m[1]);
+    return n >= 1 && n <= MAX_SEWING_LINE ? 'LINE_' + n : null;
+  }
 
-  // 6. APRON / GARMENT
-  if (m = noSpace.match(/^(?:APRON|GARMENT)0*(\d+)$/)) return 'LINE_' + parseInt(m[1]);
+  // ⑥ A/B/C + 1~2位數（防止 A88、A1010 bug）
+  if (m = noSp.match(/^[ABC]0*(\d{1,2})$/)) {
+    const n = parseInt(m[1]);
+    return n >= 1 && n <= MAX_SEWING_LINE ? 'LINE_' + n : null;
+  }
 
-  // 7. Known non-sewing depts
-  if (/^CUT/.test(noSpace))   return 'CUT';
-  if (/^QC/.test(noSpace))    return 'QC';
-  if (/^PACK/.test(noSpace))  return 'PACK';
-  if (/^MAINT/.test(noSpace)) return 'MAINT';
-  if (/^ADMIN|OFFICE/.test(noSpace)) return 'ADMIN';
-  if (/^WH|WARE/.test(noSpace))      return 'WH';
+  // ⑦ APRON / GARMENT + 1~2位數
+  if (m = noSp.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/)) {
+    const n = parseInt(m[1]);
+    return n >= 1 && n <= MAX_SEWING_LINE ? 'LINE_' + n : null;
+  }
 
-  // 8. Partial match: contains LINE + number
-  if (m = noSpace.match(/LINE0*(\d+)/)) return 'LINE_' + parseInt(m[1]);
+  // ⑧ 非車縫部門（明確識別）
+  if (/^CUT/.test(noSp))    return 'CUT';
+  if (/^QC/.test(noSp))     return 'QC';
+  if (/^PACK/.test(noSp))   return 'PACK';
+  if (/^ME$|^MAINT/.test(noSp)) return 'ME';
+  if (/^ADMIN|^OFFICE/.test(noSp)) return 'ADMIN';
+  if (/^WH|^WARE/.test(noSp))     return 'WH';
+  if (/^SECU/.test(noSp))   return 'SECURITY';
+  if (/^HRA$|^HR$/.test(noSp))   return 'HRA';
+  if (/^SHIP/.test(noSp))   return 'SHIP';
+  if (/^ACCT/.test(noSp))   return 'ACCT';
+  if (/^IT$/.test(noSp))    return 'IT';
+  if (/^MARKER/.test(noSp)) return 'MARKER';
+  if (/^FINISH/.test(noSp)) return 'FINISH';
+  if (/^SAMPLE/.test(noSp)) return 'SAMPLE';
 
-  // 9. Unmatched
+  // ⑨ 其他無法識別 → null
   return null;
 }
 
@@ -701,7 +1039,7 @@ function rebuildNorm() {
       att : +r.att||0,
       join: +r.join||0,
       resign:+r.resign||0,
-      ml  : +r.ml||0,
+      matLeave: +r.ml||0,
       al  : +r.al||0,
       pl  : +r.pl||0,
       sl  : +r.sl||0,
@@ -780,11 +1118,12 @@ function getAttStats(lineId, dates) {
   const days = byDate.size;
   const vals = [...byDate.values()];
   return {
-    hc    : Math.round(vals.reduce((s,v)=>s+v.hc,0)/days),
-    att   : Math.round(vals.reduce((s,v)=>s+v.att,0)/days),
-    join  : vals.reduce((s,v)=>s+v.join,0),
-    resign: vals.reduce((s,v)=>s+v.resign,0),
-    ml    : vals.reduce((s,v)=>s+v.ml,0),
+    hc      : Math.round(vals.reduce((s,v)=>s+v.hc,0)/days),
+    att     : Math.round(vals.reduce((s,v)=>s+v.att,0)/days),
+    join    : vals.reduce((s,v)=>s+v.join,0),
+    resign  : vals.reduce((s,v)=>s+v.resign,0),
+    ml      : vals.reduce((s,v)=>s+v.ml||0,0),
+    matLeave: vals.reduce((s,v)=>s+(v.matLeave||v.ml||0),0),
     days,
   };
 }
@@ -961,7 +1300,7 @@ function compareAttendanceVsMaternity(lineId) {
 //  RENDER: TOTAL SUMMARY
 // ══════════════════════════════════════════════════════════
 let _chart=null;
-let VIEW='card';
+let VIEW='table';
 function renderSum() {
   document.getElementById('pbar-sum').innerHTML=pbarHtml('sum');
   const pk='sum', cur=curKey(pk), P=PS[pk];
@@ -986,7 +1325,7 @@ function renderSum() {
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');
 
   // Per-line cards
-  const lines=getAllLines().filter(l=>!lf||l===lf);
+  const lines=getAllLines().filter(l=>(!lf||l===lf)&&l.startsWith('LINE_'));
   let html='';
   if (VIEW==='card') {
     html='<div class="cg">';
@@ -1165,7 +1504,7 @@ function renderAM() {
   document.getElementById('kpi-am').innerHTML=[
     {l:'孕婦',v:mAll.preg||'—',c:'pu'},
     {l:'產假中',v:mAll.mat||'—',c:'rd'},
-    {l:'考勤 ML假',v:a.ml||'—',c:'gd'},
+    {l:'考勤 ML假',v:a.matLeave||a.ml||'—',c:'gd'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
 
   const lines=getAllLines().filter(l=>!lf||l===lf);
@@ -1174,14 +1513,14 @@ function renderAM() {
     html='<div class="cg">';
     lines.forEach(line=>{
       const a2=getAttStats(line,dates), m=compareAttendanceVsMaternity(line);
-      const attML=a2.ml, matCount=m.preg+m.mat, diff=attML-matCount;
+      const attML=a2.matLeave||a2.ml||0, matCount=m.preg+m.mat, diff=attML-matCount;
       if(!a2.hc&&!matCount) return;
       html+=`<div class="card"><div class="card-hd"><span class="dot ${dc(diff,matCount||1)}"></span> ${displayLine(line)}</div>
         <div class="row"><span class="l">均在職</span><span class="v">${a2.hc||'—'}</span></div>
         <div class="row"><span class="l">🤰 孕婦</span><span class="v">${m.preg}</span></div>
         <div class="row"><span class="l">🍼 產假中</span><span class="v">${m.mat}</span></div>
         <div class="row"><span class="l">✅ 復工</span><span class="v">${m.ret}</span></div>
-        <div class="row"><span class="l">ML假(考勤)</span><span class="v">${attML}</span></div>
+        <div class="row"><span class="l" title="Attendance maternity leave">考勤產假</span><span class="v">${attML}</span></div>
         <div class="row"><span class="l">差異</span><span class="v">${diffBadge(diff)}</span></div>
       </div>`;
     });
@@ -1244,6 +1583,17 @@ function renderUnified() {
 // ══════════════════════════════════════════════════════════
 //  RENDER: ALIAS MANAGER
 // ══════════════════════════════════════════════════════════
+function renderAliasCfg() {
+  // 在設定頁的 alias-tbody2 也渲染
+  const el=document.getElementById('alias-tbody2');
+  if(!el)return;
+  const entries=Object.entries(window.LINE_ALIAS).filter(([,v])=>v.startsWith('LINE_')).sort((a,b)=>a[0].localeCompare(b[0]));
+  el.innerHTML=entries.map(([from,to])=>`<tr>
+    <td style="font-size:11px;padding:4px 8px">${from}</td>
+    <td style="font-size:11px;padding:4px 8px;font-weight:600;color:var(--teal)">${to.replace('LINE_','LINE ')}</td>
+    <td><button onclick="delete window.LINE_ALIAS['${from}'];renderAliasCfg();renderAliasTable()" style="background:var(--red);color:#fff;border:none;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:10px">×</button></td>
+  </tr>`).join('');
+}
 function renderAliasTable() {
   const entries=Object.entries(window.LINE_ALIAS).sort((a,b)=>a[0].localeCompare(b[0]));
   document.getElementById('alias-tbody').innerHTML=entries.map(([from,to],i)=>`
@@ -1375,7 +1725,7 @@ function cpLog(msg,cls){const el=document.getElementById('cplog');const d=docume
 // ══════════════════════════════════════════════════════════
 //  i18n (minimal)
 // ══════════════════════════════════════════════════════════
-const I18N={zh:{navSum:'總表',navAS:'出勤×車縫',navAC:'出勤×入離職',navAM:'出勤×孕假',navUni:'整合總表',navMap:'對應設定',navUm:'未匹配',navCfg:'設定',pDay:'日',pWeek:'週',pMonth:'月',pYear:'年',card:'卡片',table:'表格',cfgAtt:'考勤 Excel 匯入',mapTitle:'Line Alias 管理',mapDesc:'設定別名對應關係',srcStatus:'資料來源狀態',uniTitle:'跨模組整合比較表',stSum:'期間明細',thAtt:'考勤',thSew:'車縫',thDiff:'差異',thJoin:'新進',thResign:'離職',thPreg:'孕婦',thMat:'產假',thCont:'合約',thProb:'試用'},en:{navSum:'Summary',navAS:'Att×Sewing',navAC:'Att×Onboard',navAM:'Att×Maternity',navUni:'Unified Table',navMap:'Mapping',navUm:'Unmatched',navCfg:'Settings',pDay:'Day',pWeek:'Week',pMonth:'Month',pYear:'Year',card:'Card',table:'Table',cfgAtt:'Attendance Import',mapTitle:'Line Alias Manager',mapDesc:'Set alias mappings',srcStatus:'Data Source Status',uniTitle:'Unified Cross-Module Compare',stSum:'Period Detail',thAtt:'Attendance',thSew:'Sewing',thDiff:'Diff',thJoin:'Join',thResign:'Resign',thPreg:'Preg.',thMat:'Mat.',thCont:'Contract',thProb:'Prob.'}};
+const I18N={zh:{navSum:'整合總表',navAS:'出勤×車縫',navAC:'出勤×入離職',navAM:'出勤×孕假',navUni:'整合總表',navMap:'對應設定',navUm:'未匹配',navCfg:'設定',pDay:'日',pWeek:'週',pMonth:'月',pYear:'年',card:'卡片',table:'表格',cfgAtt:'考勤 Excel 匯入',mapTitle:'Line Alias 管理',mapDesc:'設定別名對應關係',srcStatus:'資料來源狀態',uniTitle:'跨模組整合比較表',stSum:'期間明細',thAtt:'考勤',thSew:'車縫',thDiff:'差異',thJoin:'新進',thResign:'離職',thPreg:'孕婦',thMat:'產假',thCont:'合約',thProb:'試用',join:'新進',resign:'離職',preg:'孕婦',mat:'產假中',ml:'考勤產假'},en:{navSum:'Summary',navAS:'Att×Sewing',navAC:'Att×Onboard',navAM:'Att×Maternity',navUni:'Unified Table',navMap:'Mapping',navUm:'Unmatched',navCfg:'Settings',pDay:'Day',pWeek:'Week',pMonth:'Month',pYear:'Year',card:'Card',table:'Table',cfgAtt:'Attendance Import',mapTitle:'Line Alias Manager',mapDesc:'Set alias mappings',srcStatus:'Data Source Status',uniTitle:'Unified Cross-Module Compare',stSum:'Period Detail',thAtt:'Attendance',thSew:'Sewing',thDiff:'Diff',thJoin:'Join',thResign:'Resign',thPreg:'Preg.',thMat:'Mat.',thCont:'Contract',thProb:'Prob.',join:'Join',resign:'Resign',preg:'Pregnant',mat:'On Leave',ml:'Mat.Leave'}};
 let LANG='zh';
 const t=k=>I18N[LANG][k]||I18N.zh[k]||k;
 function setL(l){LANG=l;document.getElementById('btn-zh').classList.toggle('on',l==='zh');document.getElementById('btn-en').classList.toggle('on',l==='en');document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});renderAll();}
@@ -1396,10 +1746,14 @@ function renderPk2(t2){
   else if(t2==='unified')renderUnified();
   else if(t2==='map'){renderAliasTable();updateSrcKpi();}
   else if(t2==='unmatched')renderUnmatched();
-  else if(t2==='cfg')updateSrcKpi();
+  else if(t2==='cfg'){updateSrcKpi();renderAliasCfg();}
 }
 document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
-function renderAll(){const a=document.querySelector('.pane.on')?.id?.replace('pane-','');if(a)renderPk2(a);}
+function renderAll(){// 確保初始顯示整合總表
+document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+document.getElementById('pane-unified').classList.add('on');
+document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t==='unified'));
+renderUnified();}
 function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),3200);}
 
 // ══════════════════════════════════════════════════════════
