@@ -2,615 +2,309 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AC HRA — 孕婦產假管理系統</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AC HRA 孕婦產假管理系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+:root{--rose:#c75b7a;--teal:#059669;--amber:#d97706;--blue:#2563eb;--pu:#7c3aed;--muted:#6b7a9e;--danger:#dc2626;--ok:#059669;--bg:#f0f2f7;--card:#fff;--brd:#e2e6f0;--navy:#1e2640;--shadow:0 1px 4px rgba(30,38,64,.06)}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;background:#f0f2f7;color:#1e2640;font-size:14px}
-
-/* ── HEADER ──────────────────────────────────────── */
-.hdr{background:linear-gradient(135deg,#1e2640,#2d3658);padding:11px 18px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.25);flex-wrap:wrap}
-.hdr-logo{width:34px;height:34px;background:linear-gradient(135deg,#c75b7a,#a8385a);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
-.hdr-title{font-size:15px;font-weight:700;color:#fff}
-.hdr-sub{font-size:10px;color:#8b95b8;margin-top:1px}
-.hdr-stats{margin-left:auto;display:flex;gap:16px;align-items:center}
-.hstat{text-align:center}
+body{font-family:"Microsoft JhengHei","Noto Sans TC",sans-serif;background:var(--bg);color:var(--navy);font-size:13px}
+.hdr{background:linear-gradient(135deg,#0f3027,#1a5c4a);padding:11px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.logo{width:34px;height:34px;background:linear-gradient(135deg,#c75b7a,#a8385a);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.h-title{font-size:15px;font-weight:700;color:#fff}
+.h-sub{font-size:10px;color:#8bc5b5}
+.h-stats{margin-left:auto;display:flex;gap:14px;align-items:center}
 .hstat-v{font-size:16px;font-weight:700;font-family:monospace;line-height:1}
-.hstat-l{font-size:9px;color:#8b95b8;margin-top:2px}
-.hstat.rose .hstat-v{color:#f5a0b5}
-.hstat.teal .hstat-v{color:#6ee7b7}
-.hstat.amber .hstat-v{color:#fbbf24}
-.hamburger{display:none;flex-direction:column;justify-content:center;gap:4px;width:36px;height:36px;padding:7px;border:none;background:rgba(255,255,255,.1);cursor:pointer;border-radius:6px;flex-shrink:0}
-.hamburger span{display:block;height:2px;border-radius:2px;background:#fff;transition:.25s}
-.lang-grp{display:flex;gap:3px;margin-left:6px}
-.lang-btn{padding:3px 8px;border:1px solid rgba(255,255,255,.2);border-radius:5px;font-size:11px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.07);color:rgba(255,255,255,.65);font-family:"Noto Sans TC",sans-serif;transition:.15s;white-space:nowrap}
-.lang-btn:hover{background:rgba(255,255,255,.15);color:#fff}
-.lang-btn.on{background:#c75b7a;border-color:#c75b7a;color:#fff}
-
-/* ── TABS ─────────────────────────────────────────── */
-.tabs{background:#fff;border-bottom:2px solid #e2e6f0;display:flex;padding:0 18px;overflow-x:auto;gap:0;position:sticky;top:56px;z-index:90}
-.tab{padding:11px 14px;font-size:13px;cursor:pointer;color:#6b7a9e;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-weight:500;transition:all .15s;user-select:none}
-.tab:hover{color:#1e2640;background:#f7f8fc}
-.tab.on{color:#c75b7a;border-bottom-color:#c75b7a;background:#fef0f3}
-
-/* ── SECTIONS ─────────────────────────────────────── */
-.sec{display:none;padding:16px 18px}
+.hstat-l{font-size:9px;color:#8bc5b5;margin-top:2px}
+.lang-grp{display:flex;gap:2px;border:1px solid rgba(255,255,255,.2);border-radius:5px;overflow:hidden}
+.lb{padding:3px 8px;border:none;background:transparent;color:rgba(255,255,255,.6);cursor:pointer;font-size:10px;font-weight:700;font-family:inherit}
+.lb.on{background:#c75b7a;color:#fff}
+.tabs{background:#fff;border-bottom:2px solid var(--brd);display:flex;padding:0 18px;overflow-x:auto;position:sticky;top:56px;z-index:90}
+.tab{padding:10px 13px;font-size:12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-weight:500;transition:.15s;user-select:none}
+.tab:hover{color:var(--navy)}
+.tab.on{color:var(--rose);border-bottom-color:var(--rose)}
+.sec{display:none;padding:14px 18px}
 .sec.on{display:block}
-
-/* ── CARDS ────────────────────────────────────────── */
-.card{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:15px;margin-bottom:14px;box-shadow:0 1px 4px rgba(30,38,64,.05)}
-.ct{font-size:11px;font-weight:700;color:#6b7a9e;text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px;display:flex;align-items:center;gap:7px}
-.ct::before{content:'';width:3px;height:11px;background:#c75b7a;border-radius:2px}
-
-/* ── KPI STRIP ────────────────────────────────────── */
-.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:14px}
-.kpi{background:#fff;border:1px solid #e2e6f0;border-radius:8px;padding:11px;text-align:center;box-shadow:0 1px 3px rgba(30,38,64,.04)}
-.kpi-n{font-size:24px;font-weight:700;font-family:monospace;line-height:1}
-.kpi-l{font-size:10px;color:#6b7a9e;margin-top:4px}
-.kpi.rose .kpi-n{color:#c75b7a}
-.kpi.teal .kpi-n{color:#059669}
-.kpi.amber .kpi-n{color:#d97706}
-.kpi.blue .kpi-n{color:#2563eb}
-
-/* ── DATE NAV ─────────────────────────────────────── */
-.date-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px;background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:10px 14px;box-shadow:0 1px 4px rgba(30,38,64,.05)}
-.dnm{padding:5px 12px;border:1px solid #d0d5e8;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:#fff;color:#6b7a9e;transition:.15s;font-family:inherit}
-.dnm.on{background:#c75b7a;color:#fff;border-color:#c75b7a}
-.date-nav-display{font-size:14px;font-weight:700;color:#1e2640;min-width:180px;text-align:center;font-family:monospace}
-.btn-nav{width:32px;height:32px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer;font-size:15px;color:#6b7a9e;display:flex;align-items:center;justify-content:center;transition:.15s}
-.btn-nav:hover{background:#fef0f3;border-color:#c75b7a;color:#c75b7a}
-.btn-today{padding:5px 12px;border:1px solid #c75b7a;border-radius:6px;font-size:12px;cursor:pointer;background:#fef0f3;color:#c75b7a;font-weight:600;font-family:inherit;transition:.15s}
-.btn-today:hover{background:#c75b7a;color:#fff}
-
-/* ── TOOLBAR ──────────────────────────────────────── */
-.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
-.tbar-r{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
-.search-box{padding:6px 10px 6px 30px;border:1px solid #d0d5e8;border-radius:6px;font-size:13px;font-family:inherit;color:#1e2640;outline:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%236b7a9e' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 9px center;min-width:150px;transition:.15s}
-.search-box:focus{border-color:#c75b7a}
-.fsel{padding:6px 10px;border:1px solid #d0d5e8;border-radius:6px;font-size:12px;font-family:inherit;color:#1e2640;background:#fff;cursor:pointer;outline:none}
-
-/* ── BUTTONS ──────────────────────────────────────── */
-.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 13px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:all .15s;white-space:nowrap}
-.btn-rose{background:#c75b7a;color:#fff}.btn-rose:hover{background:#a8385a}
-.btn-y{background:#f59e0b;color:#1c1200}.btn-y:hover{background:#d97706}
-.btn-g{background:#fff;color:#4a5578;border:1px solid #d0d5e8}.btn-g:hover{background:#f7f8fc}
-.btn-teal{background:#059669;color:#fff}.btn-teal:hover{background:#047857}
-.btn-r{background:#fff5f5;color:#dc2626;border:1px solid #fecaca}.btn-r:hover{background:#fee2e2}
-.btn-dark{background:#1e2640;color:#fff}.btn-dark:hover{background:#2d3658}
+.card{background:var(--card);border:1px solid var(--brd);border-radius:10px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.ct{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.ct::before{content:'';width:3px;height:10px;background:var(--rose);border-radius:2px}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--brd);border-radius:8px;padding:10px;text-align:center;box-shadow:var(--shadow)}
+.kpi-n{font-size:22px;font-weight:700;font-family:monospace;line-height:1;color:var(--navy)}
+.kpi-l{font-size:10px;color:var(--muted);margin-top:3px}
+.kpi.rose .kpi-n{color:var(--rose)}
+.kpi.teal .kpi-n{color:var(--teal)}
+.kpi.amber .kpi-n{color:var(--amber)}
+.kpi.blue .kpi-n{color:var(--blue)}
+.kpi.pu .kpi-n{color:var(--pu)}
+.toolbar{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap;align-items:center}
+.sbox{flex:1;min-width:140px;padding:6px 10px 6px 28px;border:1px solid var(--brd);border-radius:6px;font-size:12px;font-family:inherit;outline:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7a9e' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 8px center}
+.sbox:focus{border-color:var(--rose)}
+.fsel{padding:5px 8px;border:1px solid var(--brd);border-radius:6px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;outline:none}
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s;white-space:nowrap}
+.btn-rose{background:var(--rose);color:#fff}.btn-rose:hover{background:#a8385a}
+.btn-teal{background:var(--teal);color:#fff}.btn-teal:hover{background:#047857}
+.btn-g{background:#fff;color:var(--navy);border:1px solid var(--brd)}.btn-g:hover{background:var(--bg)}
+.btn-r{background:#fff5f5;color:var(--danger);border:1px solid #fecaca}.btn-r:hover{background:#fee2e2}
+.btn-amber{background:var(--amber);color:#fff}
 .btn-sm{padding:4px 9px;font-size:11px}
-
-/* ── DROP ZONE ────────────────────────────────────── */
-.drop{border:2px dashed #c5c9d8;border-radius:10px;padding:22px 16px;text-align:center;cursor:pointer;transition:.2s;position:relative;background:#fafbfc}
-.drop:hover,.drop.drag{border-color:#c75b7a;background:#fef0f3}
-.drop.done{border-color:#10b981;border-style:solid;background:#f0fdf8}
-.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
-
-/* ── TABLE ────────────────────────────────────────── */
-.tw{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;border:1px solid #e2e6f0;box-shadow:0 1px 4px rgba(30,38,64,.05)}
-table{width:100%;border-collapse:collapse;font-size:12px;background:#fff;min-width:700px}
-th{text-align:left;padding:8px 10px;color:#6b7a9e;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #e2e6f0;background:#f7f8fc;white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid #eef0f6;color:#1e2640;white-space:nowrap;vertical-align:middle}
-tr:last-child td{border-bottom:none}
+.tw{overflow-x:auto;border-radius:8px;border:1px solid var(--brd);max-height:480px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:11px;min-width:600px}
+th{text-align:left;padding:7px 9px;background:#e8f4f1;color:var(--teal);font-size:10px;font-weight:700;text-transform:uppercase;border-bottom:1px solid var(--brd);white-space:nowrap;position:sticky;top:0;z-index:2}
+td{padding:6px 9px;border-bottom:1px solid #eef0f6;vertical-align:middle}
 tr:hover td{background:#fdf5f7}
 .mono{font-family:monospace;font-size:11px}
-.id-badge{background:#1e2640;color:#fbbf24;font-family:monospace;font-size:11px;padding:2px 7px;border-radius:4px;font-weight:700}
-.id-badge.green{background:#064e3b;color:#6ee7b7}
-
-/* ── STATUS BADGES ────────────────────────────────── */
-.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 9px;border-radius:12px;font-size:10.5px;font-weight:700;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
 .b-pregnant{background:#fef3c7;color:#92400e}
 .b-maternity{background:#fce7f3;color:#9d174d}
 .b-returned{background:#d1fae5;color:#065f46}
-.b-resigned{background:#f3f4f6;color:#6b7280}
-.b-abortion{background:#fee2e2;color:#991b1b}
-
-/* ── PROGRESS ─────────────────────────────────────── */
+.b-resigned{background:#f3f4f6;color:#6b7a9e}
 .prog-wrap{background:#f0f2f7;border-radius:3px;height:5px;width:80px;overflow:hidden;display:inline-block;vertical-align:middle}
-.prog-bar{height:100%;border-radius:3px;background:#c75b7a}
-
-/* ── PAGINATION ───────────────────────────────────── */
-.pagination{display:flex;align-items:center;gap:6px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap}
-.pg-btn{width:28px;height:28px;border-radius:5px;border:1px solid #d0d5e8;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px;color:#6b7a9e;transition:.15s}
-.pg-btn:hover,.pg-btn.on{background:#c75b7a;color:#fff;border-color:#c75b7a}
-.pg-info{font-size:11px;color:#6b7a9e}
-
-/* ── MODAL ────────────────────────────────────────── */
+.prog-bar{height:100%;border-radius:3px;background:var(--rose)}
 .overlay{position:fixed;inset:0;background:rgba(30,38,64,.5);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:.2s;backdrop-filter:blur(2px)}
 .overlay.open{opacity:1;pointer-events:all}
-.modal{background:#fff;border-radius:14px;width:680px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(30,38,64,.3);transform:translateY(16px);transition:.2s}
+.modal{background:#fff;border-radius:12px;width:640px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 16px 48px rgba(30,38,64,.25);transform:translateY(16px);transition:.2s}
 .overlay.open .modal{transform:translateY(0)}
-.mhdr{padding:16px 20px 12px;border-bottom:1px solid #e2e6f0;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1;border-radius:14px 14px 0 0}
-.mhdr-title{font-size:15px;font-weight:700;color:#1e2640}
-.mclose{width:28px;height:28px;border:none;background:#f0f2f7;border-radius:6px;cursor:pointer;font-size:16px;color:#6b7a9e;display:flex;align-items:center;justify-content:center}
-.mclose:hover{background:#fce7f3;color:#c75b7a}
-.mbody{padding:16px 20px}
-.mfooter{padding:12px 20px;border-top:1px solid #e2e6f0;display:flex;justify-content:flex-end;gap:8px}
-.fg{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.fl{font-size:11px;font-weight:700;color:#6b7a9e;margin-bottom:4px;text-transform:uppercase;letter-spacing:.04em}
-.fi,.fs,.fta{width:100%;padding:7px 10px;border:1px solid #d0d5e8;border-radius:6px;font-size:13px;font-family:inherit;color:#1e2640;outline:none;background:#fff;transition:.15s}
-.fi:focus,.fs:focus,.fta:focus{border-color:#c75b7a;box-shadow:0 0 0 2px rgba(199,91,122,.1)}
-.fta{resize:vertical;min-height:56px}
-.form-sep{grid-column:1/-1;font-size:10px;font-weight:700;color:#c75b7a;letter-spacing:1px;text-transform:uppercase;padding:6px 0 2px;border-bottom:1.5px solid #fce7f3;margin-top:4px}
-
-/* ── SALARY SUMMARY ───────────────────────────────── */
-.sal-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
-.sal-card{background:#fef0f3;border-radius:8px;padding:12px;text-align:center}
-.sal-amt{font-size:20px;font-weight:700;font-family:monospace;color:#c75b7a}
-.sal-lbl{font-size:10px;color:#6b7a9e;margin-top:2px}
-
-/* ── TOAST ────────────────────────────────────────── */
-.toast{position:fixed;bottom:20px;right:20px;background:#1e2640;color:#fff;padding:11px 18px;border-radius:8px;font-size:12px;z-index:9999;opacity:0;transform:translateY(8px);transition:.25s;pointer-events:none;max-width:340px;line-height:1.6;white-space:pre-line}
-.toast.show{opacity:1;transform:translateY(0)}
-.toast.ok{background:#059669}
-.toast.err{background:#dc2626}
-.toast.info{background:#2563eb}
-
-/* ── VCP CLOUD PANEL (sewing style) ─────────────────── */
-#vrtCloudBtn{position:fixed;bottom:22px;right:22px;width:46px;height:46px;
-  background:#0f1929;border:2px solid #1e3050;color:#60a5fa;
-  border-radius:50%;font-size:18px;cursor:pointer;z-index:9998;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 16px rgba(0,0,0,.5);transition:all .2s;user-select:none}
-#vrtCloudBtn:hover{transform:scale(1.08);border-color:#3b82f6;color:#93c5fd}
-#vrtCloudPanel{position:fixed;bottom:76px;right:22px;z-index:9999;
-  width:240px;background:#0f1929;border:1px solid #1e3050;
-  border-radius:14px;padding:14px;
-  box-shadow:0 8px 32px rgba(0,0,0,.6);
-  display:none;flex-direction:column;gap:9px}
-#vrtCloudPanel.show{display:flex}
-.vcp-title{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.07em}
-.vcp-status{font-size:11px;color:#475569;font-family:monospace;min-height:14px;line-height:1.5}
-.vcp-status.ok{color:#4ade80}.vcp-status.warn{color:#fbbf24}.vcp-status.err{color:#f87171}
-.vcp-row{display:flex;gap:7px}
-.vcp-btn{flex:1;padding:8px 6px;border-radius:8px;font-size:12px;font-weight:700;
-  cursor:pointer;border:none;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:4px;transition:.15s}
-.vcp-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
-.vcp-push:hover{background:#292000}
-.vcp-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
-.vcp-pull:hover{background:#0f2040}
-.vcp-btn:disabled{opacity:.4;cursor:not-allowed}
-.vcp-gasrow{display:flex;gap:5px;align-items:center}
-.vcp-gasinput{flex:1;background:#0a1120;border:1px solid #1e3050;border-radius:6px;
-  color:#f1f5f9;padding:5px 8px;font-size:10px;font-family:monospace;outline:none}
-.vcp-gasinput:focus{border-color:#f59e0b}
-.vcp-gassave{background:#253058;border:none;color:#cbd5e1;border-radius:6px;padding:5px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit}
-.vcp-log{font-size:10px;font-family:monospace;color:#475569;max-height:70px;overflow-y:auto;line-height:1.6;border-top:1px solid #1e3050;padding-top:7px;white-space:pre-wrap}
-.vcl-ok{color:#4ade80}.vcl-err{color:#f87171}.vcl-i{color:#60a5fa}
-@keyframes vcSpin{to{transform:rotate(360deg)}}
-.vcSpin{display:inline-block;animation:vcSpin .7s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.spinning{display:inline-block;animation:spin .7s linear infinite}
-
-/* ── RESPONSIVE ───────────────────────────────────── */
-@media(max-width:820px){
-  .hamburger{display:flex}
-  .hdr-stats{display:none}
-  .sec{padding:10px}
-  .fg{grid-template-columns:1fr}
-  .toolbar{gap:5px}
-  .kpi-strip{grid-template-columns:1fr 1fr}
-  .date-nav{gap:5px}
-  .date-nav-display{min-width:120px;font-size:12px}
-  .sal-sum{grid-template-columns:1fr}
-  .modal{width:100%;max-width:100%;border-radius:16px 16px 0 0;max-height:92vh}
-  .overlay{align-items:flex-end}
-  .toast{bottom:68px;left:16px;right:16px;max-width:none}
-  #cloudBtn{bottom:16px;left:auto;right:16px}
-  #cloudPanel{left:auto;right:16px;bottom:64px;width:calc(100vw - 32px);max-width:280px}
-}
-
-/* ── ANALYTICS CARDS (sewing-style) ──────────────────── */
-.ana-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:10px;margin-bottom:14px}
-.ana-card{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:13px;box-shadow:0 1px 4px rgba(30,38,64,.05);cursor:default;transition:.15s}
-.ana-card:hover{box-shadow:0 3px 12px rgba(199,91,122,.12);border-color:#f5a0b5}
-.ana-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.ana-card-name{font-size:13px;font-weight:700;color:#1e2640}
-.ana-card-badge{padding:2px 9px;border-radius:12px;font-size:10px;font-weight:700}
-.ana-stat-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
-.ana-stat{background:#f7f8fc;border-radius:6px;padding:6px;text-align:center}
-.ana-stat-n{font-size:16px;font-weight:700;font-family:monospace;line-height:1}
-.ana-stat-l{font-size:9px;color:#6b7a9e;margin-top:2px}
-.ana-bar-wrap{background:#eef0f6;border-radius:3px;height:5px;margin-top:6px;overflow:hidden}
-.ana-bar{height:100%;border-radius:3px;background:#c75b7a;transition:width .5s}
-/* Monthly bar chart */
-.month-bars{display:flex;align-items:flex-end;gap:4px;height:80px;padding:4px 0}
-.month-bar-col{display:flex;flex-direction:column;align-items:center;flex:1;gap:2px}
-.month-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height .4s}
-.month-bar.preg{background:#f5a0b5}
-.month-bar.mat{background:#6ee7b7}
-.month-bar-lbl{font-size:8px;color:#6b7a9e;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
-.month-bar-n{font-size:8px;font-weight:700;color:#1e2640}
-/* EDD timeline */
-.edd-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
-.edd-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f7f8fc;border-radius:7px;border-left:3px solid #c75b7a}
-.edd-item.urgent{border-left-color:#dc2626;background:#fff5f5}
-.edd-item.soon{border-left-color:#f59e0b;background:#fffbeb}
-.edd-days{font-size:11px;font-weight:700;font-family:monospace;min-width:36px;text-align:right}
-.edd-days.urgent{color:#dc2626}
-.edd-days.soon{color:#f59e0b}
-.edd-days.ok{color:#059669}
-.edd-name{flex:1;font-size:12px;font-weight:600}
-.edd-date{font-size:10px;color:#6b7a9e;font-family:monospace}
-/* Ana layout */
-.ana-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:820px){.ana-row{grid-template-columns:1fr}.ana-grid{grid-template-columns:1fr 1fr}}
-
-/* ── SEWING-STYLE LINE CARDS ─────────────────────────── */
-.lc{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:12px;border-top:3px solid #e2e6f0;cursor:pointer;transition:.15s}
-.lc:hover{box-shadow:0 3px 12px rgba(199,91,122,.15);transform:translateY(-1px)}
-.lc.hi{border-top-color:#059669}
-.lc.md{border-top-color:#d97706}
-.lc.lo{border-top-color:#dc2626}
-.lc.zero{border-top-color:#9ca3af;opacity:.7}
-.lc-name{font-size:13px;font-weight:700;color:#1e2640}
-.lc-sec{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;display:inline-block;margin-top:2px;text-transform:uppercase}
-.lc-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0}
-.lc-stat{background:#f7f8fc;border-radius:6px;padding:6px;text-align:center}
-.lc-sn{font-size:16px;font-weight:700;font-family:monospace;color:#1e2640;line-height:1.1}
-.lc-sl{font-size:9px;color:#6b7a9e;margin-top:2px}
-.capbar{height:7px;background:#e2e6f0;border-radius:4px;overflow:hidden;margin-top:4px}
-.capfill{height:100%;border-radius:4px;transition:width .4s}
-
-/* ── SETTINGS SUB-TABS ───────────────────────────────── */
-.stab{padding:9px 16px;font-size:13px;cursor:pointer;color:#6b7a9e;border-bottom:2px solid transparent;
-  margin-bottom:-2px;white-space:nowrap;font-weight:500;transition:.15s;user-select:none}
-.stab:hover{color:#1e2640;background:#f7f8fc}
-.stab.on{color:#c75b7a;border-bottom-color:#c75b7a;background:#fef0f3}
-.dept-tag{display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fde68a;
-  border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;color:#92400e;margin:3px}
-.dept-tag button{border:none;background:none;cursor:pointer;color:#92400e;font-size:14px;line-height:1;padding:0 2px}
-.dept-tag button:hover{color:#dc2626}
-
-@media print{
-  .hdr,.tabs,.toolbar,.date-nav,.pagination,#cloudBtn,#cloudPanel,.btn,.hamburger,
-  .overlay{display:none!important}
-  .sec{display:block!important;padding:0}
-  body{background:#fff;font-size:10pt}
-  .tw{overflow:visible}
-  table{font-size:8.5pt}
-}
+.mhdr{padding:14px 18px 10px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:1}
+.mhdr-title{font-size:14px;font-weight:700;color:var(--navy)}
+.mclose{width:28px;height:28px;border:none;background:#f0f2f7;border-radius:6px;cursor:pointer;font-size:16px;color:var(--muted);display:flex;align-items:center;justify-content:center}
+.mclose:hover{background:#fce7f3;color:var(--rose)}
+.mbody{padding:14px 18px}
+.mfooter{padding:10px 18px;border-top:1px solid var(--brd);display:flex;justify-content:flex-end;gap:8px}
+.fg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fl{font-size:10px;font-weight:700;color:var(--muted);margin-bottom:3px;text-transform:uppercase;letter-spacing:.04em}
+.fi,.fs{width:100%;padding:6px 9px;border:1px solid var(--brd);border-radius:6px;font-size:12px;font-family:inherit;outline:none}
+.fi:focus,.fs:focus{border-color:var(--rose)}
+.fta{width:100%;padding:6px 9px;border:1px solid var(--brd);border-radius:6px;font-size:12px;font-family:inherit;outline:none;resize:vertical;min-height:52px}
+.form-sep{grid-column:1/-1;font-size:10px;font-weight:700;color:var(--rose);letter-spacing:1px;text-transform:uppercase;padding:5px 0 2px;border-bottom:1.5px solid #fce7f3;margin-top:3px}
+.drop{border:2px dashed var(--brd);border-radius:10px;padding:20px;text-align:center;cursor:pointer;transition:.2s;position:relative;background:var(--bg)}
+.drop:hover,.drop.drag{border-color:var(--rose);background:#fef0f3}
+.drop.done{border-color:var(--teal);border-style:solid;background:#ecfdf5}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+/* Nursing fee specific */
+.nf-cross-ok{background:#d1fae5;border-left:3px solid #059669;border-radius:6px;padding:8px 12px;font-size:12px;color:#065f46;margin-bottom:6px}
+.nf-cross-warn{background:#fef3c7;border-left:3px solid #f59e0b;border-radius:6px;padding:8px 12px;font-size:12px;color:#92400e;margin-bottom:6px}
+.nf-cross-err{background:#fee2e2;border-left:3px solid #dc2626;border-radius:6px;padding:8px 12px;font-size:12px;color:#991b1b;margin-bottom:6px}
+.status-paid{background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.status-pending{background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+.status-overdue{background:#fee2e2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700}
+/* line cards */
+.lc-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:12px}
+.lc{background:#fff;border:1px solid var(--brd);border-radius:10px;padding:12px;border-top:3px solid var(--brd);cursor:pointer;transition:.15s}
+.lc:hover{box-shadow:0 3px 10px rgba(199,91,122,.12);transform:translateY(-1px)}
+.lc.preg{border-top-color:var(--amber)}
+.lc.mat{border-top-color:var(--rose)}
+.lc.ret{border-top-color:var(--teal)}
+.lc-name{font-size:13px;font-weight:700;color:var(--navy)}
+.lc-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:7px 0}
+.lc-stat{background:var(--bg);border-radius:5px;padding:5px;text-align:center}
+.lc-sn{font-size:15px;font-weight:700;font-family:monospace;color:var(--navy);line-height:1.1}
+.lc-sl{font-size:9px;color:var(--muted);margin-top:2px}
+.capbar{height:6px;background:var(--brd);border-radius:3px;overflow:hidden;margin-top:4px}
+.capfill{height:100%;border-radius:3px;background:var(--rose)}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.toast-el{position:fixed;bottom:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:6px}
+.toast{background:#fff;border:1px solid var(--brd);border-radius:8px;padding:9px 14px;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);animation:sUp .25s;max-width:300px}
+.toast.ok{border-left:3px solid var(--teal)}.toast.err{border-left:3px solid var(--danger)}.toast.info{border-left:3px solid var(--blue)}
+@keyframes sUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media(max-width:700px){.fg{grid-template-columns:1fr}.g2{grid-template-columns:1fr}.lc-grid{grid-template-columns:1fr 1fr}.hdr .h-stats .hstat-l{display:none}}
+@media print{.hdr,.tabs,.toolbar,.btn,.overlay{display:none!important}.sec.on{display:block!important}body{background:#fff}}
 </style>
 </head>
 <body>
-
-<!-- HEADER -->
 <header class="hdr">
-  <button class="hamburger" id="hamBtn" onclick="document.getElementById('tabBar').scrollIntoView({behavior:'smooth'})" aria-label="menu">
-    <span></span><span></span><span></span>
-  </button>
-  <div class="hdr-logo">🌸</div>
+  <div class="logo">🌸</div>
   <div>
-    <div class="hdr-title">AC HRA — 孕婦產假管理系統</div>
-    <div class="hdr-sub">VRT · Vantage River Textiles Co., Ltd.</div>
+    <div class="h-title" id="h-title">AC HRA 孕婦產假管理系統</div>
+    <div class="h-sub">VRT · Vantage River Textiles</div>
   </div>
-  <div class="hdr-stats">
-    <div class="hstat rose"><div class="hstat-v" id="h-preg">0</div><div class="hstat-l" id="hl-preg">懷孕中</div></div>
-    <div class="hstat teal"><div class="hstat-v" id="h-mat">0</div><div class="hstat-l" id="hl-mat">產假中</div></div>
-    <div class="hstat amber"><div class="hstat-v" id="h-ret">0</div><div class="hstat-l" id="hl-ret">即將回歸</div></div>
+  <div class="h-stats">
+    <div class="hstat"><div class="hstat-v" id="h-preg" style="color:#f5a0b5">0</div><div class="hstat-l">懷孕中</div></div>
+    <div class="hstat"><div class="hstat-v" id="h-mat" style="color:#6ee7b7">0</div><div class="hstat-l">產假中</div></div>
+    <div class="hstat"><div class="hstat-v" id="h-nf"  style="color:#fbbf24">0</div><div class="hstat-l">護理費</div></div>
   </div>
   <div class="lang-grp">
-    <button class="lang-btn on" onclick="setLang('zh')">中文</button>
-    <button class="lang-btn" onclick="setLang('en')">EN</button>
-    <button class="lang-btn" onclick="setLang('km')" style="font-family:'Noto Sans Khmer',sans-serif">ខ្មែរ</button>
+    <button class="lb on" onclick="setLang('zh')">中文</button>
+    <button class="lb"    onclick="setLang('en')">EN</button>
+    <button class="lb"    onclick="setLang('km')">ខ្មែរ</button>
   </div>
 </header>
 
-<!-- TABS -->
 <nav class="tabs" id="tabBar">
   <div class="tab on"  onclick="goTab('master',this)">📋 總表</div>
   <div class="tab"     onclick="goTab('pregnant',this)">🤰 孕婦名單</div>
   <div class="tab"     onclick="goTab('maternity',this)">🍼 產假管理</div>
   <div class="tab"     onclick="goTab('salary',this)">💰 薪資記錄</div>
+  <div class="tab"     onclick="goTab('nursing',this)">💊 護理費</div>
   <div class="tab"     onclick="goTab('settings',this)">⚙️ 設定</div>
 </nav>
 
-<!-- ══════════ TAB: 總表 ══════════ -->
+<!-- ══ 總表 ══ -->
 <div class="sec on" id="sec-master">
   <div class="kpi-strip">
-    <div class="kpi rose"><div class="kpi-n" id="k-preg">0</div><div class="kpi-l" id="kl-preg">🤰 懷孕中</div></div>
-    <div class="kpi teal"><div class="kpi-n" id="k-mat">0</div><div class="kpi-l" id="kl-mat">🍼 產假中</div></div>
-    <div class="kpi amber"><div class="kpi-n" id="k-ret30">0</div><div class="kpi-l" id="kl-ret30">📅 30天回歸</div></div>
-    <div class="kpi blue"><div class="kpi-n" id="k-total">0</div><div class="kpi-l" id="kl-total">👥 總人數</div></div>
+    <div class="kpi rose"><div class="kpi-n" id="k-preg">0</div><div class="kpi-l">🤰 懷孕中</div></div>
+    <div class="kpi rose"><div class="kpi-n" id="k-mat">0</div><div class="kpi-l">🍼 產假中</div></div>
+    <div class="kpi teal"><div class="kpi-n" id="k-ret30">0</div><div class="kpi-l">📅 30天回歸</div></div>
+    <div class="kpi amber"><div class="kpi-n" id="k-nf-total">0</div><div class="kpi-l">💊 護理費記錄</div></div>
+    <div class="kpi pu"><div class="kpi-n" id="k-nf-pending">0</div><div class="kpi-l">⏳ 待發放</div></div>
+    <div class="kpi blue"><div class="kpi-n" id="k-total">0</div><div class="kpi-l">👥 總人數</div></div>
   </div>
-
-  <!-- Analytics Row -->
-  <div class="ana-row" id="anaRow">
-    <div class="card" style="padding:14px">
-      <div class="ct" id="ct-dept">部門分佈 Dept Breakdown</div>
-      <div class="ana-grid" id="deptCards"></div>
-    </div>
-    <div class="card" style="padding:14px">
-      <div class="ct" id="ct-edd">⏰ 預產期倒數 Upcoming EDD</div>
-      <div class="edd-list" id="eddList"></div>
-    </div>
+  <div class="toolbar">
+    <button class="btn btn-rose" onclick="openEmpModal(null,'')">＋ 新增</button>
+    <label class="btn btn-amber" style="cursor:pointer">📥 匯入<input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'pregnant')"></label>
+    <button class="btn btn-g" onclick="xlsxExport(employees,'VRT_Master_'+today()+'.xlsx')">⬇ Excel</button>
+    <button class="btn btn-g" onclick="window.print()">🖨️</button>
   </div>
-  <div class="card" style="padding:14px;margin-bottom:14px">
-    <div class="ct" id="ct-trend">📈 每月趨勢 Monthly Trend</div>
-    <div style="display:flex;gap:16px;align-items:flex-end">
-      <div style="flex:1"><div class="month-bars" id="monthBars"></div>
-        <div style="display:flex;gap:4px;margin-top:2px" id="monthLabels"></div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:6px;flex-shrink:0">
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7a9e">
-          <div style="width:10px;height:10px;background:#f5a0b5;border-radius:2px"></div><span id="leg-preg">懷孕中</span>
-        </div>
-        <div style="display:flex;align-items:center;gap:5px;font-size:10px;color:#6b7a9e">
-          <div style="width:10px;height:10px;background:#6ee7b7;border-radius:2px"></div><span id="leg-mat">產假中</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Date Nav -->
-  <div class="date-nav">
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setMode('day')">日</button>
-      <button class="dnm" onclick="setMode('week')">週</button>
-      <button class="dnm on" onclick="setMode('month')">月</button>
-      <button class="dnm" onclick="setMode('year')">年</button>
-    </div>
-    <button class="btn-nav" onclick="navDate(-1)">◀</button>
-    <div class="date-nav-display" id="dateDisp">—</div>
-    <button class="btn-nav" onclick="navDate(1)">▶</button>
-    <button class="btn-today" onclick="goToday()">今日</button>
-    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-rose" onclick="openEmpModal(null,'')">＋ 新增</button>
-      <button class="btn btn-g" onclick="printRows(masterFiltered(),'總表 — '+getLabel())">🖨️ 列印</button>
-      <button class="btn btn-g" onclick="xlsxExport(masterFiltered(),'VRT_Master_'+today()+'.xlsx')">⬇ Excel</button>
-    </div>
-  </div>
-
-  <div class="tw">
-    <table id="masterTbl">
-      <thead><tr>
-        <th>No.</th><th>登記日</th><th>孕期</th><th>ID No.</th><th>姓名</th>
-        <th>部門</th><th>職位</th><th>生日</th><th>齡</th><th>預產期 EDD</th>
-        <th>NSSF No.</th><th>狀態</th><th>申請日</th><th>回歸日</th>
-        <th>總天</th><th>已用</th><th>剩餘</th><th>進度</th>
-        <th>備註</th><th>聯絡</th><th>電話</th><th>地址</th><th>操作</th>
-      </tr></thead>
-      <tbody id="masterTbody"></tbody>
-    </table>
-  </div>
-  <div class="pagination" id="masterPag" style="margin-top:10px;padding:0 4px"></div>
+  <div class="tw"><table id="masterTbl">
+    <thead><tr><th>#</th><th>ID</th><th>姓名</th><th>部門</th><th>職位</th><th>狀態</th><th>EDD</th><th>申請日</th><th>回歸日</th><th>天數</th><th>已用</th><th>剩餘</th><th>護理費</th><th>備注</th><th>操作</th></tr></thead>
+    <tbody id="masterTbody"></tbody>
+  </table></div>
 </div>
 
-<!-- ══════════ TAB: 孕婦名單 ══════════ -->
+<!-- ══ 孕婦名單 ══ -->
 <div class="sec" id="sec-pregnant">
   <div class="toolbar">
-    <input class="search-box" id="pregSrch" oninput="renderPregnant()" placeholder="Search…">
+    <input class="sbox" id="pregSrch" oninput="renderPregnant()" placeholder="搜尋…">
     <select class="fsel" id="pregDept" onchange="renderPregnant()"><option value="">—</option></select>
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setPregMode('day')" id="pm-day">日</button>
-      <button class="dnm" onclick="setPregMode('week')" id="pm-week">週</button>
-      <button class="dnm on" onclick="setPregMode('month')" id="pm-month">月</button>
-      <button class="dnm" onclick="setPregMode('year')" id="pm-year">年</button>
-    </div>
-    <button class="btn-nav" onclick="navPreg(-1)">◀</button>
-    <select id="pregDateSel" class="fsel" style="font-family:monospace;min-width:140px;font-size:12px" onchange="renderPregnant()"></select>
-    <button class="btn-nav" onclick="navPreg(1)">▶</button>
-    <button class="btn-today" onclick="pregToday()">今日</button>
-    <div class="tbar-r">
-      <button class="btn btn-rose" onclick="openEmpModal(null,'pregnant')" id="tb-addPreg">＋ 新增孕婦</button>
-      <label class="btn btn-y" style="cursor:pointer"><span id="tb-impPreg">📥 匯入</span>
-        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'pregnant')">
-      </label>
-      <button class="btn btn-g" onclick="printRows(pregFiltered(),'Pregnant')">🖨️</button>
-      <button class="btn btn-g" onclick="xlsxExport(pregFiltered(),'VRT_Pregnant_'+today()+'.xlsx')">⬇</button>
-      <button class="btn btn-r" onclick="clearSection('pregnant')">🗑️</button>
-    </div>
+    <button class="btn btn-rose" onclick="openEmpModal(null,'pregnant')">＋ 新增</button>
+    <label class="btn btn-amber" style="cursor:pointer">📥 匯入<input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'pregnant')"></label>
+    <button class="btn btn-g" onclick="xlsxExport(pregFiltered(),'VRT_Pregnant_'+today()+'.xlsx')">⬇</button>
   </div>
-  <div class="kpi-strip" style="margin-bottom:10px">
-    <div class="kpi rose"><div class="kpi-n" id="pk-total">0</div><div class="kpi-l" id="pkl-total">懷孕中</div></div>
-    <div class="kpi amber"><div class="kpi-n" id="pk-edd30">0</div><div class="kpi-l" id="pkl-edd30">30天EDD</div></div>
-    <div class="kpi blue"><div class="kpi-n" id="pk-new">0</div><div class="kpi-l" id="pkl-new">本期新增</div></div>
-    <div class="kpi teal"><div class="kpi-n" id="pk-dept">0</div><div class="kpi-l" id="pkl-dept">部門數</div></div>
-  </div>
-  <div id="pregCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;margin-bottom:10px"></div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <button class="btn btn-g btn-sm" onclick="togglePregTable()" id="pregTblToggle">▲ 收合列表</button>
-    <span id="pregCount" style="font-size:11px;color:#6b7a9e"></span>
-  </div>
-  <div id="pregTableWrap">
-    <div class="tw"><table><thead><tr id="pregTblHdr"></tr></thead><tbody id="pregTbody"></tbody></table></div>
-    <div class="pagination" id="pregPag" style="margin-top:8px;padding:0 4px"></div>
-  </div>
+  <div class="lc-grid" id="pregCards"></div>
+  <div class="tw"><table><thead><tr><th>#</th><th>ID</th><th>姓名</th><th>部門</th><th>生日</th><th>EDD</th><th>孕期</th><th>NSSF</th><th>聯絡</th><th>操作</th></tr></thead><tbody id="pregTbody"></tbody></table></div>
 </div>
 
-<!-- ══════════ TAB: 產假管理 ══════════ -->
+<!-- ══ 產假管理 ══ -->
 <div class="sec" id="sec-maternity">
   <div class="toolbar">
-    <input class="search-box" id="matSrch" oninput="renderMaternity()" placeholder="Search…">
+    <input class="sbox" id="matSrch" oninput="renderMaternity()" placeholder="搜尋…">
     <select class="fsel" id="matDept" onchange="renderMaternity()"><option value="">—</option></select>
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setMatMode('day')" id="mm-day">日</button>
-      <button class="dnm" onclick="setMatMode('week')" id="mm-week">週</button>
-      <button class="dnm on" onclick="setMatMode('month')" id="mm-month">月</button>
-      <button class="dnm" onclick="setMatMode('year')" id="mm-year">年</button>
-    </div>
-    <button class="btn-nav" onclick="navMat(-1)">◀</button>
-    <select id="matDateSel" class="fsel" style="font-family:monospace;min-width:140px;font-size:12px" onchange="renderMaternity()"></select>
-    <button class="btn-nav" onclick="navMat(1)">▶</button>
-    <button class="btn-today" onclick="matToday()">今日</button>
-    <div class="tbar-r">
-      <button class="btn btn-rose" onclick="openEmpModal(null,'maternity')" id="tb-addMat">＋ 新增產假</button>
-      <label class="btn btn-y" style="cursor:pointer"><span id="tb-impMat">📥 匯入</span>
-        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'maternity')">
-      </label>
-      <button class="btn btn-g" onclick="printRows(matFiltered(),'Maternity')">🖨️</button>
-      <button class="btn btn-g" onclick="xlsxExport(matFiltered(),'VRT_Maternity_'+today()+'.xlsx')">⬇</button>
-      <button class="btn btn-r" onclick="clearSection('maternity')">🗑️</button>
-    </div>
+    <button class="btn btn-rose" onclick="openEmpModal(null,'maternity')">＋ 新增</button>
+    <label class="btn btn-amber" style="cursor:pointer">📥 匯入<input type="file" accept=".xlsx,.xls" style="display:none" onchange="smartImport(this,'maternity')"></label>
+    <button class="btn btn-g" onclick="xlsxExport(matFiltered(),'VRT_Mat_'+today()+'.xlsx')">⬇</button>
   </div>
-  <div class="kpi-strip" style="margin-bottom:10px">
-    <div class="kpi teal"><div class="kpi-n" id="mk-total">0</div><div class="kpi-l" id="mkl-total">產假中</div></div>
-    <div class="kpi amber"><div class="kpi-n" id="mk-ret30">0</div><div class="kpi-l" id="mkl-ret30">30天回歸</div></div>
-    <div class="kpi rose"><div class="kpi-n" id="mk-pay">$0</div><div class="kpi-l" id="mkl-pay">產假薪資總額</div></div>
-    <div class="kpi blue"><div class="kpi-n" id="mk-avg">$0</div><div class="kpi-l" id="mkl-avg">平均月薪</div></div>
+  <div class="kpi-strip">
+    <div class="kpi rose"><div class="kpi-n" id="mk-total">0</div><div class="kpi-l">產假中</div></div>
+    <div class="kpi amber"><div class="kpi-n" id="mk-ret30">0</div><div class="kpi-l">30天回歸</div></div>
+    <div class="kpi rose"><div class="kpi-n" id="mk-pay">$0</div><div class="kpi-l">產假薪資</div></div>
+    <div class="kpi blue"><div class="kpi-n" id="mk-avg">$0</div><div class="kpi-l">平均月薪</div></div>
   </div>
-  <div id="matCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;margin-bottom:10px"></div>
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-    <button class="btn btn-g btn-sm" onclick="toggleMatTable()" id="matTblToggle">▲ 收合列表</button>
-    <span id="matCount" style="font-size:11px;color:#6b7a9e"></span>
-  </div>
-  <div id="matTableWrap">
-    <div class="tw"><table><thead><tr id="matTblHdr"></tr></thead><tbody id="matTbody"></tbody></table></div>
-    <div class="pagination" id="matPag" style="margin-top:8px;padding:0 4px"></div>
-  </div>
+  <div class="lc-grid" id="matCards"></div>
+  <div class="tw"><table><thead><tr><th>#</th><th>ID</th><th>姓名</th><th>部門</th><th>申請日</th><th>回歸日</th><th>天數</th><th>已用</th><th>剩餘</th><th>進度</th><th>產假薪資</th><th>護理費</th><th>操作</th></tr></thead><tbody id="matTbody"></tbody></table></div>
 </div>
 
-<!-- ══════════ TAB: 薪資記錄 ══════════ -->
+<!-- ══ 薪資記錄 ══ -->
 <div class="sec" id="sec-salary">
   <div class="toolbar">
-    <input class="search-box" id="salSrch" oninput="renderSalary()" placeholder="Search…">
+    <input class="sbox" id="salSrch" oninput="renderSalary()" placeholder="搜尋…">
     <select class="fsel" id="salIdF" onchange="renderSalary()"><option value="">— All —</option></select>
-    <div class="tbar-r">
-      <button class="btn btn-rose" onclick="openSalModal(null)" id="tb-addSal">＋ 新增薪資</button>
-      <label class="btn btn-y" style="cursor:pointer"><span id="tb-impSal">📥 匯入薪資 Excel</span>
-        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importSalXlsx(this)">
-      </label>
-      <button class="btn btn-g" onclick="xlsxExport(salaryRecords,'VRT_Salary_'+today()+'.xlsx')">⬇</button>
-      <button class="btn btn-r" onclick="clearSection('salary')">🗑️</button>
-    </div>
+    <button class="btn btn-rose" onclick="openSalModal(null)">＋ 新增</button>
+    <label class="btn btn-amber" style="cursor:pointer">📥 匯入薪資<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importSalXlsx(this)"></label>
+    <button class="btn btn-g" onclick="xlsxExport(salaryRecords,'VRT_Salary_'+today()+'.xlsx')">⬇</button>
+    <button class="btn btn-r btn-sm" onclick="if(confirm('清除所有薪資？')){salaryRecords=[];saveData();renderSalary();toast('已清除','info')}">🗑️</button>
   </div>
   <div id="salPersonCards"></div>
 </div>
 
-<!-- ══════════ TAB: 設定 ══════════ -->
-<div class="sec" id="sec-settings">
-  <!-- Sub-tabs -->
-  <div style="display:flex;gap:0;border-bottom:2px solid #e2e6f0;margin-bottom:14px;overflow-x:auto">
-    <div class="stab on" id="stab-dept"    onclick="goStab('dept',this)">🏢 部門管理</div>
-    <div class="stab"    id="stab-emp"     onclick="goStab('emp',this)">👤 員工名冊</div>
-    <div class="stab"    id="stab-cloud"   onclick="goStab('cloud',this)">☁ 雲端設定</div>
-    <div class="stab"    id="stab-system"  onclick="goStab('system',this)">⚙ 系統</div>
-  </div>
-
-  <!-- DEPT MANAGEMENT -->
-  <div id="stab-dept-body">
-    <div class="card">
-      <div class="ct">🏢 部門管理</div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        <input class="fi" id="newDeptInput" placeholder="輸入新部門名稱…" style="flex:1;min-width:150px">
-        <button class="btn btn-rose" onclick="addDept()">＋ 新增部門</button>
-      </div>
-      <div id="deptList"></div>
-    </div>
-    <div class="card">
-      <div class="ct">📊 部門統計</div>
-      <div id="deptStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px"></div>
-    </div>
-  </div>
-
-  <!-- EMPLOYEE DIRECTORY -->
-  <div id="stab-emp-body" style="display:none">
-    <div class="toolbar">
-      <input class="search-box" id="settingEmpSrch" oninput="renderSettingEmp()" placeholder="Search…">
-      <select class="fsel" id="settingEmpStatus" onchange="renderSettingEmp()">
-        <option value="">All Status</option>
-        <option value="pregnant">🤰 Pregnant</option>
-        <option value="maternity">🍼 Maternity</option>
-        <option value="returned">✅ Returned</option>
-        <option value="resigned">📤 Resigned</option>
-      </select>
-      <select class="fsel" id="settingEmpDept" onchange="renderSettingEmp()">
-        <option value="">All Depts</option>
-      </select>
-      <div class="tbar-r">
-        <button class="btn btn-rose" onclick="openEmpModal(null,'pregnant')">＋ 新增員工</button>
-        <button class="btn btn-g" onclick="xlsxExport(employees,'VRT_Employees_'+today()+'.xlsx')">⬇ 全部匯出</button>
-      </div>
-    </div>
+<!-- ══ 護理費 ══ -->
+<div class="sec" id="sec-nursing">
+  <div class="kpi-strip" id="nf-kpis"></div>
+  <!-- Cross-check -->
+  <div class="card">
+    <div class="ct">🔄 產假 vs 護理費 Cross-check</div>
+    <div id="nf-alerts" style="margin-bottom:10px"></div>
     <div class="tw"><table>
-      <thead><tr>
-        <th>ID</th><th>姓名</th><th>部門</th><th>職位</th>
-        <th>狀態</th><th>EDD</th><th>申請日</th><th>回歸日</th>
-        <th>NSSF</th><th>聯絡</th><th>操作</th>
-      </tr></thead>
-      <tbody id="settingEmpTbody"></tbody>
+      <thead><tr><th>工號</th><th>姓名</th><th>部門</th><th>在職狀態</th><th>護理費筆數</th><th>最後發放</th><th>距今天數</th><th>總金額</th><th>狀態</th></tr></thead>
+      <tbody id="nfCrossTbody"></tbody>
     </table></div>
   </div>
-
-  <!-- CLOUD CONFIG -->
-  <div id="stab-cloud-body" style="display:none">
-    <div class="card">
-      <div class="ct">☁ Google Apps Script (GAS) 設定</div>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
-        <input class="fi" id="gasInput" placeholder="Google Apps Script /exec URL" style="flex:1;min-width:200px">
-        <button class="btn btn-rose" onclick="saveGas()">💾 儲存</button>
-        <button class="btn btn-teal" onclick="cloudPush()">☁ 立即推送</button>
-        <button class="btn btn-g" onclick="cloudPull()">⬇ 立即拉取</button>
-      </div>
-      <div id="gasStatus" style="font-size:12px;color:#6b7a9e;margin-bottom:10px"></div>
-      <div style="background:#0f1929;border-radius:8px;padding:10px 12px">
-        <div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;margin-bottom:6px">雲端同步記錄</div>
-        <div id="cloudLogDisplay" style="font-size:10px;font-family:monospace;color:#475569;max-height:120px;overflow-y:auto;line-height:1.6"></div>
-      </div>
+  <!-- Nursing fee records -->
+  <div class="card">
+    <div class="ct">💊 護理費明細</div>
+    <div class="toolbar">
+      <input class="sbox" id="nfSrch" oninput="renderNursing()" placeholder="搜尋姓名/工號…">
+      <select class="fsel" id="nfStatusF" onchange="renderNursing()">
+        <option value="">全部狀態</option>
+        <option value="paid">✅ 已發放</option>
+        <option value="pending">⏳ 待發放</option>
+        <option value="overdue">🔴 逾期</option>
+      </select>
+      <button class="btn btn-rose" onclick="openNfModal(null)">＋ 新增</button>
+      <label class="btn btn-amber" style="cursor:pointer">📥 匯入<input type="file" accept=".xlsx,.xls" style="display:none" onchange="importNfXlsx(event)"></label>
+      <button class="btn btn-g" onclick="exportNfXlsx()">⬇ Excel</button>
+      <button class="btn btn-r btn-sm" onclick="if(confirm('清除所有護理費記錄？')){NURSING_FEES=[];saveNursingData();renderNursing();toast('已清除','info')}">🗑️</button>
     </div>
-  </div>
-
-  <!-- SYSTEM -->
-  <div id="stab-system-body" style="display:none">
-    <div class="card">
-      <div class="ct">📦 資料管理</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-dark" onclick="loadSample()">📦 載入範例資料</button>
-        <button class="btn btn-teal" onclick="saveData();toast('✅ 已儲存')">💾 手動儲存</button>
-        <button class="btn btn-g" onclick="xlsxExport([...employees,...salaryRecords],'VRT_AllData_'+today()+'.xlsx')">⬇ 備份全部</button>
-        <button class="btn btn-r" onclick="clearAll()">🗑️ 清除所有資料</button>
-      </div>
-    </div>
-    <div class="card">
-      <div class="ct">ℹ️ 系統資訊</div>
-      <div style="font-size:12px;color:#6b7a9e;line-height:2.2">
-        檔案: <code>ac_hra_maternity_v1.html</code> &nbsp;|&nbsp; 儲存鍵: <code>vrt_maternity_v1</code><br>
-        員工記錄: <span id="sysEmpCount">—</span> 筆 &nbsp;|&nbsp; 薪資記錄: <span id="sysSalCount">—</span> 筆<br>
-        產假薪資公式: <code>平均月薪(過去12月) ÷ 26天 × 90天 ÷ 2</code>
-      </div>
-    </div>
+    <div class="tw"><table>
+      <thead><tr><th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>金額</th><th>發放日</th><th>狀態</th><th>備注</th><th>操作</th></tr></thead>
+      <tbody id="nfTbody"></tbody>
+    </table></div>
   </div>
 </div>
 
+<!-- ══ 設定 ══ -->
+<div class="sec" id="sec-settings">
+  <div class="g2">
+    <div class="card">
+      <div class="ct">☁ GAS 雲端設定</div>
+      <input class="fi" id="gasInput" placeholder="GAS /exec URL" style="margin-bottom:8px">
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-rose" onclick="saveGas()">💾 儲存</button>
+        <button class="btn btn-teal" onclick="cloudPush()">☁ 推送</button>
+        <button class="btn btn-g" onclick="cloudPull()">⬇ 拉取</button>
+      </div>
+      <div id="gasStatus" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <div class="ct">📦 資料管理</div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn btn-g" onclick="backupJSON()">📦 備份</button>
+        <button class="btn btn-g" onclick="document.getElementById('restoreF').click()">📂 還原</button>
+        <input type="file" id="restoreF" accept=".json" style="display:none" onchange="restoreJSON(event)">
+        <button class="btn btn-r" onclick="clearAll()">🗑️ 清除全部</button>
+      </div>
+      <div style="margin-top:10px;font-size:11px;color:var(--muted)" id="sysInfo"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">📥 匯入範例資料</div>
+    <button class="btn btn-amber" onclick="loadSample()">載入範例</button>
+  </div>
+</div>
 
-<!-- ══════════ MODAL: 員工 ══════════ -->
+<!-- Employee Modal -->
 <div class="overlay" id="empOv">
   <div class="modal">
-    <div class="mhdr">
-      <div class="mhdr-title" id="empMTitle">新增員工記錄</div>
-      <button class="mclose" onclick="closeEmpModal()">✕</button>
-    </div>
+    <div class="mhdr"><div class="mhdr-title" id="empMTitle">新增員工記錄</div><button class="mclose" onclick="closeEmpModal()">✕</button></div>
     <div class="mbody">
       <div class="fg">
         <div class="form-sep">基本資料</div>
         <div><div class="fl">ID No. *</div><input class="fi" id="fId"></div>
-        <div><div class="fl">姓名 Name *</div><input class="fi" id="fName"></div>
-        <div><div class="fl">部門 Dept</div><input class="fi" id="fDept"></div>
-        <div><div class="fl">職位 Position</div><input class="fi" id="fPos"></div>
-        <div><div class="fl">生日 Birthday</div><input class="fi" id="fBd" type="date"></div>
+        <div><div class="fl">姓名 *</div><input class="fi" id="fName"></div>
+        <div><div class="fl">部門</div><input class="fi" id="fDept"></div>
+        <div><div class="fl">職位</div><input class="fi" id="fPos"></div>
+        <div><div class="fl">生日</div><input class="fi" id="fBd" type="date"></div>
         <div><div class="fl">NSSF No.</div><input class="fi" id="fNssf"></div>
         <div class="form-sep">產假資訊</div>
-        <div><div class="fl">狀態 Status</div>
+        <div><div class="fl">狀態</div>
           <select class="fs" id="fStatus">
             <option value="pregnant">🤰 懷孕中</option>
             <option value="maternity">🍼 產假中</option>
             <option value="returned">✅ 已返回</option>
             <option value="resigned">📤 離職</option>
-            <option value="abortion">⚠️ 流產</option>
           </select>
         </div>
-        <div><div class="fl">孕期 (月)</div><input class="fi" id="fPP" type="number" min="1" max="10"></div>
+        <div><div class="fl">孕期(月)</div><input class="fi" id="fPP" type="number" min="1" max="10"></div>
         <div><div class="fl">預產期 EDD</div><input class="fi" id="fEdd" type="date"></div>
-        <div><div class="fl">登記日 Register</div><input class="fi" id="fReg" type="date"></div>
-        <div><div class="fl">申請日 Apply</div><input class="fi" id="fApply" type="date"></div>
-        <div><div class="fl">回歸日 Return</div><input class="fi" id="fReturn" type="date"></div>
+        <div><div class="fl">登記日</div><input class="fi" id="fReg" type="date"></div>
+        <div><div class="fl">申請日</div><input class="fi" id="fApply" type="date"></div>
+        <div><div class="fl">回歸日</div><input class="fi" id="fReturn" type="date"></div>
         <div><div class="fl">總天數</div><input class="fi" id="fDays" type="number" value="90"></div>
-        <div><div class="fl">底薪 Basic Salary</div><input class="fi" id="fSal" type="number" step="0.01"></div>
+        <div><div class="fl">底薪</div><input class="fi" id="fSal" type="number" step="0.01"></div>
         <div class="form-sep">聯絡資料</div>
-        <div><div class="fl">聯絡人 Contact</div><input class="fi" id="fContact"></div>
-        <div><div class="fl">電話 Phone</div><input class="fi" id="fPhone"></div>
-        <div style="grid-column:1/-1"><div class="fl">地址 Address</div><input class="fi" id="fAddr"></div>
-        <div style="grid-column:1/-1"><div class="fl">備註 Remark</div><textarea class="fta" id="fRem"></textarea></div>
+        <div><div class="fl">聯絡人</div><input class="fi" id="fContact"></div>
+        <div><div class="fl">電話</div><input class="fi" id="fPhone"></div>
+        <div style="grid-column:1/-1"><div class="fl">地址</div><input class="fi" id="fAddr"></div>
+        <div style="grid-column:1/-1"><div class="fl">備注</div><textarea class="fta" id="fRem"></textarea></div>
       </div>
     </div>
     <div class="mfooter">
@@ -620,26 +314,23 @@ tr:hover td{background:#fdf5f7}
   </div>
 </div>
 
-<!-- ══════════ MODAL: 薪資 ══════════ -->
+<!-- Salary Modal -->
 <div class="overlay" id="salOv">
-  <div class="modal" style="max-width:520px">
-    <div class="mhdr">
-      <div class="mhdr-title" id="salMTitle">新增薪資記錄</div>
-      <button class="mclose" onclick="closeSalModal()">✕</button>
-    </div>
+  <div class="modal" style="max-width:480px">
+    <div class="mhdr"><div class="mhdr-title" id="salMTitle">新增薪資記錄</div><button class="mclose" onclick="closeSalModal()">✕</button></div>
     <div class="mbody">
       <div class="fg">
         <div><div class="fl">ID No.</div><input class="fi" id="sId"></div>
         <div><div class="fl">姓名</div><input class="fi" id="sName"></div>
-        <div><div class="fl">月份 Month</div><input class="fi" id="sMon" type="month"></div>
-        <div><div class="fl">工作天 Work Days</div><input class="fi" id="sWd" type="number" step="0.5"></div>
-        <div><div class="fl">底薪 Salary</div><input class="fi" id="sSal" type="number" step="0.01" oninput="calcNet()"></div>
+        <div><div class="fl">月份</div><input class="fi" id="sMon" type="month"></div>
+        <div><div class="fl">工作天</div><input class="fi" id="sWd" type="number" step="0.5"></div>
+        <div><div class="fl">底薪</div><input class="fi" id="sSal" type="number" step="0.01" oninput="calcNet()"></div>
         <div><div class="fl">OT Pay</div><input class="fi" id="sOt" type="number" step="0.01" oninput="calcNet()"></div>
-        <div><div class="fl">餐費 Meal</div><input class="fi" id="sMeal" type="number" step="0.01" oninput="calcNet()"></div>
+        <div><div class="fl">餐費</div><input class="fi" id="sMeal" type="number" step="0.01" oninput="calcNet()"></div>
         <div><div class="fl">NSSF</div><input class="fi" id="sNssf" type="number" step="0.01" oninput="calcNet()"></div>
-        <div><div class="fl">扣款 Deductions</div><input class="fi" id="sDed" type="number" step="0.01" oninput="calcNet()"></div>
-        <div><div class="fl">實發 Net Pay</div><input class="fi" id="sNetI" type="number" step="0.01" style="font-weight:700;color:#c75b7a"></div>
-        <div style="grid-column:1/-1"><div class="fl">備註 Remarks</div><input class="fi" id="sRem"></div>
+        <div><div class="fl">扣款</div><input class="fi" id="sDed" type="number" step="0.01" oninput="calcNet()"></div>
+        <div><div class="fl">實發</div><input class="fi" id="sNetI" type="number" step="0.01" style="font-weight:700;color:var(--rose)"></div>
+        <div style="grid-column:1/-1"><div class="fl">備注</div><input class="fi" id="sRem"></div>
       </div>
     </div>
     <div class="mfooter">
@@ -649,1903 +340,384 @@ tr:hover td{background:#fdf5f7}
   </div>
 </div>
 
-<!-- TOAST -->
-<div class="toast" id="toastEl"></div>
-
-<!-- VCP CLOUD BUTTON + PANEL (sewing style) -->
-<button id="vrtCloudBtn" title="☁ 雲端同步" onclick="vcToggle()">☁</button>
-<div id="vrtCloudPanel">
-  <div class="vcp-title">☁ 雲端同步 — AC HRA Maternity</div>
-  <div class="vcp-status warn" id="vcStatus">讀取中…</div>
-  <div class="vcp-row">
-    <button class="vcp-btn vcp-push" id="vcPushBtn" onclick="cloudPush()">☁ 推送</button>
-    <button class="vcp-btn vcp-pull" id="vcPullBtn" onclick="cloudPull()">⬇ 拉取</button>
-  </div>
-  <div>
-    <div style="font-size:10px;color:#475569;margin-bottom:4px">GAS URL</div>
-    <div class="vcp-gasrow">
-      <input class="vcp-gasinput" id="vcGasInput" placeholder="/exec 結尾的網址">
-      <button class="vcp-gassave" onclick="saveGasFromPanel()">存</button>
+<!-- Nursing Fee Modal -->
+<div class="overlay" id="nfOv">
+  <div class="modal" style="max-width:480px">
+    <div class="mhdr"><div class="mhdr-title" id="nfMTitle">新增護理費記錄</div><button class="mclose" onclick="closeNfModal()">✕</button></div>
+    <div class="mbody">
+      <div class="fg">
+        <div><div class="fl">工號 ID *</div><input class="fi" id="nfId"></div>
+        <div><div class="fl">姓名 *</div><input class="fi" id="nfName"></div>
+        <div><div class="fl">部門</div><input class="fi" id="nfDept"></div>
+        <div><div class="fl">金額 Amount ($) *</div><input class="fi" id="nfAmount" type="number" step="0.01" min="0"></div>
+        <div><div class="fl">發放日 Pay Date *</div><input class="fi" id="nfDate" type="date"></div>
+        <div><div class="fl">狀態</div>
+          <select class="fs" id="nfStatus">
+            <option value="paid">✅ 已發放</option>
+            <option value="pending">⏳ 待發放</option>
+            <option value="overdue">🔴 逾期</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1"><div class="fl">備注</div><textarea class="fta" id="nfRemark"></textarea></div>
+      </div>
+    </div>
+    <div class="mfooter">
+      <button class="btn btn-g" onclick="closeNfModal()">取消</button>
+      <button class="btn btn-rose" onclick="saveNf()">💾 儲存</button>
     </div>
   </div>
-  <div class="vcp-log" id="cpLog"></div>
 </div>
 
+<div class="toast-el" id="toastEl"></div>
+
 <script>
-// ════════════════════ CONSTANTS ════════════════════════
-const STORAGE_KEY = 'vrt_maternity_v1';
-const GAS_KEY     = 'ac_hra_gas_url';
-const META_KEY    = 'ac_hra_maternity_meta';
-const PGSZ = 25;
+// ═══════════════════════════════════════
+// AC HRA Maternity v1 + Nursing Fee
+// ═══════════════════════════════════════
+const STORAGE_KEY='vrt_maternity_v1';
+const NF_KEY='vrt_nursing_fees_v1';
+const GAS_KEY='ac_hra_gas_url';
 
-// ════════════════════ TRILINGUAL i18n ═════════════════
-let lang = localStorage.getItem('vrt_lang') || 'zh';
-const I18N = {
-  zh: {
-    appName:'孕婦產假管理系統', pregIn:'懷孕中', matIn:'產假中', retSoon:'即將回歸',
-    master:'📋 總表', pregTab:'🤰 孕婦名單', matTab:'🍼 產假管理', salTab:'💰 薪資記錄', setTab:'⚙️ 設定',
-    addBtn:'＋ 新增', addPreg:'＋ 新增孕婦', addMat:'＋ 新增產假', addSal:'＋ 新增薪資',
-    impBtn:'📥 匯入 Excel', impSal:'📥 匯入薪資 Excel',
-    print:'🖨️ 列印', excel:'⬇ Excel', clearAll:'🗑️ 全清除',
-    today:'今日', allDept:'所有部門', allMon:'所有月份', srch:'搜尋姓名 / ID…',
-    day:'日', week:'週', month:'月', year:'年',
-    dupImport:'⚠️ 重複匯入 — 請重新載入頁面後再試', noData:'⚠️ 未找到可匯入的資料',
-    pregImport:'孕婦登記', matImport:'產假名單', salImport:'薪資', empImport:'員工',
-    new:'新增', updated:'更新', skipped:'跳過',
-    saved:'✅ 記錄已儲存', deleted:'已刪除', sampleLoaded:'✅ 範例資料已載入',
-    gasUrl:'Google Apps Script /exec URL',
-    sysInfoLabel:'檔案名稱', sysInfoSave:'手動儲存',
-    basicSum:'底薪合計', otSum:'OT 合計', netSum:'實發合計',
-    hlPreg:'懷孕中', hlMat:'產假中', hlRet:'即將回歸',
-    kPreg:'🤰 懷孕中', kMat:'🍼 產假中', kRet30:'📅 30天回歸', kTotal:'👥 總人數',
-    noRecord:'無符合記錄', noPregRec:'無懷孕記錄', noMatRec:'無產假記錄', noSalRec:'無薪資記錄',
-    gasKey:'☁ 雲端 GAS 設定', dataKey:'📊 資料管理', infoKey:'ℹ️ 系統資訊',
-    loadSample:'📦 載入範例資料', manualSave:'💾 手動儲存', clearAllBtn:'🗑️ 清除所有資料',
-    gasStatus:'GAS URL 已儲存', cloudPush:'☁ 推送', cloudPull:'⬇ 拉取',
-    emp:'新增員工記錄', empEdit:'編輯員工記錄',
-    sal:'新增薪資記錄', salEdit:'編輯薪資記錄',
-    showList:'顯示明細列表', hideList:'隱藏列表',
-    records:'筆', all:'全部', addSal:'新增薪資',
-    daysLeft:'距EDD', period:'孕期', totalDays:'總天',
-    used:'已用', left:'剩餘', regDate:'登記日', name:'姓名', dept:'部門',
-    pos:'職位', birthday:'生日', age:'齡', applyDate:'申請日',
-    returnDate:'回歸日', progress:'進度', status:'狀態', contact:'聯絡',
-    salVerify:'產假薪資核對', avgSal:'平均月薪', entitledPay:'應領產假薪',
-    actualPaid:'實際已領', diff:'差額', salMismatch:'金額不符！',
-    noSalRecord:'無薪資記錄', month:'月份', workDays:'工作天', basicSal:'底薪',
-    meal:'餐費', netPay:'實發', remark:'備註', ops:'操作',
-    totalNet:'總實發', avgNet:'平均實發', ops:'操作',
-    clearConfirm1:'確定清除所有資料？', clearConfirm2:'再次確認？此操作無法復原！',
-    cleared:'已清除所有資料',
-    cancel:'取消', save:'💾 儲存',
-    noRecord:'無符合記錄', noPregRec:'無懷孕記錄', noMatRec:'無產假記錄', noSalRec:'無薪資記錄',
-    cloudLoaded:'雲端載入', autoSync:'自動同步',
-    ct_dept:'部門分佈', ct_edd:'⏰ 預產期倒數', ct_trend:'📈 每月趨勢',
-    cloudStatus:'雲端狀態', pushOK:'推送成功', pullOK:'拉取成功', gasNotSet:'未設定 GAS URL',
-  },
-  en: {
-    appName:'Maternity Management System', pregIn:'Pregnant', matIn:'On Leave', retSoon:'Returning Soon',
-    master:'📋 Master', pregTab:'🤰 Pregnant', matTab:'🍼 Maternity', salTab:'💰 Salary', setTab:'⚙️ Settings',
-    addBtn:'＋ Add', addPreg:'＋ Add Pregnant', addMat:'＋ Add Maternity', addSal:'＋ Add Salary',
-    impBtn:'📥 Import Excel', impSal:'📥 Import Salary Excel',
-    print:'🖨️ Print', excel:'⬇ Excel', clearAll:'🗑️ Clear All',
-    today:'Today', allDept:'All Depts', allMon:'All Months', srch:'Search name / ID…',
-    day:'Day', week:'Week', month:'Month', year:'Year',
-    dupImport:'⚠️ Duplicate import — reload page and try again', noData:'⚠️ No importable data found',
-    pregImport:'Pregnant', matImport:'Maternity', salImport:'Salary', empImport:'Employee',
-    new:'new', updated:'updated', skipped:'skipped',
-    saved:'✅ Record saved', deleted:'Deleted', sampleLoaded:'✅ Sample data loaded',
-    gasUrl:'Google Apps Script /exec URL',
-    sysInfoLabel:'Filename', sysInfoSave:'Manual Save',
-    basicSum:'Basic Total', otSum:'OT Total', netSum:'Net Total',
-    hlPreg:'Pregnant', hlMat:'On Leave', hlRet:'Returning Soon',
-    kPreg:'🤰 Pregnant', kMat:'🍼 On Leave', kRet30:'📅 30-day Return', kTotal:'👥 Total',
-    noRecord:'No records — try changing the date range', noPregRec:'No pregnant employees',
-    noMatRec:'No maternity records', noSalRec:'No salary records',
-    gasKey:'☁ Cloud GAS Config', dataKey:'📊 Data Management', infoKey:'ℹ️ System Info',
-    loadSample:'📦 Load Sample Data', manualSave:'💾 Manual Save', clearAllBtn:'🗑️ Clear All Data',
-    gasStatus:'GAS URL saved', cloudPush:'☁ Push', cloudPull:'⬇ Pull',
-    emp:'Add Employee', empEdit:'Edit Employee',
-    sal:'Add Salary Record', salEdit:'Edit Salary Record',
-    showList:'Show Detail List', hideList:'Hide List',
-    records:'records', all:'All', addSal:'Add Salary',
-    daysLeft:'Days to EDD', period:'Preg Period', totalDays:'Total Days',
-    used:'Used', left:'Left', regDate:'Reg Date', name:'Name', dept:'Dept',
-    pos:'Position', birthday:'Birthday', age:'Age', applyDate:'Apply Date',
-    returnDate:'Return Date', progress:'Progress', status:'Status', contact:'Contact',
-    salVerify:'Maternity Pay Verification', avgSal:'Avg Monthly', entitledPay:'Entitled Pay',
-    actualPaid:'Actual Paid', diff:'Difference', salMismatch:'Amount mismatch!',
-    noSalRecord:'No salary records', month:'Month', workDays:'Work Days', basicSal:'Basic Sal',
-    meal:'Meal', netPay:'Net Pay', remark:'Remark', ops:'Action',
-    totalNet:'Total Net', avgNet:'Avg Net',
-    clearConfirm1:'Confirm clear all data?', clearConfirm2:'Confirm again? Cannot undo!',
-    cleared:'All data cleared',
-    cancel:'Cancel', save:'💾 Save',
-    noRecord:'No records found', noPregRec:'No pregnant employees', noMatRec:'No maternity records', noSalRec:'No salary records',
-    cloudLoaded:'Cloud loaded', autoSync:'Auto-synced',
-    ct_dept:'Dept Breakdown', ct_edd:'⏰ Upcoming EDD', ct_trend:'📈 Monthly Trend',
-    cloudStatus:'Cloud Status', pushOK:'Push OK', pullOK:'Pull OK', gasNotSet:'GAS URL not set',
-  },
-  km: {
-    appName:'ប្រព័ន្ធគ្រប់គ្រងការសម្រាល', pregIn:'មានផ្ទៃពោះ', matIn:'លំហែមាតុភាព', retSoon:'ត្រឡប់ជិត',
-    master:'📋 តារាងរួម', pregTab:'🤰 មានផ្ទៃពោះ', matTab:'🍼 លំហែមាតុភាព', salTab:'💰 ប្រាក់ខែ', setTab:'⚙️ ការកំណត់',
-    addBtn:'＋ បន្ថែម', addPreg:'＋ បន្ថែមមានផ្ទៃពោះ', addMat:'＋ បន្ថែមលំហែ', addSal:'＋ បន្ថែមប្រាក់ខែ',
-    impBtn:'📥 នាំចូល Excel', impSal:'📥 នាំចូលប្រាក់ខែ Excel',
-    print:'🖨️ បោះពុម្ព', excel:'⬇ Excel', clearAll:'🗑️ លុបទាំងអស់',
-    today:'ថ្ងៃនេះ', allDept:'នាយកដ្ឋានទាំងអស់', allMon:'ខែទាំងអស់', srch:'ស្វែងរក…',
-    day:'ថ្ងៃ', week:'សប្តាហ៍', month:'ខែ', year:'ឆ្នាំ',
-    dupImport:'⚠️ នាំចូលស្ទួន — ផ្ទុកទំព័រឡើងវិញ', noData:'⚠️ រកមិនឃើញទិន្នន័យ',
-    pregImport:'ផ្ទៃពោះ', matImport:'លំហែ', salImport:'ប្រាក់ខែ', empImport:'បុគ្គលិក',
-    new:'ថ្មី', updated:'ធ្វើបច្ចុប្បន្នភាព', skipped:'រំលង',
-    saved:'✅ រក្សាទុករួច', deleted:'បានលុប', sampleLoaded:'✅ ទិន្នន័យគំរូបានផ្ទុក',
-    gasUrl:'Google Apps Script /exec URL',
-    sysInfoLabel:'ឈ្មោះឯកសារ', sysInfoSave:'រក្សាទុកដោយដៃ',
-    basicSum:'សរុបប្រាក់ខែ', otSum:'សរុប OT', netSum:'សរុបសុទ្ធ',
-    hlPreg:'មានផ្ទៃពោះ', hlMat:'លំហែ', hlRet:'ត្រឡប់ជិត',
-    kPreg:'🤰 មានផ្ទៃពោះ', kMat:'🍼 លំហែ', kRet30:'📅 ត្រឡប់ 30ថ្ងៃ', kTotal:'👥 សរុប',
-    noRecord:'គ្មានកំណត់ត្រា', noPregRec:'គ្មានបុគ្គលិកមានផ្ទៃពោះ',
-    noMatRec:'គ្មានកំណត់ត្រាលំហែ', noSalRec:'គ្មានកំណត់ត្រាប្រាក់ខែ',
-    gasKey:'☁ ការកំណត់ GAS', dataKey:'📊 ការគ្រប់គ្រងទិន្នន័យ', infoKey:'ℹ️ ព័ត៌មានប្រព័ន្ធ',
-    loadSample:'📦 ទិន្នន័យគំរូ', manualSave:'💾 រក្សាទុក', clearAllBtn:'🗑️ លុបទិន្នន័យទាំងអស់',
-    gasStatus:'GAS URL បានរក្សា', cloudPush:'☁ បញ្ជូន', cloudPull:'⬇ ទាញ',
-    emp:'បន្ថែមបុគ្គលិក', empEdit:'កែប្រែបុគ្គលិក',
-    sal:'បន្ថែមប្រាក់ខែ', salEdit:'កែប្រែប្រាក់ខែ',
-    showList:'បង្ហាញបញ្ជី', hideList:'លាក់បញ្ជី',
-    records:'កំណត់ត្រា', all:'ទាំងអស់', addSal:'បន្ថែមប្រាក់ខែ',
-    daysLeft:'ថ្ងៃ EDD', period:'រយៈពេលមានផ្ទៃពោះ', totalDays:'ថ្ងៃសរុប',
-    used:'បានប្រើ', left:'នៅសល់', regDate:'ថ្ងៃចុះឈ្មោះ', name:'ឈ្មោះ', dept:'ផ្នែក',
-    pos:'តំណែង', birthday:'ថ្ងៃកំណើត', age:'អាយុ', applyDate:'ថ្ងៃដាក់ពាក្យ',
-    returnDate:'ថ្ងៃត្រឡប់', progress:'វឌ្ឍនភាព', status:'ស្ថានភាព', contact:'ទំនាក់ទំនង',
-    salVerify:'ផ្ទៀងផ្ទាត់ប្រាក់ខែ', avgSal:'ប្រាក់ខែមធ្យម', entitledPay:'ប្រាក់ខែដែលត្រូវទទួល',
-    actualPaid:'ពិតជាបានទទួល', diff:'ភាពខុសគ្នា', salMismatch:'ចំនួនមិនត្រូវ!',
-    noSalRecord:'គ្មានកំណត់ត្រាប្រាក់ខែ', month:'ខែ', workDays:'ថ្ងៃធ្វើការ', basicSal:'ប្រាក់ខែមូលដ្ឋាន',
-    meal:'អាហារ', netPay:'ប្រាក់ខែសុទ្ធ', remark:'កំណត់ចំណាំ', ops:'សកម្មភាព',
-    totalNet:'សរុបសុទ្ធ', avgNet:'មធ្យមសុទ្ធ',
-    clearConfirm1:'បញ្ជាក់ការលុបទិន្នន័យ?', clearConfirm2:'បញ្ជាក់ម្តងទៀត? មិនអាចដកវិញ!',
-    cleared:'ទិន្នន័យទាំងអស់ត្រូវបានលុប',
-    cancel:'បោះបង់', save:'💾 រក្សាទុក',
-    noRecord:'គ្មានកំណត់ត្រា', noPregRec:'គ្មានបុគ្គលិកមានផ្ទៃពោះ', noMatRec:'គ្មានកំណត់ត្រាលំហែ', noSalRec:'គ្មានប្រាក់ខែ',
-    cloudLoaded:'ទាញពីCloud', autoSync:'ធ្វើសម្រួលស្វ័យប្រវត្តិ',
-    ct_dept:'ចែកចាយតាមផ្នែក', ct_edd:'⏰ EDD ខាងមុខ', ct_trend:'📈 និន្នាការ',
-    cloudStatus:'ស្ថានភាពCloud', pushOK:'បញ្ជូនជោគជ័យ', pullOK:'ទាញជោគជ័យ', gasNotSet:'មិនបានកំណត់ GAS URL',
-  }
-};
-function T(k) { return (I18N[lang]||I18N.zh)[k] || k; }
-function setLang(l) {
-  lang = l; localStorage.setItem('vrt_lang', l);
-  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('on', b.textContent.trim()==={zh:'中文',en:'EN',km:'ខ្មែរ'}[l]));
-  applyLang();
-}
-function applyLang() {
-  // Header stats
-  document.getElementById('hl-preg').textContent = T('hlPreg');
-  document.getElementById('hl-mat').textContent  = T('hlMat');
-  document.getElementById('hl-ret').textContent  = T('hlRet');
-  // KPI
-  document.getElementById('k-preg').parentElement.querySelector('.kpi-l').textContent  = T('kPreg');
-  document.getElementById('k-mat').parentElement.querySelector('.kpi-l').textContent   = T('kMat');
-  document.getElementById('k-ret30').parentElement.querySelector('.kpi-l').textContent = T('kRet30');
-  document.getElementById('k-total').parentElement.querySelector('.kpi-l').textContent = T('kTotal');
-  // Date nav
-  document.getElementById('dateDisp').textContent = getLabel();
-  // Salary summary
-  const sBasic=document.getElementById('sBasic'),sOT=document.getElementById('sOT'),sNet=document.getElementById('sNet');
-  if(sBasic) sBasic.closest('.sal-card').querySelector('.sal-lbl').textContent=T('basicSum');
-  if(sOT)    sOT.closest('.sal-card').querySelector('.sal-lbl').textContent=T('otSum');
-  if(sNet)   sNet.closest('.sal-card').querySelector('.sal-lbl').textContent=T('netSum');
-  // Tabs
-  const tabEls=document.querySelectorAll('.tab');
-  const tabKeys=['master','pregTab','matTab','salTab','setTab'];
-  tabEls.forEach((el,i)=>{ if(tabKeys[i]) el.textContent=T(tabKeys[i]); });
-  // Analytics labels
-  const ctDept=document.getElementById('ct-dept'); if(ctDept) ctDept.innerHTML='<span></span>'+T('ct_dept');
-  const ctEdd =document.getElementById('ct-edd');  if(ctEdd)  ctEdd.innerHTML ='<span></span>'+T('ct_edd');
-  const ctTrend=document.getElementById('ct-trend');if(ctTrend)ctTrend.innerHTML='<span></span>'+T('ct_trend');
-  // Salary summary static labels
-  document.querySelectorAll('[data-t]').forEach(el=>{ const k=el.getAttribute('data-t'); el.textContent=T(k)||el.textContent; });
-  // Re-render
-  renderAll(); renderAnalytics();
-}
-let employees = [], salaryRecords = [];
+let employees=[], salaryRecords=[], NURSING_FEES=[];
+let lang='zh';
+let editEmpId=null, editSalId=null, editNfId=null;
 
-// ══ renderAll：統一刷新所有 tab（缺此定義 cloud pull callback 會崩潰）══
-function renderAll() {
-  try { renderMaster(); }   catch(e) { console.warn('renderMaster:', e); }
-  try { renderPregnant(); } catch(e) { console.warn('renderPregnant:', e); }
-  try { renderMaternity(); }catch(e) { console.warn('renderMaternity:', e); }
-  try { renderSalary(); }   catch(e) { console.warn('renderSalary:', e); }
+// ── Language ──
+const I18N={zh:{appName:'孕婦產假管理系統'},en:{appName:'Maternity Management'},km:{appName:'ការគ្រប់គ្រងមាតុភាព'}};
+function setLang(l){lang=l;localStorage.setItem('vrt_lang',l);document.querySelectorAll('.lb').forEach((b,i)=>b.classList.toggle('on',['zh','en','km'][i]===l));document.getElementById('h-title').textContent=(I18N[l]||I18N.zh).appName;}
+
+// ── Utils ──
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const today=()=>new Date().toISOString().slice(0,10);
+const fd=s=>s?String(s).slice(0,10):'—';
+function calcAge(bd){if(!bd)return'—';const b=new Date(bd),n=new Date();let a=n.getFullYear()-b.getFullYear();if(n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))a--;return a;}
+function since(ds){return ds?Math.round((Date.now()-new Date(ds))/86400000):0;}
+function until(ds){return ds?Math.round((new Date(ds)-Date.now())/86400000):null;}
+function safeDate(v){if(!v||v==='')return'';if(v instanceof Date){const y=v.getFullYear(),mo=v.getMonth()+1,d=v.getDate();if(y<2000||y>2060)return'';return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}if(typeof v==='number'&&v>40000&&v<60000){const d=new Date(Math.round((v-25569)*86400000));return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}const s=String(v).trim();const m=s.match(/(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})/);if(m)return`${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;const dt=new Date(s);if(!isNaN(dt)&&dt.getFullYear()>=2000)return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;return'';}
+function sBadge(s){const M={pregnant:{c:'b-pregnant',l:'🤰 懷孕'},maternity:{c:'b-maternity',l:'🍼 產假'},returned:{c:'b-returned',l:'✅ 返回'},resigned:{c:'b-resigned',l:'📤 離職'}};const m=M[s]||{c:'',l:s||'—'};return`<span class="badge ${m.c}">${m.l}</span>`;}
+function prog(used,total){const p=total>0?Math.min(100,Math.round(used/total*100)):0;return`<div class="prog-wrap"><div class="prog-bar" style="width:${p}%"></div></div>`;}
+
+// ── Persist ──
+function loadData(){
+  try{const d=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');employees=d.employees||[];salaryRecords=d.salaryRecords||[];}catch(e){employees=[];salaryRecords=[];}
+  try{NURSING_FEES=JSON.parse(localStorage.getItem(NF_KEY)||'[]');}catch(e){NURSING_FEES=[];}
+}
+function saveData(){localStorage.setItem(STORAGE_KEY,JSON.stringify({employees,salaryRecords}));updateHeader();}
+function saveNursingData(){localStorage.setItem(NF_KEY,JSON.stringify(NURSING_FEES));}
+function updateHeader(){
+  document.getElementById('h-preg').textContent=employees.filter(e=>e.status==='pregnant').length;
+  document.getElementById('h-mat').textContent=employees.filter(e=>e.status==='maternity').length;
+  document.getElementById('h-nf').textContent=NURSING_FEES.length;
+  document.getElementById('k-preg').textContent=employees.filter(e=>e.status==='pregnant').length;
+  document.getElementById('k-mat').textContent=employees.filter(e=>e.status==='maternity').length;
+  const ret30=employees.filter(e=>{const u=until(e.returnDate);return u!==null&&u>=0&&u<=30;}).length;
+  document.getElementById('k-ret30').textContent=ret30;
+  document.getElementById('k-total').textContent=employees.length;
+  document.getElementById('k-nf-total').textContent=NURSING_FEES.length;
+  document.getElementById('k-nf-pending').textContent=NURSING_FEES.filter(r=>r.status==='pending'||r.status==='overdue').length;
 }
 
-// ══ renderAnalytics：填充首頁 Analytics Row（部門/EDD/月度趨勢）══
-function renderAnalytics() {
-  const now = new Date(); now.setHours(0,0,0,0);
-
-  // 部門分布 deptCards
-  const deptEl = document.getElementById('deptCards');
-  if (deptEl) {
-    const dm = {};
-    employees.forEach(e => {
-      const d = e.dept || '(未分部門)';
-      if (!dm[d]) dm[d] = { preg:0, mat:0, ret:0, total:0 };
-      dm[d].total++;
-      if (e.status==='pregnant')  dm[d].preg++;
-      if (e.status==='maternity') dm[d].mat++;
-      if (e.status==='returned')  dm[d].ret++;
-    });
-    const mx = Math.max(1,...Object.values(dm).map(d=>d.total));
-    deptEl.innerHTML = Object.entries(dm).length
-      ? Object.entries(dm).sort((a,b)=>b[1].total-a[1].total).map(([name,s])=>
-          `<div class="ana-card">
-            <div class="ana-card-top">
-              <div class="ana-card-name">${name}</div>
-              <div class="ana-card-badge" style="background:#fce7f3;color:#9d174d">共${s.total}</div>
-            </div>
-            <div style="display:flex;gap:6px;font-size:11px">
-              ${s.preg>0?`<span style="color:#c75b7a">🤰${s.preg}</span>`:''}
-              ${s.mat >0?`<span style="color:#059669">🍼${s.mat}</span>`:''}
-              ${s.ret >0?`<span style="color:#6b7a9e">✅${s.ret}</span>`:''}
-            </div>
-            <div class="ana-bar-wrap"><div class="ana-bar" style="width:${Math.round(s.total/mx*100)}%"></div></div>
-          </div>`).join('')
-      : '<div style="color:#8b95b8;font-size:12px;padding:8px">尚無資料</div>';
-  }
-
-  // 預產期倒數 eddList
-  const eddEl = document.getElementById('eddList');
-  if (eddEl) {
-    const upcoming = employees
-      .filter(e => e.edd && e.status==='pregnant')
-      .map(e => ({ name:e.name, edd:e.edd, dept:e.dept,
-                   diff:Math.round((new Date(e.edd)-now)/86400000) }))
-      .filter(e => e.diff >= -14)
-      .sort((a,b)=>a.diff-b.diff).slice(0,8);
-    eddEl.innerHTML = upcoming.length
-      ? upcoming.map(e => {
-          const color = e.diff<0?'#ef4444':e.diff<=14?'#f59e0b':'#059669';
-          const label = e.diff<0?`已超過${Math.abs(e.diff)}天`:e.diff===0?'今天！':`還有${e.diff}天`;
-          return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid #f3f4f6">
-            <div style="flex:1"><div style="font-size:12px;font-weight:700;color:#1e2640">${e.name||'—'}</div>
-            <div style="font-size:10px;color:#6b7a9e">${e.dept||'—'} · EDD ${e.edd}</div></div>
-            <div style="font-size:11px;font-weight:700;color:${color};white-space:nowrap">${label}</div>
-          </div>`;
-        }).join('')
-      : '<div style="color:#8b95b8;font-size:12px;padding:8px">無即將到來的預產期</div>';
-  }
-
-  // 月度趨勢 monthBars
-  const barsEl = document.getElementById('monthBars'), labelsEl = document.getElementById('monthLabels');
-  if (barsEl && labelsEl) {
-    const months = [];
-    for (let i=11;i>=0;i--) {
-      const d=new Date(now.getFullYear(),now.getMonth()-i,1);
-      months.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'));
-    }
-    const pb={},mb={};
-    months.forEach(m=>{pb[m]=0;mb[m]=0;});
-    employees.forEach(e=>{
-      const ls=e.leaveStart?e.leaveStart.slice(0,7):null;
-      const em=e.edd?e.edd.slice(0,7):null;
-      if(e.status==='pregnant'&&em&&pb[em]!==undefined) pb[em]++;
-      if((e.status==='maternity'||e.status==='returned')&&ls&&mb[ls]!==undefined) mb[ls]++;
-    });
-    const mx=Math.max(1,...months.map(m=>pb[m]+mb[m]));
-    barsEl.innerHTML=months.map(m=>{
-      const hP=Math.round(pb[m]/mx*60),hMA=Math.round(mb[m]/mx*60);
-      return `<div style="display:inline-flex;flex-direction:column-reverse;align-items:center;width:${Math.floor(100/months.length)}%;vertical-align:bottom">
-        <div style="width:70%;height:${hMA}px;background:#6ee7b7" title="產假${mb[m]}"></div>
-        <div style="width:70%;height:${hP}px;background:#f5a0b5" title="懷孕${pb[m]}"></div>
-      </div>`;
-    }).join('');
-    labelsEl.innerHTML=months.map(m=>`<div style="flex:1;font-size:9px;text-align:center;color:#6b7a9e">${m.slice(5)}</div>`).join('');
-  }
-}
-
-let editEmpId = null, editSalId = null;
-let viewMode  = 'month';
-let viewDate  = new Date();
-let masterPage = 1, pregPage = 1, matPage = 1, salPage = 1;
-
-// ════════════════════ KEYS ════════════════════════════
-const UKEY = r => `${r.idNo||r.id||''}_${r.edd||r.month||''}_${r.type||'pregnant'}`;
-
-// ════════════════════ VALIDATE ════════════════════════
-function validateRow(r) {
-  const e = [];
-  if (!r.idNo && !r.id) e.push('Missing ID');
-  if (!r.name)          e.push('Missing Name');
-  if (r.edd   && isNaN(new Date(r.edd)))               e.push('Bad EDD');
-  if (r.month && !/^\d{4}-\d{2}$/.test(r.month))      e.push('Bad month');
-  if (r.basicSalary !== undefined && isNaN(Number(r.basicSalary))) e.push('Bad salary');
-  return { valid: e.length === 0, errors: e };
-}
-
-// ════════════════════ UPSERT ══════════════════════════
-function upsert(existing, incoming) {
-  const map = new Map();
-  let ins = 0, upd = 0, skip = 0, skipped = [];
-  existing.forEach(r => map.set(UKEY(r), r));
-  incoming.forEach(row => {
-    const v = validateRow(row);
-    if (!v.valid) { skip++; skipped.push({row, errors: v.errors}); return; }
-    const k = UKEY(row);
-    if (map.has(k)) { map.set(k, {...map.get(k), ...row, _upd: Date.now()}); upd++; }
-    else             { map.set(k, {...row, _cre: Date.now()}); ins++; }
-  });
-  return { data: [...map.values()], stats: {ins, upd, skip}, skipped };
-}
-
-// ════════════════════ HASH / DEDUP ════════════════════
-function hashData(d) {
-  try { return btoa(unescape(encodeURIComponent(JSON.stringify(d)))).slice(0,24); }
-  catch { return String(Date.now()); }
-}
-// Use sessionStorage — clears when page closes/reloads, never blocks fresh imports
-function isDup(data, key) {
-  const h = hashData(data);
-  if (sessionStorage.getItem(key) === h) return true;
-  sessionStorage.setItem(key, h); return false;
-}
-
-// ════════════════════ PERSIST ═════════════════════════
-function loadData() {
-  try {
-    const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    employees = d.employees || []; salaryRecords = d.salaryRecords || [];
-  } catch { employees = []; salaryRecords = []; }
-}
-function saveData() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({employees, salaryRecords}));
-  updateHeader();
-}
-
-// ════════════════════ CLOUD-FIRST INIT ════════════════
-async function initData() {
-  const url = localStorage.getItem(GAS_KEY) || '';
-  if (url) {
-    try {
-      const r = await fetch(url + '?action=pull&tool=maternity&meta=1', {redirect:'follow'});
-      const d = await r.json();
-      if (d.ok) {
-        let recs = d.data?.records || d.data?.data?.records || d.data || [];
-        if (d.data?.chunked) {
-          const n = d.data?.meta?.totalChunks || 1; recs = [];
-          for (let i=0;i<n;i++) {
-            const rc = await fetch(url+'?action=pull&tool=maternity&chunk='+i,{redirect:'follow'});
-            const dc = await rc.json();
-            recs = recs.concat(dc.data?.records || dc.records || []);
-          }
-        }
-        if (Array.isArray(recs) && recs.length) {
-          employees = recs.filter(r => r.type !== 'salary');
-          salaryRecords = recs.filter(r => r.type === 'salary');
-          localStorage.setItem(STORAGE_KEY, JSON.stringify({employees, salaryRecords}));
-          cpLog(T('cloudLoaded')+'('+recs.length+')','i'); return;
-        }
-      }
-    } catch(e) { console.warn('cloud init fail:', e.message); }
-  }
-  loadData();
-}
-
-async function autoSync() {
-  const url = localStorage.getItem(GAS_KEY) || ''; if (!url) return;
-  try {
-    const all = [...employees.map(r=>({...r,type:r.type||'pregnant'})),
-                 ...salaryRecords.map(r=>({...r,type:'salary'}))];
-    await fetch(url, {method:'POST', redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body: JSON.stringify({action:'push',tool:'maternity',records:all,
-        recordCount:all.length, updatedAt:new Date().toISOString()})});
-    localStorage.setItem(META_KEY, JSON.stringify({ts:Date.now(),count:all.length}));
-    cpLog('✓ '+T('autoSync')+'('+all.length+')','ok');
-  } catch(e) { console.warn('autoSync fail:', e.message); }
-}
-
-// ════════════════════ UTILS ═══════════════════════════
-const uid  = () => Date.now().toString(36)+Math.random().toString(36).substr(2,5);
-const today= () => new Date().toISOString().split('T')[0];
-const fd   = s => s ? String(s).substring(0,10) : '—';
-const fm   = s => s ? String(s).substring(0,7)  : '—';
-
-function calcAge(bd) {
-  if (!bd) return '—';
-  const b=new Date(bd), n=new Date();
-  let a=n.getFullYear()-b.getFullYear();
-  if (n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate())) a--;
-  return a;
-}
-function since(ds) { return ds ? Math.round((Date.now()-new Date(ds))/86400000) : 0; }
-function until(ds) { return ds ? Math.round((new Date(ds)-Date.now())/86400000) : null; }
-
-function sBadge(s) {
-  const M={pregnant:{c:'b-pregnant',i:'🤰',l:'懷孕中'},maternity:{c:'b-maternity',i:'🍼',l:'產假中'},
-           returned:{c:'b-returned',i:'✅',l:'已返回'},resigned:{c:'b-resigned',i:'📤',l:'離職'},
-           abortion:{c:'b-abortion',i:'⚠️',l:'流產'}};
-  const m=M[s]||{c:'',i:'',l:s||'—'};
-  return `<span class="badge ${m.c}">${m.i} ${m.l}</span>`;
-}
-function prog(used,total) {
-  const p = total>0 ? Math.min(100,Math.round(used/total*100)) : 0;
-  return `<div class="prog-wrap"><div class="prog-bar" style="width:${p}%"></div></div>`;
-}
-function toast(msg, type='ok') {
-  const t=document.getElementById('toastEl');
-  t.textContent=msg; t.className='toast show '+(type||'ok');
-  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3800);
-}
-
-function safeDate(v) {
-  if (!v || v==='') return '';
-  const d = new Date(v); if (!isNaN(d)) return d.toISOString().split('T')[0];
-  const m = String(v).match(/(\d{1,2})[-\/](\w{3,})[-\/](\d{2,4})/i);
-  if (m) {
-    const MO={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',
-              jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
-    const yr=m[3].length===2?'20'+m[3]:m[3];
-    return `${yr}-${(MO[m[2].toLowerCase().substring(0,3)]||'01')}-${m[1].padStart(2,'0')}`;
-  }
-  return '';
-}
-function safeMon(v) {
-  if (!v) return '';
-  const d=new Date(v); if (!isNaN(d)) return d.toISOString().substring(0,7);
-  const m=String(v).match(/(\d{4})[-\/](\d{1,2})/);
-  return m ? m[1]+'-'+m[2].padStart(2,'0') : '';
-}
-
-// ════════════════════ NAVIGATION ══════════════════════
-function goTab(name, el) {
+// ── Tabs ──
+function goTab(name,el){
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById('sec-'+name).classList.add('on');
-  if (el) el.classList.add('on');
-  renderTab(name);
-}
-function renderTab(name){
-  if(name==='master')    renderMaster();
-  if(name==='pregnant')  renderPregnant();
-  if(name==='maternity') renderMaternity();
-  if(name==='salary')    renderSalary();
-  if(name==='settings')  goStab('dept',document.getElementById('stab-dept'));
-}
-//dup:
-
-// ════════════════════ DATE NAVIGATION ═════════════════
-function setMode(m) {
-  viewMode = m;
-  document.querySelectorAll('.dnm').forEach(b=>{
-    b.classList.toggle('on', b.textContent==={day:'日',week:'週',month:'月',year:'年'}[m]);
-  });
-  renderMaster();
-}
-function navDate(d) {
-  const v=new Date(viewDate);
-  if (viewMode==='day')   v.setDate(v.getDate()+d);
-  if (viewMode==='week')  v.setDate(v.getDate()+d*7);
-  if (viewMode==='month') v.setMonth(v.getMonth()+d);
-  if (viewMode==='year')  v.setFullYear(v.getFullYear()+d);
-  viewDate=v; renderMaster();
-}
-function goToday() { viewDate=new Date(); renderMaster(); }
-
-function getLabel() {
-  const y=viewDate.getFullYear(), mo=viewDate.getMonth(), d=viewDate.getDate();
-  if (viewMode==='day')
-    return viewDate.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
-  if (viewMode==='week') {
-    const s=new Date(viewDate); s.setDate(d-viewDate.getDay());
-    const e=new Date(s); e.setDate(s.getDate()+6);
-    return s.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})+
-           ' — '+e.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})+' '+y;
-  }
-  if (viewMode==='month') return y+' 年 '+String(mo+1).padStart(2,'0')+' 月';
-  return y+' 年';
+  if(el)el.classList.add('on');
+  if(name==='master')   renderMaster();
+  if(name==='pregnant') {fillDeptSel('pregDept');renderPregnant();}
+  if(name==='maternity'){fillDeptSel('matDept');renderMaternity();}
+  if(name==='salary')   renderSalary();
+  if(name==='nursing')  renderNursing();
+  if(name==='settings') renderSettings();
 }
 
-function empInRange(e) {
-  const y=viewDate.getFullYear(), mo=viewDate.getMonth(), d=viewDate.getDate();
-  function inRange(ds) {
-    if (!ds) return false;
-    const ed=new Date(ds);
-    if (viewMode==='day')   return ed.getFullYear()===y&&ed.getMonth()===mo&&ed.getDate()===d;
-    if (viewMode==='week') {
-      const ws=new Date(viewDate); ws.setDate(d-viewDate.getDay()); ws.setHours(0,0,0,0);
-      const we=new Date(ws); we.setDate(ws.getDate()+6); we.setHours(23,59,59,999);
-      return ed>=ws&&ed<=we;
-    }
-    if (viewMode==='month') return ed.getFullYear()===y&&ed.getMonth()===mo;
-    if (viewMode==='year')  return ed.getFullYear()===y;
-    return false;
-  }
-  const dates=[e.edd,e.leaveStart,e.returnDate,e.registerTime];
-  if (['maternity','returned'].includes(e.status)) {
-    if (viewMode==='month'||viewMode==='year') {
-      const ls=e.leaveStart?new Date(e.leaveStart):null;
-      const re=e.returnDate?new Date(e.returnDate):null;
-      if (ls&&(viewMode==='year'?ls.getFullYear()===y:ls.getFullYear()===y&&ls.getMonth()===mo)) return true;
-      if (re&&(viewMode==='year'?re.getFullYear()===y:re.getFullYear()===y&&re.getMonth()===mo)) return true;
-    }
-  }
-  return dates.some(inRange);
-}
-
-// ════════════════════ HEADER STATS ════════════════════
-function updateHeader() {
-  const preg  = employees.filter(e=>e.status==='pregnant').length;
-  const mat   = employees.filter(e=>e.status==='maternity').length;
-  const ret30 = employees.filter(e=>{ const u=until(e.returnDate); return u!==null&&u>=0&&u<=30; }).length;
-  document.getElementById('h-preg').textContent = preg;
-  document.getElementById('h-mat').textContent  = mat;
-  document.getElementById('h-ret').textContent  = ret30;
-  document.getElementById('k-preg').textContent  = preg;
-  document.getElementById('k-mat').textContent   = mat;
-  document.getElementById('k-ret30').textContent = ret30;
-  document.getElementById('k-total').textContent = employees.length;
-}
-
-// ════════════════════ PAGINATION ══════════════════════
-function mkPag(containerId, total, page, setter) {
-  const el=document.getElementById(containerId); if(!el) return;
-  const pages=Math.ceil(total/PGSZ);
-  if (pages<=1) { el.innerHTML=`<span class="pg-info">${total} 筆</span>`; return; }
-  let h=`<span class="pg-info">${total} 筆</span>
-    <button class="pg-btn" ${page<=1?'disabled':''} onclick="${setter}(${page-1})">‹</button>`;
-  for(let i=1;i<=pages;i++){
-    if(i===1||i===pages||Math.abs(i-page)<=1)
-      h+=`<button class="pg-btn ${i===page?'on':''}" onclick="${setter}(${i})">${i}</button>`;
-    else if(Math.abs(i-page)===2) h+=`<span class="pg-info">…</span>`;
-  }
-  h+=`<button class="pg-btn" ${page>=pages?'disabled':''} onclick="${setter}(${page+1})">›</button>`;
-  el.innerHTML=h;
-}
-
-// ════════════════════ RENDER: MASTER ══════════════════
-function masterFiltered() { return employees.filter(empInRange); }
-function setMasterPage(p) { masterPage=p; renderMaster(); }
-
-function renderMaster() {
-  updateHeader();
-  document.getElementById('dateDisp').textContent=getLabel();
-  const rows=masterFiltered();
-  const page=rows.slice((masterPage-1)*PGSZ, masterPage*PGSZ);
-  document.getElementById('masterTbody').innerHTML = page.length ? page.map((e,i)=>{
-    const used=e.leaveStart?since(e.leaveStart):0;
-    const left=Math.max(0,(+e.totalDays||90)-used);
-    return `<tr>
-      <td class="mono">${(masterPage-1)*PGSZ+i+1}</td>
-      <td class="mono" style="font-size:11px">${fd(e.registerTime)}</td>
-      <td style="text-align:center">${e.pregnantPeriod||'—'}</td>
-      <td><span class="id-badge ${e.status==='returned'?'green':''}">${e.idNo||'—'}</span></td>
-      <td style="font-weight:600">${e.name||'—'}</td>
-      <td>${e.dept||'—'}</td>
-      <td style="font-size:11px">${e.position||'—'}</td>
-      <td class="mono" style="font-size:11px">${fd(e.birthday)}</td>
-      <td style="text-align:center">${calcAge(e.birthday)}</td>
-      <td class="mono" style="font-size:11px;color:${e.status==='pregnant'?'#d97706':'#c75b7a'}">${fd(e.edd)}</td>
-      <td style="font-size:10px;max-width:110px;overflow:hidden;text-overflow:ellipsis">${e.nssfNo||'—'}</td>
-      <td>${sBadge(e.status)}</td>
-      <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
-      <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
-      <td style="text-align:center;font-weight:700">${e.totalDays||90}</td>
-      <td style="text-align:center;color:${used>0?'#c75b7a':'#6b7a9e'}">${used}</td>
-      <td style="text-align:center;color:${left>30?'#059669':'#d97706'};font-weight:600">${left}</td>
-      <td>${e.leaveStart?prog(used,+e.totalDays||90):''}</td>
-      <td style="font-size:11px;max-width:80px">${e.remark||'—'}</td>
-      <td style="font-size:11px">${e.contactName||'—'}</td>
-      <td style="font-size:11px">${e.contactPhone||'—'}</td>
-      <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${e.address||'—'}</td>
-      <td><div style="display:flex;gap:3px">
-        <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
-        <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
-      </div></td>
-    </tr>`;
-  }).join('') : `<tr><td colspan="23" style="text-align:center;padding:30px;color:#6b7a9e">
-    ${viewMode!=='year'&&viewMode!=='day'?getLabel()+' ':''}'+T('noRecord')+'</td></tr>`;
-  mkPag('masterPag', rows.length, masterPage, 'setMasterPage');
-}
-
-// ════════════════════ PREGNANT DATE NAV ═════════════════
-let pregMode='month', pregTableOpen=true;
-function setPregMode(m){
-  pregMode=m;
-  ['day','week','month','year'].forEach(x=>document.getElementById('pm-'+x)?.classList.toggle('on',x===m));
-  buildPregOptions(); renderPregnant();
-}
-// ════════ DATE NAV HELPERS (sewing pattern) ════════════
-function dateKey(d,mode){
-  if(!d||isNaN(d)) return '';
-  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dy=String(d.getDate()).padStart(2,'0');
-  if(mode==='day')   return y+'-'+m+'-'+dy;
-  if(mode==='week'){
-    const s=new Date(d); s.setDate(d.getDate()-d.getDay());
-    return s.getFullYear()+'-'+String(s.getMonth()+1).padStart(2,'0')+'-'+String(s.getDate()).padStart(2,'0')+'W';
-  }
-  if(mode==='month') return y+'-'+m;
-  return String(y);
-}
-function todayKey(mode){ return dateKey(new Date(),mode); }
-function dateLabel(v,mode){
-  if(!v) return '';
-  if(mode==='month') return v.replace('-','年')+'月';
-  if(mode==='year')  return v+'年';
-  if(mode==='week'){
-    const base=v.replace('W','');
-    const s=new Date(base); if(isNaN(s)) return v;
-    const e2=new Date(s); e2.setDate(s.getDate()+6);
-    return (s.getMonth()+1)+'/'+ s.getDate()+' – '+(e2.getMonth()+1)+'/'+e2.getDate()+' '+s.getFullYear();
-  }
-  return v;
-}
-function genDateOptions(mode){
-  const keys=new Set();
-  // Collect all dates from employee data
-  employees.forEach(e=>{
-    [e.registerTime,e.edd,e.leaveStart,e.returnDate].filter(Boolean).forEach(ds=>{
-      const d=new Date(ds); if(!isNaN(d)) keys.add(dateKey(d,mode));
-    });
-  });
-  // Always include last 18 months/weeks/days/years so dropdown is never empty
-  const now=new Date();
-  for(let i=0;i<18;i++){
-    const d=new Date(now);
-    if(mode==='month')      d.setMonth(d.getMonth()-i);
-    else if(mode==='year')  d.setFullYear(d.getFullYear()-i);
-    else if(mode==='week')  d.setDate(d.getDate()-i*7);
-    else                    d.setDate(d.getDate()-i);
-    keys.add(dateKey(d,mode));
-  }
-  return [...keys].filter(Boolean).sort().reverse()
-    .map(v=>({v,l:dateLabel(v,mode)}));
-}
-function buildPregOptions(){
-  const sel=document.getElementById('pregDateSel'); if(!sel) return;
-  const prev=sel.value;
-  const opts=genDateOptions(pregMode);
-  sel.innerHTML=opts.map(o=>`<option value="${o.v}"${o.v===prev?' selected':''}>${o.l}</option>`).join('');
-  if(!sel.value&&opts.length) sel.value=opts[0].v;
-}
-function buildMatOptions(){
-  const sel=document.getElementById('matDateSel'); if(!sel) return;
-  const prev=sel.value;
-  const opts=genDateOptions(matMode);
-  sel.innerHTML=opts.map(o=>`<option value="${o.v}"${o.v===prev?' selected':''}>${o.l}</option>`).join('');
-  if(!sel.value&&opts.length) sel.value=opts[0].v;
-}
-
-function navPreg(d){
-  const sel=document.getElementById('pregDateSel'); if(!sel) return;
-  const opts=[...sel.options].map(o=>o.value);
-  const idx=opts.indexOf(sel.value);
-  const next=idx-d; // options sorted newest-first, so nav -1 = earlier
-  if(next>=0&&next<opts.length){ sel.value=opts[next]; renderPregnant(); }
-}
-function pregToday(){
-  buildPregOptions();
-  const sel=document.getElementById('pregDateSel'); if(!sel) return;
-  const now=todayKey(pregMode);
-  const opts=[...sel.options].map(o=>o.value);
-  if(opts.includes(now)) sel.value=now;
-  renderPregnant();
-}
-function getPregLabel(){
-  return document.getElementById('pregDateSel')?.value||'—';
-}
-function empMatchesPregPeriod(e){
-  const v=document.getElementById('pregDateSel')?.value||'';
-  if(!v) return true;
-  const check=(ds)=>Boolean(ds&&dateKey(new Date(ds),pregMode)===v);
-  return check(e.registerTime)||check(e.edd)||check(e.leaveStart);
-}
-function togglePregTable(){
-  pregTableOpen=!pregTableOpen;
-  document.getElementById('pregTableWrap').style.display=pregTableOpen?'block':'none';
-  document.getElementById('pregTblToggle').textContent=pregTableOpen?'▲ '+T('hideList'):'📋 '+T('showList');
-}
-
-// ════════════════════ RENDER: PREGNANT ════════════════
-  // (page vars moved to date-nav blocks)
-function pregFiltered(){
-  const q=(document.getElementById('pregSrch')?.value||'').toLowerCase();
-  const dept=document.getElementById('pregDept')?.value||'';
-  return employees.filter(e=>{
-    if(e.status!=='pregnant') return false;
-    if(dept&&e.dept!==dept) return false;
-    if(q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
-    if(!empMatchesPregPeriod(e)) return false;
-    return true;
-  });
-}
-function setPregPage(p){pregPage=p;renderPregnant();}
-function renderPregnant(){
-  buildPregOptions();
-  const rows=pregFiltered();
-
-  // KPI
-  const now=new Date(); now.setHours(0,0,0,0);
-  const edd30=rows.filter(e=>e.edd&&Math.round((new Date(e.edd)-now)/86400000)<=30&&Math.round((new Date(e.edd)-now)/86400000)>=0).length;
-  const depts=new Set(rows.map(e=>e.dept).filter(Boolean)).size;
-  document.getElementById('pk-total').textContent=rows.length;
-  document.getElementById('pk-edd30').textContent=edd30;
-  document.getElementById('pk-new').textContent=rows.length;
-  document.getElementById('pk-dept').textContent=depts;
-  document.getElementById('pregCount').textContent=rows.length+' '+T('records');
-
-  // Cards (sewing lc style)
-  document.getElementById('pregCards').innerHTML=rows.length
-    ? rows.map(e=>{
-        const daysToEdd=e.edd?Math.round((new Date(e.edd)-now)/86400000):null;
-        const urgency=daysToEdd!==null&&daysToEdd<=30?'lo':daysToEdd<=60?'md':'hi';
-        const used=e.leaveStart?since(e.leaveStart):0;
-        const left=Math.max(0,(+e.totalDays||90)-used);
-        const cap=Math.min(100,Math.round(used/(+e.totalDays||90)*100));
-        return `<div class="lc ${urgency}" onclick="openEmpModal('${e.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-            <div>
-              <div class="lc-name">${e.name||'—'}</div>
-              <span class="lc-sec" style="background:#fef3c7;color:#92400e">${e.dept||'—'}</span>
-            </div>
-            <span class="id-badge" style="font-size:10px">${e.idNo||'—'}</span>
-          </div>
-          <div class="lc-row">
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:#d97706">${e.edd||'—'}</div>
-              <div class="lc-sl">EDD</div>
-            </div>
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:${daysToEdd!==null&&daysToEdd<=30?'#dc2626':daysToEdd<=60?'#d97706':'#059669'}">${daysToEdd!==null?daysToEdd+'d':'—'}</div>
-              <div class="lc-sl">${T('daysLeft')}</div>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:space-between;font-size:9px;color:#6b7a9e;margin-bottom:3px">
-            <span>${T('period')}: ${e.pregnantPeriod||'—'}M</span>
-            <span>${e.position||'—'}</span>
-          </div>
-          <div class="capbar"><div class="capfill" style="width:${cap}%;background:${urgency==='hi'?'#059669':urgency==='md'?'#d97706':'#dc2626'}"></div></div>
-          <div style="display:flex;justify-content:space-between;font-size:10px;color:#6b7a9e;margin-top:4px">
-            <span>${T('totalDays')}: ${e.totalDays||90}</span>
-            <button class="btn btn-r btn-sm" style="padding:2px 6px;font-size:10px" onclick="event.stopPropagation();delEmp('${e.id}')">🗑️</button>
-          </div>
-        </div>`;
-      }).join('')
-    : `<div style="padding:30px;text-align:center;color:#6b7a9e;grid-column:1/-1">${T('noPregRec')}</div>`;
-
-  // Table (hidden by default)
-  if(pregTableOpen){
-    document.getElementById('pregTblHdr').innerHTML = [
-      'No.', T('regDate'), T('period'), 'ID', T('name'), T('dept'), T('pos'),
-      T('birthday'), T('age'), 'EDD', 'NSSF', T('status'), T('applyDate'),
-      T('returnDate'), T('totalDays'), T('used'), T('left'), T('remark'), T('contact'), T('ops')
-    ].map(h=>`<th>${h}</th>`).join('');
-    const page=rows.slice((pregPage-1)*PGSZ,pregPage*PGSZ);
-    document.getElementById('pregTbody').innerHTML=page.length?page.map((e,i)=>{
-      const used=e.leaveStart?since(e.leaveStart):0;
-      const left=Math.max(0,(+e.totalDays||90)-used);
-      return `<tr>
-        <td class="mono">${(pregPage-1)*PGSZ+i+1}</td>
-        <td class="mono" style="font-size:11px">${fd(e.registerTime)}</td>
-        <td style="text-align:center">${e.pregnantPeriod||'—'}</td>
-        <td><span class="id-badge">${e.idNo||'—'}</span></td>
-        <td style="font-weight:600">${e.name||'—'}</td>
-        <td>${e.dept||'—'}</td>
-        <td style="font-size:11px">${e.position||'—'}</td>
-        <td class="mono" style="font-size:11px">${fd(e.birthday)}</td>
-        <td style="text-align:center">${calcAge(e.birthday)}</td>
-        <td class="mono" style="color:#d97706">${fd(e.edd)}</td>
-        <td style="font-size:10px">${e.nssfNo||'—'}</td>
-        <td>${sBadge(e.status)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
-        <td style="text-align:center">${e.totalDays||90}</td>
-        <td style="text-align:center;color:#6b7a9e">${used}</td>
-        <td style="text-align:center;color:#059669;font-weight:600">${left}</td>
-        <td style="font-size:11px">${e.remark||'—'}</td>
-        <td style="font-size:11px">${e.contactPhone||'—'}</td>
-        <td><div style="display:flex;gap:3px">
-          <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }).join(''):`<tr><td colspan="20" style="text-align:center;padding:20px;color:#6b7a9e">${T('noPregRec')}</td></tr>`;
-    mkPag('pregPag',rows.length,pregPage,'setPregPage');
-  }
-  fillDeptSel('pregDept');
-}
-
-// ════════════════════ MATERNITY DATE NAV ══════════════
-let matMode='month', matDate=new Date(), matTableOpen=true;
-function setMatMode(m){
-  matMode=m;
-  ['day','week','month','year'].forEach(x=>document.getElementById('mm-'+x)?.classList.toggle('on',x===m));
-  buildMatOptions(); renderMaternity();
-}
-function navMat(d){
-  const sel=document.getElementById('matDateSel'); if(!sel) return;
-  const opts=[...sel.options].map(o=>o.value);
-  const idx=opts.indexOf(sel.value);
-  const next=idx-d;
-  if(next>=0&&next<opts.length){ sel.value=opts[next]; renderMaternity(); }
-}
-function matToday(){
-  buildMatOptions();
-  const sel=document.getElementById('matDateSel'); if(!sel) return;
-  const now=todayKey(matMode);
-  const opts=[...sel.options].map(o=>o.value);
-  if(opts.includes(now)) sel.value=now;
-  renderMaternity();
-}
-function getMatLabel(){
-  return document.getElementById('matDateSel')?.value||'—';
-}
-function empMatchesMatPeriod(e){
-  const v=document.getElementById('matDateSel')?.value||'';
-  if(!v) return true;
-  const check=(ds)=>Boolean(ds&&dateKey(new Date(ds),matMode)===v);
-  return check(e.leaveStart)||check(e.returnDate)||check(e.edd);
-}
-function toggleMatTable(){
-  matTableOpen=!matTableOpen;
-  document.getElementById('matTableWrap').style.display=matTableOpen?'block':'none';
-  document.getElementById('matTblToggle').textContent=matTableOpen?'▲ '+T('hideList'):'📋 '+T('showList');
-}
-
-// ════════════════════ RENDER: MATERNITY ═══════════════
-  // (page vars moved to date-nav blocks)
-function matFiltered(){
-  const q=(document.getElementById('matSrch')?.value||'').toLowerCase();
-  const dept=document.getElementById('matDept')?.value||'';
-  return employees.filter(e=>{
-    if(!['maternity','returned'].includes(e.status)) return false;
-    if(dept&&e.dept!==dept) return false;
-    if(q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
-    if(!empMatchesMatPeriod(e)) return false;
-    return true;
-  });
-}
-function setMatPage(p){matPage=p;renderMaternity();}
-
-// Calculate maternity pay from last 12 months salary history
+// ── Maternity pay calc ──
 function calcMatPay(e){
-  // Correct formula: sum of last 12 months ÷ 12 ÷ 26 × 90 ÷ 2
-  const recs=salaryRecords.filter(r=>r.idNo===e.idNo)
-    .sort((a,b)=>b.month.localeCompare(a.month)).slice(0,12);
+  const recs=salaryRecords.filter(r=>r.idNo===e.idNo).sort((a,b)=>b.month.localeCompare(a.month)).slice(0,12);
   const base=+e.basicSalary||0;
-  if(!recs.length){
-    const tot=base/26*90/2;
-    return {avg:base.toFixed(2),total:tot.toFixed(2),months:0,formula:'基本薪÷26×90÷2'};
-  }
-  const sum12=recs.reduce((s,r)=>s+(+r.netPay||0),0);
-  const avg12=sum12/recs.length;   // monthly average
-  const total=avg12/26*90/2;       // ÷26 × 90 ÷ 2
-  return {avg:avg12.toFixed(2),total:total.toFixed(2),months:recs.length,
-    formula:'$'+avg12.toFixed(2)+'÷26×90÷2=$'+total.toFixed(2)};
-}
+  if(!recs.length){const tot=base/26*90/2;return{avg:base.toFixed(2),total:tot.toFixed(2),months:0};}
+  const sum=recs.reduce((s,r)=>s+(+r.netPay||0),0);const avg=sum/recs.length;const total=avg/26*90/2;
+  return{avg:avg.toFixed(2),total:total.toFixed(2),months:recs.length};}
 
+// ── Nursing fee for employee ──
+function empNfSummary(idNo){
+  const fees=NURSING_FEES.filter(r=>r.idNo===idNo).sort((a,b)=>(b.payDate||'').localeCompare(a.payDate||''));
+  const total=fees.reduce((s,r)=>s+(+r.amount||0),0);
+  const last=fees[0]||null;
+  const days=last?.payDate?Math.ceil((new Date(today())-new Date(last.payDate))/86400000):null;
+  return{count:fees.length,total,last,days};}
+
+// ── RENDER: Master ──
+function renderMaster(){
+  updateHeader();
+  document.getElementById('masterTbody').innerHTML=employees.map((e,i)=>{
+    const used=e.leaveStart?since(e.leaveStart):0;const left=Math.max(0,(+e.totalDays||90)-used);
+    const pay=calcMatPay(e);const nf=empNfSummary(e.idNo);
+    return`<tr>
+      <td class="mono">${i+1}</td><td><span style="background:#1e2640;color:#fbbf24;font-family:monospace;font-size:10px;padding:2px 6px;border-radius:3px">${e.idNo||'—'}</span></td>
+      <td style="font-weight:600">${e.name||'—'}</td><td>${e.dept||'—'}</td><td style="font-size:11px">${e.position||'—'}</td>
+      <td>${sBadge(e.status)}</td><td class="mono">${fd(e.edd)}</td><td class="mono">${fd(e.leaveStart)}</td><td class="mono">${fd(e.returnDate)}</td>
+      <td style="text-align:center">${e.totalDays||90}</td><td style="text-align:center;color:var(--rose)">${used}</td><td style="text-align:center;color:${left>30?'var(--teal)':'var(--amber)'};font-weight:600">${left}</td>
+      <td style="font-family:monospace;color:${nf.count?'var(--rose)':'var(--muted)'}">$${nf.total.toFixed(2)}<br><span style="font-size:9px;color:var(--muted)">${nf.count}筆</span></td>
+      <td style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${e.remark||'—'}</td>
+      <td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button> <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button></td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="15" style="text-align:center;padding:24px;color:var(--muted)">尚無記錄，請新增或匯入</td></tr>';}
+
+// ── RENDER: Pregnant ──
+function pregFiltered(){const q=(document.getElementById('pregSrch')?.value||'').toLowerCase();const dept=document.getElementById('pregDept')?.value||'';return employees.filter(e=>e.status==='pregnant'&&(!q||(e.name||'').toLowerCase().includes(q)||(e.idNo||'').toLowerCase().includes(q))&&(!dept||e.dept===dept));}
+function renderPregnant(){
+  const rows=pregFiltered();const now=new Date();now.setHours(0,0,0,0);
+  document.getElementById('pregCards').innerHTML=rows.map(e=>{const daysToEdd=e.edd?Math.round((new Date(e.edd)-now)/86400000):null;const urgency=daysToEdd!==null&&daysToEdd<=30?'mat':daysToEdd!==null&&daysToEdd<=60?'':'preg';
+    return`<div class="lc ${urgency}" onclick="openEmpModal('${e.id}')">
+      <div class="lc-name">${e.name||'—'}</div>
+      <div style="font-size:10px;color:var(--muted)">${e.dept||'—'} · ${e.idNo||'—'}</div>
+      <div class="lc-row">
+        <div class="lc-stat"><div class="lc-sn" style="color:var(--amber)">${fd(e.edd)}</div><div class="lc-sl">EDD</div></div>
+        <div class="lc-stat"><div class="lc-sn" style="color:${daysToEdd!==null&&daysToEdd<=30?'var(--danger)':daysToEdd!==null&&daysToEdd<=60?'var(--amber)':'var(--teal)'}">${daysToEdd!==null?daysToEdd+'d':'—'}</div><div class="lc-sl">距EDD</div></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted)">孕期 ${e.pregnantPeriod||'—'}M · ${e.position||'—'}</div>
+    </div>`;}).join('')||'<div style="color:var(--muted);padding:20px">無懷孕記錄</div>';
+  document.getElementById('pregTbody').innerHTML=rows.map((e,i)=>`<tr><td>${i+1}</td><td class="mono">${e.idNo||'—'}</td><td style="font-weight:600">${e.name||'—'}</td><td>${e.dept||'—'}</td><td class="mono">${fd(e.birthday)}</td><td class="mono" style="color:var(--amber)">${fd(e.edd)}</td><td>${e.pregnantPeriod||'—'}M</td><td style="font-size:10px">${e.nssfNo||'—'}</td><td style="font-size:11px">${e.contactPhone||'—'}</td><td><button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button> <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button></td></tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--muted)">無記錄</td></tr>';
+  fillDeptSel('pregDept');}
+
+// ── RENDER: Maternity ──
+function matFiltered(){const q=(document.getElementById('matSrch')?.value||'').toLowerCase();const dept=document.getElementById('matDept')?.value||'';return employees.filter(e=>['maternity','returned'].includes(e.status)&&(!q||(e.name||'').toLowerCase().includes(q)||(e.idNo||'').toLowerCase().includes(q))&&(!dept||e.dept===dept));}
 function renderMaternity(){
-  buildMatOptions();
-  const rows=matFiltered();
-  const now=new Date(); now.setHours(0,0,0,0);
-  const ret30=rows.filter(e=>e.returnDate&&Math.round((new Date(e.returnDate)-now)/86400000)<=30&&Math.round((new Date(e.returnDate)-now)/86400000)>=0).length;
+  const rows=matFiltered();const now=new Date();now.setHours(0,0,0,0);
+  const ret30=rows.filter(e=>{const u=until(e.returnDate);return u!==null&&u>=0&&u<=30;}).length;
   const totalPay=rows.reduce((s,e)=>s+(+calcMatPay(e).total),0);
-  const avgMon=rows.reduce((s,e)=>s+(+calcMatPay(e).avg),0)/(rows.length||1);
-
-  document.getElementById('mk-total').textContent=rows.length;
+  const avgMon=rows.length?rows.reduce((s,e)=>s+(+calcMatPay(e).avg),0)/rows.length:0;
+  document.getElementById('mk-total').textContent=rows.filter(e=>e.status==='maternity').length;
   document.getElementById('mk-ret30').textContent=ret30;
   document.getElementById('mk-pay').textContent='$'+totalPay.toFixed(0);
   document.getElementById('mk-avg').textContent='$'+avgMon.toFixed(0);
-  document.getElementById('matCount').textContent=rows.length+' '+T('records');
+  document.getElementById('matCards').innerHTML=rows.map(e=>{
+    const used=e.leaveStart?since(e.leaveStart):0;const left=Math.max(0,(+e.totalDays||90)-used);const cap=Math.min(100,Math.round(used/(+e.totalDays||90)*100));const pay=calcMatPay(e);const nf=empNfSummary(e.idNo);const daysToRet=e.returnDate?Math.round((new Date(e.returnDate)-now)/86400000):null;const cls=daysToRet!==null&&daysToRet<=14?'mat':daysToRet!==null&&daysToRet<=30?'preg':'ret';
+    return`<div class="lc ${cls}" onclick="openEmpModal('${e.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px"><div><div class="lc-name">${e.name||'—'}</div><span style="font-size:10px;color:var(--muted)">${e.dept||'—'} · ${e.idNo||'—'}</span></div>${sBadge(e.status)}</div>
+      <div class="lc-row">
+        <div class="lc-stat"><div class="lc-sn" style="color:var(--rose)">${used}</div><div class="lc-sl">已用d</div></div>
+        <div class="lc-stat"><div class="lc-sn" style="color:${left>30?'var(--teal)':'var(--amber)'}">${left}</div><div class="lc-sl">剩餘d</div></div>
+      </div>
+      <div class="capbar"><div class="capfill" style="width:${cap}%"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px;font-size:10px">
+        <div style="color:var(--muted)">應領薪: <b style="color:var(--rose)">$${pay.total}</b></div>
+        <div style="color:var(--muted)">護理費: <b style="color:${nf.count?'var(--rose)':'var(--muted)'}">$${nf.total.toFixed(0)}</b></div>
+      </div>
+    </div>`;}).join('')||'<div style="color:var(--muted);padding:20px">無產假記錄</div>';
+  document.getElementById('matTbody').innerHTML=rows.map((e,i)=>{
+    const used=e.leaveStart?since(e.leaveStart):0;const left=Math.max(0,(+e.totalDays||90)-used);const pay=calcMatPay(e);const nf=empNfSummary(e.idNo);
+    return`<tr><td>${i+1}</td><td class="mono">${e.idNo||'—'}</td><td style="font-weight:600">${e.name||'—'}</td><td>${e.dept||'—'}</td><td class="mono">${fd(e.leaveStart)}</td><td class="mono">${fd(e.returnDate)}</td><td style="text-align:center">${e.totalDays||90}</td><td style="text-align:center;color:var(--rose)">${used}</td><td style="text-align:center;color:${left>30?'var(--teal)':'var(--amber)'};font-weight:600">${left}</td><td>${e.leaveStart?prog(used,+e.totalDays||90):''}</td><td class="mono" style="color:var(--rose);font-weight:700">$${pay.total}</td><td class="mono" style="color:${nf.count?'var(--rose)':'var(--muted)'}">$${nf.total.toFixed(2)}<br><span style="font-size:9px;color:var(--muted)">${nf.count}筆</span></td><td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button> <button class="btn btn-rose btn-sm" style="padding:3px 7px;font-size:10px" onclick="openNfModal(null,'${e.idNo}','${e.name}','${e.dept||''}')">＋💊</button></td></tr>`;
+  }).join('')||'<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted)">無產假記錄</td></tr>';
+  fillDeptSel('matDept');}
 
-  // Cards — one per employee with salary verification
-  document.getElementById('matCards').innerHTML=rows.length
-    ? rows.map(e=>{
-        const used=e.leaveStart?since(e.leaveStart):0;
-        const left=Math.max(0,(+e.totalDays||90)-used);
-        const cap=Math.min(100,Math.round(used/(+e.totalDays||90)*100));
-        const pay=calcMatPay(e);
-        const daysToRet=e.returnDate?Math.round((new Date(e.returnDate)-now)/86400000):null;
-        const urgency=daysToRet!==null&&daysToRet<=14?'lo':daysToRet!==null&&daysToRet<=30?'md':'hi';
-        // Actual paid (sum of salary records during maternity)
-        const actualPaid=salaryRecords.filter(r=>r.idNo===e.idNo&&e.leaveStart&&r.month>=e.leaveStart.substring(0,7)).reduce((s,r)=>s+(+r.netPay||0),0);
-        const diff=+pay.total-actualPaid;
-        const payStatus=actualPaid===0?'gray':Math.abs(diff)<10?'ok':'warn';
-        return `<div class="lc ${urgency}" onclick="openEmpModal('${e.id}')">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:5px">
-            <div>
-              <div class="lc-name">${e.name||'—'}</div>
-              <span class="lc-sec" style="background:#fce7f3;color:#9d174d">${e.dept||'—'}</span>
-              <span style="font-size:9px;color:#6b7a9e;margin-left:4px">${e.position||''}</span>
-            </div>
-            <span class="id-badge ${e.status==='returned'?'green':''}" style="font-size:10px">${e.idNo||'—'}</span>
-          </div>
-          <div class="lc-row">
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:#c75b7a">${used}</div>
-              <div class="lc-sl">${T('used')}d</div>
-            </div>
-            <div class="lc-stat">
-              <div class="lc-sn" style="color:${left>30?'#059669':'#d97706'}">${left}</div>
-              <div class="lc-sl">${T('left')}d</div>
-            </div>
-          </div>
-          <div class="capbar" style="margin-bottom:6px"><div class="capfill" style="width:${cap}%;background:#c75b7a"></div></div>
-          <!-- Salary verification section -->
-          <div style="background:#f7f8fc;border-radius:6px;padding:7px;margin-bottom:5px">
-            <div style="font-size:9px;font-weight:700;color:#6b7a9e;text-transform:uppercase;margin-bottom:5px">💰 ${T('salVerify')}</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:10px">
-              <div><span style="color:#6b7a9e">${T('avgSal')} (${pay.months}M):</span><br><b style="font-family:monospace">$${pay.avg}</b></div>
-              <div><span style="color:#6b7a9e">${T('entitledPay')} (90d):</span><br><b style="font-family:monospace;color:#c75b7a">$${pay.total}</b></div>
-              <div><span style="color:#6b7a9e">${T('actualPaid')}:</span><br><b style="font-family:monospace;color:${payStatus==='ok'?'#059669':payStatus==='warn'?'#dc2626':'#6b7a9e'}">$${actualPaid.toFixed(2)}</b></div>
-              <div><span style="color:#6b7a9e">${T('diff')}:</span><br><b style="font-family:monospace;color:${Math.abs(diff)<10?'#059669':'#dc2626'}">${actualPaid===0?'—':'$'+(diff>=0?'+':'')+diff.toFixed(2)}</b></div>
-            </div>
-            ${payStatus==='warn'?`<div style="background:#fee2e2;border-radius:4px;padding:3px 6px;margin-top:4px;font-size:9px;color:#dc2626;font-weight:700">⚠️ ${T('salMismatch')}</div>`:''}
-            ${payStatus==='gray'?`<div style="background:#f3f4f6;border-radius:4px;padding:3px 6px;margin-top:4px;font-size:9px;color:#6b7a9e">— ${T('noSalRecord')}</div>`:''}
-          </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;font-size:10px;color:#6b7a9e">
-            <span>${T('returnDate')}: ${fd(e.returnDate)||'—'} ${daysToRet!==null?'('+daysToRet+'d)':''}</span>
-            <div style="display:flex;gap:3px">
-              <button class="btn btn-teal btn-sm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();openSalModal(null,{idNo:'${e.idNo}',name:'${e.name}'})">＋💰</button>
-              <button class="btn btn-r btn-sm" style="padding:2px 6px;font-size:9px" onclick="event.stopPropagation();delEmp('${e.id}')">🗑️</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')
-    : `<div style="padding:30px;text-align:center;color:#6b7a9e;grid-column:1/-1">${T('noMatRec')}</div>`;
-
-  // Table (hidden by default)
-  if(matTableOpen){
-    document.getElementById('matTblHdr').innerHTML=[
-      'No.','ID',T('name'),T('dept'),T('pos'),'EDD',T('applyDate'),T('returnDate'),
-      T('totalDays'),T('used'),T('left'),T('progress'),T('entitledPay'),T('actualPaid'),T('diff'),T('ops')
-    ].map(h=>`<th>${h}</th>`).join('');
-    const page=rows.slice((matPage-1)*PGSZ,matPage*PGSZ);
-    document.getElementById('matTbody').innerHTML=page.length?page.map((e,i)=>{
-      const used=e.leaveStart?since(e.leaveStart):0;
-      const left=Math.max(0,(+e.totalDays||90)-used);
-      const pay=calcMatPay(e);
-      const actualPaid=salaryRecords.filter(r=>r.idNo===e.idNo&&e.leaveStart&&r.month>=e.leaveStart.substring(0,7)).reduce((s,r)=>s+(+r.netPay||0),0);
-      const diff=+pay.total-actualPaid;
-      return `<tr>
-        <td class="mono">${(matPage-1)*PGSZ+i+1}</td>
-        <td><span class="id-badge ${e.status==='returned'?'green':''}">${e.idNo||'—'}</span></td>
-        <td style="font-weight:600">${e.name||'—'}</td>
-        <td>${e.dept||'—'}</td>
-        <td style="font-size:11px">${e.position||'—'}</td>
-        <td class="mono" style="color:#c75b7a">${fd(e.edd)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
-        <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
-        <td style="text-align:center;font-weight:700">${e.totalDays||90}</td>
-        <td style="text-align:center;color:#c75b7a;font-weight:600">${used}</td>
-        <td style="text-align:center;color:${left>30?'#059669':'#d97706'};font-weight:600">${left}</td>
-        <td>${e.leaveStart?prog(used,+e.totalDays||90):''}</td>
-        <td class="mono" style="color:#c75b7a;font-weight:700">$${pay.total}</td>
-        <td class="mono" style="color:${Math.abs(diff)<10?'#059669':'#dc2626'}">$${actualPaid.toFixed(2)}</td>
-        <td class="mono" style="font-weight:700;color:${Math.abs(diff)<10?'#059669':'#dc2626'}">${actualPaid===0?'—':'$'+(diff>=0?'+':'')+diff.toFixed(2)}</td>
-        <td><div style="display:flex;gap:3px">
-          <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }).join(''):`<tr><td colspan="16" style="text-align:center;padding:20px;color:#6b7a9e">${T('noMatRec')}</td></tr>`;
-    mkPag('matPag',rows.length,matPage,'setMatPage');
-  }
-  fillDeptSel('matDept');
-}
-
-// ════════════════════ RENDER: SALARY ══════════════════
-// Per-person cards — each maternity employee gets their own block
-  // (page vars moved to date-nav blocks)
-function setSalPage(p){salPage=p;renderSalary();}
+// ── RENDER: Salary ──
 function renderSalary(){
-  const q=(document.getElementById('salSrch')?.value||'').toLowerCase();
-  const idF=document.getElementById('salIdF')?.value||'';
-
-  // Build per-person groups
+  const q=(document.getElementById('salSrch')?.value||'').toLowerCase();const idF=document.getElementById('salIdF')?.value||'';
   const matEmps=employees.filter(e=>['maternity','returned'].includes(e.status));
-  // Also include employees who have salary records even if not yet in maternity
-  const allIds=[...new Set([...matEmps.map(e=>e.idNo),...salaryRecords.map(r=>r.idNo)])].filter(Boolean);
-
-  let filtered=allIds;
-  if(idF) filtered=filtered.filter(id=>id===idF);
-  if(q) filtered=filtered.filter(id=>{
-    const e=employees.find(x=>x.idNo===id);
-    return (e?.name||'').toLowerCase().includes(q)||id.includes(q);
-  });
-
+  const allIds=[...new Set([...matEmps.map(e=>e.idNo),...salaryRecords.map(r=>r.idNo)].filter(Boolean))];
+  let filtered=allIds.filter(id=>(!q||(employees.find(e=>e.idNo===id)?.name||'').toLowerCase().includes(q)||id.includes(q))&&(!idF||id===idF));
+  const sf=document.getElementById('salIdF');if(sf){const cur=sf.value;sf.innerHTML='<option value="">— All —</option>'+allIds.map(id=>{const e=employees.find(x=>x.idNo===id);return`<option value="${id}"${id===cur?' selected':''}>${id} ${e?'- '+e.name:''}</option>`;}).join('');}
   const container=document.getElementById('salPersonCards');
-  if(!container) return;
-
-  container.innerHTML=filtered.length?filtered.map(idNo=>{
-    const emp=employees.find(e=>e.idNo===idNo);
-    const name=emp?.name||idNo;
-    const recs=salaryRecords.filter(r=>r.idNo===idNo).sort((a,b)=>b.month.localeCompare(a.month));
-    if(!recs.length) return '';
-    const pay=emp?calcMatPay(emp):null;
-    const totalNet=recs.reduce((s,r)=>s+(+r.netPay||0),0);
-    const avgNet=totalNet/recs.length;
-    const isMat=emp&&['maternity','returned'].includes(emp.status);
-    // Salary records during maternity
-    const matRecs=isMat&&emp.leaveStart?recs.filter(r=>r.month>=emp.leaveStart.substring(0,7)):[];
-    const actualPaid=matRecs.reduce((s,r)=>s+(+r.netPay||0),0);
-    const diff=pay?+pay.total-actualPaid:0;
-
-    const rows=recs.map((r,i)=>{
-      const isDuringMat=matRecs.includes(r);
-      return `<tr style="${isDuringMat?'background:#fef0f3;':''}">
-        <td class="mono" style="font-size:10px">${i+1}</td>
-        <td class="mono" style="font-weight:600;${isDuringMat?'color:#c75b7a':''}">${r.month||'—'}</td>
-        <td style="text-align:center">${r.workDays||'—'}</td>
-        <td class="mono">$${(+r.basicSalary||0).toFixed(2)}</td>
-        <td class="mono">$${(+r.otPay||0).toFixed(2)}</td>
-        <td class="mono">$${(+r.mealFee||0).toFixed(2)}</td>
-        <td class="mono" style="color:#dc2626">$${(+r.nssf||0).toFixed(2)}</td>
-        <td class="mono" style="font-weight:700;color:${isDuringMat?'#c75b7a':'#1e2640'}">$${(+r.netPay||0).toFixed(2)}</td>
-        <td style="font-size:10px">${isDuringMat?'🍼':''}${r.remarks||'—'}</td>
-        <td><div style="display:flex;gap:2px">
-          <button class="btn btn-g btn-sm" style="padding:2px 5px" onclick="openSalModal('${r.id}')">✏️</button>
-          <button class="btn btn-r btn-sm" style="padding:2px 5px" onclick="delSal('${r.id}')">🗑️</button>
-        </div></td>
-      </tr>`;
-    }).join('');
-
-    return `<div class="card" style="margin-bottom:14px;padding:0;overflow:hidden">
-      <!-- Person header -->
-      <div style="background:linear-gradient(135deg,#1e2640,#2d3658);padding:12px 15px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <span class="id-badge" style="font-size:12px">${idNo}</span>
-        <div style="flex:1">
-          <div style="font-weight:700;color:#fff;font-size:14px">${name}</div>
-          <div style="font-size:10px;color:#8b95b8">${emp?.dept||''} ${emp?.position?'· '+emp.position:''}</div>
-        </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          ${isMat?`<span class="badge b-maternity">🍼 ${T('matIn')}</span>`:''}
-          <button class="btn btn-teal" style="padding:4px 10px;font-size:11px" onclick="openSalModal(null,{idNo:'${idNo}',name:'${name}'})">＋ ${T('addSal')}</button>
+  container.innerHTML=filtered.map(idNo=>{
+    const emp=employees.find(e=>e.idNo===idNo);const recs=salaryRecords.filter(r=>r.idNo===idNo).sort((a,b)=>b.month.localeCompare(a.month));if(!recs.length)return'';
+    const pay=emp?calcMatPay(emp):null;const totalNet=recs.reduce((s,r)=>s+(+r.netPay||0),0);const isMat=emp&&['maternity','returned'].includes(emp.status);
+    const matRecs=isMat&&emp.leaveStart?recs.filter(r=>r.month>=emp.leaveStart.slice(0,7)):[];const actualPaid=matRecs.reduce((s,r)=>s+(+r.netPay||0),0);const diff=pay?+pay.total-actualPaid:0;
+    return`<div class="card" style="padding:0;overflow:hidden;margin-bottom:12px">
+      <div style="background:linear-gradient(135deg,#1e2640,#2d3658);padding:10px 14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="background:#1e2640;color:#fbbf24;font-family:monospace;font-size:11px;padding:2px 7px;border-radius:3px">${idNo}</span>
+        <div><div style="font-weight:700;color:#fff">${emp?.name||idNo}</div><div style="font-size:10px;color:#8bc5b5">${emp?.dept||''}</div></div>
+        <div style="margin-left:auto;display:flex;gap:7px;align-items:center">
+          ${isMat?`<span class="badge b-maternity">🍼 產假中</span>`:''}
+          <button class="btn btn-rose" style="padding:4px 10px;font-size:11px" onclick="openSalModal(null,{idNo:'${idNo}',name:'${emp?.name||idNo}'})">＋ 薪資</button>
         </div>
       </div>
-      <!-- Pay summary (maternity employees only) -->
-      ${isMat&&pay?`<div style="background:#fef0f3;padding:10px 15px;display:flex;gap:12px;flex-wrap:wrap;border-bottom:1px solid #fce7f3">
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('avgSal')} (${pay.months}M avg):</span> <b style="font-family:monospace">$${pay.avg}</b></div>
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('entitledPay')} (90d):</span> <b style="font-family:monospace;color:#c75b7a">$${pay.total}</b></div>
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('actualPaid')}:</span> <b style="font-family:monospace;color:${Math.abs(diff)<10?'#059669':'#dc2626'}">$${actualPaid.toFixed(2)}</b></div>
-        <div style="font-size:11px"><span style="color:#6b7a9e">${T('diff')}:</span> <b style="font-family:monospace;color:${Math.abs(diff)<10?'#059669':'#dc2626'};font-weight:700">$${actualPaid===0?'—':(diff>=0?'+':'')+diff.toFixed(2)}</b>
-          ${Math.abs(diff)>10&&actualPaid>0?'<span style="color:#dc2626;font-size:9px;font-weight:700;margin-left:4px">⚠️ '+T('salMismatch')+'</span>':''}</div>
+      ${isMat&&pay?`<div style="background:#fef0f3;padding:8px 14px;display:flex;gap:14px;flex-wrap:wrap;border-bottom:1px solid #fce7f3;font-size:11px">
+        <div><span style="color:var(--muted)">均月薪(${pay.months}M):</span> <b>$${pay.avg}</b></div>
+        <div><span style="color:var(--muted)">應領(90d):</span> <b style="color:var(--rose)">$${pay.total}</b></div>
+        <div><span style="color:var(--muted)">實際已領:</span> <b style="color:${Math.abs(diff)<10?'var(--teal)':'var(--danger)'}">$${actualPaid.toFixed(2)}</b></div>
+        <div><span style="color:var(--muted)">差額:</span> <b style="color:${Math.abs(diff)<10?'var(--teal)':'var(--danger)'}">$${actualPaid===0?'—':(diff>=0?'+':'')+diff.toFixed(2)}</b>${Math.abs(diff)>10&&actualPaid>0?' <span style="color:var(--danger);font-size:10px">⚠️ 不符</span>':''}</div>
       </div>`:''}
-      <!-- Salary table -->
-      <div class="tw" style="border-radius:0">
-        <table style="min-width:580px">
-          <thead><tr>
-            <th>No.</th><th>${T('month')}</th><th>${T('workDays')}</th><th>${T('basicSal')}</th>
-            <th>OT</th><th>${T('meal')}</th><th>NSSF</th><th>${T('netPay')}</th><th>${T('remark')}</th><th>${T('ops')}</th>
-          </tr></thead>
-          <tbody>${rows||`<tr><td colspan="10" style="text-align:center;padding:16px;color:#6b7a9e">${T('noSalRecord')}</td></tr>`}</tbody>
-        </table>
-      </div>
-      <!-- Totals -->
-      <div style="padding:8px 15px;background:#f7f8fc;font-size:11px;color:#6b7a9e;display:flex;gap:16px;border-top:1px solid #e2e6f0">
-        <span>${recs.length} ${T('records')}</span>
-        <span>${T('totalNet')}: <b style="font-family:monospace;color:#c75b7a">$${totalNet.toFixed(2)}</b></span>
-        <span>${T('avgNet')}: <b style="font-family:monospace">$${avgNet.toFixed(2)}</b></span>
-      </div>
-    </div>`;
-  }).join('')
-  : `<div style="padding:40px;text-align:center;color:#6b7a9e">${T('noSalRec')}</div>`;
+      <div class="tw" style="border-radius:0"><table style="min-width:500px">
+        <thead><tr><th>#</th><th>月份</th><th>工作天</th><th>底薪</th><th>OT</th><th>餐費</th><th>NSSF</th><th>實發</th><th>備注</th><th>操作</th></tr></thead>
+        <tbody>${recs.map((r,i)=>`<tr style="${matRecs.includes(r)?'background:#fef0f3':''}"><td>${i+1}</td><td class="mono" style="${matRecs.includes(r)?'color:var(--rose);font-weight:700':''}">${r.month||'—'}</td><td>${r.workDays||'—'}</td><td class="mono">$${(+r.basicSalary||0).toFixed(2)}</td><td class="mono">$${(+r.otPay||0).toFixed(2)}</td><td class="mono">$${(+r.mealFee||0).toFixed(2)}</td><td class="mono" style="color:var(--danger)">$${(+r.nssf||0).toFixed(2)}</td><td class="mono" style="font-weight:700;color:var(--rose)">$${(+r.netPay||0).toFixed(2)}</td><td style="font-size:11px">${r.remarks||'—'}</td><td><button class="btn btn-g btn-sm" onclick="openSalModal('${r.id}')">✏️</button> <button class="btn btn-r btn-sm" onclick="delSal('${r.id}')">🗑️</button></td></tr>`).join('')||'<tr><td colspan="10" style="text-align:center;padding:12px;color:var(--muted)">無薪資記錄</td></tr>'}</tbody>
+      </table></div>
+      <div style="padding:7px 14px;background:var(--bg);font-size:11px;color:var(--muted);border-top:1px solid var(--brd)">共 ${recs.length} 筆 · 總實發: <b style="color:var(--rose)">$${totalNet.toFixed(2)}</b></div>
+    </div>`;}).join('')||'<div style="text-align:center;padding:30px;color:var(--muted)">無薪資記錄</div>';}
 
-  // Populate ID filter
-  const sf=document.getElementById('salIdF');
-  if(sf){
-    const curId=sf.value;
-    sf.innerHTML=`<option value="">— ${T('all')} —</option>`+
-      allIds.map(id=>{const e=employees.find(x=>x.idNo===id);return`<option value="${id}"${id===curId?' selected':''}>${id} ${e?'- '+e.name:''}</option>`;}).join('');
+// ── RENDER: Nursing Fee ──
+function renderNursing(){
+  const today2=today();const OVERDUE_DAYS=30;
+  NURSING_FEES.forEach(r=>{if(r.status==='pending'&&r.payDate){const d=Math.ceil((new Date(today2)-new Date(r.payDate))/86400000);if(d>OVERDUE_DAYS)r.status='overdue';}});
+  const q=(document.getElementById('nfSrch')?.value||'').toLowerCase();const statF=document.getElementById('nfStatusF')?.value||'';
+  const rows=NURSING_FEES.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.idNo||'').toLowerCase().includes(q))&&(!statF||r.status===statF)).sort((a,b)=>(b.payDate||'').localeCompare(a.payDate||''));
+  const totalAmt=NURSING_FEES.reduce((s,r)=>s+(+r.amount||0),0);
+  const paid=NURSING_FEES.filter(r=>r.status==='paid').length,pending=NURSING_FEES.filter(r=>r.status==='pending').length,overdue=NURSING_FEES.filter(r=>r.status==='overdue').length;
+  document.getElementById('nf-kpis').innerHTML=[{v:NURSING_FEES.length,l:'護理費記錄',c:'rose'},{v:'$'+totalAmt.toFixed(2),l:'總發放金額',c:'teal'},{v:paid,l:'✅ 已發放',c:'teal'},{v:pending,l:'⏳ 待發放',c:'amber'},{v:overdue,l:'🔴 逾期',c:'rose'}].map(k=>`<div class="kpi ${k.c}"><div class="kpi-n">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
+  // Cross-check
+  const matEmps=employees.filter(e=>['maternity','returned'].includes(e.status));
+  let alertHtml='';
+  const missing=matEmps.filter(e=>!NURSING_FEES.some(r=>r.idNo===e.idNo));
+  const overdueEmps=matEmps.filter(e=>{const nf=empNfSummary(e.idNo);return nf.days!==null&&nf.days>OVERDUE_DAYS&&e.status==='maternity';});
+  if(missing.length)alertHtml+=`<div class="nf-cross-warn">⚠️ <b>${missing.length} 位</b>產假員工尚無護理費記錄：${missing.map(e=>e.name).slice(0,5).join('、')}${missing.length>5?'…':''}</div>`;
+  if(overdueEmps.length)alertHtml+=`<div class="nf-cross-err">🔴 <b>${overdueEmps.length} 位</b>超過${OVERDUE_DAYS}天未發護理費：${overdueEmps.map(e=>`${e.name}(${empNfSummary(e.idNo).days}天)`).join('、')}</div>`;
+  if(!missing.length&&!overdueEmps.length&&matEmps.length>0)alertHtml=`<div class="nf-cross-ok">✅ 所有產假員工護理費記錄正常</div>`;
+  document.getElementById('nf-alerts').innerHTML=alertHtml;
+  // Cross-check table
+  document.getElementById('nfCrossTbody').innerHTML=matEmps.map(e=>{
+    const nf=empNfSummary(e.idNo);const isOk=nf.count>0&&(nf.days===null||nf.days<=OVERDUE_DAYS||e.status==='returned');
+    const statusEl=!nf.count?'<span style="color:var(--amber);font-size:11px">⚠️ 無記錄</span>':nf.days!==null&&nf.days>OVERDUE_DAYS&&e.status==='maternity'?`<span style="color:var(--danger);font-size:11px">🔴 ${nf.days}天未發</span>`:'<span style="color:var(--teal);font-size:11px">✅ 正常</span>';
+    return`<tr><td class="mono">${e.idNo||'—'}</td><td style="font-weight:600">${e.name||'—'}</td><td>${e.dept||'—'}</td><td>${sBadge(e.status)}</td><td style="text-align:center;font-weight:700;color:${nf.count?'var(--teal)':'var(--amber)'}">${nf.count} 筆</td><td class="mono">${nf.last?.payDate?fd(nf.last.payDate):'—'}</td><td style="text-align:center;font-weight:700;color:${nf.days!==null&&nf.days>OVERDUE_DAYS?'var(--danger)':'var(--teal)'}">${nf.days!==null?nf.days+'天':'—'}</td><td class="mono" style="color:var(--rose)">$${nf.total.toFixed(2)}</td><td>${statusEl}</td></tr>`;
+  }).join('')||'<tr><td colspan="9" style="text-align:center;padding:16px;color:var(--muted)">尚無產假員工</td></tr>';
+  // Nursing fee table
+  const statusLabel={paid:'✅ 已發放',pending:'⏳ 待發放',overdue:'🔴 逾期'};
+  const statusCss={paid:'status-paid',pending:'status-pending',overdue:'status-overdue'};
+  document.getElementById('nfTbody').innerHTML=rows.map((r,i)=>`<tr><td>${i+1}</td><td class="mono">${r.idNo||'—'}</td><td style="font-weight:600">${r.name||'—'}</td><td>${r.dept||'—'}</td><td class="mono" style="font-weight:700;color:var(--rose)">$${(+r.amount||0).toFixed(2)}</td><td class="mono">${fd(r.payDate)}</td><td><span class="${statusCss[r.status]||''}">${statusLabel[r.status]||r.status}</span></td><td style="font-size:11px;color:var(--muted)">${r.remark||'—'}</td><td style="white-space:nowrap"><button class="btn btn-g btn-sm" onclick="openNfModal('${r.id}')">✏️</button> <button class="btn btn-r btn-sm" onclick="delNf('${r.id}')">🗑️</button></td></tr>`).join('')||'<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--muted)">無護理費記錄</td></tr>';
+  updateHeader();}
+
+// ── Nursing Fee Modal ──
+function openNfModal(id,idNo,name,dept){
+  editNfId=id||null;const r=id?NURSING_FEES.find(x=>x.id===id):{};
+  document.getElementById('nfMTitle').textContent=id?'編輯護理費記錄':'新增護理費記錄';
+  document.getElementById('nfId').value=r?.idNo||idNo||'';
+  document.getElementById('nfName').value=r?.name||name||'';
+  document.getElementById('nfDept').value=r?.dept||dept||'';
+  document.getElementById('nfAmount').value=r?.amount||'';
+  document.getElementById('nfDate').value=r?.payDate||today();
+  document.getElementById('nfStatus').value=r?.status||'paid';
+  document.getElementById('nfRemark').value=r?.remark||'';
+  document.getElementById('nfOv').classList.add('open');}
+function closeNfModal(){document.getElementById('nfOv').classList.remove('open');}
+function saveNf(){
+  const name=document.getElementById('nfName').value.trim();const payDate=document.getElementById('nfDate').value;
+  if(!name||!payDate){toast('請填寫姓名和發放日期','err');return;}
+  const obj={id:editNfId||uid(),idNo:document.getElementById('nfId').value.trim(),name,dept:document.getElementById('nfDept').value.trim(),amount:parseFloat(document.getElementById('nfAmount').value)||0,payDate,status:document.getElementById('nfStatus').value,remark:document.getElementById('nfRemark').value.trim()};
+  if(editNfId){const i=NURSING_FEES.findIndex(x=>x.id===editNfId);if(i>=0)NURSING_FEES[i]=obj;else NURSING_FEES.push(obj);}else NURSING_FEES.push(obj);
+  saveNursingData();closeNfModal();renderNursing();toast('✅ 護理費記錄已儲存','ok');}
+function delNf(id){if(!confirm('刪除此護理費記錄？'))return;NURSING_FEES=NURSING_FEES.filter(x=>x.id!==id);saveNursingData();renderNursing();toast('已刪除','info');}
+
+// ── Import Nursing Fee Excel ──
+async function importNfXlsx(evt){
+  const f=evt.target.files?.[0];if(!f)return;evt.target.value='';
+  const buf=await f.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+  let added=0,updated=0;
+  for(const sn of wb.SheetNames){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});if(rows.length<2)continue;
+    let hdrIdx=0;for(let r=0;r<Math.min(5,rows.length);r++){if(rows[r].some(v=>/(name|姓名|amount|金額|pay|date)/i.test(String(v)))){hdrIdx=r;break;}}
+    const hdr=rows[hdrIdx].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n));
+    const cId=ci('card')<0?(ci('工號')<0?ci('no'):ci('工號')):ci('card');
+    const cName=ci('name')<0?ci('姓名'):ci('name');const cDept=ci('dept')<0?ci('部門'):ci('dept');
+    const cAmt=ci('amount')<0?ci('金額'):ci('amount');const cDate=ci('pay date')<0?(ci('date')<0?ci('日期'):ci('date')):ci('pay date');
+    const cStat=ci('status')<0?ci('狀態'):ci('status');const cRmk=ci('remark')<0?ci('備注'):ci('remark');
+    for(let i=hdrIdx+1;i<rows.length;i++){
+      const row=rows[i];const name=String(row[cName]||'').trim();if(!name||name.toLowerCase()==='name')continue;
+      const amount=parseFloat(row[cAmt])||0;const payDate=safeDate(row[cDate]);if(!payDate)continue;
+      const idNo=cId>=0?String(parseInt(row[cId])||row[cId]||'').trim():'';
+      const rawStat=String(row[cStat]||'paid').toLowerCase();const status=rawStat.includes('paid')||rawStat.includes('已')?'paid':rawStat.includes('over')||rawStat.includes('逾')?'overdue':'pending';
+      const existing=NURSING_FEES.find(r=>r.idNo===idNo&&r.payDate===payDate);
+      const rec={id:existing?.id||uid(),idNo,name,dept:cDept>=0?String(row[cDept]||'').trim():'',amount,payDate,status,remark:cRmk>=0?String(row[cRmk]||'').trim():''};
+      if(existing){Object.assign(existing,rec);updated++;}else{NURSING_FEES.push(rec);added++;}
+    }
   }
-}
+  saveNursingData();renderNursing();toast(`✅ 護理費：新增 ${added} / 更新 ${updated} 筆`,'ok');}
 
-// ════════════════════ CRUD — EMPLOYEE ═════════════════
-function openEmpModal(id, defaultStatus) {
-  editEmpId=id||null;
-  const e=id?employees.find(x=>x.id===id):null;
-  document.getElementById('empMTitle').textContent=e?'編輯員工記錄':'新增員工記錄';
-  document.getElementById('fId').value      =e?.idNo||'';
-  document.getElementById('fName').value    =e?.name||'';
-  document.getElementById('fDept').value    =e?.dept||'';
-  document.getElementById('fPos').value     =e?.position||'';
-  document.getElementById('fBd').value      =e?.birthday||'';
-  document.getElementById('fNssf').value    =e?.nssfNo||'';
-  document.getElementById('fStatus').value  =e?.status||(defaultStatus||'pregnant');
-  document.getElementById('fPP').value      =e?.pregnantPeriod||'';
-  document.getElementById('fEdd').value     =e?.edd||'';
-  document.getElementById('fReg').value     =e?.registerTime||today();
-  document.getElementById('fApply').value   =e?.leaveStart||'';
-  document.getElementById('fReturn').value  =e?.returnDate||'';
-  document.getElementById('fDays').value    =e?.totalDays||90;
-  document.getElementById('fSal').value     =e?.basicSalary||'';
-  document.getElementById('fContact').value =e?.contactName||'';
-  document.getElementById('fPhone').value   =e?.contactPhone||'';
-  document.getElementById('fAddr').value    =e?.address||'';
-  document.getElementById('fRem').value     =e?.remark||'';
-  document.getElementById('empOv').classList.add('open');
-}
-function closeEmpModal() { document.getElementById('empOv').classList.remove('open'); }
+function exportNfXlsx(){if(!NURSING_FEES.length){toast('無資料','info');return;}const hdr=['工號','姓名','部門','金額','發放日','狀態','備注'];const rows=NURSING_FEES.map(r=>[r.idNo,r.name,r.dept,+r.amount||0,r.payDate,r.status,r.remark]);const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet([hdr,...rows]);ws['!cols']=[{wch:10},{wch:20},{wch:14},{wch:10},{wch:12},{wch:10},{wch:30}];XLSX.utils.book_append_sheet(wb,ws,'NursingFee');XLSX.writeFile(wb,`VRT_NursingFee_${today()}.xlsx`);toast('⬇ 已匯出','ok');}
 
-function saveEmployee() {
-  const name=document.getElementById('fName').value.trim();
-  if (!name) { toast('請填寫姓名','err'); return; }
-  const rec={
-    id:editEmpId||uid(), type:'pregnant',
-    idNo:document.getElementById('fId').value.trim(),
-    name, dept:document.getElementById('fDept').value.trim(),
-    position:document.getElementById('fPos').value.trim(),
-    birthday:document.getElementById('fBd').value,
-    nssfNo:document.getElementById('fNssf').value.trim(),
-    status:document.getElementById('fStatus').value,
-    pregnantPeriod:+document.getElementById('fPP').value||'',
-    edd:document.getElementById('fEdd').value,
-    registerTime:document.getElementById('fReg').value,
-    leaveStart:document.getElementById('fApply').value,
-    returnDate:document.getElementById('fReturn').value,
-    totalDays:+document.getElementById('fDays').value||90,
-    basicSalary:+document.getElementById('fSal').value||0,
-    contactName:document.getElementById('fContact').value.trim(),
-    contactPhone:document.getElementById('fPhone').value.trim(),
-    address:document.getElementById('fAddr').value.trim(),
-    remark:document.getElementById('fRem').value.trim(),
-    _upd:Date.now()
-  };
-  if (editEmpId) {
-    const i=employees.findIndex(x=>x.id===editEmpId);
-    if(i>=0) employees[i]=rec;
-  } else employees.push(rec);
-  saveData(); renderAll(); closeEmpModal();
-  toast('✅ 員工記錄已儲存'); autoSync();
-}
+// ── Employee CRUD ──
+function openEmpModal(id,defaultStatus){
+  editEmpId=id||null;const e=id?employees.find(x=>x.id===id):{};
+  document.getElementById('empMTitle').textContent=e.id?'編輯員工記錄':'新增員工記錄';
+  document.getElementById('fId').value=e?.idNo||'';document.getElementById('fName').value=e?.name||'';document.getElementById('fDept').value=e?.dept||'';document.getElementById('fPos').value=e?.position||'';document.getElementById('fBd').value=e?.birthday||'';document.getElementById('fNssf').value=e?.nssfNo||'';document.getElementById('fStatus').value=e?.status||(defaultStatus||'pregnant');document.getElementById('fPP').value=e?.pregnantPeriod||'';document.getElementById('fEdd').value=e?.edd||'';document.getElementById('fReg').value=e?.registerTime||today();document.getElementById('fApply').value=e?.leaveStart||'';document.getElementById('fReturn').value=e?.returnDate||'';document.getElementById('fDays').value=e?.totalDays||90;document.getElementById('fSal').value=e?.basicSalary||'';document.getElementById('fContact').value=e?.contactName||'';document.getElementById('fPhone').value=e?.contactPhone||'';document.getElementById('fAddr').value=e?.address||'';document.getElementById('fRem').value=e?.remark||'';
+  document.getElementById('empOv').classList.add('open');}
+function closeEmpModal(){document.getElementById('empOv').classList.remove('open');}
+function saveEmployee(){
+  const name=document.getElementById('fName').value.trim();if(!name){toast('請填寫姓名','err');return;}
+  const rec={id:editEmpId||uid(),type:'pregnant',idNo:document.getElementById('fId').value.trim(),name,dept:document.getElementById('fDept').value.trim(),position:document.getElementById('fPos').value.trim(),birthday:document.getElementById('fBd').value,nssfNo:document.getElementById('fNssf').value.trim(),status:document.getElementById('fStatus').value,pregnantPeriod:+document.getElementById('fPP').value||'',edd:document.getElementById('fEdd').value,registerTime:document.getElementById('fReg').value,leaveStart:document.getElementById('fApply').value,returnDate:document.getElementById('fReturn').value,totalDays:+document.getElementById('fDays').value||90,basicSalary:+document.getElementById('fSal').value||0,contactName:document.getElementById('fContact').value.trim(),contactPhone:document.getElementById('fPhone').value.trim(),address:document.getElementById('fAddr').value.trim(),remark:document.getElementById('fRem').value.trim()};
+  if(editEmpId){const i=employees.findIndex(x=>x.id===editEmpId);if(i>=0)employees[i]=rec;else employees.push(rec);}else employees.push(rec);
+  saveData();renderAll();closeEmpModal();toast('✅ 已儲存','ok');}
+function delEmp(id){if(!confirm('確定刪除？'))return;employees=employees.filter(e=>e.id!==id);saveData();renderAll();toast('已刪除','info');}
 
-function delEmp(id) {
-  if (!confirm('確定刪除此員工記錄？')) return;
-  employees=employees.filter(e=>e.id!==id);
-  saveData(); renderAll(); toast('已刪除','info'); autoSync();
-}
+// ── Salary CRUD ──
+function openSalModal(id,defaults){
+  editSalId=id||null;const r=id?salaryRecords.find(x=>x.id===id):{};
+  document.getElementById('salMTitle').textContent=id?'編輯薪資':'新增薪資';
+  document.getElementById('sId').value=r?.idNo||defaults?.idNo||'';document.getElementById('sName').value=r?.name||defaults?.name||'';document.getElementById('sMon').value=r?.month||today().slice(0,7);document.getElementById('sWd').value=r?.workDays||'';document.getElementById('sSal').value=r?.basicSalary||'';document.getElementById('sOt').value=r?.otPay||'';document.getElementById('sMeal').value=r?.mealFee||'';document.getElementById('sNssf').value=r?.nssf||'';document.getElementById('sDed').value=r?.deductions||'';document.getElementById('sNetI').value=r?.netPay||'';document.getElementById('sRem').value=r?.remarks||'';
+  document.getElementById('salOv').classList.add('open');}
+function closeSalModal(){document.getElementById('salOv').classList.remove('open');}
+function calcNet(){const net=(+document.getElementById('sSal').value||0)+(+document.getElementById('sOt').value||0)+(+document.getElementById('sMeal').value||0)-(+document.getElementById('sNssf').value||0)-(+document.getElementById('sDed').value||0);document.getElementById('sNetI').value=net.toFixed(2);}
+function saveSalRecord(){
+  const name=document.getElementById('sName').value.trim();if(!name){toast('請填寫姓名','err');return;}
+  const rec={id:editSalId||uid(),type:'salary',idNo:document.getElementById('sId').value.trim(),name,month:document.getElementById('sMon').value,workDays:+document.getElementById('sWd').value||0,basicSalary:+document.getElementById('sSal').value||0,otPay:+document.getElementById('sOt').value||0,mealFee:+document.getElementById('sMeal').value||0,nssf:+document.getElementById('sNssf').value||0,deductions:+document.getElementById('sDed').value||0,netPay:+document.getElementById('sNetI').value||0,remarks:document.getElementById('sRem').value.trim()};
+  if(editSalId){const i=salaryRecords.findIndex(x=>x.id===editSalId);if(i>=0)salaryRecords[i]=rec;else salaryRecords.push(rec);}else salaryRecords.push(rec);
+  saveData();closeSalModal();renderSalary();toast('✅ 已儲存','ok');}
+function delSal(id){if(!confirm('刪除？'))return;salaryRecords=salaryRecords.filter(r=>r.id!==id);saveData();renderSalary();toast('已刪除','info');}
 
-// ════════════════════ CRUD — SALARY ═══════════════════
-function openSalModal(id, defaults) {
-  editSalId=id||null;
-  const r=id?salaryRecords.find(x=>x.id===id):null;
-  document.getElementById('salMTitle').textContent=r?'編輯薪資記錄':'新增薪資記錄';
-  document.getElementById('sId').value   =r?.idNo||defaults?.idNo||'';
-  document.getElementById('sName').value =r?.name||defaults?.name||'';
-  document.getElementById('sMon').value  =r?.month||today().substring(0,7);
-  document.getElementById('sWd').value   =r?.workDays||'';
-  document.getElementById('sSal').value  =r?.basicSalary||'';
-  document.getElementById('sOt').value   =r?.otPay||'';
-  document.getElementById('sMeal').value =r?.mealFee||'';
-  document.getElementById('sNssf').value =r?.nssf||'';
-  document.getElementById('sDed').value  =r?.deductions||'';
-  document.getElementById('sNetI').value =r?.netPay||'';
-  document.getElementById('sRem').value  =r?.remarks||'';
-  document.getElementById('salOv').classList.add('open');
-}
-function closeSalModal() { document.getElementById('salOv').classList.remove('open'); }
+// ── Import ──
+async function smartImport(input,defaultType){
+  const file=input.files[0];if(!file)return;input.value='';toast('📂 解析中…','info');
+  try{const buf=await file.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});let added=0,updated=0;
+  const COL_MAP={'idno':'idNo','id no':'idNo','card no':'idNo','卡號':'idNo','姓名':'name','name':'name','dept':'dept','部門':'dept','status':'status','狀態':'status','edd':'edd','預產期':'edd','leavestart':'leaveStart','leave start':'leaveStart','申請日':'leaveStart','returndate':'returnDate','回歸日':'returnDate','birthday':'birthday','生日':'birthday','基本薪':'basicSalary','basicsalary':'basicSalary','基本工資':'basicSalary'};
+  for(const sn of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});if(rows.length<2)continue;let hdrIdx=0;for(let r=0;r<Math.min(5,rows.length);r++){if(rows[r].filter(c=>c!==null&&c!==undefined).length>=2){hdrIdx=r;break;}}const hdr=rows[hdrIdx].map(v=>String(v||'').trim());const colIdx={};hdr.forEach((h,i)=>{const key=COL_MAP[h.toLowerCase()];if(key)colIdx[key]=i;const d=h.trim();if(['idNo','name','dept','position','status','edd','leaveStart','returnDate','totalDays','basicSalary','birthday','nssfNo','registerTime','pregnantPeriod','contactName','contactPhone','address','remark'].includes(d))colIdx[d]=i;});if(colIdx.name===undefined&&colIdx.idNo===undefined)continue;
+  for(let r=hdrIdx+1;r<rows.length;r++){const row=rows[r];const name=row[colIdx.name]?String(row[colIdx.name]).trim():'';const idNo=row[colIdx.idNo]!==undefined&&row[colIdx.idNo]!==null?String(parseInt(row[colIdx.idNo],10)||row[colIdx.idNo]).trim():'';if(!name&&!idNo)continue;const g=f=>{const idx=colIdx[f];return idx!==undefined&&row[idx]!==null&&row[idx]!==undefined?String(row[idx]).trim():'';};const gd=f=>{const idx=colIdx[f];return idx!==undefined?safeDate(row[idx]):'';};const gn=f=>{const idx=colIdx[f];return idx!==undefined?parseFloat(row[idx])||0:0;};const status=g('status')||defaultType||'pregnant';const rec={id:uid(),type:'pregnant',idNo:idNo||uid().slice(0,6),name:name||idNo,dept:g('dept'),position:g('position'),birthday:gd('birthday'),nssfNo:g('nssfNo'),status:['pregnant','maternity','returned','resigned'].includes(status)?status:'pregnant',pregnantPeriod:gn('pregnantPeriod')||'',edd:gd('edd'),registerTime:gd('registerTime'),leaveStart:gd('leaveStart'),returnDate:gd('returnDate'),totalDays:gn('totalDays')||90,basicSalary:gn('basicSalary'),contactName:g('contactName'),contactPhone:g('contactPhone'),address:g('address'),remark:g('remark')};const existIdx=idNo?employees.findIndex(e=>e.idNo===idNo):-1;if(existIdx>=0){Object.entries(rec).forEach(([k,v])=>{if(v!==''&&v!==0&&v!==90&&k!=='id')employees[existIdx][k]=v;});updated++;}else{employees.push(rec);added++;}}}
+  saveData();renderAll();toast(`✅ 新增 ${added} / 更新 ${updated} 筆`,'ok');}catch(err){toast('❌ '+err.message,'err');}}
 
-function calcNet() {
-  const net=(+document.getElementById('sSal').value||0)
-           +(+document.getElementById('sOt').value||0)
-           +(+document.getElementById('sMeal').value||0)
-           -(+document.getElementById('sNssf').value||0)
-           -(+document.getElementById('sDed').value||0);
-  document.getElementById('sNetI').value=net.toFixed(2);
-}
+// ── Import Salary ──
+async function importSalXlsx(input){
+  const file=input.files[0];if(!file)return;input.value='';toast('📂 解析中…','info');
+  const buf=await file.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+  const SKIP=['form','summery','summary','0','attach','template'];let added=0;
+  for(const sn of wb.SheetNames){if(SKIP.includes(sn.trim().toLowerCase()))continue;const ws=wb.Sheets[sn];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  let idNo=null;const shNum=parseInt(sn.trim(),10);if(!isNaN(shNum)&&shNum>0)idNo=String(shNum);else{for(const row of rows){if(row.some(c=>typeof c==='string'&&c.includes('លេខកាត'))){const id=row[3];if(id&&!isNaN(Number(id))){idNo=String(parseInt(id,10));break;}}}}
+  if(!idNo)continue;
+  for(const row of rows){const monthRaw=row[7],workDay=row[8],salRaw=row[9],otRaw=row[10],mealRaw=row[11];let monthStr=null;if(monthRaw instanceof Date&&!isNaN(monthRaw))monthStr=monthRaw.getFullYear()+'-'+String(monthRaw.getMonth()+1).padStart(2,'0');else if(typeof monthRaw==='number'&&monthRaw>40000){const d=new Date(Math.round((monthRaw-25569)*86400000));monthStr=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}const sal=parseFloat(salRaw);if(!monthStr||isNaN(sal)||sal<50)continue;const ot=parseFloat(otRaw)||0;const meal=parseFloat(mealRaw)||0;const net=parseFloat((sal+ot+meal).toFixed(2));const existing=salaryRecords.find(r=>r.idNo===idNo&&r.month===monthStr);if(!existing){salaryRecords.push({id:uid(),idNo,type:'salary',month:monthStr,workDays:parseFloat(workDay)||0,basicSalary:parseFloat(sal.toFixed(2)),otPay:parseFloat(ot.toFixed(2)),mealFee:parseFloat(meal.toFixed(2)),nssf:0,netPay:net,source:'import'});added++;}}}
+  saveData();renderSalary();toast(`✅ 薪資匯入 ${added} 筆`,'ok');}
 
-function saveSalRecord() {
-  const name=document.getElementById('sName').value.trim();
-  if (!name) { toast('請填寫姓名','err'); return; }
-  const rec={
-    id:editSalId||uid(), type:'salary',
-    idNo:document.getElementById('sId').value.trim(), name,
-    month:document.getElementById('sMon').value,
-    workDays:+document.getElementById('sWd').value||0,
-    basicSalary:+document.getElementById('sSal').value||0,
-    otPay:+document.getElementById('sOt').value||0,
-    mealFee:+document.getElementById('sMeal').value||0,
-    nssf:+document.getElementById('sNssf').value||0,
-    deductions:+document.getElementById('sDed').value||0,
-    netPay:+document.getElementById('sNetI').value||0,
-    remarks:document.getElementById('sRem').value.trim()
-  };
-  if (editSalId) {
-    const i=salaryRecords.findIndex(x=>x.id===editSalId);
-    if(i>=0) salaryRecords[i]=rec;
-  } else salaryRecords.push(rec);
-  saveData(); renderSalary(); closeSalModal();
-  toast('✅ 薪資記錄已儲存'); autoSync();
-}
+// ── Export ──
+function xlsxExport(rows,filename){if(!rows||!rows.length){toast('無資料','info');return;}const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Data');XLSX.writeFile(wb,filename);toast('⬇ 已下載','ok');}
 
-function delSal(id) {
-  if (!confirm('確定刪除？')) return;
-  salaryRecords=salaryRecords.filter(r=>r.id!==id);
-  saveData(); renderSalary(); toast('已刪除','info');
-}
-
-// ════════════════════ SECTION OPS ═════════════════════
-function clearSection(s) {
-  const L={pregnant:'懷孕中員工',maternity:'產假員工',salary:'薪資記錄'};
-  if (!confirm(`確定清除所有 ${L[s]||s} 資料？`)) return;
-  if (s==='pregnant')  employees=employees.filter(e=>e.status!=='pregnant');
-  else if (s==='maternity') employees=employees.filter(e=>!['maternity','returned'].includes(e.status));
-  else if (s==='salary') salaryRecords=[];
-  saveData(); renderAll(); toast(`已清除 ${L[s]||s}`,'info');
-}
-function clearAll() {
-  if (!confirm('確定清除所有資料？')) return;
-  if (!confirm('再次確認：清除全部員工及薪資記錄？此操作無法復原！')) return;
-  employees=[]; salaryRecords=[];
-  saveData();
-  localStorage.setItem('vrt_user_cleared','1'); // FIX1: prevent sample reload
-  renderAll(); toast('已清除所有資料','info');
-}
-
-// ════════════════════ EXPORT / PRINT ══════════════════
-// ════════════════════════════════════════════════════════
-// 匯入產假薪資 Excel（VRT Maternity.xlsx 格式）
-// 每員工一個 sheet（sheet name = 卡號）
-//   H=月份  I=工作天  J=底薪  K=OT  L=餐費
-//   公式：AVERAGE(12月 total) / 26 * 90 / 2
-// ════════════════════════════════════════════════════════
-// ════════════════════════════════════════════════════════
-// smartImport：孕婦 / 產假 員工記錄 Excel 匯入
-// 支援兩種格式：
-//   A. 系統自身匯出格式（第一行為英文欄位名稱）
-//   B. 通用格式（中/英文欄位名稱自動對應）
-// 呼叫：smartImport(inputEl, 'pregnant'|'maternity')
-// ════════════════════════════════════════════════════════
-async function smartImport(input, defaultType) {
-  const file = input.files[0];
-  if (!file) return;
-  input.value = '';
-
-  toast('📂 解析中…', 'info');
-  try {
-    const buf = await file.arrayBuffer();
-    const wb  = XLSX.read(new Uint8Array(buf), { type:'array', cellDates:true });
-
-    // ── 欄位名稱對應表（英/中 → 系統欄位）──
-    const COL_MAP = {
-      // idNo
-      'idno':'idNo', 'id no':'idNo', 'id no.':'idNo', 'card no':'idNo',
-      'cardno':'idNo', 'card':'idNo', '卡號':'idNo', 'no.':'idNo',
-      // name
-      'name':'name', 'nama':'name', '姓名':'name', '名字':'name',
-      // dept
-      'dept':'dept', 'department':'dept', '部門':'dept',
-      // position
-      'position':'position', 'pos':'position', '職位':'position', '崗位':'position',
-      // status
-      'status':'status', '狀態':'status',
-      // edd
-      'edd':'edd', '預產期':'edd', 'expected delivery':'edd',
-      // leaveStart
-      'leavestart':'leaveStart', 'leave start':'leaveStart',
-      'date maternity':'leaveStart', 'maternity start':'leaveStart',
-      '請假日':'leaveStart', '產假開始':'leaveStart',
-      // returnDate
-      'returndate':'returnDate', 'return date':'returnDate',
-      'return':'returnDate', '復工日':'returnDate', '回歸日':'returnDate',
-      // totalDays
-      'totaldays':'totalDays', 'total days':'totalDays', 'days':'totalDays',
-      '天數':'totalDays',
-      // basicSalary
-      'basicsalary':'basicSalary', 'basic salary':'basicSalary',
-      'salary':'basicSalary', '底薪':'basicSalary',
-      // other
-      'birthday':'birthday', '生日':'birthday',
-      'nssfno':'nssfNo', 'nssf':'nssfNo',
-      'registertime':'registerTime', 'register':'registerTime', '登記日':'registerTime',
-      'pregnantperiod':'pregnantPeriod', '週數':'pregnantPeriod',
-      'contactname':'contactName', 'contact':'contactName', '聯絡人':'contactName',
-      'contactphone':'contactPhone', 'phone':'contactPhone', '電話':'contactPhone',
-      'address':'address', '地址':'address',
-      'remark':'remark', 'remarks':'remark', '備註':'remark',
-    };
-
-    // ── 日期格式化輔助 ──
-    const toDateStr = (v) => {
-      if (!v) return '';
-      if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
-      if (typeof v === 'number' && v > 40000) {
-        const d = new Date(Math.round((v - 25569) * 86400000));
-        return d.toISOString().slice(0,10);
-      }
-      const s = String(v).trim();
-      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-      const d = new Date(s);
-      if (!isNaN(d)) return d.toISOString().slice(0,10);
-      return '';
-    };
-
-    let added = 0, updated = 0, skipped = 0;
-
-    // ── 逐個 sheet 解析 ──
-    for (const shName of wb.SheetNames) {
-      const ws   = wb.Sheets[shName];
-      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null, raw:true });
-      if (rows.length < 2) continue;
-
-      // 找 header 行（第一個有至少2個非空字串的行）
-      let headerIdx = -1, headers = [];
-      for (let i = 0; i < Math.min(rows.length, 5); i++) {
-        const nonNull = rows[i].filter(c => c !== null && c !== undefined && String(c).trim());
-        if (nonNull.length >= 2) { headerIdx = i; headers = rows[i]; break; }
-      }
-      if (headerIdx < 0) continue;
-
-      // 建立欄位 index → 系統欄位名的對應
-      const colIdx = {};
-      headers.forEach((h, i) => {
-        if (!h) return;
-        const key = String(h).trim().toLowerCase();
-        const mapped = COL_MAP[key];
-        if (mapped) colIdx[mapped] = i;
-        // 直接符合系統欄位名（系統自身匯出格式）
-        const direct = String(h).trim();
-        if (['idNo','name','dept','position','status','edd','leaveStart',
-             'returnDate','totalDays','basicSalary','birthday','nssfNo',
-             'registerTime','pregnantPeriod','contactName','contactPhone',
-             'address','remark'].includes(direct)) {
-          colIdx[direct] = i;
-        }
-      });
-
-      // 必須至少能識別 name 或 idNo
-      if (colIdx.name === undefined && colIdx.idNo === undefined) continue;
-
-      // ── 逐行解析 ──
-      for (let r = headerIdx + 1; r < rows.length; r++) {
-        const row = rows[r];
-        const name = row[colIdx.name] ? String(row[colIdx.name]).trim() : '';
-        const idNo = row[colIdx.idNo] !== undefined && row[colIdx.idNo] !== null
-                   ? String(parseInt(row[colIdx.idNo], 10) || row[colIdx.idNo]).trim()
-                   : '';
-
-        if (!name && !idNo) continue;  // 空行跳過
-
-        const getStr = (field) => {
-          const i = colIdx[field];
-          if (i === undefined || row[i] === null || row[i] === undefined) return '';
-          return String(row[i]).trim();
-        };
-        const getNum = (field) => {
-          const i = colIdx[field];
-          if (i === undefined) return 0;
-          return parseFloat(row[i]) || 0;
-        };
-        const getDate = (field) => {
-          const i = colIdx[field];
-          if (i === undefined || row[i] === null) return '';
-          return toDateStr(row[i]);
-        };
-
-        // 決定 status
-        let status = getStr('status') || defaultType || 'pregnant';
-        if (!['pregnant','maternity','returned'].includes(status)) {
-          status = defaultType || 'pregnant';
-        }
-
-        const rec = {
-          id           : uid(),
-          type         : 'pregnant',
-          idNo         : idNo || String(Math.random().toString(36).slice(2,8)),
-          name         : name || idNo,
-          dept         : getStr('dept'),
-          position     : getStr('position'),
-          birthday     : getDate('birthday'),
-          nssfNo       : getStr('nssfNo'),
-          status,
-          pregnantPeriod: getNum('pregnantPeriod') || '',
-          edd          : getDate('edd'),
-          registerTime : getDate('registerTime'),
-          leaveStart   : getDate('leaveStart'),
-          returnDate   : getDate('returnDate'),
-          totalDays    : getNum('totalDays') || 90,
-          basicSalary  : getNum('basicSalary'),
-          contactName  : getStr('contactName'),
-          contactPhone : getStr('contactPhone'),
-          address      : getStr('address'),
-          remark       : getStr('remark'),
-          _upd         : Date.now()
-        };
-
-        // 去重：用 idNo 找已有記錄
-        const existIdx = idNo ? employees.findIndex(e => e.idNo === idNo) : -1;
-        if (existIdx >= 0) {
-          // 有 idNo 對應 → 合併（只覆蓋非空欄位）
-          const ex = employees[existIdx];
-          Object.entries(rec).forEach(([k,v]) => {
-            if (v !== '' && v !== 0 && v !== 90 && k !== 'id' && k !== '_upd') ex[k] = v;
-          });
-          ex._upd = Date.now();
-          updated++;
-        } else {
-          employees.push(rec);
-          added++;
-        }
-      }
-    }
-
-    if (added + updated === 0) {
-      toast('❌ 未找到可識別的員工記錄（請確認欄位名稱）', 'err'); return;
-    }
-
-    saveData();
-    try { renderAll(); }       catch(e) {}
-    try { renderAnalytics(); } catch(e) {}
-
-    const msg = `✅ 新增 ${added} 筆、更新 ${updated} 筆員工記錄`;
-    toast(msg, 'ok');
-
-  } catch(err) {
-    console.error('[smartImport]', err);
-    toast('❌ 解析失敗：' + err.message, 'err');
-  }
-}
-
-async function importSalXlsx(input) {
-  const file = input.files[0];
-  if (!file) return;
-  input.value = '';
-
-  toast('📂 解析中…', 'info');
-  try {
-    const buf = await file.arrayBuffer();
-    const wb  = XLSX.read(new Uint8Array(buf), { type:'array', cellDates:true });
-    const SKIP = ['form','summery','summary','0','attach','template'];
-
-    let newRecs = [], skipSheets = [];
-
-    for (const shName of wb.SheetNames) {
-      if (SKIP.includes(shName.trim().toLowerCase())) continue;
-
-      const ws   = wb.Sheets[shName];
-      const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:null, raw:true });
-
-      // 取卡號：優先 sheet name，否則掃 'លេខកាត' 行 col D
-      let idNo = null;
-      const shNum = parseInt(shName.trim(), 10);
-      if (!isNaN(shNum) && shNum > 0) {
-        idNo = String(shNum);
-      } else {
-        for (const row of rows) {
-          if (row.some(c => typeof c === 'string' && c.includes('លេខកាត'))) {
-            const id = row[3];
-            if (id && !isNaN(Number(id))) { idNo = String(parseInt(id,10)); break; }
-          }
-        }
-      }
-      if (!idNo) { skipSheets.push(shName); continue; }
-
-      // 掃資料行：H(7)=月份 I(8)=工作天 J(9)=底薪 K(10)=OT L(11)=餐費
-      const sheetRecs = [];
-      for (const row of rows) {
-        const monthRaw = row[7], workDay = row[8];
-        const salRaw = row[9], otRaw = row[10], mealRaw = row[11];
-
-        let monthStr = null;
-        if (monthRaw instanceof Date && !isNaN(monthRaw)) {
-          monthStr = monthRaw.getFullYear() + '-' +
-                     String(monthRaw.getMonth()+1).padStart(2,'0');
-        } else if (typeof monthRaw === 'number' && monthRaw > 40000) {
-          const d = new Date(Math.round((monthRaw - 25569) * 86400000));
-          monthStr = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-        }
-
-        const sal = parseFloat(salRaw);
-        // 過濾：必須有月份且底薪合理（>=50 USD，柬埔寨法定最低工資 $208+）
-        if (!monthStr || isNaN(sal) || sal < 50) continue;
-
-        const ot   = parseFloat(otRaw)   || 0;
-        const meal = parseFloat(mealRaw) || 0;
-        const net  = parseFloat((sal + ot + meal).toFixed(2));
-
-        sheetRecs.push({
-          id         : 'sal_' + idNo + '_' + monthStr + '_' + Math.random().toString(36).slice(2,6),
-          idNo,
-          month      : monthStr,
-          workDays   : parseFloat(workDay) || 0,
-          basicSalary: parseFloat(sal.toFixed(2)),
-          otPay      : parseFloat(ot.toFixed(2)),
-          mealFee    : parseFloat(meal.toFixed(2)),
-          nssf       : 0,
-          netPay     : net,
-          type       : 'salary',
-          source     : 'maternity_xlsx'
-        });
-      }
-
-      if (!sheetRecs.length) { skipSheets.push(shName + '(無資料)'); continue; }
-      newRecs.push(...sheetRecs);
-    }
-
-    if (!newRecs.length) {
-      toast('❌ 未解析到薪資資料，請確認格式', 'err'); return;
-    }
-
-    // 去重：相同 idNo+month 則新資料覆蓋（先移除舊的再加入）
-    const newKeys = new Set(newRecs.map(r => r.idNo + '_' + r.month));
-    salaryRecords = salaryRecords.filter(r => !newKeys.has(r.idNo + '_' + r.month));
-    salaryRecords.push(...newRecs);
-    saveData();
-    try { renderAll(); }       catch(e) {}
-    try { renderAnalytics(); } catch(e) {}
-
-    const empSet = new Set(newRecs.map(r => r.idNo));
-    let msg = '✅ 匯入 ' + newRecs.length + ' 筆薪資記錄（' + empSet.size + ' 名員工）';
-    if (skipSheets.length) msg += '；' + skipSheets.length + ' 個 sheet 略過';
-    toast(msg, 'ok');
-
-    // console 顯示各員工計算結果
-    for (const id of empSet) {
-      const emp  = employees.find(e => e.idNo === id);
-      const recs = newRecs.filter(r => r.idNo === id);
-      const avg  = recs.reduce((s,r)=>s+r.netPay,0) / recs.length;
-      const mat  = avg / 26 * 90 / 2;
-      console.log('[MatImport]', id, emp ? emp.name : '(未登錄)',
-        '均月$' + avg.toFixed(2), '→ 應領$' + mat.toFixed(2));
-    }
-
-  } catch(err) {
-    console.error('[importSalXlsx]', err);
-    toast('❌ 解析失敗：' + err.message, 'err');
-  }
-}
-
-function xlsxExport(rows, filename) {
-  if (!rows||!rows.length) { toast('無資料可匯出','info'); return; }
-  const ws=XLSX.utils.json_to_sheet(rows);
-  const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb,ws,'Data');
-  XLSX.writeFile(wb,filename);
-  toast('✅ Excel 已匯出');
-}
-
-function printRows(rows, title) {
-  const html=rows.map((e,i)=>{
-    const used=e.leaveStart?since(e.leaveStart):0;
-    const left=Math.max(0,(+e.totalDays||90)-used);
-    return `<tr><td>${i+1}</td><td>${e.idNo||'—'}</td><td>${e.name||'—'}</td>
-      <td>${e.dept||'—'}</td><td>${e.position||'—'}</td><td>${fd(e.edd)}</td>
-      <td>${e.status||'—'}</td><td>${fd(e.leaveStart)}</td><td>${fd(e.returnDate)}</td>
-      <td>${e.totalDays||90}</td><td>${used}</td><td>${left}</td>
-      <td>${e.remark||'—'}</td><td>${e.contactPhone||'—'}</td></tr>`;
-  }).join('');
-  const w=window.open('','_blank','width=1100,height=800');
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:10pt;margin:14mm 12mm}
-  h2{font-size:13pt}p{font-size:9pt;color:#555;margin-bottom:8px}
-  table{width:100%;border-collapse:collapse;font-size:9pt}
-  th{background:#2d3658;color:#fff;padding:5px 7px;text-align:left;font-size:8pt}
-  td{padding:4px 7px;border-bottom:1px solid #ddd}
-  tr:nth-child(even) td{background:#f9f9f9}
-  .nb{text-align:right;margin-bottom:8px}
-  button{padding:5px 14px;cursor:pointer;border:none;border-radius:4px}
-  .p{background:#c75b7a;color:#fff}
-  
-/* ── ANALYTICS CARDS (sewing-style) ──────────────────── */
-.ana-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:10px;margin-bottom:14px}
-.ana-card{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:13px;box-shadow:0 1px 4px rgba(30,38,64,.05);cursor:default;transition:.15s}
-.ana-card:hover{box-shadow:0 3px 12px rgba(199,91,122,.12);border-color:#f5a0b5}
-.ana-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.ana-card-name{font-size:13px;font-weight:700;color:#1e2640}
-.ana-card-badge{padding:2px 9px;border-radius:12px;font-size:10px;font-weight:700}
-.ana-stat-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px}
-.ana-stat{background:#f7f8fc;border-radius:6px;padding:6px;text-align:center}
-.ana-stat-n{font-size:16px;font-weight:700;font-family:monospace;line-height:1}
-.ana-stat-l{font-size:9px;color:#6b7a9e;margin-top:2px}
-.ana-bar-wrap{background:#eef0f6;border-radius:3px;height:5px;margin-top:6px;overflow:hidden}
-.ana-bar{height:100%;border-radius:3px;background:#c75b7a;transition:width .5s}
-/* Monthly bar chart */
-.month-bars{display:flex;align-items:flex-end;gap:4px;height:80px;padding:4px 0}
-.month-bar-col{display:flex;flex-direction:column;align-items:center;flex:1;gap:2px}
-.month-bar{width:100%;border-radius:3px 3px 0 0;min-height:2px;transition:height .4s}
-.month-bar.preg{background:#f5a0b5}
-.month-bar.mat{background:#6ee7b7}
-.month-bar-lbl{font-size:8px;color:#6b7a9e;writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap}
-.month-bar-n{font-size:8px;font-weight:700;color:#1e2640}
-/* EDD timeline */
-.edd-list{display:flex;flex-direction:column;gap:6px;max-height:220px;overflow-y:auto}
-.edd-item{display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f7f8fc;border-radius:7px;border-left:3px solid #c75b7a}
-.edd-item.urgent{border-left-color:#dc2626;background:#fff5f5}
-.edd-item.soon{border-left-color:#f59e0b;background:#fffbeb}
-.edd-days{font-size:11px;font-weight:700;font-family:monospace;min-width:36px;text-align:right}
-.edd-days.urgent{color:#dc2626}
-.edd-days.soon{color:#f59e0b}
-.edd-days.ok{color:#059669}
-.edd-name{flex:1;font-size:12px;font-weight:600}
-.edd-date{font-size:10px;color:#6b7a9e;font-family:monospace}
-/* Ana layout */
-.ana-row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
-@media(max-width:820px){.ana-row{grid-template-columns:1fr}.ana-grid{grid-template-columns:1fr 1fr}}
-
-/* ── SEWING-STYLE LINE CARDS ─────────────────────────── */
-.lc{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:12px;border-top:3px solid #e2e6f0;cursor:pointer;transition:.15s}
-.lc:hover{box-shadow:0 3px 12px rgba(199,91,122,.15);transform:translateY(-1px)}
-.lc.hi{border-top-color:#059669}
-.lc.md{border-top-color:#d97706}
-.lc.lo{border-top-color:#dc2626}
-.lc.zero{border-top-color:#9ca3af;opacity:.7}
-.lc-name{font-size:13px;font-weight:700;color:#1e2640}
-.lc-sec{font-size:10px;font-weight:700;padding:1px 6px;border-radius:3px;display:inline-block;margin-top:2px;text-transform:uppercase}
-.lc-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:7px 0}
-.lc-stat{background:#f7f8fc;border-radius:6px;padding:6px;text-align:center}
-.lc-sn{font-size:16px;font-weight:700;font-family:monospace;color:#1e2640;line-height:1.1}
-.lc-sl{font-size:9px;color:#6b7a9e;margin-top:2px}
-.capbar{height:7px;background:#e2e6f0;border-radius:4px;overflow:hidden;margin-top:4px}
-.capfill{height:100%;border-radius:4px;transition:width .4s}
-
-/* ── SETTINGS SUB-TABS ───────────────────────────────── */
-.stab{padding:9px 16px;font-size:13px;cursor:pointer;color:#6b7a9e;border-bottom:2px solid transparent;
-  margin-bottom:-2px;white-space:nowrap;font-weight:500;transition:.15s;user-select:none}
-.stab:hover{color:#1e2640;background:#f7f8fc}
-.stab.on{color:#c75b7a;border-bottom-color:#c75b7a;background:#fef0f3}
-.dept-tag{display:inline-flex;align-items:center;gap:6px;background:#fef3c7;border:1px solid #fde68a;
-  border-radius:6px;padding:4px 10px;font-size:12px;font-weight:600;color:#92400e;margin:3px}
-.dept-tag button{border:none;background:none;cursor:pointer;color:#92400e;font-size:14px;line-height:1;padding:0 2px}
-.dept-tag button:hover{color:#dc2626}
-
-@media print{.nb{display:none}}</style></head><body>
-  <div class="nb"><button onclick="window.close()">✕ 關閉</button>&nbsp;
-    <button class="p" onclick="window.print()">🖨️ 列印</button></div>
-  <h2>Vantage River Textiles Co., Ltd.</h2>
-  <p>${title} &nbsp;|&nbsp; 列印日期: ${new Date().toLocaleDateString('zh-TW')}</p>
-  <table><thead><tr><th>No.</th><th>ID</th><th>姓名</th><th>部門</th><th>職位</th>
-  <th>預產期</th><th>狀態</th><th>申請日</th><th>回歸日</th><th>總天</th>
-  <th>已用</th><th>剩餘</th><th>備註</th><th>聯絡</th></tr></thead>
-  <tbody>${html}</tbody></table>
-  <div style="margin-top:40px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:40px;font-size:9pt">
-    <div><div style="height:40px;border-bottom:1px solid #333;margin-bottom:4px"></div>Approved by / HR Manager</div>
-    <div><div style="height:40px;border-bottom:1px solid #333;margin-bottom:4px"></div>Check by</div>
-    <div><div style="height:40px;border-bottom:1px solid #333;margin-bottom:4px"></div>Prepared by</div>
-  </div></body></html>`);
-  w.document.close();
-}
-
-// ════════════════════ SETTINGS / GAS ══════════════════
-function saveGas() {
-  const url=document.getElementById('gasInput').value.trim(); if(!url) return;
-  localStorage.setItem(GAS_KEY,url);
-  document.getElementById('gasStatus').textContent='✅ GAS URL 已儲存';
-  document.getElementById('vcGasInput').value=url;
-  toast('GAS URL 已儲存');
-}
-
-// ════════════════════ SAMPLE DATA ═════════════════════
-function loadSample() {
-  localStorage.removeItem('vrt_cleared');
-  localStorage.removeItem('vrt_user_cleared');
-  employees=[
-    {id:uid(),idNo:'5062',name:'YOEM RAN',dept:'Line5',position:'Sewing operator',birthday:'1993-08-07',
-     nssfNo:'29310160394677',edd:'2026-06-03',status:'pregnant',leaveStart:'2026-05-02',returnDate:'2026-07-30',
-     totalDays:90,registerTime:'2025-11-21',pregnantPeriod:3,remark:'Pregnant',
-     contactName:'',contactPhone:'Husband 098602056',address:'um1, Sangkat1, Sihanouk ville',basicSalary:239,type:'pregnant'},
-    {id:uid(),idNo:'1874',name:'KONG SOPHAL',dept:'Line21',position:'Sewing operator',birthday:'1995-10-10',
-     nssfNo:'29510160391572',edd:'2026-06-04',status:'pregnant',leaveStart:'2026-05-02',returnDate:'2026-07-30',
-     totalDays:90,registerTime:'2025-11-21',pregnantPeriod:3,remark:'Pregnant',
-     contactPhone:'Husband 015595225',address:'um3, Sangkat4, Sihanouk ville',basicSalary:239,type:'pregnant'},
-    {id:uid(),idNo:'5641',name:'Sroeurn Sok Khea',dept:'QC A',position:'Inspector',birthday:'1994-01-12',
-     nssfNo:'',edd:'2026-03-28',status:'maternity',leaveStart:'2026-03-02',returnDate:'2026-05-30',
-     totalDays:90,registerTime:'2025-10-29',pregnantPeriod:3,remark:'Maternity leave',
-     contactPhone:'',address:'um1, Sangkat2, Sihanouk ville',basicSalary:237,type:'pregnant'},
-    {id:uid(),idNo:'5442',name:'THOEB SOR',dept:'Line21',position:'Sewing operator',birthday:'1991-12-12',
-     nssfNo:'',edd:'2026-04-14',status:'maternity',leaveStart:'2026-03-02',returnDate:'2026-05-30',
-     totalDays:90,registerTime:'2025-10-13',pregnantPeriod:3,remark:'Maternity leave',
-     contactPhone:'Husband 012725803',address:'um5, Sangkat4, Sihanouk ville',basicSalary:238,type:'pregnant'},
-    {id:uid(),idNo:'405',name:'KONG SREYNY',dept:'Line17',position:'Sewing operator',birthday:'1991-01-20',
-     nssfNo:'',edd:'2026-04-17',status:'maternity',leaveStart:'2026-04-01',returnDate:'2026-06-29',
-     totalDays:90,registerTime:'2025-10-13',pregnantPeriod:4,remark:'Maternity leave',
-     contactPhone:'Husband 070575822',address:'um3, Sangkat1, Sihanouk ville',basicSalary:231,type:'pregnant'}
-  ];
-  salaryRecords=[
-    {id:uid(),idNo:'5641',name:'Sroeurn Sok Khea',type:'salary',month:'2026-03',workDays:23.6,basicSalary:235.6,otPay:27.3,mealFee:4.5,nssf:0,deductions:0,netPay:267.4,remarks:'Maternity'},
-    {id:uid(),idNo:'5641',name:'Sroeurn Sok Khea',type:'salary',month:'2026-02',workDays:26,basicSalary:238,otPay:30,mealFee:5,nssf:0,deductions:0,netPay:273,remarks:''},
-    {id:uid(),idNo:'5641',name:'Sroeurn Sok Khea',type:'salary',month:'2026-01',workDays:25.5,basicSalary:235.6,otPay:27.3,mealFee:4.5,nssf:0,deductions:0,netPay:267.4,remarks:''},
-    {id:uid(),idNo:'5062',name:'YOEM RAN',type:'salary',month:'2026-03',workDays:23.6,basicSalary:239.2,otPay:45.4,mealFee:7.5,nssf:0,deductions:0,netPay:292.1,remarks:''},
-    {id:uid(),idNo:'5062',name:'YOEM RAN',type:'salary',month:'2026-02',workDays:26,basicSalary:239.3,otPay:42.4,mealFee:7,nssf:0,deductions:0,netPay:288.7,remarks:''},
-    {id:uid(),idNo:'405',name:'KONG SREYNY',type:'salary',month:'2026-04',workDays:23.9,basicSalary:219.5,otPay:0,mealFee:0,nssf:0,deductions:0,netPay:499.56,remarks:'Maternity'},
-    {id:uid(),idNo:'5016',name:'NEANG CHANTREA',type:'salary',month:'2026-04',workDays:22,basicSalary:212.3,otPay:0,mealFee:0,nssf:0,deductions:0,netPay:435.98,remarks:'Maternity'}
-  ];
-  saveData(); renderAll(); toast('✅ 範例資料已載入');
-}
-
-// ════════════════════ SETTINGS TAB ═══════════════════
-let depts = JSON.parse(localStorage.getItem('vrt_depts') || '[]');
-
-function saveDepts(){
-  localStorage.setItem('vrt_depts', JSON.stringify(depts));
-}
-function addDept(){
-  const input=document.getElementById('newDeptInput');
-  const name=(input?.value||'').trim();
-  if(!name) return;
-  if(depts.includes(name)){ toast('部門已存在','info'); return; }
-  depts.push(name); depts.sort();
-  saveDepts(); renderSettingsDept(); input.value='';
-  toast('✅ 部門已新增：'+name);
-}
-function deleteDept(name){
-  if(!confirm(`確定刪除部門「${name}」？員工資料不受影響。`)) return;
-  depts=depts.filter(d=>d!==name);
-  saveDepts(); renderSettingsDept();
-  toast('已刪除部門：'+name,'info');
-}
-function renderSettingsDept(){
-  // Sync dept list from employees too
-  employees.forEach(e=>{ if(e.dept&&!depts.includes(e.dept)) depts.push(e.dept); });
-  depts=[...new Set(depts)].sort();
-  saveDepts();
-
-  const dl=document.getElementById('deptList');
-  if(dl) dl.innerHTML=depts.length
-    ? depts.map(d=>`<span class="dept-tag">${d}<button onclick="deleteDept('${d.replace(/'/g,"\\'")}')">✕</button></span>`).join('')
-    : `<div style="color:#6b7a9e;font-size:12px;padding:8px">尚無部門，請新增</div>`;
-
-  const ds=document.getElementById('deptStats');
-  if(ds) ds.innerHTML=depts.map(dept=>{
-    const empCount=employees.filter(e=>e.dept===dept).length;
-    const matCount=employees.filter(e=>e.dept===dept&&['maternity','returned'].includes(e.status)).length;
-    const pregCount=employees.filter(e=>e.dept===dept&&e.status==='pregnant').length;
-    return `<div class="kpi" style="text-align:left;padding:10px">
-      <div style="font-weight:700;font-size:12px;color:#1e2640;margin-bottom:5px">${dept}</div>
-      <div style="display:flex;gap:8px;font-size:11px;font-family:monospace">
-        <span style="color:#c75b7a">🤰${pregCount}</span>
-        <span style="color:#059669">🍼${matCount}</span>
-        <span style="color:#6b7a9e">共${empCount}</span>
-      </div>
-    </div>`;
-  }).join('');
-
-  // Populate dept selects throughout the app
-  const allDepts=[...new Set([...depts,...employees.map(e=>e.dept).filter(Boolean)])].sort();
-  ['pregDept','matDept','settingEmpDept'].forEach(id=>{
-    const sel=document.getElementById(id); if(!sel) return;
-    const cur=sel.value;
-    sel.innerHTML='<option value="">—</option>'+allDepts.map(d=>`<option value="${d}"${d===cur?' selected':''}>${d}</option>`).join('');
-  });
-}
-
-let settingStab='dept';
-function goStab(name,el){
-  settingStab=name;
-  document.querySelectorAll('.stab').forEach(b=>b.classList.toggle('on',b.id==='stab-'+name));
-  ['dept','emp','cloud','system'].forEach(s=>{
-    const el2=document.getElementById('stab-'+s+'-body');
-    if(el2) el2.style.display=s===name?'block':'none';
-  });
-  if(name==='dept')   renderSettingsDept();
-  if(name==='emp')    renderSettingEmp();
-  if(name==='cloud')  renderCloudStatus();
-  if(name==='system') renderSysInfo();
-}
-
-function renderSettingEmp(){
-  const q=(document.getElementById('settingEmpSrch')?.value||'').toLowerCase();
-  const status=document.getElementById('settingEmpStatus')?.value||'';
-  const dept=document.getElementById('settingEmpDept')?.value||'';
-  const rows=employees.filter(e=>{
-    if(status&&e.status!==status) return false;
-    if(dept&&e.dept!==dept) return false;
-    if(q&&!(e.name||'').toLowerCase().includes(q)&&!(e.idNo||'').includes(q)) return false;
-    return true;
-  });
-  const tbody=document.getElementById('settingEmpTbody');
-  if(!tbody) return;
-  tbody.innerHTML=rows.length?rows.map(e=>`<tr>
-    <td><span class="id-badge ${e.status==='returned'?'green':''}">${e.idNo||'—'}</span></td>
-    <td style="font-weight:600">${e.name||'—'}</td>
-    <td>${e.dept||'—'}</td>
-    <td style="font-size:11px">${e.position||'—'}</td>
-    <td>${sBadge(e.status)}</td>
-    <td class="mono" style="color:#d97706;font-size:11px">${fd(e.edd)}</td>
-    <td class="mono" style="font-size:11px">${fd(e.leaveStart)}</td>
-    <td class="mono" style="font-size:11px">${fd(e.returnDate)}</td>
-    <td style="font-size:10px">${e.nssfNo||'—'}</td>
-    <td style="font-size:11px">${e.contactPhone||'—'}</td>
-    <td><div style="display:flex;gap:3px">
-      <button class="btn btn-g btn-sm" onclick="openEmpModal('${e.id}')">✏️</button>
-      <button class="btn btn-r btn-sm" onclick="delEmp('${e.id}')">🗑️</button>
-    </div></td>
-  </tr>`).join(''):`<tr><td colspan="11" style="text-align:center;padding:20px;color:#6b7a9e">無員工記錄</td></tr>`;
-  // Fill dept select
-  const allDepts=[...new Set(employees.map(e=>e.dept).filter(Boolean))].sort();
-  const sd=document.getElementById('settingEmpDept');
-  if(sd){const c=sd.value;sd.innerHTML='<option value="">All Depts</option>'+allDepts.map(d=>`<option value="${d}"${d===c?' selected':''}>${d}</option>`).join('');}
-}
-
-function renderCloudStatus(){
+// ── Settings ──
+function renderSettings(){
   const gasUrl=localStorage.getItem(GAS_KEY)||'';
-  const gi=document.getElementById('gasInput'); if(gi) gi.value=gasUrl;
-  const gi2=document.getElementById('vcGasInput'); if(gi2) gi2.value=gasUrl;
-  const gs=document.getElementById('gasStatus');
-  if(gs) gs.textContent=gasUrl?'✅ GAS URL 已設定: '+gasUrl.substring(0,40)+'…':'⚠️ 尚未設定 GAS URL';
-  // Mirror log
-  const cld=document.getElementById('cloudLogDisplay');
-  const src=document.getElementById('cpLog');
-  if(cld&&src) cld.innerHTML=src.innerHTML;
-}
+  document.getElementById('gasInput').value=gasUrl;
+  document.getElementById('gasStatus').textContent=gasUrl?'✅ GAS 已設定':'⚠️ 尚未設定 GAS URL';
+  document.getElementById('sysInfo').textContent=`員工 ${employees.length} 筆 · 薪資 ${salaryRecords.length} 筆 · 護理費 ${NURSING_FEES.length} 筆`;}
+function saveGas(){const url=document.getElementById('gasInput').value.trim();if(!url)return;localStorage.setItem(GAS_KEY,url);toast('✅ GAS URL 已儲存','ok');renderSettings();}
 
-function renderSysInfo(){
-  const ec=document.getElementById('sysEmpCount'); if(ec) ec.textContent=employees.length;
-  const sc=document.getElementById('sysSalCount'); if(sc) sc.textContent=salaryRecords.length;
-}
+// ── Cloud ──
+async function cloudPush(){const url=localStorage.getItem(GAS_KEY)||'';if(!url){toast('請先設定 GAS URL','err');return;}toast('☁ 推送中…','info');try{const all=[...employees.map(r=>({...r,type:r.type||'pregnant'})),...salaryRecords.map(r=>({...r,type:'salary'})),...NURSING_FEES.map(r=>({...r,type:'nursing_fee'}))];const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'push',tool:'maternity',records:all,recordCount:all.length,updatedAt:new Date().toISOString()})});const d=await r.json();if(d.ok)toast('✅ 推送成功','ok');else toast('❌ 推送失敗','err');}catch(e){toast('❌ '+e.message,'err');}}
+async function cloudPull(){const url=localStorage.getItem(GAS_KEY)||'';if(!url){toast('請先設定 GAS URL','err');return;}if(!confirm('拉取雲端資料？本地會被覆蓋'))return;toast('⬇ 拉取中…','info');try{const r=await fetch(url+'?action=pull&tool=maternity&meta=1',{redirect:'follow'});const d=await r.json();if(!d.ok){toast('❌ 拉取失敗','err');return;}let recs=d.data?.records||d.data?.data?.records||d.data||[];if(d.data?.chunked){const n=d.data?.meta?.totalChunks||1;recs=[];for(let i=0;i<n;i++){const rc=await fetch(url+'?action=pull&tool=maternity&chunk='+i,{redirect:'follow'});const dc=await rc.json();recs=recs.concat(dc.data?.records||dc.records||[]);}}employees=recs.filter(r=>r.type!=='salary'&&r.type!=='nursing_fee');salaryRecords=recs.filter(r=>r.type==='salary');NURSING_FEES=recs.filter(r=>r.type==='nursing_fee');saveData();saveNursingData();renderAll();toast(`✅ 拉取完成 (${recs.length} 筆)`,'ok');}catch(e){toast('❌ '+e.message,'err');}}
 
-// ════════════════════ CLOUD PANEL ═════════════════════
-let vcPanelOpen=false;
-function vcToggle() {
-  vcPanelOpen=!vcPanelOpen;
-  document.getElementById('vrtCloudPanel').classList.toggle('show',vcPanelOpen);
-  if (vcPanelOpen) { document.getElementById('vcGasInput').value=localStorage.getItem(GAS_KEY)||''; cpStat(); }
-}
-function cpLog(msg,type) {
-  const el=document.getElementById('cpLog'); if(!el) return;
-  const t=new Date(); const ts=t.getHours()+':'+String(t.getMinutes()).padStart(2,'0');
-  const c=type==='ok'?'cpl-ok':type==='err'?'cpl-err':'cpl-i';
-  el.innerHTML+=`<span class="${c}">[${ts}] ${msg}</span>\n`;
-  el.scrollTop=el.scrollHeight;
-}
-function cpStat() {
-  const el=document.getElementById('vcStatus'); if(!el) return;
-  const url=localStorage.getItem(GAS_KEY)||'';
-  let meta=null; try{meta=JSON.parse(localStorage.getItem(META_KEY)||'null');}catch{}
-  if (meta) {
-    const mins=(Date.now()-meta.ts)/60000;
-    el.textContent=meta.count+' · '+(mins<60?Math.round(mins)+'min':Math.round(mins/60)+'hr');
-    el.className='cp-status '+(mins<120?'ok':'warn');
-  } else { el.textContent=url?'Not synced yet':T('gasNotSet'); el.className='cp-status '+(url?'warn':'err'); }
-}
-function saveGasFromPanel() {
-  const url=(document.getElementById('vcGasInput').value||'').trim(); if(!url) return;
-  localStorage.setItem(GAS_KEY,url);
-  document.getElementById('gasInput').value=url;
-  cpLog('GAS URL 已儲存','i'); cpStat();
-}
-async function cloudPush() {
-  const url=localStorage.getItem(GAS_KEY)||'';
-  if (!url) { cpLog('請先設定 GAS URL','err'); return; }
-  const btn=document.getElementById('vcPushBtn'); btn.disabled=true; btn.innerHTML='<span class="spinning">⏳</span>';
-  try {
-    const all=[...employees.map(r=>({...r,type:r.type||'pregnant'})),...salaryRecords.map(r=>({...r,type:'salary'}))];
-    const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:'push',tool:'maternity',records:all,recordCount:all.length,updatedAt:new Date().toISOString()})});
-    const d=await r.json();
-    if(d.ok){localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:all.length}));cpLog('✓ '+T('pushOK')+' ('+all.length+')','ok');cpStat();}
-    else cpLog('✗ '+(d.error||'error'),'err');
-  } catch(e){cpLog('✗ '+e.message,'err');}
-  finally{btn.disabled=false;btn.innerHTML='☁ 推送';}
-}
-async function cloudPull() {
-  const url=localStorage.getItem(GAS_KEY)||'';
-  if (!url){cpLog('請先設定 GAS URL','err');return;}
-  if (!confirm('拉取雲端資料？本地資料會被覆蓋。')) return;
-  const btn=document.getElementById('vcPullBtn'); btn.disabled=true; btn.innerHTML='<span class="spinning">⏳</span>';
-  try {
-    const r=await fetch(url+'?action=pull&tool=maternity&meta=1',{redirect:'follow'});
-    const d=await r.json(); if(!d.ok) throw new Error(d.error||'GAS error');
-    let recs=d.data?.records||d.data?.data?.records||d.data||[];
-    if(d.data?.chunked){const n=d.data?.meta?.totalChunks||1;recs=[];for(let i=0;i<n;i++){const rc=await fetch(url+'?action=pull&tool=maternity&chunk='+i,{redirect:'follow'});const dc=await rc.json();recs=recs.concat(dc.data?.records||dc.records||[]);}}
-    employees=recs.filter(r=>r.type!=='salary'); salaryRecords=recs.filter(r=>r.type==='salary');
-    localStorage.setItem(STORAGE_KEY,JSON.stringify({employees,salaryRecords}));
-    localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:recs.length}));
-    renderAll(); cpLog('✓ '+T('pullOK')+' ('+recs.length+')','ok'); cpStat();
-  } catch(e){cpLog('✗ '+e.message,'err');}
-  finally{btn.disabled=false;btn.innerHTML='⬇ 拉取';}
-}
+// ── Backup ──
+function backupJSON(){const b=new Blob([JSON.stringify({employees,salaryRecords,nursingFees:NURSING_FEES,ts:new Date().toISOString()})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`VRT_Maternity_${today()}.json`;a.click();toast('📦 已備份','ok');}
+function restoreJSON(evt){const f=evt.target.files[0];if(!f)return;const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);employees=d.employees||[];salaryRecords=d.salaryRecords||[];NURSING_FEES=d.nursingFees||[];saveData();saveNursingData();renderAll();toast('📂 已還原','ok');}catch(ex){toast('❌ 還原失敗','err');}};r.readAsText(f);evt.target.value='';}
+function clearAll(){if(!confirm('確定清除所有資料？'))return;if(!confirm('再次確認？無法還原！'))return;employees=[];salaryRecords=[];NURSING_FEES=[];saveData();saveNursingData();renderAll();toast('已清除','info');}
 
-// ════════════════════ INIT ════════════════════════════
-window.addEventListener('DOMContentLoaded', async ()=>{
-  await initData();
-  const url=localStorage.getItem(GAS_KEY)||'';
-  document.getElementById('gasInput').value=url;
-  setMode('month');
-  buildPregOptions();
-  buildMatOptions();
-  // Apply saved language
-  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('on', b.textContent.trim()==={zh:'中文',en:'EN',km:'ខ្មែរ'}[lang]));
-  if (!employees.length && !localStorage.getItem('vrt_user_cleared')) loadSample();
+// ── Fill dept select ──
+function fillDeptSel(id){const sel=document.getElementById(id);if(!sel)return;const depts=[...new Set(employees.map(e=>e.dept).filter(Boolean))].sort();const cur=sel.value;sel.innerHTML='<option value="">—</option>'+depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');}
+
+// ── Sample data ──
+function loadSample(){employees=[{id:uid(),type:'pregnant',idNo:'5062',name:'YOEM RAN',dept:'Line5',position:'Sewing operator',birthday:'1993-08-07',edd:'2026-06-03',status:'pregnant',leaveStart:'',returnDate:'',totalDays:90,registerTime:'2025-11-21',pregnantPeriod:3,basicSalary:239,contactPhone:'Husband 098602056',remark:'Pregnant'},{id:uid(),type:'pregnant',idNo:'5641',name:'SROEURN SOK KHEA',dept:'QC A',position:'Inspector',birthday:'1994-01-12',edd:'2026-03-28',status:'maternity',leaveStart:'2026-03-02',returnDate:'2026-05-30',totalDays:90,registerTime:'2025-10-29',pregnantPeriod:3,basicSalary:237,remark:'Maternity'},{id:uid(),type:'pregnant',idNo:'5442',name:'THOEB SOR',dept:'Line21',position:'Sewing operator',birthday:'1991-12-12',edd:'2026-04-14',status:'maternity',leaveStart:'2026-03-02',returnDate:'2026-05-30',totalDays:90,registerTime:'2025-10-13',pregnantPeriod:3,basicSalary:238,remark:'Maternity'}];salaryRecords=[{id:uid(),type:'salary',idNo:'5641',name:'SROEURN SOK KHEA',month:'2026-03',workDays:23.6,basicSalary:235.6,otPay:27.3,mealFee:4.5,nssf:0,netPay:267.4,remarks:'Maternity'},{id:uid(),type:'salary',idNo:'5641',name:'SROEURN SOK KHEA',month:'2026-02',workDays:26,basicSalary:238,otPay:30,mealFee:5,nssf:0,netPay:273,remarks:''},{id:uid(),type:'salary',idNo:'5442',name:'THOEB SOR',month:'2026-03',workDays:22,basicSalary:238,otPay:0,mealFee:0,nssf:0,netPay:238,remarks:'Mat'}];NURSING_FEES=[{id:uid(),idNo:'5641',name:'SROEURN SOK KHEA',dept:'QC A',amount:100,payDate:'2026-03-15',status:'paid',remark:'March nursing'},{id:uid(),idNo:'5641',name:'SROEURN SOK KHEA',dept:'QC A',amount:100,payDate:'2026-04-15',status:'paid',remark:'April nursing'}];saveData();saveNursingData();renderAll();toast('✅ 範例資料已載入','ok');}
+
+// ── Toast ──
+function toast(msg,type){const el=document.createElement('div');el.className='toast '+(type||'info');el.textContent=msg;document.getElementById('toastEl').appendChild(el);setTimeout(()=>el.remove(),3800);}
+
+// ── Overlays ──
+[...document.querySelectorAll('.overlay')].forEach(ov=>ov.addEventListener('click',e=>{if(e.target===ov)ov.classList.remove('open');}));
+
+// ── Render all ──
+function renderAll(){renderMaster();const active=document.querySelector('.sec.on')?.id;if(active==='sec-pregnant'){fillDeptSel('pregDept');renderPregnant();}if(active==='sec-maternity'){fillDeptSel('matDept');renderMaternity();}if(active==='sec-salary')renderSalary();if(active==='sec-nursing')renderNursing();}
+
+// ── Init ──
+(function(){
+  loadData();
+  lang=localStorage.getItem('vrt_lang')||'zh';
+  document.querySelectorAll('.lb').forEach((b,i)=>b.classList.toggle('on',['zh','en','km'][i]===lang));
+  if(!employees.length&&!localStorage.getItem('vrt_user_cleared'))loadSample();
   else renderAll();
-  renderAnalytics();
-  applyLang();
-});
+  const gasUrl=localStorage.getItem(GAS_KEY)||'';
+  if(document.getElementById('gasInput'))document.getElementById('gasInput').value=gasUrl;
+})();
 </script>
 </body>
 </html>

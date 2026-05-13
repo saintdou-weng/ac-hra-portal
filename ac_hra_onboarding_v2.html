@@ -4,535 +4,329 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AC HRA 入離職管理 v3</title>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Sans+Khmer:wght@400;500&family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-:root{
-  --sky:#1a7abf;--sky2:#0f5a8f;--sky3:#d6eaf8;
-  --navy:#0f1c33;--navy2:#1a2842;--navy3:#263859;
-  --gold:#1a7abf;--gold2:#4A90C4;--gold3:#d6eaf8;
-  --cream:#f0f7ff;--paper:#fff;--line:#cce0f5;
-  --muted:#6b6758;--danger:#a93226;--dbg:#fdecea;
-  --warn:#b45309;--wbg:#fef3c7;--ok:#2d6a4f;--obg:#e8f3ec;
-  --info:#1e4e8c;--ibg:#e8f0fa;
-  --shadow:0 4px 14px rgba(15,28,51,.08);
-}
+:root{--sky:#1a7abf;--sky2:#0f5a8f;--sky3:#d6eaf8;--navy:#0f1c33;--navy2:#1a2842;--cream:#f0f7ff;--paper:#fff;--line:#cce0f5;--muted:#6b6758;--danger:#c62828;--dbg:#fdecea;--warn:#b45309;--wbg:#fef3c7;--ok:#2e7d32;--obg:#e8f3ec;--info:#1e4e8c;--ibg:#e8f0fa;--shadow:0 4px 14px rgba(15,28,51,.08)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;font-family:'Noto Sans TC','Inter',system-ui,sans-serif;background:var(--cream);color:var(--navy);font-size:14px;line-height:1.55}
-
-/* ── Header ── */
-header{background:linear-gradient(135deg,#1a7abf 0%,#0c4f82 100%);color:#fff;padding:12px 20px;border-bottom:3px solid #87ceeb;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
-.brand{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-.brand-mark{width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,var(--gold),var(--gold3));color:var(--navy);display:grid;place-items:center;font-family:'Cormorant Garamond',serif;font-weight:700;font-size:18px;flex-shrink:0}
-.brand-text .t1{font-family:'Cormorant Garamond',serif;font-size:18px;color:var(--gold3)}
-.brand-text .t2{font-size:11px;color:#c4c8d0;letter-spacing:.06em;text-transform:uppercase}
-.hdr-right{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto}
-.lang-sw{display:flex;background:rgba(255,255,255,.08);border-radius:5px;overflow:hidden;border:1px solid rgba(255,255,255,.12)}
-.lang-sw button{background:transparent;color:#c4c8d0;border:none;padding:5px 10px;cursor:pointer;font-size:11px;font-weight:500}
-.lang-sw button.on{background:var(--gold);color:var(--navy);font-weight:700}
-.hbtn{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.15);padding:6px 12px;border-radius:5px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;gap:5px;font-family:inherit}
-.hbtn:hover{background:rgba(201,169,97,.2);border-color:var(--gold)}
-.sync-dot{width:7px;height:7px;border-radius:50%;background:#4b5563;flex-shrink:0;transition:.3s}
-.sync-dot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
-.sync-dot.syncing{background:#f59e0b;animation:pulse .8s infinite}
-.sync-dot.err{background:#ef4444}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
-
-/* ── Cloud bar ── */
-#cloud-bar{background:#fff;border-bottom:1px solid var(--line);padding:7px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:69px;z-index:90}
-.cb-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
-.cb-url{flex:1;min-width:200px;background:var(--cream);border:1px solid var(--line);border-radius:5px;color:var(--navy);padding:5px 8px;font-size:11px;font-family:monospace;outline:none}
-.cb-url:focus{border-color:var(--gold)}
-.cb-btn{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s}
-.cb-save{background:var(--navy2);color:var(--gold3)}
-.cb-push{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
-.cb-push:hover{background:#2a1e00}
-.cb-pull{background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd}
-.cb-pull:hover{background:#0f2040}
-.cb-btn:disabled{opacity:.4;cursor:not-allowed}
-#prog-bar{height:3px;background:var(--line);overflow:hidden;display:none}
-#prog-bar.show{display:block}
-#prog-fill{height:100%;background:var(--gold);width:0%;transition:width .25s}
-
-/* ── Tabs ── */
-nav.tabs{background:#fff;border-bottom:2px solid var(--line);padding:0 20px;display:flex;gap:0;overflow-x:auto;position:sticky;top:111px;z-index:80}
-nav.tabs button{background:transparent;border:none;border-bottom:2px solid transparent;margin-bottom:-2px;padding:10px 14px;cursor:pointer;font-size:13px;color:var(--muted);font-family:inherit;white-space:nowrap;transition:.15s}
-nav.tabs button:hover{color:var(--navy)}
-nav.tabs button.on{color:#0f5a8f;border-bottom-color:#1a7abf;font-weight:600}
-.badge{display:inline-block;background:var(--danger);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px}
-.badge.warn{background:var(--warn)}
-.badge.ok{background:var(--ok)}
-
-/* ── Main content ── */
-main{padding:18px 20px;max-width:1200px;margin:0 auto}
-.page{display:none}.page.on{display:block}
-
-/* ── Range nav ── */
-.range-nav{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.range-tabs{display:flex;background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden}
-.range-tabs button{background:transparent;border:none;padding:5px 12px;cursor:pointer;font-size:12px;color:var(--muted);font-family:inherit}
-.range-tabs button.on{background:var(--navy2);color:#fff;font-weight:600}
-.nav-arrows{display:flex;gap:4px}
-.arr-btn{background:#fff;border:1px solid var(--line);border-radius:4px;width:28px;height:28px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
-.arr-btn:hover{border-color:var(--gold);color:var(--gold)}
-.period-label{font-size:13px;font-weight:600;color:var(--navy2);min-width:120px;text-align:center}
-
-/* ── KPI strip ── */
-.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:16px}
-.kpi{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px;text-align:center;box-shadow:var(--shadow)}
-.kpi.join{border-left:3px solid #10b981}
-.kpi.resign{border-left:3px solid var(--danger)}
-.kpi.warn{border-left:3px solid var(--warn)}
-.kpi-val{font-size:24px;font-weight:700;font-family:monospace;color:var(--navy)}
-.kpi-lbl{font-size:11px;color:var(--muted);margin-top:3px}
-
-/* ── Toolbar ── */
-.toolbar{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center}
-.search-box{flex:1;min-width:160px;padding:7px 10px 7px 30px;border:1px solid var(--line);border-radius:5px;font-size:13px;font-family:inherit;outline:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13' viewBox='0 0 24 24' fill='none' stroke='%236b6758' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 9px center}
-.search-box:focus{border-color:var(--gold)}
-select.flt{padding:6px 10px;border:1px solid var(--line);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;outline:none}
-.btn{padding:7px 14px;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer;border:none;font-family:inherit;transition:.15s;display:inline-flex;align-items:center;gap:5px}
-.btn-primary{background:var(--navy2);color:#fff}
-.btn-primary:hover{background:var(--navy3)}
-.btn-ghost{background:#fff;color:var(--navy);border:1px solid var(--line)}
-.btn-ghost:hover{background:var(--cream)}
-.btn-danger{background:#fff;color:var(--danger);border:1px solid #fca5a5}
-.btn-danger:hover{background:var(--dbg)}
-.btn-tg{background:#0088cc;color:#fff}
-.btn-tg:hover{background:#006da3}
-.btn-sm{padding:5px 10px;font-size:11px}
-
-/* ── View toggle ── */
-.view-toggle{display:flex;background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden}
-.view-toggle button{background:transparent;border:none;padding:5px 9px;cursor:pointer;font-size:13px;color:var(--muted)}
-.view-toggle button.on{background:var(--navy2);color:#fff}
-
-/* ── Table ── */
-.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:6px;max-height:500px;overflow-y:auto}
-table{width:100%;border-collapse:collapse;font-size:12px}
-thead{position:sticky;top:0;z-index:2}
-th{text-align:left;padding:8px 10px;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;border-bottom:2px solid var(--line);background:#f5f3ec;white-space:nowrap}
-td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
-tbody tr:hover td{background:#f5faff}
-.td-mono{font-family:monospace;font-size:11px}
-
-/* ── Cards ── */
-.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:var(--shadow);transition:.2s}
-.card:hover{box-shadow:0 6px 20px rgba(15,28,51,.1);transform:translateY(-1px)}
-.card.join-card{border-left:4px solid #10b981}
-.card.resign-card{border-left:4px solid var(--danger)}
-.card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
-.card-name{font-size:14px;font-weight:700;color:var(--navy)}
-.card-id{font-family:monospace;font-size:11px;color:var(--muted)}
-.card-meta{font-size:11px;color:var(--muted);line-height:1.8}
-.card-foot{display:flex;gap:6px;margin-top:10px;justify-content:flex-end}
+header{background:linear-gradient(135deg,#1a7abf,#0c4f82);color:#fff;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid #87ceeb;flex-wrap:wrap;gap:10px;position:sticky;top:0;z-index:100;box-shadow:var(--shadow)}
+header h1{font-size:18px;color:#e8f4ff}
+.lang-switch{display:flex;gap:4px}
+.lang-switch button{background:transparent;border:1px solid rgba(255,255,255,.3);color:#e8f4ff;padding:4px 10px;cursor:pointer;border-radius:3px;font-size:12px;font-family:inherit}
+.lang-switch button.active{background:rgba(255,255,255,.2);font-weight:bold}
+nav.tabs{background:var(--navy2);display:flex;overflow-x:auto;border-bottom:2px solid #87ceeb;position:sticky;top:61px;z-index:90}
+nav.tabs button{background:transparent;color:#bcd4e8;border:none;padding:10px 16px;cursor:pointer;font-size:13px;white-space:nowrap;border-bottom:3px solid transparent;font-family:inherit}
+nav.tabs button:hover{background:rgba(255,255,255,.08)}
+nav.tabs button.active{border-bottom-color:#87ceeb;background:rgba(255,255,255,.1);color:#fff;font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.page{display:none}.page.active{display:block}
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:6px;padding:16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.panel h2{color:var(--navy);font-size:16px;margin-bottom:12px;border-bottom:2px solid #87ceeb;padding-bottom:6px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+button.btn{background:var(--navy);color:#fff;border:none;padding:6px 14px;border-radius:4px;cursor:pointer;font-size:13px;font-family:inherit;transition:.15s}
+button.btn:hover{background:var(--navy2)}
+button.btn.gold{background:#1a7abf;color:#fff;font-weight:bold}
+button.btn.danger{background:var(--danger)}
+button.btn.ghost{background:transparent;color:var(--navy);border:1px solid var(--navy)}
+button.btn.small{padding:3px 8px;font-size:11px}
+input[type=text],input[type=date],input[type=number],select,textarea{padding:5px 8px;border:1px solid var(--line);border-radius:3px;font-size:13px;background:#fff;font-family:inherit}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--sky)}
+table{width:100%;border-collapse:collapse;font-size:12px;background:#fff}
+table th{background:var(--navy);color:#e8f4ff;padding:6px 8px;text-align:left;position:sticky;top:0;z-index:2}
+table td{padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+tbody tr:hover{background:#f0f7ff}
+.table-scroll{max-height:480px;overflow:auto;border:1px solid var(--line);border-radius:4px}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-bottom:14px}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px;text-align:center;box-shadow:var(--shadow)}
+.kpi-n{font-size:22px;font-weight:700;font-family:monospace;line-height:1;color:var(--navy)}
+.kpi-l{font-size:10px;color:var(--muted);margin-top:3px}
+.kpi.join-k{border-left:3px solid var(--ok)}
+.kpi.resign-k{border-left:3px solid var(--danger)}
+.kpi.info-k{border-left:3px solid var(--sky)}
+.kpi.warn-k{border-left:3px solid var(--warn)}
+.stat-card{background:#fff;padding:14px;border:1px solid var(--line);border-radius:6px;border-left:4px solid var(--sky);text-align:center}
+.stat-card.danger{border-left-color:var(--danger)}
+.stat-card.warning{border-left-color:var(--warn)}
+.stat-card.success{border-left-color:var(--ok)}
+.stat-card .value{font-size:26px;font-weight:bold;color:var(--navy);font-family:monospace}
+.stat-card .label{font-size:12px;color:var(--muted);margin-top:4px}
 .badge-type{display:inline-flex;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
 .badge-join{background:var(--obg);color:var(--ok)}
 .badge-resign{background:var(--dbg);color:var(--danger)}
-.badge-warn{background:var(--wbg);color:var(--warn)}
-
-/* ── Upload zone ── */
-.drop-zone{border:2px dashed var(--line);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:#f5faff;position:relative}
-.drop-zone:hover,.drop-zone.drag{border-color:var(--gold);background:#eaf4ff}
-.drop-zone.done{border-color:var(--ok);border-style:solid;background:var(--obg)}
-.drop-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer}
-
-/* ── Modal ── */
-.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
-.modal-bg.open{display:flex}
-.modal{background:#fff;border-radius:12px;padding:22px;width:540px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
-.modal-title{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
-.modal-x{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);line-height:1}
-.modal-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
-.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.form-grid.g3{grid-template-columns:1fr 1fr 1fr}
-.form-group{display:flex;flex-direction:column;gap:4px}
-.form-group.full{grid-column:1/-1}
-.form-label{font-size:11px;font-weight:600;color:var(--muted)}
-.form-input{padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:13px;font-family:inherit;outline:none}
-.form-input:focus{border-color:var(--gold)}
-textarea.form-input{resize:vertical;min-height:56px}
-
-/* ── Alert / Anomaly ── */
+.reason-tag{display:inline-block;padding:1px 7px;border-radius:8px;font-size:10px;font-weight:700;white-space:nowrap}
 .alert{padding:10px 14px;border-radius:5px;font-size:12px;margin-bottom:8px;border:1px solid;display:flex;align-items:flex-start;gap:8px}
 .alert.danger{background:var(--dbg);border-color:#fca5a5;color:var(--danger)}
 .alert.warn{background:var(--wbg);border-color:#fde68a;color:var(--warn)}
 .alert.ok{background:var(--obg);border-color:#86efac;color:var(--ok)}
-
-/* ── Chart wrap ── */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(2px)}
+.modal-bg.open{display:flex}
+.modal{background:#fff;border-radius:12px;padding:22px;width:580px;max-width:95vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
+.modal-title{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.modal-x{background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted)}
+.modal-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.full{grid-column:1/-1}
+.form-label{font-size:11px;font-weight:600;color:var(--muted)}
+.form-input{padding:7px 9px;border:1px solid var(--line);border-radius:5px;font-size:13px;font-family:inherit;outline:none}
+.form-input:focus{border-color:var(--sky)}
+textarea.form-input{resize:vertical;min-height:56px}
+.range-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.range-tabs{display:flex;background:#fff;border:1px solid var(--line);border-radius:5px;overflow:hidden}
+.range-tabs button{background:transparent;border:none;padding:5px 11px;cursor:pointer;font-size:12px;color:var(--muted);font-family:inherit}
+.range-tabs button.on{background:var(--navy2);color:#fff;font-weight:700}
+.arr-btn{background:#fff;border:1px solid var(--line);border-radius:4px;width:28px;height:28px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.arr-btn:hover{border-color:var(--sky);color:var(--sky)}
+.period-lbl{font-size:13px;font-weight:700;color:var(--navy2);min-width:120px;text-align:center}
+.sum-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#f0f7ff;border-radius:8px;border:1px solid var(--line)}
+.sum-filters label{font-size:10px;font-weight:700;color:var(--sky2);text-transform:uppercase;letter-spacing:.05em}
+.sum-filter-group{display:flex;flex-direction:column;gap:3px}
+.flt{padding:6px 9px;border:1px solid var(--line);border-radius:5px;font-size:12px;font-family:inherit;background:#fff;cursor:pointer;outline:none}
+.sbox{flex:1;min-width:140px;padding:6px 10px 6px 28px;border:1px solid var(--line);border-radius:5px;font-size:12px;font-family:inherit;outline:none;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b6758' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 8px center}
+.sbox:focus{border-color:var(--sky)}
+.rate-bar{height:6px;background:#e8f4fd;border-radius:3px;overflow:hidden;margin-top:3px}
+.rate-fill{height:100%;border-radius:3px;transition:.4s}
+.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:9px;margin-bottom:12px}
+.sum-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:11px 13px;text-align:center;box-shadow:var(--shadow)}
+.sum-card.join-c{border-top:3px solid var(--ok)}
+.sum-card.resign-c{border-top:3px solid var(--danger)}
+.sum-card.info-c{border-top:3px solid var(--sky)}
+.sum-card.warn-c{border-top:3px solid var(--warn)}
+.sum-val{font-size:22px;font-weight:700;font-family:monospace;color:var(--navy);line-height:1}
+.sum-sub{font-size:10px;color:var(--muted);margin-top:2px}
+.sum-lbl{font-size:11px;color:#555;margin-top:4px;font-weight:500}
+.detail-section{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px}
+.detail-hd{font-size:11px;font-weight:700;color:var(--sky2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
+.bd-table{width:100%;border-collapse:collapse;font-size:12px}
+.bd-table th{background:#d6eaf8;color:#0f5a8f;padding:5px 8px;text-align:left;font-size:10px;font-weight:700}
+.bd-table td{padding:5px 8px;border-bottom:1px solid #eef5fc}
+.bd-table tr:hover td{background:#f0f7ff}
+.drop-zone{border:2px dashed var(--line);border-radius:8px;padding:28px 20px;text-align:center;cursor:pointer;transition:.2s;background:#f5faff;position:relative}
+.drop-zone:hover,.drop-zone.drag{border-color:var(--sky);background:#eaf4ff}
+.drop-zone.done{border-color:var(--ok);border-style:solid;background:var(--obg)}
+.drop-zone input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .ch-wrap{position:relative;height:200px;margin-top:10px}
-.section-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
-.section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
-.section-title::before{content:'';width:3px;height:11px;background:var(--gold);border-radius:2px}
-
-/* ── Toast ── */
+.ch-wrap canvas{position:absolute;inset:0;width:100%!important;height:100%!important}
+.section-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+.section-title{font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.section-title::before{content:'';width:3px;height:11px;background:var(--sky);border-radius:2px}
 #toasts{position:fixed;bottom:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:6px;pointer-events:none}
 .toast{background:#fff;border:1px solid var(--line);border-radius:7px;padding:10px 14px;font-size:12px;box-shadow:0 4px 16px rgba(0,0,0,.12);animation:fadeup .2s;pointer-events:auto;max-width:300px}
-.toast.ok{border-left:3px solid var(--ok)}
-.toast.err{border-left:3px solid var(--danger)}
-.toast.warn{border-left:3px solid var(--warn)}
-.toast.info{border-left:3px solid var(--info)}
+.toast.ok{border-left:3px solid var(--ok)}.toast.err{border-left:3px solid var(--danger)}.toast.warn{border-left:3px solid var(--warn)}.toast.info{border-left:3px solid var(--info)}
 @keyframes fadeup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-
-
-/* ── Summary Cards ── */
-.sum-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:16px}
-.sum-card{background:#fff;border:1px solid #cce0f5;border-radius:9px;padding:13px;text-align:center;box-shadow:0 2px 8px rgba(26,122,191,.08)}
-.sum-card.join-c{border-top:3px solid #10b981}
-.sum-card.resign-c{border-top:3px solid #c0392b}
-.sum-card.info-c{border-top:3px solid #1a7abf}
-.sum-card.warn-c{border-top:3px solid #f39c12}
-.sum-val{font-size:26px;font-weight:700;font-family:monospace;color:#0f1c33;line-height:1}
-.sum-sub{font-size:11px;color:#888;margin-top:2px}
-.sum-lbl{font-size:12px;color:#555;margin-top:5px;font-weight:500}
-/* Detail section */
-.detail-section{background:#fff;border:1px solid #cce0f5;border-radius:8px;padding:14px;margin-top:10px}
-.detail-hd{font-size:11px;font-weight:700;color:#1a7abf;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between}
-/* Breakdown table */
-.bd-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:6px}
-.bd-table th{background:#d6eaf8;color:#0f5a8f;padding:5px 8px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.04em}
-.bd-table td{padding:5px 8px;border-bottom:1px solid #e8f4fd;color:#333}
-.bd-table tr:hover td{background:#f0f7ff}
-/* Filter row ++ */
-.sum-filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;padding:10px 14px;background:#f0f7ff;border-radius:8px;border:1px solid #cce0f5}
-.sum-filters label{font-size:10px;font-weight:700;color:#1a7abf;text-transform:uppercase;letter-spacing:.05em}
-.sum-filter-group{display:flex;flex-direction:column;gap:3px}
-/* Progress bar for rate */
-.rate-bar{height:7px;background:#e8f4fd;border-radius:4px;overflow:hidden;margin-top:4px}
-.rate-fill{height:100%;border-radius:4px;transition:.4s}
-@media(max-width:600px){.sum-grid{grid-template-columns:repeat(2,1fr)}}
-
-/* ── Print ── */
-@media print{header,#cloud-bar,nav.tabs,.toolbar,.range-nav,.modal-bg,#toasts,.card-foot,.hdr-right{display:none!important}main{padding:0}table{font-size:11px}th,td{padding:4px 6px}}
-
-/* ── Mobile ── */
-@media(max-width:600px){
-  main{padding:12px}
-  .form-grid,.form-grid.g3{grid-template-columns:1fr}
-  .kpi-strip{grid-template-columns:repeat(2,1fr)}
-  .card-grid{grid-template-columns:1fr}
-  nav.tabs{top:105px}
-  #cloud-bar{top:60px}
-}
+/* Reason category colors */
+.rc-Voluntary{background:#e8f5e9;color:#1b5e20}
+.rc-Attendance{background:#fff3e0;color:#e65100}
+.rc-NoCal{background:#ffebee;color:#b71c1c}
+.rc-Performance{background:#fce4ec;color:#880e4f}
+.rc-Health{background:#e3f2fd;color:#1565c0}
+.rc-Pregnancy{background:#fdf2f8;color:#9d174d}
+.rc-Family{background:#e8eaf6;color:#283593}
+.rc-Relocation{background:#e0f7fa;color:#006064}
+.rc-Transfer{background:#f3e5f5;color:#6a1b9a}
+.rc-ContractEnd{background:#f5f5f5;color:#424242}
+.rc-Dismissal{background:#ffebee;color:#c62828}
+.rc-Salary{background:#fff8e1;color:#f57f17}
+.rc-Personal{background:#f1f8e9;color:#33691e}
+.rc-Other{background:#f5f5f5;color:#616161}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}.sum-grid{grid-template-columns:repeat(2,1fr)}.modal{padding:14px}}
+@media print{header,nav.tabs,.toolbar,.range-nav,.modal-bg,#toasts,button{display:none!important}main{padding:0}table{font-size:10px}th,td{padding:4px 6px}}
 </style>
 </head>
 <body>
-
-<!-- Header -->
 <header>
-  <div class="brand">
-    <div class="brand-mark">HRA</div>
-    <div class="brand-text">
-      <div class="t1" id="hdr-title">入離職管理系統</div>
-      <div class="t2">AC HRA · Vantage River Textiles · Sihanoukville</div>
-    </div>
-    <div class="hdr-right">
-      <div class="lang-sw">
-        <button class="on" onclick="setLang('zh')">中</button>
-        <button onclick="setLang('en')">EN</button>
-        <button onclick="setLang('km')">ខ្មែរ</button>
-      </div>
-      <button class="hbtn" onclick="printPage()">🖨 <span data-i="print">列印</span></button>
-      <button class="hbtn btn-tg" onclick="sendTgSummary()">📱 TG</button>
-      <div style="display:flex;align-items:center;gap:5px">
-        <div class="sync-dot" id="sync-dot"></div>
-        <span style="font-size:11px;color:#c4c8d0" id="sync-lbl">—</span>
-      </div>
+  <h1 id="hdr-title">🚪 AC HRA 入離職管理 v3</h1>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="sendTgSummary()">📱 TG</button>
+    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="printPage()">🖨</button>
+    <div class="lang-switch">
+      <button data-lang="zh" class="active" onclick="setLang('zh')">繁中</button>
+      <button data-lang="en" onclick="setLang('en')">English</button>
+      <button data-lang="km" onclick="setLang('km')">ខ្មែរ</button>
     </div>
   </div>
 </header>
-
-<!-- Cloud bar -->
-<div id="cloud-bar">
-  <span class="cb-label">GAS</span>
-  <input class="cb-url" id="cb-url" type="text" placeholder="https://script.google.com/macros/s/…/exec">
-  <button class="cb-btn cb-save" onclick="saveGas()">儲存</button>
-  <button class="cb-btn cb-push" id="btn-push" onclick="cloudPush()" disabled>☁ Push</button>
-  <button class="cb-btn cb-pull" id="btn-pull" onclick="cloudPull()" disabled>⬇ Pull</button>
-</div>
-<div id="prog-bar"><div id="prog-fill"></div></div>
-
-<!-- Tabs -->
 <nav class="tabs">
-  <button class="on" data-tab="summary" onclick="goTab(this)"><span data-i="tab_summary">📊 總表</span> <span id="bdg-total" class="badge ok" style="display:none">0</span></button>
-  <button data-tab="joins" onclick="goTab(this)"><span data-i="tab_joins">🟢 入職</span> <span id="bdg-join" class="badge ok" style="display:none">0</span></button>
-  <button data-tab="resigns" onclick="goTab(this)"><span data-i="tab_resigns">🔴 離職</span> <span id="bdg-resign" class="badge" style="display:none">0</span></button>
-  <button data-tab="import" onclick="goTab(this)"><span data-i="tab_import">📥 匯入</span></button>
-  <button data-tab="anomaly" onclick="goTab(this)"><span data-i="tab_anomaly">⚠️ 異常</span> <span id="bdg-anomaly" class="badge" style="display:none">0</span></button>
-  <button data-tab="settings" onclick="goTab(this)"><span data-i="tab_settings">⚙️ 設定</span></button>
+  <button data-page="summary" class="active" onclick="goTab(this)">📊 <span data-i="tab_summary">總表</span></button>
+  <button data-page="joins"   onclick="goTab(this)">🟢 <span data-i="tab_joins">入職</span> <span id="bdg-join" class="badge" style="display:none;background:var(--ok);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
+  <button data-page="resigns" onclick="goTab(this)">🔴 <span data-i="tab_resigns">離職</span> <span id="bdg-resign" class="badge" style="display:none;background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
+  <button data-page="import"  onclick="goTab(this)">📥 <span data-i="tab_import">匯入</span></button>
+  <button data-page="anomaly" onclick="goTab(this)">⚠️ <span data-i="tab_anomaly">異常</span> <span id="bdg-anomaly" style="display:none;background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
+  <button data-page="settings" onclick="goTab(this)">⚙️ <span data-i="tab_settings">設定</span></button>
 </nav>
-
 <main>
 
-<!-- ══ SUMMARY ══ -->
-<div class="page on" id="page-summary">
+<!-- SUMMARY -->
+<div class="page active" id="page-summary">
   <div class="range-nav">
     <div class="range-tabs">
-      <button class="on" data-range="day" onclick="setRange('day',this)" data-i="day">日</button>
-      <button data-range="week" onclick="setRange('week',this)" data-i="week">週</button>
-      <button data-range="month" onclick="setRange('month',this)" data-i="month">月</button>
-      <button data-range="year" onclick="setRange('year',this)" data-i="year">年</button>
+      <button class="on" data-r="day"   onclick="setRange('day',this)">日</button>
+      <button data-r="week"  onclick="setRange('week',this)">週</button>
+      <button data-r="month" onclick="setRange('month',this)">月</button>
+      <button data-r="year"  onclick="setRange('year',this)">年</button>
     </div>
-    <div class="nav-arrows">
-      <button class="arr-btn" onclick="moveRange(-1)">◀</button>
-      <button class="arr-btn" onclick="moveRange(1)">▶</button>
-      <button class="arr-btn" onclick="moveRange(0)" title="今天">●</button>
-    </div>
-    <div class="period-label" id="period-label">—</div>
+    <button class="arr-btn" onclick="moveRange(-1)">◀</button>
+    <div class="period-lbl" id="period-label">—</div>
+    <button class="arr-btn" onclick="moveRange(1)">▶</button>
+    <button class="arr-btn" onclick="moveRange(0)" title="今天">●</button>
   </div>
   <div class="kpi-strip" id="sum-kpi"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-    <div class="section-card">
-      <div class="section-title" data-i="join_trend">入職趨勢</div>
-      <div class="ch-wrap"><canvas id="ch-join"></canvas></div>
-    </div>
-    <div class="section-card">
-      <div class="section-title" data-i="resign_trend">離職趨勢</div>
-      <div class="ch-wrap"><canvas id="ch-resign"></canvas></div>
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="section-card"><div class="section-title">入職趨勢</div><div class="ch-wrap"><canvas id="ch-join"></canvas></div></div>
+    <div class="section-card"><div class="section-title">離職趨勢</div><div class="ch-wrap"><canvas id="ch-resign"></canvas></div></div>
+  </div>
+  <div class="section-card">
+    <div class="section-title">離職原因分佈</div>
+    <div class="ch-wrap"><canvas id="ch-reason"></canvas></div>
   </div>
   <div class="section-card" style="margin-top:12px">
-    <div class="section-title" data-i="dept_breakdown">部門分佈</div>
-    <div class="ch-wrap"><canvas id="ch-dept"></canvas></div>
-  </div>
-  <div class="section-card" style="margin-top:12px">
-    <div class="section-title" data-i="monthly_table">月度統計表</div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th data-i="month">月份</th>
-          <th data-i="join_count">入職</th>
-          <th data-i="resign_count">離職</th>
-          <th data-i="net_change">淨增減</th>
-          <th data-i="resign_type_resign">辭職</th>
-          <th data-i="resign_type_dismiss">辭退</th>
-          <th data-i="resign_type_self">自離</th>
-          <th data-i="resign_type_expel">開除</th>
-          <th data-i="turnover_rate">離職率</th>
-        </tr></thead>
-        <tbody id="monthly-tbody"></tbody>
-      </table>
-    </div>
+    <div class="section-title">月度統計表</div>
+    <div class="table-scroll"><table>
+      <thead><tr><th>月份</th><th>入職</th><th>離職</th><th>淨增減</th><th>辭職</th><th>辭退</th><th>自離</th><th>開除</th><th>離職率</th></tr></thead>
+      <tbody id="monthly-tbody"></tbody>
+    </table></div>
   </div>
 </div>
 
-<!-- ══ JOINS ══ -->
+<!-- JOINS -->
 <div class="page" id="page-joins">
-  <!-- Filters bar -->
   <div class="sum-filters">
     <div class="sum-filter-group"><label>月份</label><select class="flt" id="join-month" onchange="renderJoins()"><option value="">全部</option></select></div>
-    <div class="sum-filter-group"><label>部門/組別</label><select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部</option></select></div>
+    <div class="sum-filter-group"><label>部門</label><select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="join-gender" onchange="renderJoins()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>職位</label><select class="flt" id="join-pos" onchange="renderJoins()"><option value="">全部</option></select></div>
-    <input class="search-box" id="join-search" placeholder="搜尋姓名/工號…" oninput="renderJoins()" style="flex:1;min-width:140px">
-    <button class="btn btn-primary btn-sm" onclick="openJoinModal()">＋ 新增</button>
-    <button class="btn btn-ghost btn-sm" onclick="exportJoinsExcel()">⬇ Excel</button>
-    <button class="btn btn-ghost btn-sm" onclick="printPage()">🖨</button>
+    <input class="sbox" id="join-search" placeholder="搜尋姓名/工號…" oninput="renderJoins()" style="flex:1;min-width:140px">
+    <button class="btn gold small" onclick="openJoinModal()">＋ 新增</button>
+    <button class="btn ghost small" onclick="exportJoinsExcel()">⬇ Excel</button>
   </div>
-
-  <!-- Summary cards -->
   <div class="sum-grid" id="join-summary-cards"></div>
-
-  <!-- Breakdown row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-    <div class="detail-section">
-      <div class="detail-hd">部門/組別分佈</div>
-      <table class="bd-table" id="join-dept-breakdown">
-        <thead><tr><th>部門/組別</th><th>人數</th><th>佔比</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="detail-section">
-      <div class="detail-hd">性別 / 年齡分佈</div>
-      <table class="bd-table" id="join-gender-breakdown">
-        <thead><tr><th>類別</th><th>人數</th><th>佔比</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="detail-section"><div class="detail-hd">部門分佈</div><table class="bd-table" id="join-dept-bd"><thead><tr><th>部門</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
+    <div class="detail-section"><div class="detail-hd">性別/年齡分佈</div><table class="bd-table" id="join-gender-bd"><thead><tr><th>類別</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
   </div>
-
-  <!-- Detail list (table only, no cards) -->
   <div class="detail-section">
-    <div class="detail-hd">員工明細列表 <span id="join-count-lbl" style="font-weight:400;color:#888"></span></div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>組別/線</th>
-          <th>職位</th><th>入職日</th><th>性別</th><th>年齡</th><th>電話</th><th>介紹人</th><th>備注</th><th>操作</th>
-        </tr></thead>
-        <tbody id="join-tbody"></tbody>
-      </table>
-    </div>
+    <div class="detail-hd">入職明細 <span id="join-count-lbl" style="font-weight:400;color:#888"></span></div>
+    <div class="table-scroll"><table>
+      <thead><tr><th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>組別</th><th>職位</th><th>入職日</th><th>性別</th><th>年齡</th><th>電話</th><th>介紹人</th><th>備注</th><th>操作</th></tr></thead>
+      <tbody id="join-tbody"></tbody>
+    </table></div>
   </div>
-  <div id="join-empty" class="alert ok" style="display:none;margin-top:12px">尚無入職記錄，請至「匯入」頁面匯入 Excel</div>
 </div>
 
-<!-- ══ RESIGNS ══ -->
+<!-- RESIGNS -->
 <div class="page" id="page-resigns">
-  <!-- Filters bar -->
   <div class="sum-filters">
     <div class="sum-filter-group"><label>月份</label><select class="flt" id="resign-month" onchange="renderResigns()"><option value="">全部</option></select></div>
-    <div class="sum-filter-group"><label>部門/組別</label><select class="flt" id="resign-dept" onchange="renderResigns()"><option value="">全部</option></select></div>
+    <div class="sum-filter-group"><label>部門</label><select class="flt" id="resign-dept" onchange="renderResigns()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="resign-gender" onchange="renderResigns()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>離職類型</label><select class="flt" id="resign-type" onchange="renderResigns()"><option value="">全部</option><option value="resign">辭職</option><option value="dismiss">辭退</option><option value="self">自離</option><option value="expel">開除</option></select></div>
-    <div class="sum-filter-group"><label>年資</label><select class="flt" id="resign-tenure" onchange="renderResigns()"><option value="">全部</option><option value="lt1">＜1年</option><option value="1to3">1-3年</option><option value="3to5">3-5年</option><option value="gt5">5年以上</option></select></div>
-    <input class="search-box" id="resign-search" placeholder="搜尋姓名/工號…" oninput="renderResigns()" style="flex:1;min-width:140px">
-    <button class="btn btn-primary btn-sm" onclick="openResignModal()">＋ 新增</button>
-    <button class="btn btn-ghost btn-sm" onclick="exportResignsExcel()">⬇ Excel</button>
-    <button class="btn btn-ghost btn-sm" onclick="printPage()">🖨</button>
+    <div class="sum-filter-group"><label>原因分類</label><select class="flt" id="resign-reason-cat" onchange="renderResigns()"><option value="">全部</option></select></div>
+    <input class="sbox" id="resign-search" placeholder="搜尋姓名/工號…" oninput="renderResigns()" style="flex:1;min-width:140px">
+    <button class="btn gold small" onclick="openResignModal()">＋ 新增</button>
+    <button class="btn ghost small" onclick="exportResignsExcel()">⬇ Excel</button>
   </div>
-
-  <!-- Summary cards -->
   <div class="sum-grid" id="resign-summary-cards"></div>
-
-  <!-- Breakdown row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-    <div class="detail-section">
-      <div class="detail-hd">離職類型分佈</div>
-      <table class="bd-table" id="resign-type-breakdown">
-        <thead><tr><th>類型</th><th>人數</th><th>佔比</th><th>相對入職率</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="detail-section">
-      <div class="detail-hd">部門/年資分佈</div>
-      <table class="bd-table" id="resign-dept-breakdown">
-        <thead><tr><th>部門/組別</th><th>人數</th><th>平均年資</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="detail-section"><div class="detail-hd">離職原因分類分佈</div><table class="bd-table" id="resign-reason-bd"><thead><tr><th>原因</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
+    <div class="detail-section"><div class="detail-hd">部門/年資分佈</div><table class="bd-table" id="resign-dept-bd"><thead><tr><th>部門</th><th>人數</th><th>平均年資</th></tr></thead><tbody></tbody></table></div>
   </div>
-
-  <!-- Detail list (table only) -->
   <div class="detail-section">
-    <div class="detail-hd">離職員工明細 <span id="resign-count-lbl" style="font-weight:400;color:#888"></span></div>
-    <div class="tbl-wrap">
-      <table>
-        <thead><tr>
-          <th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>組別/線</th>
-          <th>職位</th><th>入職日</th><th>離職日</th><th>年資</th><th>性別</th>
-          <th>類型</th><th>原因</th><th>備注</th><th>操作</th>
-        </tr></thead>
-        <tbody id="resign-tbody"></tbody>
-      </table>
-    </div>
+    <div class="detail-hd">離職明細 <span id="resign-count-lbl" style="font-weight:400;color:#888"></span></div>
+    <div class="table-scroll"><table>
+      <thead><tr><th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>職位</th><th>入職日</th><th>離職日</th><th>年資</th><th>性別</th><th>類型</th><th>原因分類</th><th>補充說明</th><th>操作</th></tr></thead>
+      <tbody id="resign-tbody"></tbody>
+    </table></div>
   </div>
-  <div id="resign-empty" class="alert ok" style="display:none;margin-top:12px">尚無離職記錄</div>
 </div>
 
-<!-- ══ IMPORT ══ -->
+<!-- IMPORT -->
 <div class="page" id="page-import">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
     <div class="section-card">
-      <div class="section-title">📥 Excel / MSG 匯入</div>
+      <div class="section-title">📥 Excel 匯入</div>
       <div style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.8">
-        支援每月 <b>Join/Resign Excel</b> 或 <b>.msg/.eml</b> 夾帶的 Excel。<br>
-        自動識別 <code style="background:#f0ede4;padding:1px 4px;border-radius:3px">Jion</code> 和 <code style="background:#f0ede4;padding:1px 4px;border-radius:3px">Resign</code> 工作表。<br>
-        已匯入的工號會自動跳過（不重複）。
+        支援每月 <b>Join/Resign Excel</b> 或 <b>.msg/.eml</b>。<br>自動識別 <code>Jion</code> 和 <code>Resign</code> 工作表。<br>已匯入的工號自動跳過（不重複）。
       </div>
-      <div class="drop-zone" id="dz-main" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="onDrop(event,'main')">
-        <input type="file" accept=".xlsx,.xls,.msg,.eml" multiple onchange="onFileSelect(event,'main')">
+      <div class="drop-zone" id="dz-main" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="onDrop(event)">
+        <input type="file" accept=".xlsx,.xls,.msg,.eml" multiple onchange="onFileSelect(event)">
         <div style="font-size:32px;margin-bottom:8px">📥</div>
         <div style="font-weight:600;margin-bottom:4px">拖放檔案到這裡</div>
         <div style="font-size:11px;color:var(--muted)">.xlsx · .xls · .msg · .eml</div>
       </div>
       <div id="file-list" style="margin-top:10px"></div>
       <div style="display:flex;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-primary" id="btn-parse" onclick="parseFiles()" disabled>🔍 解析匯入</button>
+        <button class="btn gold" id="btn-parse" onclick="parseFiles()" disabled>🔍 解析匯入</button>
         <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer">
-          <input type="checkbox" id="chk-overwrite"> <span data-i="overwrite_dates">覆蓋已匯入記錄</span>
+          <input type="checkbox" id="chk-overwrite"> 覆蓋已匯入記錄
         </label>
         <span id="parse-status" style="font-size:11px;color:var(--muted)"></span>
       </div>
     </div>
     <div class="section-card">
-      <div class="section-title">📋 欄位格式說明</div>
+      <div class="section-title">📋 欄位格式</div>
       <div style="font-size:11px;color:var(--muted);line-height:2">
-        <b>入職 (Jion sheet)：</b><br>
-        STT, Join date, Dept, Section, Pos, ID number, Name, Gender, Date of Birth, Address, Telephone, Remark<br><br>
-        <b>離職 (Resign sheet)：</b><br>
-        序號, 工號(ID), 姓名(Name), 到職日期, 部門, 職務, 性別, 出生日期, 辭職√/辭退√/自離√/開除√, 離職日期, 在職天數, 離職原因, 備注<br><br>
-        <button class="btn btn-ghost btn-sm" onclick="downloadTemplate()">⬇ 下載範本</button>
+        <b>入職 (Jion)：</b>STT, Join date, Dept, Section, Pos, ID number, Name, Gender, Date of Birth, Address, Telephone, Remark<br><br>
+        <b>離職 (Resign)：</b>序號, 工號, 姓名, 到職日期, 部門, 職務, 性別, 出生日期, 辭職√/辭退√/自離√/開除√, 離職日期, 在職天數, 離職原因, 備注<br><br>
+        <button class="btn ghost small" onclick="downloadTemplate()">⬇ 下載範本</button>
       </div>
     </div>
   </div>
-  <!-- Preview -->
   <div id="import-preview" style="display:none">
     <div class="section-card">
       <div class="section-title">解析預覽</div>
       <div id="preview-content"></div>
       <div style="display:flex;gap:8px;margin-top:12px">
-        <button class="btn btn-primary" onclick="confirmImport()">✓ 確認匯入</button>
-        <button class="btn btn-ghost" onclick="cancelImport()">取消</button>
+        <button class="btn gold" onclick="confirmImport()">✓ 確認匯入</button>
+        <button class="btn ghost" onclick="cancelImport()">取消</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ══ ANOMALY ══ -->
+<!-- ANOMALY -->
 <div class="page" id="page-anomaly">
   <div class="toolbar">
-    <button class="btn btn-primary btn-sm" onclick="runAnomalyCheck()">🔍 <span data-i="refresh_check">重新檢查</span></button>
-    <button class="btn btn-tg btn-sm" onclick="sendAnomalyTg()">📱 <span data-i="send_tg">發送 Telegram</span></button>
+    <button class="btn gold small" onclick="runAnomalyCheck()">🔍 重新檢查</button>
+    <button class="btn small" style="background:#0088cc" onclick="sendAnomalyTg()">📱 Telegram</button>
   </div>
   <div id="anomaly-list"><div class="alert ok">✅ 點「重新檢查」掃描異常</div></div>
 </div>
 
-<!-- ══ SETTINGS ══ -->
+<!-- SETTINGS -->
 <div class="page" id="page-settings">
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
     <div class="section-card">
-      <div class="section-title">☁️ 雲端 / Telegram 設定</div>
+      <div class="section-title">☁️ 雲端 / Telegram</div>
       <div class="form-grid" style="margin-bottom:12px">
-        <div class="form-group full">
-          <label class="form-label">GAS URL</label>
-          <input class="form-input" id="set-gas" type="text" style="font-family:monospace">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Bot Token</label>
-          <input class="form-input" id="set-tg-token" type="password">
-        </div>
-        <div class="form-group">
-          <label class="form-label">Chat ID</label>
-          <input class="form-input" id="set-tg-chat">
-        </div>
+        <div class="form-group full"><label class="form-label">GAS URL</label><input class="form-input" id="set-gas" type="text" style="font-family:monospace"></div>
+        <div class="form-group"><label class="form-label">Bot Token</label><input class="form-input" id="set-tg-token" type="password"></div>
+        <div class="form-group"><label class="form-label">Chat ID</label><input class="form-input" id="set-tg-chat"></div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="saveSettings()">💾 儲存設定</button>
-        <button class="btn btn-ghost btn-sm" onclick="testTg()">📱 測試 Telegram</button>
-        <button class="btn btn-ghost btn-sm" onclick="testGas()">🔌 測試 GAS</button>
+        <button class="btn gold small" onclick="saveSettings()">💾 儲存</button>
+        <button class="btn ghost small" onclick="testTg()">📱 測試 TG</button>
+        <button class="btn ghost small" onclick="testGas()">🔌 測試 GAS</button>
       </div>
     </div>
     <div class="section-card">
       <div class="section-title">🏭 部門清單</div>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">每行一個部門，用於表單下拉選單</div>
       <textarea class="form-input" id="set-depts" rows="8" style="width:100%;font-family:monospace;font-size:12px"></textarea>
-      <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="saveDepts()">儲存部門清單</button>
+      <button class="btn gold small" style="margin-top:8px" onclick="saveDepts()">儲存</button>
     </div>
-    <div class="section-card">
+    <div class="section-card" style="grid-column:1/-1">
       <div class="section-title">💾 資料管理</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-ghost btn-sm" onclick="backupJSON()">📦 備份 JSON</button>
-        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('restore-file').click()">📂 還原 JSON</button>
+        <button class="btn ghost small" onclick="backupJSON()">📦 備份 JSON</button>
+        <button class="btn ghost small" onclick="document.getElementById('restore-file').click()">📂 還原 JSON</button>
         <input type="file" id="restore-file" accept=".json" style="display:none" onchange="restoreJSON(event)">
-        <button class="btn btn-danger btn-sm" style="margin-left:auto" onclick="clearAllData()">🗑 清除所有資料</button>
+        <button class="btn danger small" style="margin-left:auto" onclick="clearAllData()">🗑 清除所有資料</button>
       </div>
-      <div style="margin-top:10px;font-size:11px;color:var(--muted)" id="data-stats"></div>
-    </div>
-    <div class="section-card">
-      <div class="section-title">ℹ️ 系統資訊</div>
-      <div style="font-size:12px;line-height:2">
-        版本：AC HRA Onboarding v3<br>
-        資料：localStorage (ac_hra_joins / ac_hra_resigns)<br>
-        雲端：GAS Drive JSON<br>
-        CHUNK_SIZE：5000 筆/批
-      </div>
+      <div style="margin-top:8px;font-size:11px;color:var(--muted)" id="data-stats"></div>
     </div>
   </div>
 </div>
-
 </main>
 
 <!-- Join Modal -->
@@ -546,16 +340,15 @@ textarea.form-input{resize:vertical;min-height:56px}
       <div class="form-group"><label class="form-label">部門 Dept</label><select class="form-input" id="mj-dept"></select></div>
       <div class="form-group"><label class="form-label">組別 Section</label><input class="form-input" id="mj-section"></div>
       <div class="form-group"><label class="form-label">職位 Position</label><input class="form-input" id="mj-pos"></div>
-      <div class="form-group"><label class="form-label">性別 Gender</label><select class="form-input" id="mj-gender"><option value="F">F</option><option value="M">M</option></select></div>
-      <div class="form-group"><label class="form-label">出生日期 DOB</label><input class="form-input" type="date" id="mj-dob"></div>
-      <div class="form-group"><label class="form-label">電話 Tel</label><input class="form-input" id="mj-tel"></div>
-      <div class="form-group"><label class="form-label">地址 Address</label><input class="form-input" id="mj-addr"></div>
-      <div class="form-group"><label class="form-label">介紹人 Introducer</label><input class="form-input" id="mj-intro"></div>
-      <div class="form-group full"><label class="form-label">備注 Remark</label><textarea class="form-input" id="mj-remark"></textarea></div>
+      <div class="form-group"><label class="form-label">性別</label><select class="form-input" id="mj-gender"><option value="F">F</option><option value="M">M</option></select></div>
+      <div class="form-group"><label class="form-label">出生日期</label><input class="form-input" type="date" id="mj-dob"></div>
+      <div class="form-group"><label class="form-label">電話</label><input class="form-input" id="mj-tel"></div>
+      <div class="form-group"><label class="form-label">介紹人</label><input class="form-input" id="mj-intro"></div>
+      <div class="form-group full"><label class="form-label">備注</label><textarea class="form-input" id="mj-remark"></textarea></div>
     </div>
     <div class="modal-acts">
-      <button class="btn btn-ghost" onclick="closeModal('modal-join')">取消</button>
-      <button class="btn btn-primary" onclick="saveJoin()">💾 儲存</button>
+      <button class="btn ghost" onclick="closeModal('modal-join')">取消</button>
+      <button class="btn gold" onclick="saveJoin()">💾 儲存</button>
     </div>
   </div>
 </div>
@@ -568,7 +361,7 @@ textarea.form-input{resize:vertical;min-height:56px}
       <div class="form-group"><label class="form-label">工號 ID</label><input class="form-input" id="mr-id"></div>
       <div class="form-group full"><label class="form-label">姓名 Name *</label><input class="form-input" id="mr-name"></div>
       <div class="form-group"><label class="form-label">部門 Dept</label><select class="form-input" id="mr-dept"></select></div>
-      <div class="form-group"><label class="form-label">職位 Position</label><input class="form-input" id="mr-pos"></div>
+      <div class="form-group"><label class="form-label">職位</label><input class="form-input" id="mr-pos"></div>
       <div class="form-group"><label class="form-label">性別</label><select class="form-input" id="mr-gender"><option value="F">F</option><option value="M">M</option></select></div>
       <div class="form-group"><label class="form-label">入職日期</label><input class="form-input" type="date" id="mr-joindate"></div>
       <div class="form-group"><label class="form-label">離職日期 *</label><input class="form-input" type="date" id="mr-date"></div>
@@ -581,1313 +374,196 @@ textarea.form-input{resize:vertical;min-height:56px}
           <option value="expel">開除 Expelled</option>
         </select>
       </div>
-      <div class="form-group full"><label class="form-label">離職原因 Reason</label><input class="form-input" id="mr-reason"></div>
-      <div class="form-group full"><label class="form-label">備注 Remark</label><textarea class="form-input" id="mr-remark"></textarea></div>
+      <!-- NEW: Reason Category -->
+      <div class="form-group full"><label class="form-label">離職原因分類 Reason Category *</label>
+        <select class="form-input" id="mr-reason-cat">
+          <option value="">— 選擇類別 —</option>
+          <option value="Voluntary">Voluntary 自願辭職</option>
+          <option value="Attendance">Attendance 出勤問題</option>
+          <option value="No Call">No Call 無故曠職</option>
+          <option value="Performance">Performance 績效不符</option>
+          <option value="Health">Health 健康因素</option>
+          <option value="Pregnancy">Pregnancy 懷孕/育兒</option>
+          <option value="Family">Family 家庭因素</option>
+          <option value="Relocation">Relocation 搬遷</option>
+          <option value="Transfer">Transfer 調往他廠</option>
+          <option value="Contract End">Contract End 合約到期</option>
+          <option value="Dismissal">Dismissal 公司辭退</option>
+          <option value="Salary">Salary 薪資問題</option>
+          <option value="Personal">Personal 個人因素</option>
+          <option value="Other">Other 其他</option>
+        </select>
+      </div>
+      <div class="form-group full"><label class="form-label">補充說明 Detail（選填）</label><input class="form-input" id="mr-reason" placeholder="可填寫補充說明"></div>
+      <div class="form-group full"><label class="form-label">備注</label><textarea class="form-input" id="mr-remark"></textarea></div>
     </div>
     <div class="modal-acts">
-      <button class="btn btn-ghost" onclick="closeModal('modal-resign')">取消</button>
-      <button class="btn btn-primary" onclick="saveResign()">💾 儲存</button>
+      <button class="btn ghost" onclick="closeModal('modal-resign')">取消</button>
+      <button class="btn gold" onclick="saveResign()">💾 儲存</button>
     </div>
   </div>
 </div>
 
 <div id="toasts"></div>
-
 <script>
-// ════════════════════════════════════════════════════════
-// AC HRA Onboarding v3
-// Join + Resign: Excel import, Cloud, i18n, Day/Week/Month/Year
-// ════════════════════════════════════════════════════════
-const VER       = 'ac_hra_ob_v3';
-const K_JOINS   = 'ac_hra_joins';
-const K_RESIGNS = 'ac_hra_resigns';
-const K_SETS    = 'ac_hra_ob_settings';
-const K_DEPTS   = 'ac_hra_ob_depts';
-const K_GAS     = 'ac_hra_gas_url';
-const CHUNK     = 5000;
+// ═══════════════════════════════════════
+// AC HRA Onboarding v3 — with Resign Reason Category
+// ═══════════════════════════════════════
+const K_JOINS='ac_hra_joins',K_RESIGNS='ac_hra_resigns',K_SETS='ac_hra_ob_settings',K_DEPTS='ac_hra_ob_depts',K_GAS='ac_hra_gas_url';
+let JOINS=[],RESIGNS=[],SETS={},LANG='zh',RANGE='month',pivotDate=new Date();
+let _editJoinId=null,_editResignId=null,_pendingFiles=[],_importBuf={joins:[],resigns:[]};
+let _charts={};
 
-// ── Data ─────────────────────────────────────────────────
-let JOINS   = [];
-let RESIGNS = [];
-let SETS    = {};
-let LANG    = 'zh';
-let RANGE   = 'month';
-let PIVOT   = new Date().toISOString().slice(0,7); // YYYY-MM for month
-let pivotDate = new Date();
-
-let _editJoinId   = null;
-let _editResignId = null;
-let _pendingFiles = [];
-let _importBuf    = {joins:[], resigns:[]};
-let _joinView     = 'card';
-let _resignView   = 'card';
-let _gasUrl       = '';
-let _charts       = {};
-
-// ── i18n ──────────────────────────────────────────────────
-const T = {
-  zh:{
-    tab_summary:'📊 總表', tab_joins:'🟢 入職', tab_resigns:'🔴 離職', tab_import:'📥 匯入',
-    tab_anomaly:'⚠️ 異常', tab_settings:'⚙️ 設定',
-    print:'列印', add:'新增', day:'日', week:'週', month:'月', year:'年',
-    join_count:'入職', resign_count:'離職', net_change:'淨增減', month:'月份',
-    resign_type_resign:'辭職', resign_type_dismiss:'辭退', resign_type_self:'自離', resign_type_expel:'開除',
-    turnover_rate:'離職率', join_trend:'入職趨勢', resign_trend:'離職趨勢',
-    dept_breakdown:'部門分佈', monthly_table:'月度統計表',
-    overwrite_dates:'覆蓋已匯入記錄', refresh_check:'重新檢查', send_tg:'發送 Telegram',
-    an_dup_id:'重複工號', an_young:'年齡異常（<18）', an_date:'日期異常',
-    an_no_dept:'缺部門', an_days:'在職天數異常',
-    hdr_title:'入離職管理系統',
-  },
-  en:{
-    tab_summary:'📊 Summary', tab_joins:'🟢 Joins', tab_resigns:'🔴 Resigns', tab_import:'📥 Import',
-    tab_anomaly:'⚠️ Anomaly', tab_settings:'⚙️ Settings',
-    print:'Print', add:'Add', day:'Day', week:'Week', month:'Month', year:'Year',
-    join_count:'Joins', resign_count:'Resigns', net_change:'Net', month:'Month',
-    resign_type_resign:'Resigned', resign_type_dismiss:'Dismissed', resign_type_self:'Self-resign', resign_type_expel:'Expelled',
-    turnover_rate:'Turnover', join_trend:'Join Trend', resign_trend:'Resign Trend',
-    dept_breakdown:'By Dept', monthly_table:'Monthly Table',
-    overwrite_dates:'Overwrite existing', refresh_check:'Re-check', send_tg:'Send Telegram',
-    an_dup_id:'Duplicate ID', an_young:'Age <18', an_date:'Date error',
-    an_no_dept:'Missing dept', an_days:'Working days error',
-    hdr_title:'Join / Resign Management',
-  },
-  km:{
-    tab_summary:'📊 សង្ខេប', tab_joins:'🟢 ចូល', tab_resigns:'🔴 ចេញ', tab_import:'📥 នាំចូល',
-    tab_anomaly:'⚠️ ខុសប្រក្រតី', tab_settings:'⚙️ ការកំណត់',
-    print:'បោះពុម្ព', add:'បន្ថែម', day:'ថ្ងៃ', week:'សប្តាហ៍', month:'ខែ', year:'ឆ្នាំ',
-    join_count:'ចូល', resign_count:'ចេញ', net_change:'ផ្លាស់ប្ដូរ', month:'ខែ',
-    resign_type_resign:'លាឈប់', resign_type_dismiss:'ធ្លាក់ការ', resign_type_self:'ចេញផ្ទាល់', resign_type_expel:'បណ្ដេញ',
-    turnover_rate:'អត្រាចេញ', join_trend:'និន្នាការចូល', resign_trend:'និន្នាការចេញ',
-    dept_breakdown:'តាមផ្នែក', monthly_table:'តារាងប្រចាំខែ',
-    overwrite_dates:'សរសេរជាន់', refresh_check:'ពិនិត្យឡើងវិញ', send_tg:'ផ្ញើ Telegram',
-    an_dup_id:'ID ស្ទួន', an_young:'អាយុ<18', an_date:'កាលបរិច្ឆេទខុស',
-    an_no_dept:'ខ្វះផ្នែក', an_days:'ថ្ងៃធ្វើការខុស',
-    hdr_title:'ការគ្រប់គ្រងចូល/ចេញ',
-  },
-};
-function t(k){return T[LANG]?.[k]||T.zh[k]||k;}
-function setLang(l){
-  LANG=l;
-  document.querySelectorAll('.lang-sw button').forEach((b,i)=>b.classList.toggle('on',['zh','en','km'][i]===l));
-  document.querySelectorAll('[data-i]').forEach(el=>{const v=t(el.dataset.i);if(v)el.textContent=v;});
-  document.getElementById('hdr-title').textContent=t('hdr_title');
-  renderAll();
+// ── Reason Categories ──
+const REASON_CATS=['Voluntary','Attendance','No Call','Performance','Health','Pregnancy','Family','Relocation','Transfer','Contract End','Dismissal','Salary','Personal','Other'];
+const REASON_COLORS={'Voluntary':'#e8f5e9:#1b5e20','Attendance':'#fff3e0:#e65100','No Call':'#ffebee:#b71c1c','Performance':'#fce4ec:#880e4f','Health':'#e3f2fd:#1565c0','Pregnancy':'#fdf2f8:#9d174d','Family':'#e8eaf6:#283593','Relocation':'#e0f7fa:#006064','Transfer':'#f3e5f5:#6a1b9a','Contract End':'#f5f5f5:#424242','Dismissal':'#ffebee:#c62828','Salary':'#fff8e1:#f57f17','Personal':'#f1f8e9:#33691e','Other':'#f5f5f5:#616161'};
+function getReasonBadge(r){
+  if(!r)return'—';
+  const cat=r.reasonCat||'',det=r.reason||'';
+  if(!cat)return det?`<span style="font-size:11px">${det}</span>`:'—';
+  const colors=REASON_COLORS[cat];
+  const[bg,color]=colors?colors.split(':'):['#f5f5f5','#616161'];
+  return`<span class="reason-tag" style="background:${bg};color:${color}">${cat}</span>${det?` <span style="font-size:10px;color:#6b7a9e">${det}</span>`:''}`;
 }
-
-// ── Load / Save ───────────────────────────────────────────
-function loadData(){
-  try{JOINS  =JSON.parse(localStorage.getItem(K_JOINS)||'[]');}catch(e){JOINS=[];}
-  try{RESIGNS=JSON.parse(localStorage.getItem(K_RESIGNS)||'[]');}catch(e){RESIGNS=[];}
-  try{SETS   =JSON.parse(localStorage.getItem(K_SETS)||'{}');}catch(e){SETS={};}
-  _gasUrl = localStorage.getItem(K_GAS)||'';
-  if(_gasUrl){
-    document.getElementById('cb-url').value=_gasUrl;
-    document.getElementById('btn-push').disabled=false;
-    document.getElementById('btn-pull').disabled=false;
-  }
-}
-function saveJoins()  {localStorage.setItem(K_JOINS,   JSON.stringify(JOINS));}
-function saveResigns(){localStorage.setItem(K_RESIGNS, JSON.stringify(RESIGNS));}
-
-// ── Tabs ──────────────────────────────────────────────────
-function goTab(btn){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
-  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  const tab = btn.dataset.tab;
-  document.getElementById('page-'+tab).classList.add('on');
-  if(tab==='summary')   renderSummary();
-  if(tab==='joins')     renderJoins();
-  if(tab==='resigns')   renderResigns();
-  if(tab==='anomaly')   runAnomalyCheck();
-  if(tab==='settings')  loadSettingsForm();
-}
-
-// ── Range nav ─────────────────────────────────────────────
-function setRange(r, btn){
-  RANGE=r;
-  document.querySelectorAll('.range-tabs button').forEach(b=>b.classList.remove('on'));
-  btn.classList.add('on');
-  renderSummary();
-}
-function moveRange(dir){
-  const d=new Date(pivotDate);
-  if(dir===0){pivotDate=new Date();}
-  else if(RANGE==='day'){pivotDate=new Date(d.setDate(d.getDate()+dir));}
-  else if(RANGE==='week'){pivotDate=new Date(d.setDate(d.getDate()+dir*7));}
-  else if(RANGE==='month'){pivotDate=new Date(d.setMonth(d.getMonth()+dir));}
-  else if(RANGE==='year'){pivotDate=new Date(d.setFullYear(d.getFullYear()+dir));}
-  renderSummary();
-}
-function getRangeDates(){
-  const d=new Date(pivotDate); d.setHours(0,0,0,0);
-  let start,end,label;
-  if(RANGE==='day'){
-    start=new Date(d);end=new Date(d);end.setDate(end.getDate()+1);
-    label=d.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});
-  }else if(RANGE==='week'){
-    const dow=d.getDay()||7;
-    start=new Date(d);start.setDate(d.getDate()-dow+1);
-    end=new Date(start);end.setDate(start.getDate()+7);
-    label=`${start.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})} – ${new Date(end-1).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})}`;
-  }else if(RANGE==='month'){
-    start=new Date(d.getFullYear(),d.getMonth(),1);
-    end=new Date(d.getFullYear(),d.getMonth()+1,1);
-    label=`${d.getFullYear()}年${d.getMonth()+1}月`;
-  }else{
-    start=new Date(d.getFullYear(),0,1);
-    end=new Date(d.getFullYear()+1,0,1);
-    label=`${d.getFullYear()}年`;
-  }
-  const s=start.toISOString().slice(0,10);
-  const e=end.toISOString().slice(0,10);
-  return{start:s,end:e,label};
-}
-function inRange(dateStr,start,end){return dateStr>=start&&dateStr<end;}
-
-// ── Summary render ────────────────────────────────────────
-function renderSummary(){
-  const {start,end,label}=getRangeDates();
-  document.getElementById('period-label').textContent=label;
-
-  const joins  =JOINS.filter(r=>inRange(r.joinDate||'',start,end));
-  const resigns=RESIGNS.filter(r=>inRange(r.resignDate||'',start,end));
-
-  // KPI
-  const types=['resign','dismiss','self','expel'];
-  const kpis=[
-    {v:joins.length,  l:t('join_count'),  cls:'join'},
-    {v:resigns.length,l:t('resign_count'),cls:'resign'},
-    {v:joins.length-resigns.length, l:t('net_change'), cls:joins.length>=resigns.length?'join':'resign'},
-    ...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length, l:t('resign_type_'+tp), cls:''})),
-  ];
-  document.getElementById('sum-kpi').innerHTML=kpis.map(k=>`
-    <div class="kpi ${k.cls}">
-      <div class="kpi-val" style="${k.v<0?'color:var(--danger)':''}">${k.v<0?k.v:'+'+k.v!=='+'+k.v?k.v:k.v}</div>
-      <div class="kpi-lbl">${k.l}</div>
-    </div>`).join('');
-
-  // Charts - trend by date within range
-  renderTrendCharts(joins,resigns,start,end);
-  renderDeptChart(joins,resigns);
-  renderMonthlyTable();
-}
-
-function renderTrendCharts(joins,resigns,start,end){
-  // Build date labels
-  const labels=[],joinData=[],resignData=[];
-  const s=new Date(start),e=new Date(end);
-  const days=Math.ceil((e-s)/86400000);
-  const useMonthly=days>90;
-
-  if(useMonthly){
-    // Group by month
-    const jm={},rm={};
-    joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});
-    resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});
-    const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();
-    months.forEach(m=>{labels.push(m.slice(5));joinData.push(jm[m]||0);resignData.push(rm[m]||0);});
-  }else{
-    for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){
-      const ds=d.toISOString().slice(0,10);
-      labels.push(ds.slice(5));
-      joinData.push(joins.filter(r=>r.joinDate===ds).length);
-      resignData.push(resigns.filter(r=>r.resignDate===ds).length);
-    }
-  }
-
-  makeChart('ch-join',{type:'bar',data:{labels,datasets:[{label:t('join_count'),data:joinData,backgroundColor:'#10b981',borderRadius:3}]},options:{...barOpts()}});
-  makeChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:t('resign_count'),data:resignData,backgroundColor:'#a93226',borderRadius:3}]},options:{...barOpts()}});
-}
-
-function renderDeptChart(joins,resigns){
-  const depts={};
-  joins.forEach(r=>{const d=normDept(r.dept)||'—';depts[d]=(depts[d]||{j:0,r:0});depts[d].j++;});
-  resigns.forEach(r=>{const d=normDept(r.dept)||'—';depts[d]=(depts[d]||{j:0,r:0});depts[d].r++;});
-  const labels=Object.keys(depts).sort();
-  makeChart('ch-dept',{type:'bar',data:{labels,datasets:[
-    {label:t('join_count'),data:labels.map(l=>depts[l].j),backgroundColor:'#10b981',borderRadius:3},
-    {label:t('resign_count'),data:labels.map(l=>depts[l].r),backgroundColor:'#a93226',borderRadius:3},
-  ]},options:{...barOpts(),indexAxis:'y'}});
-}
-
-function renderMonthlyTable(){
-  const months=[...new Set([
-    ...JOINS.map(r=>(r.joinDate||'').slice(0,7)),
-    ...RESIGNS.map(r=>(r.resignDate||'').slice(0,7)),
-  ].filter(Boolean))].sort().reverse().slice(0,24);
-
-  const tbody=document.getElementById('monthly-tbody');
-  if(!months.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">尚無資料</td></tr>';return;}
-
-  const avgJ=JOINS.length>0?(JOINS.length/months.length).toFixed(1):0;
-  tbody.innerHTML=months.map(m=>{
-    const joins  =JOINS.filter(r=>(r.joinDate||'').startsWith(m)).length;
-    const resigns=RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)).length;
-    const net=joins-resigns;
-    const rTypes=['resign','dismiss','self','expel'].map(tp=>RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)&&r.resignType===tp).length);
-    const rate=avgJ>0?((resigns/avgJ)*100).toFixed(1)+'%':'—';
-    return `<tr>
-      <td class="td-mono">${m}</td>
-      <td style="color:var(--ok);font-weight:700">+${joins}</td>
-      <td style="color:var(--danger);font-weight:700">-${resigns}</td>
-      <td style="font-weight:700;color:${net>=0?'var(--ok)':'var(--danger)'}">${net>=0?'+':''}${net}</td>
-      ${rTypes.map(v=>`<td>${v||'—'}</td>`).join('')}
-      <td>${rate}</td>
-    </tr>`;
-  }).join('');
-}
-
-// ── Joins render ──────────────────────────────────────────
-function renderJoins(){
-  const q      =(document.getElementById('join-search')?.value||'').toLowerCase();
-  const deptF  = document.getElementById('join-dept')?.value||'';
-  const mo     = document.getElementById('join-month')?.value||'';
-  const genderF= document.getElementById('join-gender')?.value||'';
-  const posF   = document.getElementById('join-pos')?.value||'';
-
-  const deptOf = r => normDept(r.section)||normDept(r.dept)||'—';
-
-  let rows = JOINS.filter(r=>
-    (!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&
-    (!deptF||deptOf(r)===deptF)&&
-    (!mo||(r.joinDate||'').startsWith(mo))&&
-    (!genderF||(r.gender||'').toUpperCase()===genderF)&&
-    (!posF||(r.position||'').includes(posF))
-  ).sort((a,b)=>(b.joinDate||'').localeCompare(a.joinDate||''));
-
-  // ── Summary cards ──
-  const total = rows.length;
-  const female= rows.filter(r=>(r.gender||'').toUpperCase()==='F').length;
-  const male  = total - female;
-  const today = new Date().toISOString().slice(0,10);
-  const todayJ= rows.filter(r=>r.joinDate===today).length;
-  const mo2   = today.slice(0,7);
-  const moJ   = rows.filter(r=>(r.joinDate||'').startsWith(mo2)).length;
-  const avgAge= rows.filter(r=>r.dob).length ?
-    Math.round(rows.filter(r=>r.dob).reduce((s,r)=>{
-      return s+(new Date().getFullYear()-new Date(r.dob).getFullYear());
-    },0)/rows.filter(r=>r.dob).length) : '—';
-
-  const sumCards=document.getElementById('join-summary-cards');
-  if(sumCards) sumCards.innerHTML=[
-    {cls:'join-c',  val:total,      sub:`今日+${todayJ}`,    lbl:'篩選入職人數'},
-    {cls:'info-c',  val:moJ,        sub:mo2,                  lbl:'本月入職'},
-    {cls:'info-c',  val:female+'F/'+male+'M', sub:'',        lbl:'性別分佈'},
-    {cls:'info-c',  val:avgAge,     sub:'歲平均',              lbl:'平均年齡'},
-  ].map(k=>`<div class="sum-card ${k.cls}">
-    <div class="sum-val">${k.val}</div>
-    <div class="sum-sub">${k.sub}</div>
-    <div class="sum-lbl">${k.lbl}</div>
-  </div>`).join('');
-
-  // ── Dept breakdown ──
-  const deptMap={};
-  rows.forEach(r=>{const d=deptOf(r);deptMap[d]=(deptMap[d]||0)+1;});
-  const deptEntries=Object.entries(deptMap).sort((a,b)=>b[1]-a[1]);
-  const deptTbody=document.querySelector('#join-dept-breakdown tbody');
-  if(deptTbody) deptTbody.innerHTML=deptEntries.map(([d,n])=>
-    `<tr><td>${d}</td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):'0'}%
-    <div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:#10b981"></div></div></td></tr>`
-  ).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
-
-  // ── Gender/Age breakdown ──
-  const ageGroups={'18-25':0,'26-30':0,'31-35':0,'36-40':0,'40+':0,'不明':0};
-  rows.forEach(r=>{
-    if(!r.dob){ageGroups['不明']++;return;}
-    const age=new Date().getFullYear()-new Date(r.dob).getFullYear();
-    if(age<=25)ageGroups['18-25']++;
-    else if(age<=30)ageGroups['26-30']++;
-    else if(age<=35)ageGroups['31-35']++;
-    else if(age<=40)ageGroups['36-40']++;
-    else ageGroups['40+']++;
-  });
-  const genderTbody=document.querySelector('#join-gender-breakdown tbody');
-  if(genderTbody){
-    const rows2=[
-      ['女 Female',female,total],['男 Male',male,total],
-      ...Object.entries(ageGroups).filter(([,n])=>n>0).map(([k,n])=>[`年齡 ${k}`,n,total])
-    ];
-    genderTbody.innerHTML=rows2.map(([l,n,t])=>
-      `<tr><td>${l}</td><td><b>${n}</b></td><td>${t?Math.round(n/t*100):'0'}%</td></tr>`
-    ).join('');
-  }
-
-  const empty=document.getElementById('join-empty');
-  if(!rows.length&&!JOINS.length){if(empty)empty.style.display='';return;}
-  if(empty)empty.style.display='none';
-
-  // ── Detail table (always table, no card mode) ──
-  const countLbl = document.getElementById('join-count-lbl');
-  if(countLbl) countLbl.textContent = `共 ${rows.length} 筆`;
-
-  const tbody = document.getElementById('join-tbody');
-  if(tbody){
-    if(!rows.length){
-      tbody.innerHTML='<tr><td colspan="13" style="text-align:center;color:#aaa;padding:20px">無符合記錄</td></tr>';
-    } else {
-      const today2=new Date().toISOString().slice(0,10);
-      tbody.innerHTML=rows.map((r,i)=>{
-        const dob=r.dob?Math.floor((new Date()-new Date(r.dob))/31536000000):'—';
-        const isNew=(r.joinDate||'')>=today2.slice(0,7)+'-01'?'background:#f0fff8':''
-        return`<tr style="${isNew}">
-          <td class="td-mono" style="color:#aaa">${i+1}</td>
-          <td class="td-mono">${r.empId||'—'}</td>
-          <td><b>${r.name}</b></td>
-          <td>${normDept(r.dept)||'—'}</td>
-          <td>${r.section||'—'}</td>
-          <td>${r.position||'—'}</td>
-          <td class="td-mono">${r.joinDate||'—'}</td>
-          <td style="text-align:center">${r.gender||'—'}</td>
-          <td style="text-align:center">${dob}</td>
-          <td class="td-mono">${r.tel||'—'}</td>
-          <td style="font-size:11px">${r.introducer||'—'}</td>
-          <td style="font-size:11px;color:#888;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.remark||''}">${r.remark||'—'}</td>
-          <td style="white-space:nowrap">
-            <button class="btn btn-ghost btn-sm" onclick="openJoinModal('${r.id}')">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteJoin('${r.id}')">🗑</button>
-          </td>
-        </tr>`;
-      }).join('');
-    }
-  }
-  updateBadges();
-}
-
-function joinCard(r){
-  return `<div class="card join-card">
-    <div class="card-head">
-      <div><div class="card-name">${r.name}</div><div class="card-id">${r.empId||'—'}</div></div>
-      <span class="badge-type badge-join">🟢 ${t('join_count')}</span>
-    </div>
-    <div class="card-meta">
-      📅 ${r.joinDate||'—'}<br>
-      🏭 ${normDept(r.dept)||'—'}${r.section?' · '+r.section:''}<br>
-      👔 ${r.position||'—'} · ${r.gender||'—'}<br>
-      📞 ${r.tel||'—'}<br>
-      ${r.remark?`📝 ${r.remark}`:''}
-    </div>
-    <div class="card-foot">
-      <button class="btn btn-ghost btn-sm" onclick="openJoinModal('${r.id}')">✏️</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteJoin('${r.id}')">🗑</button>
-    </div>
-  </div>`;
-}
-
-// ── Resigns render ────────────────────────────────────────
-function renderResigns(){
-  const q       =(document.getElementById('resign-search')?.value||'').toLowerCase();
-  const deptF   = document.getElementById('resign-dept')?.value||'';
-  const mo      = document.getElementById('resign-month')?.value||'';
-  const tp      = document.getElementById('resign-type')?.value||'';
-  const genderF = document.getElementById('resign-gender')?.value||'';
-  const tenureF = document.getElementById('resign-tenure')?.value||'';
-
-  const deptOf  = r=>normDept(r.section)||normDept(r.dept)||'—';
-  const tenureDays = r=>r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
-  const inTenure = (r,f)=>{const d=tenureDays(r);
-    if(f==='lt1')return d<365;if(f==='1to3')return d>=365&&d<1095;
-    if(f==='3to5')return d>=1095&&d<1825;if(f==='gt5')return d>=1825;return true;};
-
-  let rows = RESIGNS.filter(r=>
-    (!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&
-    (!deptF||deptOf(r)===deptF)&&
-    (!mo||(r.resignDate||'').startsWith(mo))&&
-    (!tp||r.resignType===tp)&&
-    (!genderF||(r.gender||'').toUpperCase()===genderF)&&
-    (!tenureF||inTenure(r,tenureF))
-  ).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
-
-  const total   = rows.length;
-  const typeMap = {resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'};
-  const mo2     = new Date().toISOString().slice(0,7);
-  const moR     = rows.filter(r=>(r.resignDate||'').startsWith(mo2)).length;
-  const female  = rows.filter(r=>(r.gender||'').toUpperCase()==='F').length;
-
-  // avg tenure
-  const withDays=rows.filter(r=>tenureDays(r)>0);
-  const avgDays =withDays.length?Math.round(withDays.reduce((s,r)=>s+tenureDays(r),0)/withDays.length):0;
-  const avgTenure=avgDays>365?Math.round(avgDays/365*10)/10+'年':(avgDays>30?Math.round(avgDays/30)+'月':avgDays+'天');
-
-  // avg age at resign
-  const withAge=rows.filter(r=>r.dob);
-  const avgAge =withAge.length?Math.round(withAge.reduce((s,r)=>{
-    const refDate=r.resignDate?new Date(r.resignDate):new Date();
-    return s+(refDate.getFullYear()-new Date(r.dob).getFullYear());
-  },0)/withAge.length):'—';
-
-  // Resign rates by type
-  const typeCounts={resign:0,dismiss:0,self:0,expel:0};
-  rows.forEach(r=>{if(typeCounts[r.resignType]!==undefined)typeCounts[r.resignType]++;});
-
-  const sumCards=document.getElementById('resign-summary-cards');
-  if(sumCards) sumCards.innerHTML=[
-    {cls:'resign-c', val:total,       sub:`本月${moR}人`,    lbl:'篩選離職人數'},
-    {cls:'warn-c',   val:typeCounts.resign, sub:'辭職率 '+(JOINS.length?Math.round(typeCounts.resign/JOINS.length*100):'0')+'%（對入職總數）', lbl:'辭職 Resigned'},
-    {cls:'warn-c',   val:typeCounts.self,   sub:'自離率 '+(JOINS.length?Math.round(typeCounts.self/JOINS.length*100):'0')+'%（對入職總數）',   lbl:'自離 Self-resign'},
-    {cls:'resign-c', val:typeCounts.dismiss+typeCounts.expel, sub:'辭退/開除', lbl:'公司主動'},
-    {cls:'info-c',   val:avgTenure,  sub:'平均年資',           lbl:'Average Tenure'},
-    {cls:'info-c',   val:avgAge,     sub:'歲·離職時',          lbl:'平均年齡'},
-    {cls:'info-c',   val:female+'F/'+(total-female)+'M', sub:'', lbl:'性別分佈'},
-  ].map(k=>`<div class="sum-card ${k.cls}">
-    <div class="sum-val">${k.val}</div>
-    <div class="sum-sub">${k.sub}</div>
-    <div class="sum-lbl">${k.lbl}</div>
-  </div>`).join('');
-
-  // ── Type breakdown ──
-  const typeTbody=document.querySelector('#resign-type-breakdown tbody');
-  if(typeTbody) typeTbody.innerHTML=Object.entries(typeCounts).map(([tp2,n])=>
-    `<tr><td>${typeMap[tp2]}</td><td><b>${n}</b></td>
-     <td>${total?Math.round(n/total*100):'0'}%
-     <div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:#c0392b"></div></div></td>
-     <td>${JOINS.length?Math.round(n/JOINS.length*100):'—'}%</td></tr>`
-  ).join('');
-
-  // ── Dept breakdown ──
-  const deptMap2={};
-  rows.forEach(r=>{
-    const d=deptOf(r);
-    if(!deptMap2[d])deptMap2[d]={n:0,days:0};
-    deptMap2[d].n++;deptMap2[d].days+=tenureDays(r);
-  });
-  const deptTbody2=document.querySelector('#resign-dept-breakdown tbody');
-  if(deptTbody2) deptTbody2.innerHTML=Object.entries(deptMap2).sort((a,b)=>b[1].n-a[1].n).map(([d,v])=>{
-    const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;
-    return `<tr><td>${d}</td><td><b>${v.n}</b></td><td>${avg}年</td></tr>`;
-  }).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
-
-  const empty=document.getElementById('resign-empty');
-  if(!rows.length&&!RESIGNS.length){if(empty)empty.style.display='';return;}
-  if(empty)empty.style.display='none';
-
-  // ── Detail table (always table) ──
-  const rcountLbl = document.getElementById('resign-count-lbl');
-  if(rcountLbl) rcountLbl.textContent = `共 ${rows.length} 筆`;
-
-  const rtbody = document.getElementById('resign-tbody');
-  if(rtbody){
-    if(!rows.length){
-      rtbody.innerHTML='<tr><td colspan="14" style="text-align:center;color:#aaa;padding:20px">無符合記錄</td></tr>';
-    } else {
-      rtbody.innerHTML=rows.map((r,i)=>{
-        const td=tenureDays(r);
-        const tenureStr=td>365?Math.round(td/365*10)/10+'年':(td>30?Math.round(td/30)+'月':td+'天');
-        const typeColors={resign:'#e74c3c',dismiss:'#e67e22',self:'#9b59b6',expel:'#c0392b'};
-        const tColor=typeColors[r.resignType]||'#999';
-        return`<tr>
-          <td class="td-mono" style="color:#aaa">${i+1}</td>
-          <td class="td-mono">${r.empId||'—'}</td>
-          <td><b>${r.name}</b></td>
-          <td>${normDept(r.dept)||'—'}</td>
-          <td>${r.section||'—'}</td>
-          <td>${r.position||'—'}</td>
-          <td class="td-mono">${r.joinDate||'—'}</td>
-          <td class="td-mono">${r.resignDate||'—'}</td>
-          <td class="td-mono" style="color:#1a7abf;font-weight:600">${tenureStr}</td>
-          <td style="text-align:center">${r.gender||'—'}</td>
-          <td><span style="color:${tColor};font-weight:700;font-size:11px">${typeMap[r.resignType]||'—'}</span></td>
-          <td style="font-size:11px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.reason||''}">${r.reason||'—'}</td>
-          <td style="font-size:11px;color:#888;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.remark||''}">${r.remark||'—'}</td>
-          <td style="white-space:nowrap">
-            <button class="btn btn-ghost btn-sm" onclick="openResignModal('${r.id}')">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteResign('${r.id}')">🗑</button>
-          </td>
-        </tr>`;
-      }).join('');
-    }
-  }
-  updateBadges();
-}
-
-function resignCard(r){
-  const typeMap={resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'};
-  return `<div class="card resign-card">
-    <div class="card-head">
-      <div><div class="card-name">${r.name}</div><div class="card-id">${r.empId||'—'}</div></div>
-      <span class="badge-type badge-resign">🔴 ${typeMap[r.resignType]||'離職'}</span>
-    </div>
-    <div class="card-meta">
-      📅 離職：${r.resignDate||'—'} (${r.workingDays||'—'}天)<br>
-      📅 入職：${r.joinDate||'—'}<br>
-      🏭 ${normDept(r.dept)||'—'} · ${r.position||'—'}<br>
-      💬 ${r.reason||'—'}<br>
-      ${r.remark?`📝 ${r.remark}`:''}
-    </div>
-    <div class="card-foot">
-      <button class="btn btn-ghost btn-sm" onclick="openResignModal('${r.id}')">✏️</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteResign('${r.id}')">🗑</button>
-    </div>
-  </div>`;
-}
-
-// ── Badge + filter updates ─────────────────────────────────
-function updateBadges(){
-  const total=JOINS.length+RESIGNS.length;
-  setBadge('bdg-total',total,total>0?'ok':'');
-  setBadge('bdg-join',JOINS.length,JOINS.length>0?'ok':'');
-  setBadge('bdg-resign',RESIGNS.length,RESIGNS.length>0?'':'');
-  // Update dept/month filters
-  populateFilters();
-}
-function setBadge(id,n,cls=''){
-  const el=document.getElementById(id);
-  if(!el)return;
-  el.textContent=n;
-  el.className='badge '+(cls||'');
-  el.style.display=n?'':'none';
-}
-function populateFilters(){
-  // Use section (Line1, QC A etc.) as primary dept filter, fallback to dept
-  const deptOf = r=>normDept(r.section)||normDept(r.dept)||'';
-  const depts=[...new Set([
-    ...JOINS.map(deptOf).filter(Boolean),
-    ...RESIGNS.map(deptOf).filter(Boolean),
-  ])].sort();
-  // Position filter for joins
-  const positions=[...new Set(JOINS.map(r=>(r.position||'').trim()).filter(Boolean))].sort();
-  const posEl=document.getElementById('join-pos');
-  if(posEl){const cur=posEl.value;posEl.innerHTML='<option value="">全部職位</option>'+positions.map(p=>`<option${p===cur?' selected':''}>${p}</option>`).join('');}
-  const months=[...new Set([
-    ...JOINS.map(r=>(r.joinDate||'').slice(0,7)),
-    ...RESIGNS.map(r=>(r.resignDate||'').slice(0,7)),
-  ].filter(Boolean))].sort().reverse();
-
-  ['join-dept','resign-dept'].forEach(id=>{
-    const sel=document.getElementById(id);if(!sel)return;
-    const cur=sel.value;
-    sel.innerHTML='<option value="">全部部門</option>'+depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');
-  });
-  ['join-month','resign-month'].forEach(id=>{
-    const sel=document.getElementById(id);if(!sel)return;
-    const cur=sel.value;
-    sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');
-  });
-}
-
-// ── Dept normalization ────────────────────────────────────
-function normDept(d){
-  if(!d)return d;
-  return String(d).trim()
-    .replace(/行政管理部?/g,'行政中心')
-    .replace(/Admin(?:istration)?\s*(?:Dept\.?|Department)?/gi,'Admin Center');
-}
-
-// ── Excel Import ──────────────────────────────────────────
-function onDrop(e,key){
-  e.preventDefault();
-  document.getElementById('dz-main').classList.remove('drag');
-  addFiles(e.dataTransfer.files);
-}
-function onFileSelect(e,key){addFiles(e.target.files);}
-function addFiles(files){
-  _pendingFiles=[...(files||[])];
-  const list=document.getElementById('file-list');
-  list.innerHTML=_pendingFiles.map((f,i)=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between">
-    <span>📎 ${f.name} <span style="color:var(--muted)">(${(f.size/1024).toFixed(0)}KB)</span></span>
-    <button onclick="_pendingFiles.splice(${i},1);addFiles()" style="background:none;border:none;color:var(--danger);cursor:pointer">✕</button>
-  </div>`).join('');
-  document.getElementById('btn-parse').disabled=!_pendingFiles.length;
-  document.getElementById('parse-status').textContent=_pendingFiles.length?`${_pendingFiles.length} 個檔案`:'' ;
-}
-
-async function parseFiles(){
-  if(!_pendingFiles.length)return;
-  document.getElementById('parse-status').textContent='解析中…';
-  _importBuf={joins:[],resigns:[]};
-  const overwrite=document.getElementById('chk-overwrite').checked;
-
-  for(const f of _pendingFiles){
-    try{
-      let xlsxFiles=[];
-      if(/\.(msg|eml)$/i.test(f.name)){
-        xlsxFiles=await extractXlsxFromMsg(f);
-      }else if(/\.(xlsx|xls)$/i.test(f.name)){
-        const buf=await f.arrayBuffer();
-        xlsxFiles=[{name:f.name,data:new Uint8Array(buf)}];
-      }
-      for(const xf of xlsxFiles){
-        await parseWorkbook(xf.data,xf.name,overwrite);
-      }
-    }catch(ex){
-      toast(`❌ ${f.name}: ${ex.message}`,'err');
-    }
-  }
-  showPreview();
-  document.getElementById('parse-status').textContent=
-    `✅ 入職 ${_importBuf.joins.length} 筆 · 離職 ${_importBuf.resigns.length} 筆`;
-}
-
-async function parseWorkbook(data,name,overwrite){
-  const wb=XLSX.read(data,{type:'array',cellDates:true});
-  const existJoinIds =new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));
-  const existResignIds=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));
-
-  for(const sn of wb.SheetNames){
-    const snLow=sn.toLowerCase().trim();
-    const ws=wb.Sheets[sn];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    if(!rows.length)continue;
-
-    // ── Join sheet ──
-    if(snLow.includes('join')||snLow.includes('jion')||snLow.includes('入職')){
-      const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));
-      if(hdrRow<0)continue;
-      const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());
-      const col=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));
-      const cDate=col('join date')<0?col('join'):col('join date');
-      const cDept=col('dept');const cSec=col('section');const cPos=col('pos');
-      const cId=col('id number')<0?col('id'):col('id number');
-      const cName=col('name');const cGender=col('gender');const cDob=col('birth')<0?col('dob'):col('birth');
-      const cAddr=col('address');const cTel=col('tel')<0?col('phone'):col('tel');
-      const cIntro=col('introdu');const cRemark=col('remark')<0?col('note'):col('remark');
-
-      for(let i=hdrRow+1;i<rows.length;i++){
-        const row=rows[i];
-        const nameVal=String(row[cName]||'').trim();
-        if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
-        const empId=String(row[cId]||'').trim();
-        const joinDate=parseDate(row[cDate]);
-        if(!joinDate)continue;
-        if(!overwrite&&empId&&existJoinIds.has(empId))continue;
-        _importBuf.joins.push({
-          id:'j_'+Date.now()+'_'+Math.random().toString(36).slice(2),
-          empId,name:nameVal,joinDate,
-          dept:normDept(String(row[cDept]||'').trim()),
-          section:String(row[cSec]||'').trim(),
-          position:String(row[cPos]||'').trim(),
-          gender:String(row[cGender]||'').trim().toUpperCase().slice(0,1)||'F',
-          dob:parseDate(row[cDob])||'',
-          address:String(row[cAddr]||'').trim(),
-          tel:String(row[cTel]||'').trim(),
-          introducer:String(row[cIntro]||'').trim(),
-          remark:String(row[cRemark]||'').trim(),
-          importedAt:new Date().toISOString(),
-        });
-      }
-    }
-
-    // ── Resign sheet ──
-    if(snLow.includes('resign')||snLow.includes('離職')){
-      const hdrRow=rows.findIndex(r=>r.some(v=>/(工號|resign.?date|離職日|STT|Name)/i.test(String(v))));
-      if(hdrRow<0)continue;
-      const hdr=rows[hdrRow].map(v=>String(v).replace(/\n/g,' ').trim().toLowerCase());
-      const col=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));
-      const cId  =col('工號')<0?(col('id')<0?col('stt'):col('id')):col('工號');
-      const cName=col('姓名')<0?col('name'):col('姓名');
-      const cJoin=col('到職')<0?(col('join')<0?col('start'):col('join')):col('到職');
-      const cDept=col('部門')<0?col('section'):col('部門');
-      const cPos =col('職務')<0?col('pos'):col('職務');
-      const cGender=col('性別')<0?col('gender'):col('性別');
-      const cDob=col('出生')<0?col('birth'):col('出生');
-      // Resign type columns - look for checkmark columns
-      const cResign=col('辭職');const cDismiss=col('辭退');const cSelf=col('自離');const cExpel=col('開除');
-      const cResignDate=col('離職日')<0?col('resign date'):col('離職日');
-      const cDays=col('在職天數')<0?col('working days'):col('在職天數');
-      const cReason=col('原因')<0?col('reason'):col('原因');
-      const cRemark=col('備注')<0?col('remark'):col('備注');
-
-      for(let i=hdrRow+1;i<rows.length;i++){
-        const row=rows[i];
-        const nameVal=String(row[cName]||'').trim();
-        if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
-        const empId=String(row[cId]||'').trim();
-        const resignDate=parseDate(row[cResignDate]);
-        if(!resignDate)continue;
-        const dedupeKey=empId+'_'+resignDate;
-        if(!overwrite&&existResignIds.has(dedupeKey))continue;
-        // Determine resign type from checkmark columns
-        let resignType='resign';
-        const chk=v=>String(v||'').trim().toLowerCase();
-        if(cSelf>=0&&chk(row[cSelf])==='√')resignType='self';
-        else if(cExpel>=0&&chk(row[cExpel])==='√')resignType='expel';
-        else if(cDismiss>=0&&chk(row[cDismiss])==='√')resignType='dismiss';
-        else if(cResign>=0&&chk(row[cResign])==='√')resignType='resign';
-        const joinDate=parseDate(row[cJoin])||'';
-        let days=parseInt(String(row[cDays]||'').trim())||0;
-        if(!days&&joinDate&&resignDate){
-          days=Math.ceil((new Date(resignDate)-new Date(joinDate))/86400000);
-        }
-        _importBuf.resigns.push({
-          id:'r_'+Date.now()+'_'+Math.random().toString(36).slice(2),
-          empId,name:nameVal,resignDate,joinDate,
-          dept:normDept(String(row[cDept]||'').trim()),
-          position:String(row[cPos]||'').trim(),
-          gender:String(row[cGender]||'').trim().toUpperCase().slice(0,1)||'F',
-          dob:parseDate(row[cDob])||'',
-          workingDays:days,resignType,
-          reason:String(row[cReason]||'').trim(),
-          remark:String(row[cRemark]||'').trim(),
-          importedAt:new Date().toISOString(),
-        });
-      }
-    }
-  }
-}
-
-function parseDate(v){
-  if(!v && v!==0) return null;
-
-  // Date object (cellDates:true) - use LOCAL date components (no timezone shift)
-  if(v instanceof Date){
-    const y=v.getFullYear(),mo=v.getMonth()+1,d=v.getDate();
-    if(y<2000||y>2050||isNaN(y))return null;
-    return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-  }
-
-  // Excel serial number (raw:true, no cellDates)
-  if(typeof v==='number'&&v>40000&&v<60000){
-    const d=new Date(Math.round((v-25569)*86400)*1000);
-    if(d.getUTCFullYear()<2000)return null;
-    return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
-  }
-
-  const s=String(v).trim();
-  if(!s)return null;
-  let m;
-
-  // ISO: 2026-04-21 or 2026-4-21
-  m=s.match(/^(20\d{2})-(\d{1,2})-(\d{1,2})/);
-  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
-
-  // Slash/dot: 2026/4/21 or 2026.4.21
-  m=s.match(/(20\d{2})[\/\.](\d{1,2})[\/\.](\d{1,2})/);
-  if(m)return m[1]+'-'+String(m[2]).padStart(2,'0')+'-'+String(m[3]).padStart(2,'0');
-
-  // MM-DD-YY (Excel mm-dd-yy format): "10-22-24" → 2024-10-22
-  m=s.match(/^(\d{2})-(\d{2})-(\d{2})$/);
-  if(m){const yr=2000+parseInt(m[3]);if(yr>=2020&&yr<=2035)return yr+'-'+m[1]+'-'+m[2];}
-
-  // DD-Mon-YY or DD-Mon-YYYY: "22-Oct-24" or "22-Apr-2026" or "1-Apr-26"
-  const months={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
-  m=s.match(/^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)-?(\d{2,4})$/i);
-  if(m){
-    const day=parseInt(m[1]),mon=months[m[2].toLowerCase()];
-    let yr=parseInt(m[3]);if(yr<100)yr+=2000;
-    if(yr>=2000&&yr<=2050)return yr+'-'+String(mon).padStart(2,'0')+'-'+String(day).padStart(2,'0');
-  }
-
-  // M/D/YYYY or D/M/YYYY: try both interpretations
-  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(20\d{2})$/);
-  if(m){
-    // Try month/day/year first
-    const a=parseInt(m[1]),b=parseInt(m[2]),yr=parseInt(m[3]);
-    if(a<=12)return yr+'-'+String(a).padStart(2,'0')+'-'+String(b).padStart(2,'0');
-    if(b<=12)return yr+'-'+String(b).padStart(2,'0')+'-'+String(a).padStart(2,'0');
-  }
-
-  return null;
-}
-
-async function extractXlsxFromMsg(file){
-  const text=await file.text();
-  const results=[];
-  const bRe=/boundary=["]?([^"\r\n;\s]+)["]?/gi;
-  const bs=[];let bm;
-  while((bm=bRe.exec(text))!==null)bs.push(bm[1]);
-  for(const b of [...new Set(bs)]){
-    for(const part of text.split('--'+b)){
-      if(!/filename[^"\r\n]*\.xlsx?/i.test(part))continue;
-      let fn='attachment.xlsx';
-      const fm=part.match(/filename[^"\r\n;]*?["]?([^"\r\n;]+\.xlsx?)["]?/i);
-      if(fm)fn=fm[1].trim();
-      const bmp=part.match(/\r?\n\r?\n([\s\S]+?)(?:--|[\s]*$)/);
-      if(!bmp)continue;
-      const b64=bmp[1].replace(/[\r\n\s]/g,'');
-      if(b64.length<100)continue;
-      try{
-        const bin=atob(b64);
-        const by=new Uint8Array(bin.length);
-        for(let i=0;i<bin.length;i++)by[i]=bin.charCodeAt(i);
-        if(by[0]===0x50&&by[1]===0x4B)results.push({name:fn,data:by});
-      }catch(e){}
-    }
-  }
-  return results;
-}
-
-function showPreview(){
-  const preview=document.getElementById('import-preview');
-  const content=document.getElementById('preview-content');
-  if(!_importBuf.joins.length&&!_importBuf.resigns.length){
-    content.innerHTML='<div class="alert warn">⚠️ 未能解析到資料，請確認 Excel 包含 Jion 或 Resign 工作表</div>';
-    preview.style.display='';return;
-  }
-  let html=`<div class="alert ok">✅ 入職 <b>${_importBuf.joins.length}</b> 筆 · 離職 <b>${_importBuf.resigns.length}</b> 筆</div>`;
-  if(_importBuf.joins.length){
-    html+=`<div style="margin-bottom:8px;font-size:12px;font-weight:600">🟢 入職（前10筆）</div>
-    <div class="tbl-wrap" style="max-height:160px"><table><thead><tr><th>工號</th><th>姓名</th><th>部門</th><th>入職日</th></tr></thead>
-    <tbody>${_importBuf.joins.slice(0,10).map(r=>`<tr><td>${r.empId}</td><td>${r.name}</td><td>${r.dept}</td><td>${r.joinDate}</td></tr>`).join('')}</tbody></table></div>`;
-  }
-  if(_importBuf.resigns.length){
-    html+=`<div style="margin:10px 0 8px;font-size:12px;font-weight:600">🔴 離職（前10筆）</div>
-    <div class="tbl-wrap" style="max-height:160px"><table><thead><tr><th>工號</th><th>姓名</th><th>離職日</th><th>類型</th></tr></thead>
-    <tbody>${_importBuf.resigns.slice(0,10).map(r=>`<tr><td>${r.empId}</td><td>${r.name}</td><td>${r.resignDate}</td><td>${r.resignType}</td></tr>`).join('')}</tbody></table></div>`;
-  }
-  content.innerHTML=html;
-  document.getElementById('import-preview').style.display='';
-}
-
-function confirmImport(){
-  const overwrite=document.getElementById('chk-overwrite').checked;
-  const existJoinIds=new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));
-  const existResignKeys=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));
-
-  let addedJ=0,addedR=0;
-  _importBuf.joins.forEach(r=>{
-    if(overwrite&&r.empId){JOINS=JOINS.filter(x=>String(x.empId||'').trim()!==r.empId);}
-    if(overwrite||!r.empId||!existJoinIds.has(r.empId)){JOINS.push(r);addedJ++;}
-  });
-  _importBuf.resigns.forEach(r=>{
-    const key=String(r.empId||'')+'_'+r.resignDate;
-    if(overwrite&&key!=='_'){RESIGNS=RESIGNS.filter(x=>String(x.empId||'')+'_'+String(x.resignDate||'')!==key);}
-    if(overwrite||!existResignKeys.has(key)){RESIGNS.push(r);addedR++;}
-  });
-  saveJoins();saveResigns();
-  toast(`✅ 入職 +${addedJ} · 離職 +${addedR}`,'ok');
-  document.getElementById('import-preview').style.display='none';
-  _importBuf={joins:[],resigns:[]};
-  _pendingFiles=[];
-  document.getElementById('file-list').innerHTML='';
-  document.getElementById('btn-parse').disabled=true;
-  runAnomalyCheck();
-  renderAll();
-  // TG notification
-  if(addedJ||addedR) sendTgImport(addedJ,addedR);
-}
-function cancelImport(){
-  _importBuf={joins:[],resigns:[]};
-  document.getElementById('import-preview').style.display='none';
-}
-
-// ── Anomaly check ─────────────────────────────────────────
-function runAnomalyCheck(){
-  const issues=[];
-  const today=new Date().toISOString().slice(0,10);
-  const idMap={};
-
-  JOINS.forEach(r=>{
-    // Duplicate empId
-    if(r.empId){
-      if(idMap[r.empId])issues.push({sev:'danger',msg:`重複工號 ${r.empId}: ${idMap[r.empId]} & ${r.name}`});
-      idMap[r.empId]=r.name;
-    }
-    // Age check
-    if(r.dob){
-      const age=Math.floor((new Date()-new Date(r.dob))/31536000000);
-      if(age<18)issues.push({sev:'danger',msg:`${t('an_young')}: ${r.name} (${r.empId||'—'}) 年齡 ${age}`});
-    }
-    // Missing dept
-    if(!r.dept||!r.dept.trim())issues.push({sev:'warn',msg:`${t('an_no_dept')}: ${r.name} (${r.empId||'—'})`});
-    // Future date
-    if(r.joinDate&&r.joinDate>today)issues.push({sev:'warn',msg:`入職日期在未來: ${r.name} — ${r.joinDate}`});
-  });
-
-  RESIGNS.forEach(r=>{
-    // Working days mismatch
-    if(r.joinDate&&r.resignDate){
-      const calc=Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000);
-      if(r.workingDays&&Math.abs(calc-r.workingDays)>5)
-        issues.push({sev:'warn',msg:`${t('an_days')}: ${r.name} — 計算${calc}天 vs 記錄${r.workingDays}天`});
-      if(r.resignDate<r.joinDate)issues.push({sev:'danger',msg:`${t('an_date')}: ${r.name} 離職日早於入職日`});
-    }
-    if(!r.dept||!r.dept.trim())issues.push({sev:'warn',msg:`${t('an_no_dept')}: ${r.name} (${r.empId||'—'})`});
-  });
-
-  setBadge('bdg-anomaly',issues.length,issues.length>0?'':'ok');
-  const el=document.getElementById('anomaly-list');
-  if(!issues.length){el.innerHTML='<div class="alert ok">✅ 未發現異常</div>';return;}
-  el.innerHTML=issues.map(i=>`<div class="alert ${i.sev}">${i.sev==='danger'?'🔴':'⚠️'} ${i.msg}</div>`).join('');
-}
-
-// ── Modals ────────────────────────────────────────────────
-function openModal(id){document.getElementById(id).classList.add('open');}
-function closeModal(id){document.getElementById(id).classList.remove('open');}
-
-function populateDeptSelects(){
-  const depts=getDeptList();
-  ['mj-dept','mr-dept'].forEach(id=>{
-    const sel=document.getElementById(id);if(!sel)return;
-    const cur=sel.value;
-    sel.innerHTML=depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');
-  });
-}
-function getDeptList(){
-  const saved=localStorage.getItem(K_DEPTS);
-  if(saved)return saved.split('\n').map(s=>s.trim()).filter(Boolean);
-  return ['Production','Line 1','Line 2','Line 3','Line 4','Line 5','Line 6','Line 7','Line 8',
-    'LINE 09','LINE 10','LINE 11','Cutting','Packing','QC  A','QC  B','Warehouse',
-    'Maintenance','Admin Center','HRA','Accounting','IT','Management'];
-}
-
-function openJoinModal(id){
-  _editJoinId=id||null;
-  populateDeptSelects();
-  const r=id?JOINS.find(x=>x.id===id):null;
-  document.getElementById('modal-join-title').textContent=r?'編輯入職記錄':'新增入職記錄';
-  const fields={id:'mj-id',name:'mj-name',joinDate:'mj-date',dept:'mj-dept',section:'mj-section',
-    position:'mj-pos',gender:'mj-gender',dob:'mj-dob',tel:'mj-tel',address:'mj-addr',
-    introducer:'mj-intro',remark:'mj-remark'};
-  Object.entries(fields).forEach(([k,elId])=>{
-    const el=document.getElementById(elId);if(!el)return;
-    el.value=r?.(r[k==='id'?'empId':k])||'';
-  });
-  if(r)document.getElementById('mj-date').value=r.joinDate||'';
-  if(!r)document.getElementById('mj-date').value=new Date().toISOString().slice(0,10);
-  openModal('modal-join');
-}
-
-function saveJoin(){
-  const name=document.getElementById('mj-name').value.trim();
-  const joinDate=document.getElementById('mj-date').value;
-  if(!name||!joinDate){toast('請填寫姓名和入職日期','warn');return;}
-  const obj={
-    id:_editJoinId||('j_'+Date.now()+'_'+Math.random().toString(36).slice(2)),
-    empId:document.getElementById('mj-id').value.trim(),
-    name,joinDate,
-    dept:normDept(document.getElementById('mj-dept').value),
-    section:document.getElementById('mj-section').value.trim(),
-    position:document.getElementById('mj-pos').value.trim(),
-    gender:document.getElementById('mj-gender').value,
-    dob:document.getElementById('mj-dob').value,
-    tel:document.getElementById('mj-tel').value.trim(),
-    address:document.getElementById('mj-addr').value.trim(),
-    introducer:document.getElementById('mj-intro').value.trim(),
-    remark:document.getElementById('mj-remark').value.trim(),
-    importedAt:new Date().toISOString(),
-  };
-  if(_editJoinId){const i=JOINS.findIndex(x=>x.id===_editJoinId);if(i>=0)JOINS[i]=obj;else JOINS.push(obj);}
-  else JOINS.push(obj);
-  saveJoins();closeModal('modal-join');
-  toast((_editJoinId?'✅ 已更新：':'✅ 已新增：')+name,'ok');
-  renderJoins();updateBadges();
-}
-
-function deleteJoin(id){
-  const r=JOINS.find(x=>x.id===id);if(!r||!confirm(`刪除 ${r.name} 的入職記錄？`))return;
-  JOINS=JOINS.filter(x=>x.id!==id);saveJoins();renderJoins();updateBadges();toast('🗑 已刪除','warn');
-}
-
-function openResignModal(id){
-  _editResignId=id||null;
-  populateDeptSelects();
-  const r=id?RESIGNS.find(x=>x.id===id):null;
-  document.getElementById('modal-resign-title').textContent=r?'編輯離職記錄':'新增離職記錄';
-  ['mr-id','mr-name','mr-dept','mr-pos','mr-gender','mr-type','mr-reason','mr-remark'].forEach(elId=>{
-    const el=document.getElementById(elId);if(!el)return;
-    const key={
-      'mr-id':'empId','mr-name':'name','mr-dept':'dept','mr-pos':'position',
-      'mr-gender':'gender','mr-type':'resignType','mr-reason':'reason','mr-remark':'remark',
-    }[elId]||elId;
-    el.value=r?.[key]||'';
-  });
-  document.getElementById('mr-date').value=r?.resignDate||new Date().toISOString().slice(0,10);
-  document.getElementById('mr-joindate').value=r?.joinDate||'';
-  document.getElementById('mr-days').value=r?.workingDays||'';
-  // Auto-calc days on date change
-  ['mr-joindate','mr-date'].forEach(id=>{
-    document.getElementById(id).onchange=()=>{
-      const j=document.getElementById('mr-joindate').value;
-      const rD=document.getElementById('mr-date').value;
-      if(j&&rD){document.getElementById('mr-days').value=Math.max(0,Math.ceil((new Date(rD)-new Date(j))/86400000));}
-    };
-  });
-  openModal('modal-resign');
-}
-
-function saveResign(){
-  const name=document.getElementById('mr-name').value.trim();
-  const resignDate=document.getElementById('mr-date').value;
-  if(!name||!resignDate){toast('請填寫姓名和離職日期','warn');return;}
-  const joinDate=document.getElementById('mr-joindate').value;
-  let days=parseInt(document.getElementById('mr-days').value)||0;
-  if(!days&&joinDate&&resignDate)days=Math.max(0,Math.ceil((new Date(resignDate)-new Date(joinDate))/86400000));
-  const obj={
-    id:_editResignId||('r_'+Date.now()+'_'+Math.random().toString(36).slice(2)),
-    empId:document.getElementById('mr-id').value.trim(),name,resignDate,joinDate,
-    dept:normDept(document.getElementById('mr-dept').value),
-    position:document.getElementById('mr-pos').value.trim(),
-    gender:document.getElementById('mr-gender').value,
-    resignType:document.getElementById('mr-type').value,
-    workingDays:days,
-    reason:document.getElementById('mr-reason').value.trim(),
-    remark:document.getElementById('mr-remark').value.trim(),
-    importedAt:new Date().toISOString(),
-  };
-  if(_editResignId){const i=RESIGNS.findIndex(x=>x.id===_editResignId);if(i>=0)RESIGNS[i]=obj;else RESIGNS.push(obj);}
-  else RESIGNS.push(obj);
-  saveResigns();closeModal('modal-resign');
-  toast((_editResignId?'✅ 已更新：':'✅ 已新增：')+name,'ok');
-  renderResigns();updateBadges();
-}
-
-function deleteResign(id){
-  const r=RESIGNS.find(x=>x.id===id);if(!r||!confirm(`刪除 ${r.name} 的離職記錄？`))return;
-  RESIGNS=RESIGNS.filter(x=>x.id!==id);saveResigns();renderResigns();updateBadges();toast('🗑 已刪除','warn');
-}
-
-// ── View toggle ───────────────────────────────────────────
-function setJoinView(v){
-  _joinView=v;
-  document.getElementById('join-vt-card').classList.toggle('on',v==='card');
-  document.getElementById('join-vt-table').classList.toggle('on',v==='table');
-  renderJoins();
-}
-function setResignView(v){
-  _resignView=v;
-  document.getElementById('resign-vt-card').classList.toggle('on',v==='card');
-  document.getElementById('resign-vt-table').classList.toggle('on',v==='table');
-  renderResigns();
-}
-
-// ── Cloud Push / Pull ─────────────────────────────────────
-function saveGas(){
-  _gasUrl=(document.getElementById('cb-url').value||'').trim();
-  if(!_gasUrl)return;
-  localStorage.setItem(K_GAS,_gasUrl);
-  document.getElementById('btn-push').disabled=false;
-  document.getElementById('btn-pull').disabled=false;
-  setSyncStatus('idle');
-  toast('✅ GAS URL 已儲存','ok');
-}
-
-function setSyncStatus(s,lbl){
-  const dot=document.getElementById('sync-dot');
-  const lab=document.getElementById('sync-lbl');
-  const map={idle:'',syncing:'syncing',ok:'ok',err:'err'};
-  if(dot)dot.className='sync-dot '+(map[s]||'');
-  if(lab)lab.textContent=lbl||{idle:'—',syncing:'同步中…',ok:'已同步',err:'失敗'}[s]||s;
-}
-function setProgBar(pct,show){
-  const bar=document.getElementById('prog-bar');
-  const fill=document.getElementById('prog-fill');
-  if(bar)bar.classList.toggle('show',show!==false);
-  if(fill)fill.style.width=pct+'%';
-}
-
-async function cloudPush(){
-  if(!_gasUrl){toast('請先設定 GAS URL','warn');return;}
-  const btn=document.getElementById('btn-push');
-  btn.disabled=true;btn.textContent='⏳';
-  setSyncStatus('syncing');setProgBar(0,true);
-  try{
-    const total=JOINS.length+RESIGNS.length;
-    const payload={action:'push',tool:'onboarding',
-      records:{joins:JOINS,resigns:RESIGNS},
-      recordCount:total,updatedAt:new Date().toISOString()};
-    setProgBar(40);
-    const r=await fetch(_gasUrl,{method:'POST',redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    const d=await r.json();
-    setProgBar(100);
-    if(d.ok){
-      localStorage.setItem('ac_hra_ob_meta',JSON.stringify({ts:Date.now(),count:total}));
-      setSyncStatus('ok',new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
-      toast(`✅ 已推送 (入職${JOINS.length}·離職${RESIGNS.length})`,'ok');
-    }else toast('❌ '+(d.error||'Push 失敗'),'err');
-  }catch(e){setSyncStatus('err');toast('❌ '+e.message,'err');}
-  finally{btn.disabled=false;btn.textContent='☁ Push';setTimeout(()=>setProgBar(0,false),2000);}
-}
-
-async function cloudPull(){
-  if(!_gasUrl){toast('請先設定 GAS URL','warn');return;}
-  const btn=document.getElementById('btn-pull');
-  btn.disabled=true;btn.textContent='⏳';
-  setSyncStatus('syncing');setProgBar(0,true);
-  try{
-    const r1=await fetch(_gasUrl+'?action=pull&tool=onboarding&meta=1',{method:'GET',redirect:'follow'});
-    const d1=await r1.json();
-    setProgBar(30);
-    if(!d1.ok||!d1.data||d1.data.data===null){toast('☁️ 雲端尚無資料','info');return;}
-    const payload=d1.data.chunked?null:d1.data.data;
-    if(!payload){toast('❌ 拉取格式錯誤','err');return;}
-    const cloud=payload.records||payload;
-    const joins=cloud.joins||[];
-    const resigns=cloud.resigns||[];
-    setProgBar(80);
-    if(!joins.length&&!resigns.length){toast('☁️ 雲端無資料','info');return;}
-    if(!confirm(`雲端：入職 ${joins.length} 筆 · 離職 ${resigns.length} 筆\n覆蓋本地？`)){return;}
-    JOINS=joins;RESIGNS=resigns;
-    saveJoins();saveResigns();
-    setSyncStatus('ok',new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'}));
-    setProgBar(100);
-    toast(`✅ 已拉取 (入職${joins.length}·離職${resigns.length})`,'ok');
-    renderAll();
-  }catch(e){setSyncStatus('err');toast('❌ '+e.message,'err');}
-  finally{btn.disabled=false;btn.textContent='⬇ Pull';setTimeout(()=>setProgBar(0,false),2000);}
-}
-
-// ── Telegram ──────────────────────────────────────────────
-function getTgCfg(){return {token:SETS.tgToken||'8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg', chat:SETS.tgChat||'-5233667043'};}
-
-async function tgSend(text){
-  const {token,chat}=getTgCfg();
-  // Try GAS proxy first
-  if(_gasUrl){
-    try{
-      const r=await fetch(_gasUrl,{method:'POST',redirect:'follow',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify({action:'telegram',text})});
-      const d=await r.json();
-      if(d.ok)return true;
-    }catch(e){}
-  }
-  // Direct fallback
-  try{
-    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:chat,text,parse_mode:'HTML'})});
-    const d=await r.json();
-    return d.ok;
-  }catch(e){return false;}
-}
-
-async function sendTgSummary(){
-  const mo=new Date().toISOString().slice(0,7);
-  const mj=JOINS.filter(r=>(r.joinDate||'').startsWith(mo)).length;
-  const mr=RESIGNS.filter(r=>(r.resignDate||'').startsWith(mo)).length;
-  const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const text=`🏥 <b>AC HRA 入離職摘要</b> — ${ts}\n─────────────────────\n📅 ${mo}\n🟢 入職：${mj} 人\n🔴 離職：${mr} 人\n📊 淨增減：${mj>=mr?'+':''}${mj-mr} 人\n─────────────────────\n🏭 VRT Sihanoukville`;
-  const ok=await tgSend(text);
-  toast(ok?'✅ 已發送 Telegram':'❌ Telegram 失敗',ok?'ok':'err');
-}
-
-async function sendTgImport(j,r){
-  const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  await tgSend(`📥 <b>AC HRA 匯入完成</b> — ${ts}\n🟢 入職 +${j} 筆\n🔴 離職 +${r} 筆\n🏭 VRT Sihanoukville`);
-}
-
-async function sendAnomalyTg(){
-  const issues=[];
-  document.querySelectorAll('#anomaly-list .alert').forEach(el=>{
-    if(!el.textContent.includes('✅'))issues.push(el.textContent.trim());
-  });
-  if(!issues.length){toast('無異常可發送','info');return;}
-  const text=`⚠️ <b>AC HRA 入離職異常</b>\n─────────────────────\n${issues.slice(0,10).join('\n')}\n─────────────────────\n🏭 VRT Sihanoukville`;
-  const ok=await tgSend(text);
-  toast(ok?'✅ 已發送':'❌ 失敗',ok?'ok':'err');
-}
-
+function reasonDisplay(r){return r.reasonCat||(r.reason||'—');}
+
+// ── i18n ──
+const I18N={zh:{tab_summary:'總表',tab_joins:'入職',tab_resigns:'離職',tab_import:'匯入',tab_anomaly:'異常',tab_settings:'設定'},en:{tab_summary:'Summary',tab_joins:'Joins',tab_resigns:'Resigns',tab_import:'Import',tab_anomaly:'Anomaly',tab_settings:'Settings'},km:{tab_summary:'សង្ខេប',tab_joins:'ចូល',tab_resigns:'ចេញ',tab_import:'នាំចូល',tab_anomaly:'ខុស',tab_settings:'ការកំណត់'}};
+function t(k){return(I18N[LANG]||I18N.zh)[k]||k;}
+function setLang(l){LANG=l;document.querySelectorAll('.lang-switch button').forEach((b,i)=>b.classList.toggle('active',['zh','en','km'][i]===l));document.querySelectorAll('[data-i]').forEach(el=>{const v=t(el.dataset.i);if(v)el.textContent=v;});renderAll();}
+
+// ── Load/Save ──
+function loadData(){try{JOINS=JSON.parse(localStorage.getItem(K_JOINS)||'[]');}catch(e){JOINS=[];}try{RESIGNS=JSON.parse(localStorage.getItem(K_RESIGNS)||'[]');}catch(e){RESIGNS=[];}try{SETS=JSON.parse(localStorage.getItem(K_SETS)||'{}');}catch(e){SETS={};}}
+function saveJoins(){localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}
+function saveResigns(){localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}
+
+// ── Tabs ──
+function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const tab=btn.dataset.page;document.getElementById('page-'+tab).classList.add('active');if(tab==='summary')renderSummary();if(tab==='joins')renderJoins();if(tab==='resigns')renderResigns();if(tab==='anomaly')runAnomalyCheck();if(tab==='settings')loadSettingsForm();}
+
+// ── Range nav ──
+function setRange(r,btn){RANGE=r;document.querySelectorAll('.range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderSummary();}
+function moveRange(dir){const d=new Date(pivotDate);if(dir===0){pivotDate=new Date();}else if(RANGE==='day'){pivotDate=new Date(d.setDate(d.getDate()+dir));}else if(RANGE==='week'){pivotDate=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE==='month'){pivotDate=new Date(d.setMonth(d.getMonth()+dir));}else if(RANGE==='year'){pivotDate=new Date(d.setFullYear(d.getFullYear()+dir));}renderSummary();}
+function getRangeDates(){const d=new Date(pivotDate);d.setHours(0,0,0,0);let start,end,label;if(RANGE==='day'){start=new Date(d);end=new Date(d);end.setDate(end.getDate()+1);label=d.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});}else if(RANGE==='week'){const dow=d.getDay()||7;start=new Date(d);start.setDate(d.getDate()-dow+1);end=new Date(start);end.setDate(start.getDate()+7);label=`${start.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})} – ${new Date(end-1).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})}`;}else if(RANGE==='month'){start=new Date(d.getFullYear(),d.getMonth(),1);end=new Date(d.getFullYear(),d.getMonth()+1,1);label=`${d.getFullYear()}年${d.getMonth()+1}月`;}else{start=new Date(d.getFullYear(),0,1);end=new Date(d.getFullYear()+1,0,1);label=`${d.getFullYear()}年`;}return{start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),label};}
+function inRange(ds){if(!ds)return false;const{start,end}=getRangeDates();return ds>=start&&ds<end;}
+
+// ── Summary ──
+function renderSummary(){const{start,end,label}=getRangeDates();document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[{v:joins.length,l:'入職',cls:'join-k'},{v:resigns.length,l:'離職',cls:'resign-k'},{v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v<0?k.v:k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();}
+
+function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];const s=new Date(start),e=new Date(end);const days=Math.ceil((e-s)/86400000);if(days>90){const jm={},rm={};joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();months.forEach(m=>{labels.push(m.slice(5));jD.push(jm[m]||0);rD.push(rm[m]||0);});}else{for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){const ds=d.toISOString().slice(0,10);labels.push(ds.slice(5));jD.push(joins.filter(r=>r.joinDate===ds).length);rD.push(resigns.filter(r=>r.resignDate===ds).length);}}mkChart('ch-join',{type:'bar',data:{labels,datasets:[{label:'入職',data:jD,backgroundColor:'#10b981',borderRadius:3}]},options:barOpts()});mkChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:'離職',data:rD,backgroundColor:'#c62828',borderRadius:3}]},options:barOpts()});}
+
+function renderReasonChart(resigns){const cm={};REASON_CATS.forEach(c=>cm[c]=0);resigns.forEach(r=>{const cat=r.reasonCat||'Other';if(cm[cat]!==undefined)cm[cat]++;else cm['Other']=(cm['Other']||0)+1;});const labels=Object.keys(cm).filter(k=>cm[k]>0);const vals=labels.map(k=>cm[k]);const colors=labels.map(k=>{const c=REASON_COLORS[k];return c?c.split(':')[0]:'#9ca3af';});mkChart('ch-reason',{type:'doughnut',data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});}
+
+function renderMonthlyTable(){const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse().slice(0,24);const tbody=document.getElementById('monthly-tbody');if(!months.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">尚無資料</td></tr>';return;}const avgJ=JOINS.length>0?(JOINS.length/months.length).toFixed(1):0;tbody.innerHTML=months.map(m=>{const j=JOINS.filter(r=>(r.joinDate||'').startsWith(m)).length;const r=RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)).length;const net=j-r;const rTypes=['resign','dismiss','self','expel'].map(tp=>RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)&&r.resignType===tp).length);const rate=avgJ>0?((r/avgJ)*100).toFixed(1)+'%':'—';return`<tr><td style="font-family:monospace">${m}</td><td style="color:var(--ok);font-weight:700">+${j}</td><td style="color:var(--danger);font-weight:700">-${r}</td><td style="font-weight:700;color:${net>=0?'var(--ok)':'var(--danger)'}">${net>=0?'+':''}${net}</td>${rTypes.map(v=>`<td>${v||'—'}</td>`).join('')}<td>${rate}</td></tr>`;}).join('');}
+
+// ── Joins ──
+function renderJoins(){const q=(document.getElementById('join-search')?.value||'').toLowerCase();const deptF=document.getElementById('join-dept')?.value||'';const mo=document.getElementById('join-month')?.value||'';const gF=document.getElementById('join-gender')?.value||'';const posF=document.getElementById('join-pos')?.value||'';const deptOf=r=>r.section||r.dept||'—';
+let rows=JOINS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||deptOf(r)===deptF)&&(!mo||(r.joinDate||'').startsWith(mo))&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!posF||(r.position||'').includes(posF))).sort((a,b)=>(b.joinDate||'').localeCompare(a.joinDate||''));
+const total=rows.length,female=rows.filter(r=>(r.gender||'').toUpperCase()==='F').length,today2=new Date().toISOString().slice(0,10);
+document.getElementById('join-summary-cards').innerHTML=[{cls:'join-c',val:total,sub:'',lbl:'篩選人數'},{cls:'info-c',val:rows.filter(r=>(r.joinDate||'').startsWith(today2.slice(0,7))).length,sub:today2.slice(0,7),lbl:'本月入職'},{cls:'info-c',val:female+'F/'+(total-female)+'M',sub:'',lbl:'性別分佈'}].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
+// Dept breakdown
+const dm={};rows.forEach(r=>{const d=deptOf(r);dm[d]=(dm[d]||0)+1;});document.querySelector('#join-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<tr><td>${d}</td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:var(--ok)"></div></div></td></tr>`).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
+// Gender breakdown
+const ageG={'18-25':0,'26-30':0,'31-35':0,'36-40':0,'40+':0,'不明':0};rows.forEach(r=>{if(!r.dob){ageG['不明']++;return;}const age=new Date().getFullYear()-new Date(r.dob).getFullYear();if(age<=25)ageG['18-25']++;else if(age<=30)ageG['26-30']++;else if(age<=35)ageG['31-35']++;else if(age<=40)ageG['36-40']++;else ageG['40+']++;});document.querySelector('#join-gender-bd tbody').innerHTML=[['女 F',female,total],['男 M',total-female,total],...Object.entries(ageG).filter(([,n])=>n>0).map(([k,n])=>[`齡 ${k}`,n,total])].map(([l,n,tt])=>`<tr><td>${l}</td><td><b>${n}</b></td><td>${tt?Math.round(n/tt*100):0}%</td></tr>`).join('');
+const cl=document.getElementById('join-count-lbl');if(cl)cl.textContent=`共 ${rows.length} 筆`;
+document.getElementById('join-tbody').innerHTML=rows.length?rows.map((r,i)=>{const age=r.dob?Math.floor((new Date()-new Date(r.dob))/31536000000):'—';return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td>${r.gender||'—'}</td><td>${age}</td><td style="font-size:11px">${r.tel||'—'}</td><td style="font-size:11px">${r.introducer||'—'}</td><td style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${r.remark||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openJoinModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delJoin('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
+updateFilters();updateBadges();}
+
+// ── Resigns ──
+function renderResigns(){const q=(document.getElementById('resign-search')?.value||'').toLowerCase();const deptF=document.getElementById('resign-dept')?.value||'';const mo=document.getElementById('resign-month')?.value||'';const tp=document.getElementById('resign-type')?.value||'';const gF=document.getElementById('resign-gender')?.value||'';const rcF=document.getElementById('resign-reason-cat')?.value||'';
+const tenDays=r=>r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
+let rows=RESIGNS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||(r.dept||'')=== deptF)&&(!mo||(r.resignDate||'').startsWith(mo))&&(!tp||r.resignType===tp)&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||'')=== rcF)).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
+const total=rows.length,tc={resign:0,dismiss:0,self:0,expel:0};rows.forEach(r=>{if(tc[r.resignType]!==undefined)tc[r.resignType]++;});
+const mo2=new Date().toISOString().slice(0,7);
+document.getElementById('resign-summary-cards').innerHTML=[{cls:'resign-c',val:total,sub:`本月${rows.filter(r=>(r.resignDate||'').startsWith(mo2)).length}人`,lbl:'篩選離職'},{cls:'warn-c',val:tc.resign,sub:'辭職',lbl:'Resigned'},{cls:'warn-c',val:tc.self,sub:'自離',lbl:'Self-resign'},{cls:'resign-c',val:tc.dismiss+tc.expel,sub:'辭退/開除',lbl:'Company'}].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
+// Reason category breakdown
+const cm={};rows.forEach(r=>{const c=r.reasonCat||'其他';cm[c]=(cm[c]||0)+1;});document.querySelector('#resign-reason-bd tbody').innerHTML=Object.entries(cm).sort((a,b)=>b[1]-a[1]).map(([c,n])=>{const colors=REASON_COLORS[c];const[bg,col]=colors?colors.split(':'):['#f5f5f5','#616161'];return`<tr><td><span class="reason-tag" style="background:${bg};color:${col}">${c}</span></td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:${col}"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
+// Dept breakdown
+const dm={};rows.forEach(r=>{const d=r.dept||'—';if(!dm[d])dm[d]={n:0,days:0};dm[d].n++;dm[d].days+=tenDays(r);});document.querySelector('#resign-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n).map(([d,v])=>{const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;return`<tr><td>${d}</td><td><b>${v.n}</b></td><td>${avg}年</td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
+const typeColors={resign:'#ef4444',dismiss:'#f59e0b',self:'#8b5cf6',expel:'#c0392b'};
+const typeMap={resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'};
+const rcl=document.getElementById('resign-count-lbl');if(rcl)rcl.textContent=`共 ${rows.length} 筆`;
+document.getElementById('resign-tbody').innerHTML=rows.length?rows.map((r,i)=>{const td=tenDays(r);const tenStr=td>365?Math.round(td/365*10)/10+'年':(td>30?Math.round(td/30)+'月':td+'天');return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td style="font-size:11px">${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td style="font-family:monospace">${r.resignDate||'—'}</td><td style="font-family:monospace;color:#1a7abf;font-weight:600">${tenStr}</td><td>${r.gender||'—'}</td><td><span style="color:${typeColors[r.resignType]||'#999'};font-weight:700;font-size:11px">${typeMap[r.resignType]||'—'}</span></td><td>${getReasonBadge(r)}</td><td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;color:#6b7a9e">${r.reason||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openResignModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delResign('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
+updateFilters();updateBadges();}
+
+// ── Filter helpers ──
+function updateFilters(){const deptOf=r=>r.section||r.dept||'';const depts=[...new Set([...JOINS.map(deptOf),...RESIGNS.map(r=>r.dept||'')].filter(Boolean))].sort();const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse();['join-dept','resign-dept'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部部門</option>'+depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');});['join-month','resign-month'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');});const positions=[...new Set(JOINS.map(r=>(r.position||'').trim()).filter(Boolean))].sort();const posEl=document.getElementById('join-pos');if(posEl){const cur=posEl.value;posEl.innerHTML='<option value="">全部職位</option>'+positions.map(p=>`<option${p===cur?' selected':''}>${p}</option>`).join('');}// Reason cat filter
+const rcEl=document.getElementById('resign-reason-cat');if(rcEl){const used=[...new Set(RESIGNS.map(r=>r.reasonCat).filter(Boolean))].sort();const cur=rcEl.value;rcEl.innerHTML='<option value="">全部原因</option>'+used.map(c=>`<option${c===cur?' selected':''}>${c}</option>`).join('');}}
+function updateBadges(){setBadge('bdg-join',JOINS.length);setBadge('bdg-resign',RESIGNS.length);setBadge('bdg-anomaly',document.getElementById('page-anomaly').classList.contains('active')?0:0);}
+function setBadge(id,n){const el=document.getElementById(id);if(!el)return;el.textContent=n;el.style.display=n?'':'none';}
+
+// ── Modal: Join ──
+function openJoinModal(id){_editJoinId=id||null;populateDeptSelects();const r=id?JOINS.find(x=>x.id===id):{};document.getElementById('modal-join-title').textContent=r.id?'編輯入職記錄':'新增入職記錄';['id:mj-id','joinDate:mj-date','name:mj-name','dept:mj-dept','section:mj-section','position:mj-pos','gender:mj-gender','dob:mj-dob','tel:mj-tel','introducer:mj-intro','remark:mj-remark'].forEach(pair=>{const[k,elId]=pair.split(':');const el=document.getElementById(elId);if(!el)return;const rk=k==='id'?'empId':k;el.value=r?.[rk]||'';});if(!id)document.getElementById('mj-date').value=new Date().toISOString().slice(0,10);document.getElementById('modal-join').classList.add('open');}
+function saveJoin(){const name=document.getElementById('mj-name').value.trim(),joinDate=document.getElementById('mj-date').value;if(!name||!joinDate){toast('請填寫姓名和入職日期','warn');return;}const obj={id:_editJoinId||uid(),empId:document.getElementById('mj-id').value.trim(),name,joinDate,dept:document.getElementById('mj-dept').value,section:document.getElementById('mj-section').value.trim(),position:document.getElementById('mj-pos').value.trim(),gender:document.getElementById('mj-gender').value,dob:document.getElementById('mj-dob').value,tel:document.getElementById('mj-tel').value.trim(),introducer:document.getElementById('mj-intro').value.trim(),remark:document.getElementById('mj-remark').value.trim()};if(_editJoinId){const i=JOINS.findIndex(x=>x.id===_editJoinId);if(i>=0)JOINS[i]=obj;else JOINS.push(obj);}else JOINS.push(obj);saveJoins();closeModal('modal-join');toast('✅ 已儲存：'+name,'ok');renderJoins();}
+function delJoin(id){const r=JOINS.find(x=>x.id===id);if(!r||!confirm(`刪除 ${r.name} 的入職記錄？`))return;JOINS=JOINS.filter(x=>x.id!==id);saveJoins();renderJoins();toast('已刪除','warn');}
+
+// ── Modal: Resign ──
+function openResignModal(id){_editResignId=id||null;populateDeptSelects();const r=id?RESIGNS.find(x=>x.id===id):{};document.getElementById('modal-resign-title').textContent=r.id?'編輯離職記錄':'新增離職記錄';document.getElementById('mr-id').value=r.empId||'';document.getElementById('mr-name').value=r.name||'';document.getElementById('mr-dept').value=r.dept||'';document.getElementById('mr-pos').value=r.position||'';document.getElementById('mr-gender').value=r.gender||'F';document.getElementById('mr-type').value=r.resignType||'resign';document.getElementById('mr-date').value=r.resignDate||new Date().toISOString().slice(0,10);document.getElementById('mr-joindate').value=r.joinDate||'';document.getElementById('mr-days').value=r.workingDays||'';document.getElementById('mr-reason-cat').value=r.reasonCat||'';document.getElementById('mr-reason').value=r.reason||'';document.getElementById('mr-remark').value=r.remark||'';['mr-joindate','mr-date'].forEach(eid=>{document.getElementById(eid).onchange=()=>{const j=document.getElementById('mr-joindate').value,d=document.getElementById('mr-date').value;if(j&&d)document.getElementById('mr-days').value=Math.max(0,Math.ceil((new Date(d)-new Date(j))/86400000));};});document.getElementById('modal-resign').classList.add('open');}
+function saveResign(){const name=document.getElementById('mr-name').value.trim(),resignDate=document.getElementById('mr-date').value;if(!name||!resignDate){toast('請填寫姓名和離職日期','warn');return;}const joinDate=document.getElementById('mr-joindate').value;let days=parseInt(document.getElementById('mr-days').value)||0;if(!days&&joinDate&&resignDate)days=Math.max(0,Math.ceil((new Date(resignDate)-new Date(joinDate))/86400000));const obj={id:_editResignId||uid(),empId:document.getElementById('mr-id').value.trim(),name,resignDate,joinDate,dept:document.getElementById('mr-dept').value,position:document.getElementById('mr-pos').value.trim(),gender:document.getElementById('mr-gender').value,resignType:document.getElementById('mr-type').value,workingDays:days,reasonCat:document.getElementById('mr-reason-cat').value,reason:document.getElementById('mr-reason').value.trim(),remark:document.getElementById('mr-remark').value.trim()};if(_editResignId){const i=RESIGNS.findIndex(x=>x.id===_editResignId);if(i>=0)RESIGNS[i]=obj;else RESIGNS.push(obj);}else RESIGNS.push(obj);saveResigns();closeModal('modal-resign');toast('✅ 已儲存：'+name,'ok');renderResigns();}
+function delResign(id){const r=RESIGNS.find(x=>x.id===id);if(!r||!confirm(`刪除 ${r.name} 的離職記錄？`))return;RESIGNS=RESIGNS.filter(x=>x.id!==id);saveResigns();renderResigns();toast('已刪除','warn');}
+
+function populateDeptSelects(){const depts=getDeptList();['mj-dept','mr-dept'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML=depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');});}
+function getDeptList(){const s=localStorage.getItem(K_DEPTS);if(s)return s.split('\n').map(x=>x.trim()).filter(Boolean);return['Production','Line 1','Line 2','Line 3','Line 4','Line 5','Line 6','Line 7','Line 8','LINE 09','LINE 10','LINE 11','Cutting','Packing','QC A','QC B','Warehouse','Maintenance','Admin Center','HRA','Security'];}
+
+// ── Import ──
+function onDrop(e){e.preventDefault();document.getElementById('dz-main').classList.remove('drag');addFiles(e.dataTransfer.files);}
+function onFileSelect(e){addFiles(e.target.files);}
+function addFiles(files){_pendingFiles=[...(files||[])];const list=document.getElementById('file-list');list.innerHTML=_pendingFiles.map((f,i)=>`<div style="font-size:12px;padding:4px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between"><span>📎 ${f.name} <span style="color:var(--muted)">(${(f.size/1024).toFixed(0)}KB)</span></span><button onclick="_pendingFiles.splice(${i},1);addFiles()" style="background:none;border:none;color:var(--danger);cursor:pointer">✕</button></div>`).join('');document.getElementById('btn-parse').disabled=!_pendingFiles.length;}
+
+async function parseFiles(){if(!_pendingFiles.length)return;document.getElementById('parse-status').textContent='解析中…';_importBuf={joins:[],resigns:[]};const overwrite=document.getElementById('chk-overwrite').checked;for(const f of _pendingFiles){try{let xls=[];if(/\.(msg|eml)$/i.test(f.name)){xls=await extractXlsx(f);}else if(/\.(xlsx|xls)$/i.test(f.name)){const buf=await f.arrayBuffer();xls=[{name:f.name,data:new Uint8Array(buf)}];}for(const xf of xls)await parseWb(xf.data,overwrite);}catch(ex){toast(`❌ ${f.name}: ${ex.message}`,'err');}}showPreview();document.getElementById('parse-status').textContent=`✅ 入職 ${_importBuf.joins.length} 筆 · 離職 ${_importBuf.resigns.length} 筆`;}
+
+async function parseWb(data,overwrite){const wb=XLSX.read(data,{type:'array',cellDates:true});const existJoinIds=new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));const existResignKeys=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));for(const sn of wb.SheetNames){const snL=sn.toLowerCase().trim();const ws=wb.Sheets[sn];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(!rows.length)continue;
+if(snL.includes('join')||snL.includes('jion')||snL.includes('入職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cDate=ci('join date')<0?ci('join'):ci('join date');const cDept=ci('dept'),cSec=ci('section'),cPos=ci('pos');const cId=ci('id number')<0?ci('id'):ci('id number');const cName=ci('name'),cGender=ci('gender'),cDob=ci('birth')<0?ci('dob'):ci('birth');const cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel'),cIntro=ci('introdu'),cRmk=ci('remark')<0?ci('note'):ci('remark');for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];const nameVal=String(row[cName]||'').trim();if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;const empId=String(row[cId]||'').trim();const joinDate=parseDate(row[cDate]);if(!joinDate)continue;if(!overwrite&&empId&&existJoinIds.has(empId))continue;_importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob:parseDate(row[cDob])||'',address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:String(row[cIntro]||'').trim(),remark:String(row[cRmk]||'').trim()});}}
+if(snL.includes('resign')||snL.includes('離職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(工號|resign.?date|離職日|STT|Name)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).replace(/\n/g,' ').trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cId=ci('工號')<0?(ci('id')<0?ci('stt'):ci('id')):ci('工號'),cName=ci('姓名')<0?ci('name'):ci('姓名'),cJoin=ci('到職')<0?(ci('join')<0?ci('start'):ci('join')):ci('到職'),cDept=ci('部門')<0?ci('section'):ci('部門'),cPos=ci('職務')<0?ci('pos'):ci('職務'),cGender=ci('性別')<0?ci('gender'):ci('性別');const cResign=ci('辭職'),cDismiss=ci('辭退'),cSelf=ci('自離'),cExpel=ci('開除');const cResignDate=ci('離職日')<0?ci('resign date'):ci('離職日'),cDays=ci('在職天數')<0?ci('working'):ci('在職天數'),cReason=ci('原因')<0?ci('reason'):ci('原因'),cRmk=ci('備注')<0?ci('remark'):ci('備注');for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];const nameVal=String(row[cName]||'').trim();if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;const empId=String(row[cId]||'').trim();const resignDate=parseDate(row[cResignDate]);if(!resignDate)continue;const key=empId+'_'+resignDate;if(!overwrite&&existResignKeys.has(key))continue;const chk=v=>String(v||'').trim().toLowerCase();let resignType='resign';if(cSelf>=0&&chk(row[cSelf])==='√')resignType='self';else if(cExpel>=0&&chk(row[cExpel])==='√')resignType='expel';else if(cDismiss>=0&&chk(row[cDismiss])==='√')resignType='dismiss';const joinDate2=parseDate(row[cJoin])||'';let days=parseInt(String(row[cDays]||'').trim())||0;if(!days&&joinDate2&&resignDate)days=Math.ceil((new Date(resignDate)-new Date(joinDate2))/86400000);const reasonRaw=String(row[cReason]||'').trim();// auto-map reason to category
+let reasonCat='',reason=reasonRaw;const rLow=reasonRaw.toLowerCase();if(/voluntary|resign|辭職/.test(rLow))reasonCat='Voluntary';else if(/attend|出勤/.test(rLow))reasonCat='Attendance';else if(/no call|no show|曠職/.test(rLow))reasonCat='No Call';else if(/perform|績效/.test(rLow))reasonCat='Performance';else if(/health|病|sick/.test(rLow))reasonCat='Health';else if(/pregn|child|baby|懷孕|育兒/.test(rLow))reasonCat='Pregnancy';else if(/family|home|go home|家庭|回家/.test(rLow))reasonCat='Family';else if(/reloc|move|搬/.test(rLow))reasonCat='Relocation';else if(/transfer|調職/.test(rLow))reasonCat='Transfer';else if(/contract|合約/.test(rLow))reasonCat='Contract End';else if(/dismiss|expel|辭退|開除/.test(rLow))reasonCat='Dismissal';else if(/salar|pay|薪/.test(rLow))reasonCat='Salary';else if(/personal|個人/.test(rLow))reasonCat='Personal';else if(reasonRaw)reasonCat='Other';
+_importBuf.resigns.push({id:'r_'+uid(),empId,name:nameVal,resignDate,joinDate:joinDate2,dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',workingDays:days,resignType,reasonCat,reason,remark:String(row[cRmk]||'').trim()});}}}}
+
+function showPreview(){const preview=document.getElementById('import-preview'),content=document.getElementById('preview-content');if(!_importBuf.joins.length&&!_importBuf.resigns.length){content.innerHTML='<div class="alert warn">⚠️ 未解析到資料</div>';preview.style.display='';return;}let html=`<div class="alert ok">✅ 入職 <b>${_importBuf.joins.length}</b> 筆 · 離職 <b>${_importBuf.resigns.length}</b> 筆</div>`;if(_importBuf.joins.length)html+=`<div style="margin-bottom:8px;font-size:12px;font-weight:600">🟢 入職（前10筆）</div><div class="table-scroll" style="max-height:160px"><table><thead><tr><th>工號</th><th>姓名</th><th>部門</th><th>入職日</th></tr></thead><tbody>${_importBuf.joins.slice(0,10).map(r=>`<tr><td>${r.empId}</td><td>${r.name}</td><td>${r.dept}</td><td>${r.joinDate}</td></tr>`).join('')}</tbody></table></div>`;if(_importBuf.resigns.length)html+=`<div style="margin:10px 0 8px;font-size:12px;font-weight:600">🔴 離職（前10筆）</div><div class="table-scroll" style="max-height:160px"><table><thead><tr><th>工號</th><th>姓名</th><th>離職日</th><th>類型</th><th>原因分類</th></tr></thead><tbody>${_importBuf.resigns.slice(0,10).map(r=>`<tr><td>${r.empId}</td><td>${r.name}</td><td>${r.resignDate}</td><td>${r.resignType}</td><td>${getReasonBadge(r)}</td></tr>`).join('')}</tbody></table></div>`;content.innerHTML=html;preview.style.display='';}
+function confirmImport(){const overwrite=document.getElementById('chk-overwrite').checked;const existJoinIds=new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));const existResignKeys=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));let aj=0,ar=0;_importBuf.joins.forEach(r=>{if(overwrite&&r.empId)JOINS=JOINS.filter(x=>String(x.empId||'').trim()!==r.empId);if(overwrite||!r.empId||!existJoinIds.has(r.empId)){JOINS.push(r);aj++;}});_importBuf.resigns.forEach(r=>{const key=String(r.empId||'')+'_'+r.resignDate;if(overwrite&&key!=='_')RESIGNS=RESIGNS.filter(x=>String(x.empId||'')+'_'+String(x.resignDate||'')!==key);if(overwrite||!existResignKeys.has(key)){RESIGNS.push(r);ar++;}});saveJoins();saveResigns();toast(`✅ 入職 +${aj} · 離職 +${ar}`,'ok');document.getElementById('import-preview').style.display='none';_importBuf={joins:[],resigns:[]};_pendingFiles=[];document.getElementById('file-list').innerHTML='';document.getElementById('btn-parse').disabled=true;runAnomalyCheck();renderAll();}
+function cancelImport(){_importBuf={joins:[],resigns:[]};document.getElementById('import-preview').style.display='none';}
+
+async function extractXlsx(file){const text=await file.text();const results=[];const bRe=/boundary=["']?([^"'\r\n;\s]+)["']?/gi;const bs=[];let bm;while((bm=bRe.exec(text))!==null)bs.push(bm[1]);for(const b of[...new Set(bs)]){for(const part of text.split('--'+b)){if(!/filename[^"'\r\n]*\.xlsx?/i.test(part)&&!/content-type:[^\r\n]*(spreadsheet|excel)/i.test(part))continue;let fn='att.xlsx';const fm=part.match(/filename[^"'\r\n;]*?["']?([^"'\r\n;]+\.xlsx?)["']?/i);if(fm)fn=fm[1].trim();const bmp=part.match(/\r?\n\r?\n([\s\S]+?)(?:--|\s*$)/);if(!bmp)continue;const b64=bmp[1].replace(/[\r\n\s]/g,'');if(b64.length<100)continue;try{const bin=atob(b64);const by=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)by[i]=bin.charCodeAt(i);if(by[0]===0x50&&by[1]===0x4B)results.push({name:fn.split(/[/\\]/).pop(),data:by});}catch(e){}}}return results;}
+
+// ── Anomaly ──
+function runAnomalyCheck(){const issues=[];const today=new Date().toISOString().slice(0,10);const idMap={};JOINS.forEach(r=>{if(r.empId){if(idMap[r.empId])issues.push({sev:'danger',msg:`重複工號 ${r.empId}: ${idMap[r.empId]} & ${r.name}`});idMap[r.empId]=r.name;}if(r.dob){const age=Math.floor((new Date()-new Date(r.dob))/31536000000);if(age<18)issues.push({sev:'danger',msg:`年齡異常 <18: ${r.name} (${r.empId||'—'}) 年齡 ${age}`});}if(!r.dept||!r.dept.trim())issues.push({sev:'warn',msg:`缺部門: ${r.name} (${r.empId||'—'})`});if(r.joinDate&&r.joinDate>today)issues.push({sev:'warn',msg:`入職日在未來: ${r.name} — ${r.joinDate}`});});RESIGNS.forEach(r=>{if(r.joinDate&&r.resignDate){const calc=Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000);if(r.workingDays&&Math.abs(calc-r.workingDays)>5)issues.push({sev:'warn',msg:`天數不符: ${r.name} — 計算${calc}天 vs 記錄${r.workingDays}天`});if(r.resignDate<r.joinDate)issues.push({sev:'danger',msg:`日期異常: ${r.name} 離職日早於入職日`});}if(!r.dept||!r.dept.trim())issues.push({sev:'warn',msg:`缺部門: ${r.name} (${r.empId||'—'})`});});document.getElementById('bdg-anomaly').textContent=issues.length;document.getElementById('bdg-anomaly').style.display=issues.length?'':'none';const el=document.getElementById('anomaly-list');if(!issues.length){el.innerHTML='<div class="alert ok">✅ 未發現異常</div>';return;}el.innerHTML=issues.map(i=>`<div class="alert ${i.sev}">${i.sev==='danger'?'🔴':'⚠️'} ${i.msg}</div>`).join('');}
+
+// ── Export ──
+function exportJoinsExcel(){if(!JOINS.length){toast('無資料','warn');return;}const hdr=['工號','姓名','入職日期','部門','組別','職位','性別','出生日期','電話','介紹人','備注'];const rows=JOINS.map(r=>[r.empId,r.name,r.joinDate,r.dept,r.section,r.position,r.gender,r.dob,r.tel,r.introducer,r.remark]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdr,...rows]),'Joins');XLSX.writeFile(wb,`AC_HRA_Joins_${td()}.xlsx`);toast('⬇ 已下載','ok');}
+function exportResignsExcel(){if(!RESIGNS.length){toast('無資料','warn');return;}const hdr=['工號','姓名','入職日','離職日','在職天數','部門','職位','性別','離職類型','原因分類','補充說明','備注'];const rows=RESIGNS.map(r=>[r.empId,r.name,r.joinDate,r.resignDate,r.workingDays,r.dept,r.position,r.gender,r.resignType,r.reasonCat||'',r.reason||'',r.remark||'']);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([hdr,...rows]),'Resigns');XLSX.writeFile(wb,`AC_HRA_Resigns_${td()}.xlsx`);toast('⬇ 已下載','ok');}
+function downloadTemplate(){const wb=XLSX.utils.book_new();const j=XLSX.utils.aoa_to_sheet([['STT','Join date','Dept','Section','Pos','ID number','Name','Gender','Date of Birth','Age','Address','Telephone','Introduce by','Remark'],[1,'2026-04-21','Production','Line12','Sewing Operator',5913,'CHAN DARA','F','1995-08-15',30,'Sihanouk','010681661','By friend','']]);const r=XLSX.utils.aoa_to_sheet([['序號','工號','姓名','到職日期','部門','職務','性別','出生日期','年齡','辭職','辭退','自離','開除','離職日期','在職天數','離職原因','備注'],[1,5595,'CHHOM SREYMEY','2024-10-22','Line11','Sewing operator','F','2000-09-12',26,'√','','','','2026-04-01',527,'Go home childcare','']]);XLSX.utils.book_append_sheet(wb,j,'Jion');XLSX.utils.book_append_sheet(wb,r,'Resign');XLSX.writeFile(wb,'AC_HRA_Template.xlsx');}
+
+// ── Cloud ──
+async function sendTgSummary(){const mo=new Date().toISOString().slice(0,7);const mj=JOINS.filter(r=>(r.joinDate||'').startsWith(mo)).length,mr=RESIGNS.filter(r=>(r.resignDate||'').startsWith(mo)).length;const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});const text=`🚪 <b>AC HRA 入離職摘要</b> — ${ts}\n─────────────────────\n📅 ${mo}\n🟢 入職：${mj} 人\n🔴 離職：${mr} 人\n📊 淨增減：${mj>=mr?'+':''}${mj-mr} 人\n─────────────────────\n🏭 VRT Sihanoukville`;const gasUrl=localStorage.getItem(K_GAS)||'';if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok){toast('✅ Telegram 已發送','ok');return;}}catch(e){}}const TOKEN=SETS.tgToken||'8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg',CHAT=SETS.tgChat||'-5233667043';fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})}).then(r=>r.json()).then(d=>toast(d.ok?'✅ Telegram 已發送':'❌ 失敗',d.ok?'ok':'err')).catch(e=>toast('❌ '+e.message,'err'));}
+async function sendAnomalyTg(){const issues=[];document.querySelectorAll('#anomaly-list .alert').forEach(el=>{if(!el.textContent.includes('✅'))issues.push(el.textContent.trim());});if(!issues.length){toast('無異常可發送','warn');return;}const text=`⚠️ <b>AC HRA 異常</b>\n${issues.slice(0,10).join('\n')}\n🏭 VRT Sihanoukville`;const ok=await tgSend(text);toast(ok?'✅ 已發送':'❌ 失敗',ok?'ok':'err');}
+async function tgSend(text){const gasUrl=localStorage.getItem(K_GAS)||'';if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok)return true;}catch(e){}}const TOKEN=SETS.tgToken||'',CHAT=SETS.tgChat||'';if(!TOKEN||!CHAT)return false;try{const r=await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})});return(await r.json()).ok;}catch(e){return false;}}
 async function testTg(){const ok=await tgSend('✅ AC HRA 入離職系統 Telegram 測試\n🏭 VRT Sihanoukville');toast(ok?'✅ Telegram OK':'❌ Telegram 失敗',ok?'ok':'err');}
-async function testGas(){
-  try{const r=await fetch(_gasUrl+'?action=heartbeat',{method:'GET',redirect:'follow'});const d=await r.json();toast(d.ok?'✅ GAS OK':'❌ GAS 回應錯誤',d.ok?'ok':'err');}
-  catch(e){toast('❌ GAS 連線失敗','err');}
-}
+async function testGas(){const url=localStorage.getItem(K_GAS)||'';if(!url){toast('未設定 GAS URL','warn');return;}try{const r=await fetch(url+'?action=heartbeat',{redirect:'follow'});const d=await r.json();toast(d.ok?'✅ GAS OK':'❌ GAS 錯誤',d.ok?'ok':'err');}catch(e){toast('❌ GAS 連線失敗','err');}}
 
-// ── Settings ──────────────────────────────────────────────
-function loadSettingsForm(){
-  document.getElementById('set-gas').value=_gasUrl;
-  document.getElementById('set-tg-token').value=SETS.tgToken||'';
-  document.getElementById('set-tg-chat').value=SETS.tgChat||'-5233667043';
-  document.getElementById('set-depts').value=getDeptList().join('\n');
-  document.getElementById('data-stats').textContent=
-    `入職記錄：${JOINS.length} 筆　離職記錄：${RESIGNS.length} 筆`;
-}
-function saveSettings(){
-  _gasUrl=document.getElementById('set-gas').value.trim();
-  if(_gasUrl){localStorage.setItem(K_GAS,_gasUrl);document.getElementById('cb-url').value=_gasUrl;document.getElementById('btn-push').disabled=false;document.getElementById('btn-pull').disabled=false;}
-  SETS.tgToken=document.getElementById('set-tg-token').value.trim();
-  SETS.tgChat=document.getElementById('set-tg-chat').value.trim();
-  localStorage.setItem(K_SETS,JSON.stringify(SETS));
-  toast('✅ 設定已儲存','ok');
-}
-function saveDepts(){
-  localStorage.setItem(K_DEPTS,document.getElementById('set-depts').value);
-  toast('✅ 部門清單已儲存','ok');
-}
+// ── Settings ──
+function loadSettingsForm(){document.getElementById('set-gas').value=localStorage.getItem(K_GAS)||'';document.getElementById('set-tg-token').value=SETS.tgToken||'';document.getElementById('set-tg-chat').value=SETS.tgChat||'-5233667043';document.getElementById('set-depts').value=getDeptList().join('\n');document.getElementById('data-stats').textContent=`入職 ${JOINS.length} 筆 · 離職 ${RESIGNS.length} 筆`;}
+function saveSettings(){const url=document.getElementById('set-gas').value.trim();if(url)localStorage.setItem(K_GAS,url);SETS.tgToken=document.getElementById('set-tg-token').value.trim();SETS.tgChat=document.getElementById('set-tg-chat').value.trim();localStorage.setItem(K_SETS,JSON.stringify(SETS));toast('✅ 設定已儲存','ok');}
+function saveDepts(){localStorage.setItem(K_DEPTS,document.getElementById('set-depts').value);toast('✅ 部門清單已儲存','ok');}
+function backupJSON(){const b=new Blob([JSON.stringify({joins:JOINS,resigns:RESIGNS,ts:new Date().toISOString()})],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`AC_HRA_Onboarding_${td()}.json`;a.click();toast('📦 已備份','ok');}
+function restoreJSON(evt){const f=evt.target.files[0];if(!f)return;new FileReader().onload=e=>{try{const d=JSON.parse(e.target.result);JOINS=d.joins||[];RESIGNS=d.resigns||[];saveJoins();saveResigns();renderAll();toast('📂 已還原','ok');}catch(ex){toast('❌ 還原失敗','err');}};new FileReader().readAsText(f);const r=new FileReader();r.onload=e=>{try{const d=JSON.parse(e.target.result);JOINS=d.joins||[];RESIGNS=d.resigns||[];saveJoins();saveResigns();renderAll();toast(`📂 已還原 (入${JOINS.length}·離${RESIGNS.length})`,'ok');}catch(ex){toast('❌ 還原失敗：'+ex.message,'err');}};r.readAsText(f);evt.target.value='';}
+function clearAllData(){if(!confirm('確認清除所有資料？'))return;JOINS=[];RESIGNS=[];saveJoins();saveResigns();renderAll();toast('🗑 已清除','warn');}
 
-// ── Export ────────────────────────────────────────────────
-function exportJoinsExcel(){
-  const wb=XLSX.utils.book_new();
-  const hdr=['工號','姓名','入職日期','部門','組別','職位','性別','出生日期','電話','地址','介紹人','備注'];
-  const ws=XLSX.utils.aoa_to_sheet([hdr,...JOINS.map(r=>[r.empId,r.name,r.joinDate,r.dept,r.section,r.position,r.gender,r.dob,r.tel,r.address,r.introducer,r.remark])]);
-  XLSX.utils.book_append_sheet(wb,ws,'Joins');
-  XLSX.writeFile(wb,`AC_HRA_Joins_${new Date().toISOString().slice(0,10)}.xlsx`);
-  toast('⬇ Excel 已下載','ok');
-}
-function exportResignsExcel(){
-  const wb=XLSX.utils.book_new();
-  const hdr=['工號','姓名','入職日','離職日','在職天數','部門','職位','性別','離職類型','原因','備注'];
-  const ws=XLSX.utils.aoa_to_sheet([hdr,...RESIGNS.map(r=>[r.empId,r.name,r.joinDate,r.resignDate,r.workingDays,r.dept,r.position,r.gender,r.resignType,r.reason,r.remark])]);
-  XLSX.utils.book_append_sheet(wb,ws,'Resigns');
-  XLSX.writeFile(wb,`AC_HRA_Resigns_${new Date().toISOString().slice(0,10)}.xlsx`);
-  toast('⬇ Excel 已下載','ok');
-}
-function downloadTemplate(){
-  const wb=XLSX.utils.book_new();
-  const jws=XLSX.utils.aoa_to_sheet([['STT','Join date','Dept','Section','Pos','ID number','Name','Gender','Date of Birth','Age','Address','Telephone','Introduce by','Name','Remark'],
-    [1,'2026-04-21','Production','Line12','Sewing Operator',5913,'Khot Chantrea','F','1995-08-15',30,'Sihanouk','010681661','By friend','','']]);
-  const rws=XLSX.utils.aoa_to_sheet([['序號','工號','姓名','到職日期','部門','職務','性別','出生日期','年齡','辭職','辭退','自離','開除','離職日期','在職天數','離職原因','備注'],
-    [1,5595,'CHOMREUN TORY','2024-10-22','Line11','Sewing operator','F','2000-09-12',26,'√','','','','2026-04-01',527,'Go home childcare','']]);
-  XLSX.utils.book_append_sheet(wb,jws,'Jion');
-  XLSX.utils.book_append_sheet(wb,rws,'Resign');
-  XLSX.writeFile(wb,'AC_HRA_JoinResign_Template.xlsx');
-}
-
-// ── Backup / Restore ──────────────────────────────────────
-function backupJSON(){
-  const blob=new Blob([JSON.stringify({joins:JOINS,resigns:RESIGNS,ts:new Date().toISOString()})],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-  a.download=`AC_HRA_Onboarding_Backup_${new Date().toISOString().slice(0,10)}.json`;a.click();
-  toast('📦 已備份','ok');
-}
-function restoreJSON(e){
-  const f=e.target.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=ev=>{
-    try{const d=JSON.parse(ev.target.result);
-      JOINS=d.joins||[];RESIGNS=d.resigns||[];
-      saveJoins();saveResigns();renderAll();
-      toast(`📂 已還原 (入${JOINS.length}·離${RESIGNS.length})`,'ok');
-    }catch(ex){toast('❌ 還原失敗：'+ex.message,'err');}
-  };r.readAsText(f);
-}
-function clearAllData(){
-  if(!confirm('確認清除所有入離職資料？此操作不可還原！'))return;
-  JOINS=[];RESIGNS=[];saveJoins();saveResigns();renderAll();toast('🗑 已清除','warn');
-}
-
-// ── Charts ────────────────────────────────────────────────
-function makeChart(id,config){
-  if(_charts[id])try{_charts[id].destroy();}catch(e){}
-  const el=document.getElementById(id);if(!el)return;
-  _charts[id]=new Chart(el,config);
-}
-function barOpts(){
-  return{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},
-    scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45}}}};
-}
-
-// ── Print / Misc ──────────────────────────────────────────
+// ── Helpers ──
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const td=()=>new Date().toISOString().slice(0,10);
+function parseDate(v){if(!v)return'';if(v instanceof Date){const y=v.getFullYear(),mo=v.getMonth()+1,d=v.getDate();if(y<2000||y>2060)return'';return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}if(typeof v==='number'&&v>40000&&v<60000){const d=new Date(Math.round((v-25569)*86400000));return`${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;}const s=String(v).trim();const m=s.match(/(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})/);if(m)return`${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;const dt=new Date(s);if(!isNaN(dt)&&dt.getFullYear()>=2000)return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;return'';}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+document.querySelectorAll('.modal-bg').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('open');});
+function mkChart(id,cfg){if(_charts[id])try{_charts[id].destroy();}catch(e){}const el=document.getElementById(id);if(!el)return;_charts[id]=new Chart(el,cfg);}
+function barOpts(){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45}}}};}
+function toast(msg,type){const el=document.createElement('div');el.className='toast '+(type||'info');el.textContent=msg;document.getElementById('toasts').appendChild(el);setTimeout(()=>el.remove(),3800);}
 function printPage(){window.print();}
+function renderAll(){renderSummary();renderJoins();renderResigns();}
 
-function toast(msg,type,dur){
-  const el=document.createElement('div');
-  el.className='toast '+(type||'info');el.textContent=msg;
-  document.getElementById('toasts').appendChild(el);
-  setTimeout(()=>el.remove(),dur||4000);
-}
-
-function renderAll(){
-  renderSummary();renderJoins();renderResigns();updateBadges();
-  // Update data stats in settings if open
-  const statsEl=document.getElementById('data-stats');
-  if(statsEl)statsEl.textContent=`入職記錄：${JOINS.length} 筆　離職記錄：${RESIGNS.length} 筆`;
-}
-
-// ── Init ──────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded',()=>{
-  loadData();
-  setSyncStatus('idle');
-  renderAll();
-  // Cloud meta restore
-  const meta=JSON.parse(localStorage.getItem('ac_hra_ob_meta')||'null');
-  if(meta){
-    const mins=(Date.now()-meta.ts)/60000;
-    setSyncStatus('ok',`${mins<60?Math.round(mins)+'分':Math.round(mins/60)+'小時'}前`);
-  }
-});
+// ── Init ──
+loadData();
+document.querySelectorAll('.lang-switch button').forEach((b,i)=>b.classList.toggle('active',['zh','en','km'][i]===LANG));
+renderAll();
+// Load settings into form if on settings page
+const gasUrl=localStorage.getItem(K_GAS)||'';
 </script>
 </body>
 </html>

@@ -1,635 +1,679 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>AC HRA Portal v2</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>AC HRA Portal</title>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:"Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;background:#0f1626;color:#f1f5f9;min-height:100dvh}
+:root{
+  --g1:#1b6b3a;--g2:#2d8f55;--g3:#24a35e;
+  --btn:#2d7a4a;--btn2:#235f3a;--btnH:#1a5c33;
+  --gold:#f5c842;--white:#fff;--muted:rgba(255,255,255,.65);
+  --shadow:0 3px 12px rgba(0,0,0,.25);
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:"Noto Sans TC","Inter",system-ui,sans-serif;overflow-x:hidden}
 
-/* ── Header ── */
-.hdr{background:linear-gradient(135deg,#1a2540,#1e3050);border-bottom:1px solid #1e3050;padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.logo{width:40px;height:40px;background:linear-gradient(135deg,#10b981,#059669);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.hdr-text{flex:1;min-width:0}
-.hdr-title{font-size:15px;font-weight:700;line-height:1.2}
-.hdr-sub{font-size:10px;color:#475569;margin-top:2px;text-transform:uppercase;letter-spacing:.04em}
-.hdr-right{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
-.lang-row{display:flex;background:#131f35;border:1px solid #1e3050;border-radius:7px;padding:2px;gap:2px}
-.lb{padding:3px 9px;border-radius:5px;border:none;background:transparent;color:#64748b;cursor:pointer;font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;font-family:inherit;transition:.15s}
-.lb.on{background:#10b981;color:#fff}
+/* ── Background ── */
+body{
+  background:linear-gradient(160deg,#1b6b3a 0%,#2d8f55 45%,#1e7a45 100%);
+  min-height:100dvh;display:flex;align-items:center;justify-content:center;
+  padding:12px;
+}
 
-/* ── GAS Bar ── */
-.gas-bar{background:#131f35;border-bottom:1px solid #1e3050;padding:9px 18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.gas-bar label{font-size:10px;font-weight:700;color:#475569;white-space:nowrap;text-transform:uppercase;letter-spacing:.06em}
-.gas-bar input{flex:1;min-width:220px;background:#0f1626;border:1px solid #1e3050;border-radius:7px;color:#f1f5f9;padding:5px 10px;font-size:11px;font-family:monospace;outline:none;transition:.2s}
-.gas-bar input:focus{border-color:#10b981}
-.btn-xs{padding:5px 12px;border-radius:6px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s}
-.btn-save{background:#1a2540;color:#cbd5e1;border:1px solid #253058}.btn-save:hover{background:#253058}
-.gas-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;background:#334155;transition:.3s}
-.gas-dot.ok{background:#10b981;box-shadow:0 0 5px #10b981}
-.gas-dot.err{background:#ef4444;box-shadow:0 0 4px #ef4444}
-.gas-lbl{font-size:11px;color:#475569;min-width:60px}
+/* ── Decorative leaves pattern ── */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;opacity:.07;
+  background-image:
+    radial-gradient(circle at 15% 25%, #fff 2px, transparent 2px),
+    radial-gradient(circle at 85% 70%, #fff 2px, transparent 2px),
+    radial-gradient(circle at 45% 80%, #fff 1.5px, transparent 1.5px),
+    radial-gradient(circle at 75% 15%, #fff 1.5px, transparent 1.5px),
+    radial-gradient(circle at 30% 60%, #fff 1px, transparent 1px),
+    radial-gradient(circle at 60% 40%, #fff 1px, transparent 1px);
+  background-size:160px 160px;
+}
 
-/* ── Main ── */
-.main{padding:16px;max-width:820px;margin:0 auto}
+/* ── Main container ── */
+.wrap{
+  width:100%;max-width:360px;
+  display:flex;flex-direction:column;gap:8px;
+}
 
-/* ── Module Grid ── */
-.mgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;margin-bottom:16px}
+/* ── Portal header ── */
+.portal-hdr{
+  background:rgba(0,0,0,.18);
+  border-radius:var(--r);
+  padding:14px 16px;
+  display:flex;align-items:center;gap:10px;
+  border:1px solid rgba(255,255,255,.12);
+  backdrop-filter:blur(6px);
+}
+.ph-icon{font-size:28px}
+.ph-text .t1{font-size:16px;font-weight:700;color:var(--white);letter-spacing:.3px}
+.ph-text .t2{font-size:10px;color:var(--muted);margin-top:1px;letter-spacing:.08em;text-transform:uppercase}
+.ph-right{margin-left:auto;display:flex;gap:4px}
 
-/* ── Module Card ── */
-.mcard{background:#131f35;border:1px solid #1e3050;border-radius:14px;padding:18px;position:relative;overflow:hidden;transition:.2s}
-.mcard:hover{border-color:#253058;box-shadow:0 4px 16px rgba(0,0,0,.3);transform:translateY(-1px)}
+/* ── Lang switch ── */
+.lang-sw{display:flex;background:rgba(0,0,0,.2);border-radius:7px;overflow:hidden;border:1px solid rgba(255,255,255,.1)}
+.lb{padding:4px 8px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:10px;font-weight:700;font-family:inherit;transition:.15s}
+.lb.on{background:var(--gold);color:#1a3a1a}
 
-.mcard-stripe{position:absolute;top:0;left:0;right:0;height:3px}
-.mc-att  .mcard-stripe{background:linear-gradient(90deg,#10b981,transparent)}
-.mc-con  .mcard-stripe{background:linear-gradient(90deg,#3b82f6,transparent)}
-.mc-ob   .mcard-stripe{background:linear-gradient(90deg,#f59e0b,transparent)}
-.mc-mat  .mcard-stripe{background:linear-gradient(90deg,#ec4899,transparent)}
-.mc-cal  .mcard-stripe{background:linear-gradient(90deg,#8b5cf6,transparent)}
-.mc-ana  .mcard-stripe{background:linear-gradient(90deg,#06b6d4,transparent)}
+/* ── Cloud status bar ── */
+.cloud-bar{
+  background:rgba(0,0,0,.15);
+  border-radius:10px;padding:9px 14px;
+  display:flex;align-items:center;gap:8px;
+  border:1px solid rgba(255,255,255,.1);
+  font-size:11px;color:var(--muted);
+  cursor:pointer;
+}
+.cloud-bar:hover{background:rgba(0,0,0,.25)}
+.c-dot{width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0;transition:.3s}
+.c-dot.ok{background:#4ade80;box-shadow:0 0 6px #4ade80}
+.c-dot.err{background:#f87171}
+.c-dot.syncing{background:#fbbf24;animation:pulse .8s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.c-lbl{font-weight:600;color:rgba(255,255,255,.8);font-size:11px}
+.c-ts{font-size:10px;margin-left:auto;font-family:monospace}
 
-/* Card header */
-.mc-head{display:flex;align-items:center;gap:10px;margin-bottom:12px}
-.mc-icon{font-size:26px;width:38px;text-align:center;flex-shrink:0}
-.mc-info{flex:1;min-width:0}
-.mc-name{font-size:14px;font-weight:700;color:#f1f5f9}
-.mc-sub{font-size:10px;color:#475569;margin-top:2px;font-family:monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mc-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;white-space:nowrap;flex-shrink:0}
-.bd-ok  {background:#052e16;color:#4ade80;border:1px solid #166534}
-.bd-old {background:#1c1003;color:#fbbf24;border:1px solid #92400e}
-.bd-none{background:#1e293b;color:#64748b;border:1px solid #334155}
-.bd-auto{background:#0c1a2e;color:#93c5fd;border:1px solid #1d4ed8}
+/* ── Grid of module buttons ── */
+.mod-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:7px;
+}
+.mod-btn{
+  background:var(--btn);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:var(--r);
+  padding:13px 10px;
+  cursor:pointer;
+  transition:.15s;
+  display:flex;align-items:center;gap:10px;
+  text-decoration:none;
+  position:relative;
+  overflow:hidden;
+  box-shadow:var(--shadow);
+}
+.mod-btn::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.06),transparent);
+  pointer-events:none;
+}
+.mod-btn:hover,.mod-btn:active{background:var(--btnH);transform:translateY(-1px);box-shadow:0 5px 18px rgba(0,0,0,.3)}
+.mod-btn:active{transform:scale(.97)}
+.mb-icon{font-size:22px;flex-shrink:0;width:28px;text-align:center}
+.mb-text{display:flex;flex-direction:column;gap:1px;min-width:0}
+.mb-zh{font-size:13px;font-weight:700;color:var(--white);line-height:1.2}
+.mb-en{font-size:9px;color:var(--muted);letter-spacing:.04em;font-weight:500;line-height:1}
+.mb-km{font-size:9px;color:rgba(255,255,255,.45);line-height:1;display:none}
+.mb-arr{position:absolute;top:6px;right:7px;font-size:10px;color:rgba(255,255,255,.3)}
 
-/* Sync row */
-.mc-sync{font-size:11px;color:#475569;font-family:monospace;margin-bottom:14px;min-height:14px;line-height:1.5}
-.mc-sync .rec{font-weight:700}
-.sync-ok {color:#10b981}
-.sync-old{color:#f59e0b}
-.sync-non{color:#475569}
+/* Manpower button — full width */
+.mod-btn.full{grid-column:1/-1}
 
-/* Action buttons */
-.mc-acts{display:flex;gap:7px}
-.btn-open{flex:1.3;background:#1a2540;border:1px solid #253058;color:#cbd5e1;padding:9px 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;transition:.15s;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:4px}
-.btn-open:hover{background:#253058;color:#f1f5f9}
-.btn-push{flex:1;background:#1c1500;border:1px solid #92400e;color:#fbbf24;padding:9px 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;transition:.15s;display:flex;align-items:center;justify-content:center;gap:4px}
-.btn-push:hover{background:#2a1d00}
-.btn-pull{flex:1;background:#0c1a2c;border:1px solid #1d4ed8;color:#93c5fd;padding:9px 8px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;text-align:center;transition:.15s;display:flex;align-items:center;justify-content:center;gap:4px}
-.btn-pull:hover{background:#0f2040}
-.btn-push:disabled,.btn-pull:disabled{opacity:.4;cursor:not-allowed}
+/* ── Bottom actions ── */
+.bot-row{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.act-btn{
+  background:rgba(0,0,0,.2);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:10px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  font-size:11px;font-weight:700;color:rgba(255,255,255,.75);
+  font-family:inherit;transition:.15s;
+  backdrop-filter:blur(4px);
+}
+.act-btn:hover{background:rgba(0,0,0,.35);color:#fff}
+.act-btn.tg{background:rgba(0,100,200,.3);border-color:rgba(100,160,255,.2)}
+.act-btn.tg:hover{background:rgba(0,100,200,.5)}
 
-/* ── Summary row (top) ── */
-.summary-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:14px}
-.sum-card{background:#131f35;border:1px solid #1e3050;border-radius:10px;padding:10px 12px;text-align:center}
-.sum-val{font-size:20px;font-weight:700;font-family:monospace;color:#10b981}
-.sum-lbl{font-size:10px;color:#475569;margin-top:3px}
-
-/* ── TG Button ── */
-.btn-tg{background:#0c1e30;border:1px solid #1d4ed8;color:#60a5fa;padding:6px 14px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
-.btn-tg:hover{background:#0f2a42}
+/* ── GAS Config panel ── */
+.gas-panel{
+  background:rgba(0,0,0,.3);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:var(--r);
+  padding:12px;
+  display:none;
+  backdrop-filter:blur(6px);
+}
+.gas-panel.open{display:block}
+.gas-panel input{
+  width:100%;background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.15);
+  border-radius:7px;color:#fff;padding:7px 10px;font-size:11px;font-family:monospace;
+  outline:none;margin:6px 0;
+}
+.gas-panel input::placeholder{color:rgba(255,255,255,.3)}
+.gas-panel input:focus{border-color:var(--gold)}
+.gas-row{display:flex;gap:6px;margin-top:4px}
+.gbtn{flex:1;padding:7px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.gbtn-save{background:#1c1500;border:1px solid #92400e;color:#fbbf24}
+.gbtn-push{background:rgba(0,150,100,.3);border:1px solid rgba(0,200,100,.2);color:#4ade80}
+.gbtn-pull{background:rgba(0,80,200,.3);border:1px solid rgba(100,150,255,.2);color:#93c5fd}
+.gbtn:disabled{opacity:.4;cursor:not-allowed}
 
 /* ── Log ── */
-.log-wrap{background:#0a1120;border:1px solid #1e3050;border-radius:10px;padding:12px;margin-top:4px}
-.log-hd{font-size:10px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.07em;margin-bottom:7px;display:flex;justify-content:space-between}
-.log-hd button{font-size:9px;color:#334155;background:none;border:none;cursor:pointer;font-family:inherit}
-.log-hd button:hover{color:#64748b}
-.log-body{max-height:110px;overflow-y:auto;font-size:11px;font-family:monospace;line-height:1.75;color:#475569}
-.ll-ok  {color:#4ade80}
-.ll-err {color:#f87171}
-.ll-info{color:#60a5fa}
-
-/* ── Spinner ── */
-@keyframes spin{to{transform:rotate(360deg)}}
-.spin{display:inline-block;animation:spin .65s linear infinite;font-style:normal}
-
-/* ── TG Menu (Telegram-style) ── */
-.tg-menu{background:#131f35;border:1px solid #1e3050;border-radius:12px;padding:14px;margin-bottom:14px}
-.tg-menu-title{font-size:11px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
-.tg-btns{display:flex;flex-wrap:wrap;gap:7px}
-.tg-btn{background:#1a2540;border:1px solid #253058;color:#cbd5e1;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit;transition:.15s;display:inline-flex;align-items:center;gap:5px}
-.tg-btn:hover{background:#253058;color:#f1f5f9}
-.tg-btn.full{width:100%;justify-content:center}
-
-/* ── Mobile ── */
-@media(max-width:600px){
-  .mgrid{grid-template-columns:1fr}
-  .hdr-sub{display:none}
-  .summary-row{grid-template-columns:repeat(3,1fr)}
-  .mc-sub{display:none}
-  .gas-bar input{min-width:160px}
+.log-wrap{
+  background:rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);
+  border-radius:10px;padding:8px 10px;font-size:10px;font-family:monospace;
+  color:rgba(255,255,255,.35);max-height:80px;overflow-y:auto;
+  display:none;
 }
-@media(max-width:380px){
-  .mc-acts{flex-wrap:wrap}
-  .btn-open{flex:1 1 100%}
+.log-wrap.show{display:block}
+.ll-ok{color:#4ade80}.ll-err{color:#f87171}.ll-info{color:#60a5fa}
+
+/* ── Stats mini bar ── */
+.stats-bar{
+  background:rgba(0,0,0,.15);border-radius:10px;padding:8px 14px;
+  display:flex;gap:0;border:1px solid rgba(255,255,255,.08);
+}
+.stat-item{flex:1;text-align:center;border-right:1px solid rgba(255,255,255,.08)}
+.stat-item:last-child{border-right:none}
+.stat-v{font-size:16px;font-weight:700;font-family:monospace;color:var(--gold)}
+.stat-l{font-size:9px;color:var(--muted);margin-top:1px;text-transform:uppercase;letter-spacing:.04em}
+
+/* ── Toast ── */
+#toast{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:#1a2640;color:#fff;padding:9px 18px;border-radius:8px;
+  font-size:12px;font-weight:600;opacity:0;transition:.3s;z-index:999;
+  white-space:nowrap;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.3);
+}
+#toast.show{opacity:1}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{display:inline-block;animation:spin .7s linear infinite}
+
+@media(max-width:360px){
+  .mb-zh{font-size:12px}
+  .mb-en{font-size:8.5px}
+  .portal-hdr .t1{font-size:14px}
 }
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<div class="hdr">
-  <div class="logo">🏥</div>
-  <div class="hdr-text">
-    <div class="hdr-title" id="h-title">AC HRA Portal</div>
-    <div class="hdr-sub">VANTAGE RIVER TEXTILES · SIHANOUKVILLE</div>
-  </div>
-  <div class="hdr-right">
-    <button class="btn-tg" onclick="sendTgMenu()">📱 <span id="h-tg">Telegram 選單</span></button>
-    <div class="lang-row">
-      <button class="lb on" onclick="setLang('zh')">中</button>
-      <button class="lb"    onclick="setLang('en')">EN</button>
-      <button class="lb"    onclick="setLang('km')">ខ្មែរ</button>
+<div class="wrap">
+
+  <!-- Portal Header -->
+  <div class="portal-hdr">
+    <div class="ph-icon">🏥</div>
+    <div class="ph-text">
+      <div class="t1" id="hTitle">AC HRA Portal</div>
+      <div class="t2">VANTAGE RIVER TEXTILES · SHV</div>
     </div>
-  </div>
-</div>
-
-<!-- GAS Config Bar -->
-<div class="gas-bar">
-  <label>GAS URL</label>
-  <input id="gasInput" type="text" placeholder="https://script.google.com/macros/s/…/exec"/>
-  <button class="btn-xs btn-save" onclick="saveGas()">儲存</button>
-  <div class="gas-dot" id="gasDot"></div>
-  <span class="gas-lbl" id="gasLbl">未設定</span>
-</div>
-
-<!-- Main -->
-<div class="main">
-
-  <!-- Summary strip -->
-  <div class="summary-row" id="sum-row">
-    <div class="sum-card"><div class="sum-val" id="s-total">—</div><div class="sum-lbl">總模組</div></div>
-    <div class="sum-card"><div class="sum-val" id="s-synced" style="color:#10b981">—</div><div class="sum-lbl" id="s-synced-lbl">已同步</div></div>
-    <div class="sum-card"><div class="sum-val" id="s-records" style="color:#93c5fd">—</div><div class="sum-lbl" id="s-records-lbl">筆記錄</div></div>
-    <div class="sum-card"><div class="sum-val" id="s-last" style="font-size:13px;color:#fbbf24">—</div><div class="sum-lbl" id="s-last-lbl">最後同步</div></div>
-  </div>
-
-  <!-- Telegram quick menu -->
-  <div class="tg-menu">
-    <div class="tg-menu-title" id="tm-title">📱 快速開啟 / Quick Access</div>
-    <div class="tg-btns">
-      <button class="tg-btn" onclick="openMod('ac_hra_attendance_v1.html')">🕐 <span data-zh="出勤系統" data-en="Attendance" data-km="វត្តមាន">出勤系統</span></button>
-      <button class="tg-btn" onclick="openMod('ac_hra_contract_v2.html')">📋 <span data-zh="合約管理" data-en="Contract" data-km="កិច្ចសន្យា">合約管理</span></button>
-      <button class="tg-btn" onclick="openMod('ac_hra_onboarding_v2.html')">🚪 <span data-zh="入離職" data-en="Onboarding" data-km="ចូល/ចេញ">入離職</span></button>
-      <button class="tg-btn" onclick="openMod('ac_hra_maternity_v1.html')">🤱 <span data-zh="產假" data-en="Maternity" data-km="មាតា">產假</span></button>
-      <button class="tg-btn" onclick="openMod('ac_hra_calendar_v2.html')">📅 <span data-zh="行事曆" data-en="Calendar" data-km="ប្រតិទិន">行事曆</span></button>
-      <button class="tg-btn" onclick="openMod('ac_hra_complete_v2.html')">📊 <span data-zh="分析中心" data-en="Analytics" data-km="វិភាគ">分析中心</span></button>
+    <div class="ph-right">
+      <div class="lang-sw">
+        <button class="lb on" onclick="setLang('zh')">中</button>
+        <button class="lb"    onclick="setLang('en')">EN</button>
+        <button class="lb"    onclick="setLang('km')">ក</button>
+      </div>
     </div>
   </div>
 
-  <!-- Module Cards Grid -->
-  <div class="mgrid" id="mod-grid">
-    <!-- Rendered by JS -->
+  <!-- Stats bar -->
+  <div class="stats-bar" id="statsBar">
+    <div class="stat-item"><div class="stat-v" id="sTotal">—</div><div class="stat-l" id="sl-total">Modules</div></div>
+    <div class="stat-item"><div class="stat-v" id="sSynced" style="color:#4ade80">—</div><div class="stat-l" id="sl-synced">Synced</div></div>
+    <div class="stat-item"><div class="stat-v" id="sRecs" style="color:#93c5fd">—</div><div class="stat-l" id="sl-recs">Records</div></div>
+    <div class="stat-item"><div class="stat-v" id="sLast" style="font-size:11px;color:#fbbf24">—</div><div class="stat-l" id="sl-last">Last Sync</div></div>
+  </div>
+
+  <!-- Module Grid -->
+  <div class="mod-grid">
+
+    <a class="mod-btn" href="ac_hra_attendance_v1.html">
+      <div class="mb-icon">🕐</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="出勤系統" data-en="Attendance" data-km="ប្រព័ន្ធវត្តមាន">出勤系統</div>
+        <div class="mb-en" id="sub-att">Attendance</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_contract_v2.html">
+      <div class="mb-icon">📋</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="合約管理" data-en="Contract" data-km="កិច្ចសន្យា">合約管理</div>
+        <div class="mb-en" id="sub-con">Contract Tracker</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_onboarding_v2.html">
+      <div class="mb-icon">🚪</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="入離職" data-en="Onboarding" data-km="ចូល/ចេញ">入離職</div>
+        <div class="mb-en" id="sub-ob">Join / Resign</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_maternity_v1.html">
+      <div class="mb-icon">🤱</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="產假護理" data-en="Maternity" data-km="មាតុភាព">產假護理</div>
+        <div class="mb-en" id="sub-mat">Maternity + Nursing</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_calendar_v2.html">
+      <div class="mb-icon">📅</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="行事曆" data-en="Calendar" data-km="ប្រតិទិន">行事曆</div>
+        <div class="mb-en" id="sub-cal">Factory Calendar</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_manpower_v1.html">
+      <div class="mb-icon">📋</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="人力規劃" data-en="Manpower" data-km="ផែនការ">人力規劃</div>
+        <div class="mb-en" id="sub-mp">Manpower + Recruitment</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn full" href="ac_hra_complete_v2.html">
+      <div class="mb-icon">📊</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="整合分析" data-en="Analytics" data-km="វិភាគ">整合分析</div>
+        <div class="mb-en" id="sub-ana">Cross-Module BI · Attendance × Sewing × HR</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+  </div>
+
+  <!-- Cloud status -->
+  <div class="cloud-bar" onclick="toggleGasPanel()">
+    <div class="c-dot" id="cDot"></div>
+    <span class="c-lbl" id="cLbl">GAS 未設定</span>
+    <span class="c-ts"  id="cTs">⚙ 點此設定</span>
+  </div>
+
+  <!-- GAS Config panel -->
+  <div class="gas-panel" id="gasPanel">
+    <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">GAS URL</div>
+    <input id="gasInput" type="text" placeholder="https://script.google.com/macros/s/…/exec">
+    <div class="gas-row">
+      <button class="gbtn gbtn-save" onclick="saveGas()">💾 儲存</button>
+      <button class="gbtn gbtn-push" id="btnPush" onclick="pushAll()" disabled>☁ Push All</button>
+      <button class="gbtn gbtn-pull" id="btnPull" onclick="pullAll()" disabled>⬇ Pull All</button>
+    </div>
   </div>
 
   <!-- Log -->
-  <div class="log-wrap">
-    <div class="log-hd"><span id="log-hd-txt">操作紀錄</span><button onclick="clearLog()">清除</button></div>
-    <div class="log-body" id="logBody"><span class="ll-info">就緒 · AC HRA Portal v2</span></div>
+  <div class="log-wrap" id="logWrap">
+    <span class="ll-info">AC HRA Portal v3 就緒</span>
   </div>
 
-</div><!-- /main -->
+  <!-- Bottom action row -->
+  <div class="bot-row">
+    <button class="act-btn tg" onclick="sendTgMenu()">
+      📱 <span id="bt-tg">Telegram 選單</span>
+    </button>
+    <button class="act-btn" onclick="toggleLog()">
+      📝 <span id="bt-log">操作紀錄</span>
+    </button>
+  </div>
+
+</div>
+
+<div id="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════
-// AC HRA Portal v2
-// Style: Production Portal (dark cards, no sidebar)
-// ═══════════════════════════════════════════════════
-const GAS_KEY = 'ac_hra_gas_url';
-let gasUrl    = '';
-let LANG      = localStorage.getItem('ac_hra_lang') || 'zh';
+// ══════════════════════════════════════
+// AC HRA Portal v3
+// ══════════════════════════════════════
+const GAS_KEY  = 'ac_hra_gas_url';
+const LANG_KEY = 'ac_hra_lang';
 
-// ── Module definitions ───────────────────────────
-const MODULES = [
-  {
-    id      : 'attendance',
-    icon    : '🕐',
-    nameZh  : '出勤系統',
-    nameEn  : 'Attendance',
-    nameKm  : 'ប្រព័ន្ធវត្តមាន',
-    file    : 'ac_hra_attendance_v1.html',
-    storeKey: 'vrt_att_v5_db',
-    color   : 'mc-att',
-    getRecords: () => {
-      try { const d = JSON.parse(localStorage.getItem('vrt_att_v5_db')||'{}'); return d.employees?.length||0; }
-      catch(e){ return 0; }
-    },
-    getPayload: () => {
-      const raw = localStorage.getItem('vrt_att_v5_db')||'{}';
-      const d   = JSON.parse(raw);
-      return { tool:'attendance', records: d.employees||[], summary: { monthSummaries: d.monthSummaries||[] } };
-    },
-    onPull: (records, meta) => {
-      // Reconstruct attendance db format
-      const db = { employees: records, monthSummaries: meta?.summary?.monthSummaries||[], log:[] };
-      localStorage.setItem('vrt_att_v5_db', JSON.stringify(db));
-    }
+let LANG    = localStorage.getItem(LANG_KEY) || 'zh';
+let GAS_URL = localStorage.getItem(GAS_KEY)  || '';
+let _logOpen = false;
+
+// ── i18n ──────────────────────────────
+const TXT = {
+  zh:{
+    title:'AC HRA Portal',
+    att:'出勤系統',   att_sub:'Attendance',
+    con:'合約管理',   con_sub:'Contract',
+    ob:'入離職',      ob_sub:'Join / Resign',
+    mat:'產假護理',   mat_sub:'Maternity + Nursing',
+    cal:'行事曆',     cal_sub:'Calendar',
+    ana:'整合分析',   ana_sub:'Cross-Module BI',
+    mp:'人力規劃',    mp_sub:'Manpower + Recruitment',
+    tg:'Telegram 選單', log:'操作紀錄',
+    sl_total:'模組', sl_synced:'已同步', sl_recs:'記錄數', sl_last:'上次同步',
+    gas_saved:'GAS 已設定', gas_not:'GAS 未設定', gas_tap:'⚙ 點此設定',
+    push_ok:'✅ 全部推送完成', pull_ok:'✅ 全部拉取完成',
+    push_err:'❌ 推送失敗', pull_err:'❌ 拉取失敗',
+    no_gas:'請先設定 GAS URL',
   },
-  {
-    id      : 'contract',
-    icon    : '📋',
-    nameZh  : '合約管理',
-    nameEn  : 'Contract Tracker',
-    nameKm  : 'តាមដានកិច្ចសន្យា',
-    file    : 'ac_hra_contract_v2.html',
-    storeKey: 'ac_hra_contract_db',
-    color   : 'mc-con',
-    getRecords: () => { try{ return JSON.parse(localStorage.getItem('ac_hra_contract_db')||'[]').length; }catch(e){return 0;} },
-    getPayload: () => {
-      const recs = JSON.parse(localStorage.getItem('ac_hra_contract_db')||'[]');
-      return { tool:'contract', records: recs, recordCount: recs.length };
-    },
-    onPull: (records) => { localStorage.setItem('ac_hra_contract_db', JSON.stringify(records)); }
+  en:{
+    title:'AC HRA Portal',
+    att:'Attendance',  att_sub:'出勤',
+    con:'Contract',    con_sub:'合約',
+    ob:'Onboarding',   ob_sub:'入離職',
+    mat:'Maternity',   mat_sub:'產假護理',
+    cal:'Calendar',    cal_sub:'行事曆',
+    ana:'Analytics',   ana_sub:'整合分析',
+    mp:'Manpower',     mp_sub:'人力規劃',
+    tg:'Telegram Menu', log:'Activity Log',
+    sl_total:'Modules', sl_synced:'Synced', sl_recs:'Records', sl_last:'Last Sync',
+    gas_saved:'GAS configured', gas_not:'GAS not set', gas_tap:'⚙ Tap to configure',
+    push_ok:'✅ Push complete', pull_ok:'✅ Pull complete',
+    push_err:'❌ Push failed', pull_err:'❌ Pull failed',
+    no_gas:'Please set GAS URL first',
   },
-  {
-    id      : 'onboarding',
-    icon    : '🚪',
-    nameZh  : '入離職管理',
-    nameEn  : 'Onboarding / Offboarding',
-    nameKm  : 'ការគ្រប់គ្រងចូល/ចេញ',
-    file    : 'ac_hra_onboarding_v2.html',
-    storeKey: 'ac_hra_onboarding_db',
-    color   : 'mc-ob',
-    getRecords: () => { try{ const d=JSON.parse(localStorage.getItem('ac_hra_onboarding_db')||'{}'); return (d.records||d||[]).length; }catch(e){return 0;} },
-    getPayload: () => {
-      const d = JSON.parse(localStorage.getItem('ac_hra_onboarding_db')||'{}');
-      const recs = Array.isArray(d) ? d : (d.records||[]);
-      return { tool:'onboarding', records: recs, recordCount: recs.length, summary:{ auditLog: d.auditLog||[] } };
-    },
-    onPull: (records, meta) => {
-      const db = { records, auditLog: meta?.summary?.auditLog||[] };
-      localStorage.setItem('ac_hra_onboarding_db', JSON.stringify(db));
-    }
+  km:{
+    title:'ច្រកHRA',
+    att:'វត្តមាន',      att_sub:'Attendance',
+    con:'កិច្ចសន្យា',   con_sub:'Contract',
+    ob:'ចូល/ចេញ',     ob_sub:'Onboarding',
+    mat:'មាតុភាព',      mat_sub:'Maternity',
+    cal:'ប្រតិទិន',     cal_sub:'Calendar',
+    ana:'វិភាគ',        ana_sub:'Analytics',
+    mp:'ផែនការ',        mp_sub:'Manpower',
+    tg:'Telegram', log:'កំណត់ត្រា',
+    sl_total:'ម៉ូឌុល', sl_synced:'Sync', sl_recs:'ទំរង់', sl_last:'ចុងក្រោយ',
+    gas_saved:'GAS បានកំណត់', gas_not:'GAS មិនទាន់', gas_tap:'⚙ ចុចដើម្បីកំណត់',
+    push_ok:'✅ Push រួច', pull_ok:'✅ Pull រួច',
+    push_err:'❌ Push ទ្រេត', pull_err:'❌ Pull ទ្រេត',
+    no_gas:'សូមកំណត់ GAS URL ជាមុន',
   },
-  {
-    id      : 'maternity',
-    icon    : '🤱',
-    nameZh  : '產假追蹤',
-    nameEn  : 'Maternity Tracker',
-    nameKm  : 'តាមដានការសម្រាកមាតា',
-    file    : 'ac_hra_maternity_v1.html',
-    storeKey: 'vrt_maternity_v1',
-    color   : 'mc-mat',
-    getRecords: () => { try{ return JSON.parse(localStorage.getItem('vrt_maternity_v1')||'[]').length; }catch(e){return 0;} },
-    getPayload: () => {
-      const recs = JSON.parse(localStorage.getItem('vrt_maternity_v1')||'[]');
-      return { tool:'maternity', records: recs, recordCount: recs.length };
-    },
-    onPull: (records) => { localStorage.setItem('vrt_maternity_v1', JSON.stringify(records)); }
-  },
-  {
-    id      : 'calendar',
-    icon    : '📅',
-    nameZh  : '行事曆',
-    nameEn  : 'Factory Calendar',
-    nameKm  : 'ប្រតិទិនរោងចក្រ',
-    file    : 'ac_hra_calendar_v2.html',
-    storeKey: 'ac_hra_calendar_db',
-    color   : 'mc-cal',
-    getRecords: () => { try{ return JSON.parse(localStorage.getItem('ac_hra_calendar_db')||'[]').length; }catch(e){return 0;} },
-    getPayload: () => {
-      const recs = JSON.parse(localStorage.getItem('ac_hra_calendar_db')||'[]');
-      return { tool:'calendar', records: recs, recordCount: recs.length };
-    },
-    onPull: (records) => { localStorage.setItem('ac_hra_calendar_db', JSON.stringify(records)); }
-  },
-  {
-    id      : 'analytics',
-    icon    : '📊',
-    nameZh  : '分析中心',
-    nameEn  : 'Analytics Center',
-    nameKm  : 'មជ្ឈមណ្ឌលវិភាគ',
-    file    : 'ac_hra_complete_v2.html',
-    storeKey: null,
-    color   : 'mc-ana',
-    getRecords: () => 0,
-    getPayload: null,
-    onPull  : null,
-    readOnly: true,
-  },
+};
+const t = k => (TXT[LANG]||TXT.zh)[k] || (TXT.zh)[k] || k;
+
+// ── Lang ──────────────────────────────
+function setLang(l) {
+  LANG = l;
+  localStorage.setItem(LANG_KEY, l);
+  document.querySelectorAll('.lb').forEach((b,i) => b.classList.toggle('on', ['zh','en','km'][i]===l));
+  applyLang();
+}
+
+function applyLang() {
+  document.getElementById('hTitle').textContent = t('title');
+  // Module buttons — swap main label and sub label based on lang
+  const mods = [
+    {main:'att', sub:'att_sub', zhEl:'.mb-zh[data-zh="出勤系統"]'},
+    {main:'con', sub:'con_sub'},
+    {main:'ob',  sub:'ob_sub'},
+    {main:'mat', sub:'mat_sub'},
+    {main:'cal', sub:'cal_sub'},
+    {main:'ana', sub:'ana_sub'},
+    {main:'mp',  sub:'mp_sub'},
+  ];
+  const subIds = ['sub-att','sub-con','sub-ob','sub-mat','sub-cal','sub-mp','sub-ana'];
+  const mainKeys= ['att','con','ob','mat','cal','mp','ana'];
+  // Update main label (mb-zh) based on lang
+  document.querySelectorAll('.mb-zh').forEach((el, i) => {
+    if (i < mainKeys.length) el.textContent = t(mainKeys[i]);
+  });
+  subIds.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = t(mainKeys[i]+'_sub');
+  });
+  document.getElementById('bt-tg').textContent  = t('tg');
+  document.getElementById('bt-log').textContent = t('log');
+  document.getElementById('sl-total').textContent  = t('sl_total');
+  document.getElementById('sl-synced').textContent = t('sl_synced');
+  document.getElementById('sl-recs').textContent   = t('sl_recs');
+  document.getElementById('sl-last').textContent   = t('sl_last');
+  updateCloudLabel();
+}
+
+// ── Module data sources ───────────────
+const MODS = [
+  { id:'attendance', lsKey:'vrt_att_v5_db',        getCount: d => d?.employees?.length||0 },
+  { id:'contract',   lsKey:'ac_hra_contract_db',    getCount: d => Array.isArray(d)?d.length:0 },
+  { id:'onboarding', lsKey:'ac_hra_joins',          getCount: d => Array.isArray(d)?d.length:0, extra:'ac_hra_resigns' },
+  { id:'maternity',  lsKey:'vrt_maternity_v1',      getCount: d => (d?.employees||d||[]).length },
+  { id:'nursing',    lsKey:'vrt_nursing_fees_v1',   getCount: d => Array.isArray(d)?d.length:0 },
+  { id:'calendar',   lsKey:'ac_hra_calendar_db',    getCount: d => Array.isArray(d)?d.length:0 },
+  { id:'manpower',   lsKey:'ac_hra_manpower_reqs',  getCount: d => Array.isArray(d)?d.length:0, extra:'ac_hra_manpower_recruit' },
 ];
 
-// Cloud snap cache (from GAS status)
-let cloudStatus = {};
+function getLocalCount() {
+  return MODS.reduce((s, m) => {
+    try {
+      const raw = localStorage.getItem(m.lsKey);
+      const d   = raw ? JSON.parse(raw) : null;
+      let n = d ? m.getCount(d) : 0;
+      if (m.extra) {
+        const r2 = localStorage.getItem(m.extra);
+        const d2 = r2 ? JSON.parse(r2) : null;
+        n += Array.isArray(d2) ? d2.length : 0;
+      }
+      return s + n;
+    } catch(e) { return s; }
+  }, 0);
+}
 
-// ── Helpers ─────────────────────────────────────
-function modName(m) { return LANG==='en'?m.nameEn:LANG==='km'?m.nameKm:m.nameZh; }
-function fmtISO(iso) {
-  if (!iso) return '—';
+function updateStats(cloudSnaps) {
+  const total   = 7; // number of modules shown
+  const snapped = cloudSnaps ? Object.keys(cloudSnaps).filter(k => cloudSnaps[k]?.timestamp).length : 0;
+  const totalRecs = getLocalCount();
+  const timestamps = cloudSnaps
+    ? Object.values(cloudSnaps).map(s=>s?.timestamp).filter(Boolean).sort().reverse()
+    : [];
+  document.getElementById('sTotal').textContent   = total;
+  document.getElementById('sSynced').textContent  = snapped ? snapped+'/'+total : '—';
+  document.getElementById('sRecs').textContent    = totalRecs || '—';
+  document.getElementById('sLast').textContent    = timestamps[0] ? fmtTs(timestamps[0]) : '—';
+}
+
+// ── GAS ──────────────────────────────
+function saveGas() {
+  const url = document.getElementById('gasInput').value.trim();
+  if (!url) return;
+  GAS_URL = url;
+  localStorage.setItem(GAS_KEY, url);
+  document.getElementById('btnPush').disabled = false;
+  document.getElementById('btnPull').disabled = false;
+  updateCloudLabel(true);
+  log('GAS URL 已儲存', 'info');
+  toast('✅ GAS 已儲存');
+  fetchStatus();
+}
+
+function toggleGasPanel() {
+  const p = document.getElementById('gasPanel');
+  p.classList.toggle('open');
+  if (p.classList.contains('open') && GAS_URL) {
+    document.getElementById('gasInput').value = GAS_URL;
+  }
+}
+
+function updateCloudLabel(ok) {
+  const dot = document.getElementById('cDot');
+  const lbl = document.getElementById('cLbl');
+  const ts  = document.getElementById('cTs');
+  if (!GAS_URL) {
+    dot.className = 'c-dot';
+    lbl.textContent = t('gas_not');
+    ts.textContent  = t('gas_tap');
+  } else if (ok === false) {
+    dot.className = 'c-dot err';
+    lbl.textContent = 'GAS 連線失敗';
+    ts.textContent  = '⚙ 點此重設';
+  } else {
+    dot.className = 'c-dot ok';
+    lbl.textContent = t('gas_saved');
+    const meta = JSON.parse(localStorage.getItem('ac_hra_portal_meta')||'{}');
+    ts.textContent = meta.ts ? fmtTs(meta.ts) : t('gas_tap');
+  }
+}
+
+async function fetchStatus() {
+  if (!GAS_URL) return;
+  try {
+    const r = await fetch(GAS_URL + '?action=status', { redirect:'follow' });
+    const d = await r.json();
+    if (d.ok) {
+      updateStats(d);
+      updateCloudLabel(true);
+    }
+  } catch(e) {
+    updateCloudLabel(false);
+  }
+}
+
+// ── Push ALL ─────────────────────────
+async function pushAll() {
+  if (!GAS_URL) { toast(t('no_gas')); return; }
+  const btn = document.getElementById('btnPush');
+  btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
+  let ok = 0, fail = 0;
+  for (const m of MODS) {
+    try {
+      let records = [];
+      const raw = localStorage.getItem(m.lsKey);
+      if (raw) {
+        const d = JSON.parse(raw);
+        records = Array.isArray(d) ? d : (d?.employees || d?.records || []);
+      }
+      if (m.extra) {
+        const r2 = localStorage.getItem(m.extra);
+        if (r2) records = records.concat(JSON.parse(r2)||[]);
+      }
+      if (!records.length) continue;
+      const r = await fetch(GAS_URL, {
+        method:'POST', redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'push', tool:m.id, records, recordCount:records.length, updatedAt:new Date().toISOString() }),
+      });
+      const dd = await r.json();
+      if (dd.ok) { ok++; log(`✓ ${m.id} (${records.length} 筆)`, 'ok'); }
+      else { fail++; log(`✗ ${m.id}: ${dd.error}`, 'err'); }
+    } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
+  }
+  const meta = { ts: new Date().toISOString() };
+  localStorage.setItem('ac_hra_portal_meta', JSON.stringify(meta));
+  updateCloudLabel(true);
+  updateStats(null);
+  toast(fail === 0 ? t('push_ok') + ` (${ok} 模組)` : `⚠️ 完成 ${ok} / 失敗 ${fail}`);
+  btn.disabled = false; btn.innerHTML = '☁ Push All';
+}
+
+// ── Pull ALL ─────────────────────────
+async function pullAll() {
+  if (!GAS_URL) { toast(t('no_gas')); return; }
+  const btn = document.getElementById('btnPull');
+  btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
+  let ok = 0, fail = 0;
+  for (const m of MODS) {
+    try {
+      const r1 = await fetch(`${GAS_URL}?action=pull&tool=${m.id}&meta=1`, { redirect:'follow' });
+      const d1 = await r1.json();
+      if (!d1.ok || !d1.data || d1.data.data===null) continue;
+      let records = d1.data?.records || d1.data?.data?.records || d1.data?.data || [];
+      if (!Array.isArray(records)) records = [];
+      if (records.length) {
+        localStorage.setItem(m.lsKey, JSON.stringify(records));
+        ok++; log(`✓ ${m.id} 拉取 ${records.length} 筆`, 'ok');
+      }
+    } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
+  }
+  updateStats(null);
+  toast(fail === 0 ? t('pull_ok') + ` (${ok} 模組)` : `⚠️ 完成 ${ok} / 失敗 ${fail}`);
+  btn.disabled = false; btn.innerHTML = '⬇ Pull All';
+}
+
+// ── Telegram Menu ─────────────────────
+async function sendTgMenu() {
+  const BASE = 'https://saintdou-weng.github.io/ac-hra-portal';
+  const ts   = new Date().toLocaleString('zh-TW', { timeZone:'Asia/Phnom_Penh', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+  const totalRecs = getLocalCount();
+  const text = [
+    `🏥 <b>AC HRA Portal</b> — ${ts}`,
+    `─────────────────────`,
+    `🕐 出勤 Attendance`,
+    `📋 合約 Contract`,
+    `🚪 入離職 Onboarding`,
+    `🤱 產假 Maternity`,
+    `📅 行事曆 Calendar`,
+    `📊 整合分析 Analytics`,
+    `📋 人力規劃 Manpower`,
+    `─────────────────────`,
+    `📊 本地記錄 Local: ${totalRecs} 筆`,
+    `🏭 Vantage River Textiles · SHV`,
+  ].join('\n');
+
+  if (GAS_URL) {
+    try {
+      const r = await fetch(GAS_URL, {
+        method:'POST', redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'telegram', text }),
+      });
+      const d = await r.json();
+      if (d.ok) { toast('✅ Telegram 已發送'); log('✓ Telegram 已發送', 'ok'); return; }
+    } catch(e) {}
+  }
+  // Direct fallback
+  const TOKEN = '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
+  const CHAT  = '-5233667043';
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ chat_id:CHAT, text, parse_mode:'HTML' }),
+    });
+    const d = await r.json();
+    if (d.ok) toast('✅ Telegram 已發送');
+    else      toast('❌ Telegram 失敗');
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+// ── Log helpers ───────────────────────
+function toggleLog() {
+  _logOpen = !_logOpen;
+  document.getElementById('logWrap').classList.toggle('show', _logOpen);
+}
+function log(msg, type) {
+  const el = document.getElementById('logWrap');
+  const now = new Date();
+  const ts  = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+  const cls = type==='ok'?'ll-ok':type==='err'?'ll-err':'ll-info';
+  el.innerHTML += `\n<span class="${cls}">[${ts}] ${msg}</span>`;
+  el.scrollTop = el.scrollHeight;
+}
+function pad(n) { return String(n).padStart(2,'0'); }
+function fmtTs(iso) {
   try {
     const d = new Date(iso);
     return `${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   } catch(e) { return '—'; }
 }
-function ageStr(iso) {
-  if (!iso) return '';
-  const mins = (Date.now() - new Date(iso)) / 60000;
-  if (mins < 60)   return `${Math.round(mins)}分前`;
-  if (mins < 1440) return `${Math.round(mins/60)}小時前`;
-  return `${Math.round(mins/1440)}天前`;
-}
-function pad(n) { return String(n).padStart(2,'0'); }
 
-// ── INIT ────────────────────────────────────────
-function init() {
-  gasUrl = localStorage.getItem(GAS_KEY) || '';
-  document.getElementById('gasInput').value = gasUrl;
-  renderCards();
-  if (gasUrl) { verifyGas(); fetchStatus(); }
+// ── Toast ─────────────────────────────
+function toast(msg, dur) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), dur || 3200);
+}
+
+// ── Init ─────────────────────────────
+(function init() {
+  if (GAS_URL) {
+    document.getElementById('gasInput').value = GAS_URL;
+    document.getElementById('btnPush').disabled = false;
+    document.getElementById('btnPull').disabled = false;
+  }
+  document.querySelectorAll('.lb').forEach((b,i) =>
+    b.classList.toggle('on', ['zh','en','km'][i]===LANG)
+  );
   applyLang();
-}
-
-// ── GAS URL ─────────────────────────────────────
-function saveGas() {
-  gasUrl = document.getElementById('gasInput').value.trim();
-  if (!gasUrl) return;
-  localStorage.setItem(GAS_KEY, gasUrl);
-  // Sync to shared cloud.js if loaded
-  if (window.HRA?.Cloud) HRA.Cloud.setUrl(gasUrl);
-  log('GAS URL 已儲存', 'info');
-  verifyGas();
-  fetchStatus();
-}
-
-async function verifyGas() {
-  const dot = document.getElementById('gasDot');
-  const lbl = document.getElementById('gasLbl');
-  dot.className = 'gas-dot';
-  lbl.textContent = '驗證中…';
-  try {
-    const r = await fetch(gasUrl + '?action=heartbeat', { redirect:'follow' });
-    const d = await r.json();
-    if (d.ok) {
-      dot.className = 'gas-dot ok';
-      lbl.textContent = '連線正常';
-      log('✓ GAS 連線成功', 'ok');
-    } else throw new Error(JSON.stringify(d));
-  } catch(e) {
-    dot.className = 'gas-dot err';
-    lbl.textContent = '連線失敗';
-    log('✗ GAS 連線失敗：' + e.message, 'err');
-  }
-}
-
-async function fetchStatus() {
-  if (!gasUrl) return;
-  try {
-    const r = await fetch(gasUrl + '?action=status', { redirect:'follow' });
-    const d = await r.json();
-    if (!d.ok) return;
-    cloudStatus = d.data || {};
-    renderCards();
-    updateSummary();
-  } catch(e) { /* silent */ }
-}
-
-// ── RENDER CARDS ────────────────────────────────
-function renderCards() {
-  const grid = document.getElementById('mod-grid');
-  grid.innerHTML = MODULES.map(m => renderCard(m)).join('');
-}
-
-function renderCard(m) {
-  const local   = m.getRecords();
-  const cloud   = cloudStatus[m.id];
-  const hasCloud= !!cloud?.timestamp;
-  const age     = hasCloud ? ageStr(cloud.timestamp) : '';
-  const mins    = hasCloud ? (Date.now() - new Date(cloud.timestamp)) / 60000 : Infinity;
-  const isOld   = mins > 480;
-  const badgeCls= !hasCloud ? 'bd-none' : isOld ? 'bd-old' : 'bd-ok';
-  const badgeTxt= !hasCloud ? (LANG==='en'?'Never':LANG==='km'?'មិនទាន់':'未同步') : age;
-  const syncCls = !hasCloud ? 'sync-non' : isOld ? 'sync-old' : 'sync-ok';
-  const cloudRec= hasCloud ? cloud.recordCount : null;
-  const name    = modName(m);
-
-  const sub = m.storeKey || (LANG==='en'?'Read-only analytics':LANG==='km'?'វិភាគ':'整合分析');
-
-  let syncLine = '';
-  if (hasCloud) {
-    syncLine = `☁ ${fmtISO(cloud.timestamp)} · <span class="rec">${cloudRec} 筆</span> · ${age}`;
-  } else {
-    syncLine = LANG==='en'?'Cloud: Not synced yet':LANG==='km'?'Cloud: មិនទាន់ Sync':'雲端：尚未同步';
-  }
-
-  const openLabel  = LANG==='en'?'Open':LANG==='km'?'បើក':'開啟';
-  const pushLabel  = LANG==='en'?'Push':LANG==='km'?'Push':'☁ 推送';
-  const pullLabel  = LANG==='en'?'Pull':LANG==='km'?'Pull':'⬇ 拉取';
-
-  const noCloud = !m.getPayload;
-  const actBtns = noCloud
-    ? `<a class="btn-open" href="./${m.file}" target="_self" style="flex:1">📊 ${openLabel}</a>`
-    : `<a class="btn-open" href="./${m.file}" target="_self">📂 ${openLabel}</a>
-       <button class="btn-push" id="pp-${m.id}" onclick="push('${m.id}')" ${!gasUrl?'disabled':''}>☁ ${LANG==='en'?'Push':LANG==='km'?'Push':'推送'}</button>
-       <button class="btn-pull" id="pl-${m.id}" onclick="pull('${m.id}')" ${!gasUrl?'disabled':''}>⬇ ${LANG==='en'?'Pull':LANG==='km'?'Pull':'拉取'}</button>`;
-
-  return `<div class="mcard ${m.color}">
-    <div class="mcard-stripe"></div>
-    <div class="mc-head">
-      <div class="mc-icon">${m.icon}</div>
-      <div class="mc-info">
-        <div class="mc-name">${name}</div>
-        <div class="mc-sub">${sub}</div>
-      </div>
-      <span class="mc-badge ${noCloud?'bd-auto':badgeCls}">${noCloud?'自動':badgeTxt}</span>
-    </div>
-    <div class="mc-sync ${noCloud?'':syncCls}" id="st-${m.id}">
-      ${noCloud?'讀取各模組 localStorage · 無需同步':syncLine}
-    </div>
-    <div style="font-size:11px;color:#475569;margin-bottom:10px" id="local-${m.id}">
-      本地：<b style="color:#cbd5e1">${local} 筆</b>${hasCloud&&cloudRec!==null&&cloudRec!==local?` · 雲端：<span style="color:${isOld?'#fbbf24':'#4ade80'}">${cloudRec} 筆</span>`:''}
-    </div>
-    <div class="mc-acts">${actBtns}</div>
-  </div>`;
-}
-
-// ── SUMMARY STRIP ────────────────────────────────
-function updateSummary() {
-  const mods       = MODULES.filter(m=>m.storeKey);
-  const synced     = mods.filter(m=>cloudStatus[m.id]?.timestamp).length;
-  const totalRecs  = mods.reduce((a,m)=>a+m.getRecords(),0);
-  const timestamps = mods.map(m=>cloudStatus[m.id]?.timestamp).filter(Boolean).sort().reverse();
-  document.getElementById('s-total').textContent   = MODULES.length;
-  document.getElementById('s-synced').textContent  = synced + '/' + mods.length;
-  document.getElementById('s-records').textContent = totalRecs;
-  document.getElementById('s-last').textContent    = timestamps[0] ? fmtISO(timestamps[0]) : '—';
-}
-
-// ── PUSH ────────────────────────────────────────
-async function push(id) {
-  if (!gasUrl) { log('請先設定 GAS URL', 'err'); return; }
-  const m = MODULES.find(x=>x.id===id);
-  if (!m?.getPayload) { log(id + ' 無法從 Portal 推送', 'err'); return; }
-  setBtns(id, true);
-  log(`推送 ${modName(m)}…`, 'info');
-  try {
-    const payload = m.getPayload();
-    if (!payload) { log(`${modName(m)} 無本地資料`, 'err'); return; }
-    payload.action = 'push';
-
-    // Chunk if large
-    const CHUNK = 200;
-    const recs  = payload.records || [];
-    if (recs.length > CHUNK) {
-      const total = Math.ceil(recs.length / CHUNK);
-      for (let i=0;i<total;i++) {
-        const chunk = { ...payload, records: recs.slice(i*CHUNK,(i+1)*CHUNK), chunk:i, totalChunks:total,
-          summary: i===total-1 ? (payload.summary||{}) : {} };
-        const r = await postGas(chunk);
-        if (!r.ok) throw new Error(r.error||r.data?.error||'GAS error');
-        log(`${modName(m)} 第${i+1}/${total}批`, 'info');
-      }
-    } else {
-      const r = await postGas(payload);
-      if (!r.ok) throw new Error(r.error||r.data?.error||'GAS error');
-    }
-
-    log(`✓ ${modName(m)} 推送完成（${recs.length} 筆）`, 'ok');
-    // Update local snap
-    const snap = { timestamp: new Date().toISOString(), recordCount: recs.length };
-    cloudStatus[id] = snap;
-    localStorage.setItem('ac_hra_snap_' + id, JSON.stringify(snap));
-    renderCards(); updateSummary();
-  } catch(e) {
-    log(`✗ ${modName(m)} 推送失敗：${e.message}`, 'err');
-  } finally { setBtns(id, false); }
-}
-
-// ── PULL ────────────────────────────────────────
-async function pull(id) {
-  if (!gasUrl) { log('請先設定 GAS URL', 'err'); return; }
-  const m = MODULES.find(x=>x.id===id);
-  if (!m?.onPull) { log(id + ' 無法拉取', 'err'); return; }
-  const btn = document.getElementById('pl-' + id);
-  if (btn) { btn.disabled=true; btn.innerHTML='<i class="spin">⏳</i>'; }
-  log(`拉取 ${modName(m)}…`, 'info');
-  try {
-    // Get meta first
-    const meta = await getGas(`${gasUrl}?action=pull&tool=${id}&meta=1`);
-    if (!meta.ok) throw new Error(meta.error || 'GAS error');
-    const d = meta.data;
-    if (d.data === null || (!d.chunked && !d.records && !d.data)) {
-      log(`${modName(m)} 雲端尚無資料`, 'info'); return;
-    }
-
-    let records, metaObj;
-    if (!d.chunked) {
-      records = d.records || d.data?.records || d.data || [];
-      metaObj = { summary: d.data?.summary || {} };
-    } else {
-      const chunks = d.meta?.totalChunks || 1;
-      records = [];
-      for (let i=0;i<chunks;i++) {
-        const r = await getGas(`${gasUrl}?action=pull&tool=${id}&chunk=${i}`);
-        if (!r.ok) throw new Error(r.error);
-        records.push(...(r.data?.records || []));
-      }
-      metaObj = { summary: d.meta?.summary || {} };
-    }
-
-    m.onPull(records, metaObj);
-    log(`✓ ${modName(m)} 拉取完成（${records.length} 筆）→ 重新整理工具即可看到`, 'ok');
-    cloudStatus[id] = { ...cloudStatus[id], recordCount: records.length };
-    renderCards(); updateSummary();
-  } catch(e) {
-    log(`✗ ${modName(m)} 拉取失敗：${e.message}`, 'err');
-  } finally {
-    if (btn) { btn.disabled=false; btn.innerHTML=`⬇ ${LANG==='en'?'Pull':'拉取'}`; }
-  }
-}
-
-// ── HTTP helpers ─────────────────────────────────
-async function postGas(body) {
-  // text/plain = no CORS preflight
-  const r = await fetch(gasUrl, {
-          redirect: 'follow',
-    method  : 'POST',
-    redirect: 'follow',
-    headers : { 'Content-Type': 'text/plain' },
-    body    : JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
-}
-async function getGas(url) {
-  const r = await fetch(url, { redirect:'follow' });
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.json();
-}
-
-// ── TELEGRAM MENU ────────────────────────────────
-async function sendTgMenu() {
-  const BASE = 'https://saintdou-weng.github.io/ac-hra-portal';
-  const ts   = new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
-  const text = `🏥 <b>AC HRA Portal</b> — ${ts}\n選擇要開啟的模組：\n\n🕐 出勤 ｜ 📋 合約 ｜ 🚪 入離職\n🤱 產假 ｜ 📅 行事曆 ｜ 📊 分析`;
-  // Send via GAS proxy
-  if (gasUrl) {
-    try {
-      const r = await postGas({ action:'telegram', text });
-      log(r.ok ? '✓ Telegram 選單已發送' : '✗ Telegram 失敗', r.ok ? 'ok' : 'err');
-      return;
-    } catch(e) {}
-  }
-  // Fallback: direct
-  const TOKEN = '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
-  const CHAT  = '-5233667043';
-  fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{
-          redirect: 'follow',method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})}).then(r=>r.json()).then(d=>log(d.ok?'✓ Telegram 已發送':'✗ Telegram 失敗',d.ok?'ok':'err')).catch(e=>log('✗ Telegram：'+e.message,'err'));
-}
-
-// ── QUICK OPEN ───────────────────────────────────
-function openMod(file) { window.location.href = './' + file; }
-
-// ── LANGUAGE ─────────────────────────────────────
-const I18N = {
-  zh: { title:'AC HRA Portal', tg:'Telegram 選單', logHd:'操作紀錄', sumSynced:'已同步', sumRecs:'筆記錄', sumLast:'最後同步', tmTitle:'📱 快速開啟' },
-  en: { title:'AC HRA Portal', tg:'Telegram Menu', logHd:'Activity Log', sumSynced:'Synced', sumRecs:'Records', sumLast:'Last Sync', tmTitle:'📱 Quick Access' },
-  km: { title:'AC HRA Portal', tg:'Telegram Menu', logHd:'កំណត់ត្រា', sumSynced:'បានធ្វើ Sync', sumRecs:'កំណត់ត្រា', sumLast:'Sync ចុងក្រោយ', tmTitle:'📱 ចូលប្រើរហ័ស' },
-};
-function setLang(l) {
-  LANG = l;
-  localStorage.setItem('ac_hra_lang', l);
-  document.querySelectorAll('.lb').forEach((b,i)=>b.classList.toggle('on',['zh','en','km'][i]===l));
-  applyLang();
-  renderCards();
-}
-function applyLang() {
-  const T = I18N[LANG]||I18N.zh;
-  document.getElementById('h-title').textContent    = T.title;
-  document.getElementById('h-tg').textContent       = T.tg;
-  document.getElementById('log-hd-txt').textContent = T.logHd;
-  document.getElementById('s-synced-lbl').textContent = T.sumSynced;
-  document.getElementById('s-records-lbl').textContent = T.sumRecs;
-  document.getElementById('s-last-lbl').textContent  = T.sumLast;
-  document.getElementById('tm-title').textContent    = T.tmTitle;
-  document.querySelectorAll('[data-zh]').forEach(el => {
-    el.textContent = l==='en'?el.dataset.en:l==='km'?el.dataset.km:el.dataset.zh;
-  });
-}
-
-// ── UI HELPERS ────────────────────────────────────
-function setBtns(id, dis) {
-  ['pp-','pl-'].forEach(p => {
-    const el = document.getElementById(p+id);
-    if (!el) return;
-    el.disabled = dis;
-    if (dis) { el.dataset.orig=el.innerHTML; el.innerHTML='<i class="spin">⏳</i>'; }
-    else el.innerHTML = el.dataset.orig||el.innerHTML;
-  });
-}
-function log(msg, type) {
-  const el = document.getElementById('logBody');
-  if (!el) return;
-  const now = new Date();
-  const t   = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
-  const cls = type==='ok'?'ll-ok':type==='err'?'ll-err':'ll-info';
-  el.innerHTML += `\n<span class="${cls}">[${t}] ${msg}</span>`;
-  el.scrollTop  = el.scrollHeight;
-}
-function clearLog() { document.getElementById('logBody').innerHTML='<span class="ll-info">就緒</span>'; }
-
-// ── INIT ─────────────────────────────────────────
-init();
-// Auto-refresh status every 2 min
-setInterval(fetchStatus, 120000);
+  updateStats(null);
+  if (GAS_URL) setTimeout(fetchStatus, 600);
+})();
 </script>
 </body>
 </html>
