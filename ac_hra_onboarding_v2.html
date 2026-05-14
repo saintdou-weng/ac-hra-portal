@@ -154,6 +154,7 @@ textarea.form-input{resize:vertical;min-height:56px}
   <button data-page="resigns" onclick="goTab(this)">🔴 <span data-i="tab_resigns">離職</span> <span id="bdg-resign" class="badge" style="display:none;background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
   <button data-page="import"  onclick="goTab(this)">📥 <span data-i="tab_import">匯入</span></button>
   <button data-page="anomaly" onclick="goTab(this)">⚠️ <span data-i="tab_anomaly">異常</span> <span id="bdg-anomaly" style="display:none;background:var(--danger);color:#fff;font-size:10px;padding:1px 6px;border-radius:8px;margin-left:3px">0</span></button>
+  <button data-page="compare"  onclick="goTab(this)">📈 <span data-i="tab_compare">比較分析</span></button>
   <button data-page="settings" onclick="goTab(this)">⚙️ <span data-i="tab_settings">設定</span></button>
 </nav>
 <main>
@@ -184,7 +185,7 @@ textarea.form-input{resize:vertical;min-height:56px}
   <div class="section-card" style="margin-top:12px">
     <div class="section-title">月度統計表</div>
     <div class="table-scroll"><table>
-      <thead><tr><th>月份</th><th>入職</th><th>離職</th><th>淨增減</th><th>辭職</th><th>辭退</th><th>自離</th><th>開除</th><th>離職率</th></tr></thead>
+      <thead><tr><th>月份</th><th>入職</th><th>離職</th><th>淨增減</th><th>辭職</th><th>辭退</th><th>自離</th><th>開除</th><th>離職率</th><th title="來自考勤IDB">車縫工(均)</th></tr></thead>
       <tbody id="monthly-tbody"></tbody>
     </table></div>
   </div>
@@ -197,7 +198,7 @@ textarea.form-input{resize:vertical;min-height:56px}
     <div class="sum-filter-group"><label>部門</label><select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="join-gender" onchange="renderJoins()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>職位</label><select class="flt" id="join-pos" onchange="renderJoins()"><option value="">全部</option></select></div>
-    <div class="sum-filter-group"><label>年齡</label><select class="flt" id="join-age" onchange="renderJoins()"><option value="">全部</option><option value="18-25">18–25</option><option value="26-30">26–30</option><option value="31-35">31–35</option><option value="36-40">36–40</option><option value="40+">40+</option></select></div>
+    <div class="sum-filter-group"><label>年齡段</label><select class="flt" id="join-age" onchange="renderJoins()"><option value="">全部</option><option value="18-25">18–25</option><option value="26-30">26–30</option><option value="31-35">31–35</option><option value="36-40">36–40</option><option value="40+">40+</option></select></div>
     <div class="sum-filter-group"><label>介紹人</label><select class="flt" id="join-referrer" onchange="renderJoins()"><option value="">全部</option></select></div>
     <input class="sbox" id="join-search" placeholder="搜尋姓名/工號…" oninput="renderJoins()" style="flex:1;min-width:140px">
     <button class="btn gold small" onclick="openJoinModal()">＋ 新增</button>
@@ -225,7 +226,6 @@ textarea.form-input{resize:vertical;min-height:56px}
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="resign-gender" onchange="renderResigns()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>離職類型</label><select class="flt" id="resign-type" onchange="renderResigns()"><option value="">全部</option><option value="resign">辭職</option><option value="dismiss">辭退</option><option value="self">自離</option><option value="expel">開除</option></select></div>
     <div class="sum-filter-group"><label>原因分類</label><select class="flt" id="resign-reason-cat" onchange="renderResigns()"><option value="">全部</option></select></div>
-    <div class="sum-filter-group"><label>年資</label><select class="flt" id="resign-tenure" onchange="renderResigns()"><option value="">全部</option><option value="lt6m">&lt;6個月</option><option value="6m-1y">6月–1年</option><option value="1y-2y">1–2年</option><option value="2y-3y">2–3年</option><option value="3y+">3年以上</option></select></div>
     <input class="sbox" id="resign-search" placeholder="搜尋姓名/工號…" oninput="renderResigns()" style="flex:1;min-width:140px">
     <button class="btn gold small" onclick="openResignModal()">＋ 新增</button>
     <button class="btn ghost small" onclick="exportResignsExcel()">⬇ Excel</button>
@@ -240,51 +240,6 @@ textarea.form-input{resize:vertical;min-height:56px}
     <div class="table-scroll"><table>
       <thead><tr><th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>職位</th><th>入職日</th><th>離職日</th><th>年資</th><th>性別</th><th>類型</th><th>原因分類</th><th>補充說明</th><th>操作</th></tr></thead>
       <tbody id="resign-tbody"></tbody>
-    </table></div>
-  </div>
-</div>
-
-
-<!-- COMPARE (Attendance × Join/Resign Analysis) -->
-<div class="page" id="page-compare">
-  <div class="range-nav" id="cmp-range-nav">
-    <div class="range-tabs">
-      <button class="on" data-r="day"   onclick="setCmpRange('day',this)">日</button>
-      <button data-r="week"  onclick="setCmpRange('week',this)">週</button>
-      <button data-r="month" onclick="setCmpRange('month',this)">月</button>
-      <button data-r="year"  onclick="setCmpRange('year',this)">年</button>
-    </div>
-    <button class="arr-btn" onclick="moveCmp(-1)">◀</button>
-    <div class="period-lbl" id="cmp-period-lbl">—</div>
-    <button class="arr-btn" onclick="moveCmp(1)">▶</button>
-    <button class="arr-btn" onclick="moveCmp(0)" title="今天">●</button>
-    <button class="btn ghost small" onclick="loadAttIDB(true)" style="margin-left:8px">🔄 讀取考勤</button>
-    <span id="cmp-att-status" style="font-size:11px;color:var(--muted);margin-left:6px">未讀取考勤</span>
-  </div>
-  <!-- KPI row -->
-  <div class="kpi-strip" id="cmp-kpi" style="margin-bottom:12px"></div>
-  <!-- Trend chart: Att HC + Join + Resign -->
-  <div class="section-card" style="margin-bottom:12px">
-    <div class="section-title" id="cmp-chart-title">入離職 × 考勤趨勢</div>
-    <div style="position:relative;height:220px"><canvas id="ch-cmp"></canvas></div>
-  </div>
-  <!-- Department breakdown comparison -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div class="detail-section">
-      <div class="detail-hd">各組別入職分佈</div>
-      <table class="bd-table" id="cmp-join-dept"><thead><tr><th>部門/組別</th><th>入職</th><th>考勤HC</th><th>佔比</th></tr></thead><tbody></tbody></table>
-    </div>
-    <div class="detail-section">
-      <div class="detail-hd">各組別離職分佈</div>
-      <table class="bd-table" id="cmp-resign-dept"><thead><tr><th>部門/組別</th><th>離職</th><th>年資(均)</th><th>原因TOP</th></tr></thead><tbody></tbody></table>
-    </div>
-  </div>
-  <!-- Detail table -->
-  <div class="detail-section">
-    <div class="detail-hd">日期明細對照 <span id="cmp-detail-lbl" style="font-weight:400;color:#aaa"></span></div>
-    <div class="table-scroll" style="max-height:360px"><table>
-      <thead><tr><th>日期/期間</th><th class="center">考勤HC(均)</th><th class="center">車縫HC</th><th class="center">入職</th><th class="center">離職</th><th class="center">淨增</th><th class="center">出勤率</th></tr></thead>
-      <tbody id="cmp-tbody"></tbody>
     </table></div>
   </div>
 </div>
@@ -340,6 +295,78 @@ textarea.form-input{resize:vertical;min-height:56px}
     <button class="btn small" style="background:#0088cc" onclick="sendAnomalyTg()">📱 Telegram</button>
   </div>
   <div id="anomaly-list"><div class="alert ok">✅ 點「重新檢查」掃描異常</div></div>
+</div>
+
+
+<!-- COMPARE : Attendance × Join/Resign Analysis -->
+<div class="page" id="page-compare">
+  <div class="sum-filters" style="margin-bottom:12px">
+    <div class="range-tabs">
+      <button class="on" data-r="day"   onclick="setCmpRange('day',this)">日</button>
+      <button data-r="week"  onclick="setCmpRange('week',this)">週</button>
+      <button data-r="month" onclick="setCmpRange('month',this)">月</button>
+      <button data-r="year"  onclick="setCmpRange('year',this)">年</button>
+    </div>
+    <button class="arr-btn" onclick="moveCmp(-1)">◀</button>
+    <div class="period-lbl" id="cmp-label">—</div>
+    <button class="arr-btn" onclick="moveCmp(1)">▶</button>
+    <button class="arr-btn" onclick="moveCmp(0)" title="今天">●</button>
+    <select class="flt" id="cmp-dept" onchange="renderCompare()" style="min-width:100px"><option value="">全部部門</option></select>
+    <button class="btn ghost small" onclick="loadAttIDB(true).then(renderCompare)" style="margin-left:4px">🔄 讀取考勤</button>
+    <span id="cmp-att-status" style="font-size:11px;color:var(--muted)">未讀取</span>
+  </div>
+
+  <!-- KPI strip -->
+  <div class="kpi-strip" id="cmp-kpi" style="margin-bottom:12px"></div>
+
+  <!-- Main chart -->
+  <div class="section-card" style="margin-bottom:12px">
+    <div class="section-title" style="display:flex;justify-content:space-between">
+      <span>📈 考勤 × 入離職趨勢</span>
+      <span id="cmp-range-lbl" style="font-weight:400;color:var(--muted);font-size:11px"></span>
+    </div>
+    <div style="position:relative;height:220px"><canvas id="ch-cmp-trend"></canvas></div>
+  </div>
+
+  <!-- Two breakdown tables -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+    <div class="detail-section">
+      <div class="detail-hd">部門入職 × 考勤對比</div>
+      <table class="bd-table" id="cmp-join-tbl">
+        <thead><tr><th>部門</th><th>入職</th><th>考勤HC</th><th>車縫工</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="detail-section">
+      <div class="detail-hd">部門離職分析</div>
+      <table class="bd-table" id="cmp-resign-tbl">
+        <thead><tr><th>部門</th><th>離職</th><th>平均年資</th><th>主要原因</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Period detail table -->
+  <div class="detail-section">
+    <div class="detail-hd">期間明細對照 <span id="cmp-detail-lbl" style="font-weight:400;color:#aaa;font-size:10px"></span></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>期間</th>
+            <th class="center">考勤HC(均)</th>
+            <th class="center">車縫工(均)</th>
+            <th class="center" style="color:#10b981">入職</th>
+            <th class="center" style="color:#ef4444">離職</th>
+            <th class="center">淨增</th>
+            <th class="center">出勤率</th>
+            <th class="center">離職率</th>
+          </tr>
+        </thead>
+        <tbody id="cmp-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
 <!-- SETTINGS -->
@@ -486,7 +513,7 @@ function saveJoins(){localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}
 function saveResigns(){localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}
 
 // ── Tabs ──
-function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const tab=btn.dataset.page;document.getElementById('page-'+tab).classList.add('active');if(tab==='summary')renderSummary();if(tab==='joins')renderJoins();if(tab==='resigns')renderResigns();if(tab==='compare')renderCompare();if(tab==='anomaly')runAnomalyCheck();if(tab==='settings')loadSettingsForm();}
+function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const tab=btn.dataset.page;document.getElementById('page-'+tab).classList.add('active');if(tab==='summary')renderSummary();if(tab==='joins')renderJoins();if(tab==='resigns')renderResigns();if(tab==='anomaly')runAnomalyCheck();if(tab==='compare'){renderCompare();updateFilters();}if(tab==='settings')loadSettingsForm();}
 
 // ── Range nav ──
 function setRange(r,btn){RANGE=r;document.querySelectorAll('.range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderSummary();}
@@ -501,20 +528,34 @@ function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];
 
 function renderReasonChart(resigns){const cm={};REASON_CATS.forEach(c=>cm[c]=0);resigns.forEach(r=>{const cat=r.reasonCat||'Other';if(cm[cat]!==undefined)cm[cat]++;else cm['Other']=(cm['Other']||0)+1;});const labels=Object.keys(cm).filter(k=>cm[k]>0);const vals=labels.map(k=>cm[k]);const colors=labels.map(k=>{const c=REASON_COLORS[k];return c?c.split(':')[0]:'#9ca3af';});mkChart('ch-reason',{type:'doughnut',data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});}
 
-function renderMonthlyTable(){const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse().slice(0,24);const tbody=document.getElementById('monthly-tbody');if(!months.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">尚無資料</td></tr>';return;}const avgJ=JOINS.length>0?(JOINS.length/months.length).toFixed(1):0;tbody.innerHTML=months.map(m=>{const j=JOINS.filter(r=>(r.joinDate||'').startsWith(m)).length;const r=RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)).length;const net=j-r;const rTypes=['resign','dismiss','self','expel'].map(tp=>RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)&&r.resignType===tp).length);const rate=avgJ>0?((r/avgJ)*100).toFixed(1)+'%':'—';return`<tr><td style="font-family:monospace">${m}</td><td style="color:var(--ok);font-weight:700">+${j}</td><td style="color:var(--danger);font-weight:700">-${r}</td><td style="font-weight:700;color:${net>=0?'var(--ok)':'var(--danger)'}">${net>=0?'+':''}${net}</td>${rTypes.map(v=>`<td>${v||'—'}</td>`).join('')}<td>${rate}</td></tr>`;}).join('');}
+function renderMonthlyTable(){const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse().slice(0,24);const tbody=document.getElementById('monthly-tbody');if(!months.length){tbody.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:20px">尚無資料</td></tr>';return;}const avgJ=JOINS.length>0?(JOINS.length/months.length).toFixed(1):0;tbody.innerHTML=months.map(m=>{const j=JOINS.filter(r=>(r.joinDate||'').startsWith(m)).length;const r=RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)).length;const net=j-r;const rTypes=['resign','dismiss','self','expel'].map(tp=>RESIGNS.filter(r=>(r.resignDate||'').startsWith(m)&&r.resignType===tp).length);const rate=avgJ>0?((r/avgJ)*100).toFixed(1)+'%':'—';const sewHC=getMonthSewHC(m);return`<tr><td style="font-family:monospace">${m}</td><td style="color:var(--ok);font-weight:700">+${j}</td><td style="color:var(--danger);font-weight:700">-${r}</td><td style="font-weight:700;color:${net>=0?'var(--ok)':'var(--danger)'}">${net>=0?'+':''}${net}</td>${rTypes.map(v=>`<td>${v||'—'}</td>`).join('')}<td>${rate}</td><td style="color:#1a7abf;font-weight:600">${sewHC||'—'}</td></tr>`;}).join('');}
 
 // ── Joins ──
-function renderJoins(){const q=(document.getElementById('join-search')?.value||'').toLowerCase();const deptF=document.getElementById('join-dept')?.value||'';const mo=document.getElementById('join-month')?.value||'';const gF=document.getElementById('join-gender')?.value||'';const posF=document.getElementById('join-pos')?.value||'';const ageF=document.getElementById('join-age')?.value||'';const refF=document.getElementById('join-referrer')?.value||'';const deptOf=r=>r.section||r.dept||'—';
-function ageInBand(r,band){const age=r.dob?calcAge(r.dob):null;if(age===null)return band==='';if(band==='18-25')return age<=25;if(band==='26-30')return age>=26&&age<=30;if(band==='31-35')return age>=31&&age<=35;if(band==='36-40')return age>=36&&age<=40;if(band==='40+')return age>40;return true;}
-let rows=JOINS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||deptOf(r)===deptF)&&(!mo||(r.joinDate||'').startsWith(mo))&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!posF||(r.position||'').includes(posF))&&(!ageF||ageInBand(r,ageF))&&(!refF||(r.introducer||'')=== refF)).sort((a,b)=>(b.joinDate||'').localeCompare(a.joinDate||''));
-const total=rows.length,female=rows.filter(r=>(r.gender||'').toUpperCase()==='F').length,today2=new Date().toISOString().slice(0,10);
-const attSnap=getAttSnap();const sewHC=attSnap.sewHC,totalHC=attSnap.totalHC,attRate=attSnap.rate;
-document.getElementById('join-summary-cards').innerHTML=[
-  {cls:'join-c',val:total,sub:totalHC?`考勤在職 ${totalHC} 人`:'',lbl:'篩選人數'},
-  {cls:'info-c',val:rows.filter(r=>(r.joinDate||'').startsWith(today2.slice(0,7))).length,sub:today2.slice(0,7),lbl:'本月入職'},
-  {cls:'info-c',val:female+'F/'+(total-female)+'M',sub:'',lbl:'性別分佈'},
-  sewHC?{cls:'info-c',val:sewHC,sub:attRate?`出勤率 ${attRate}`:'',lbl:'車縫在職(考勤)'}:null,
-].filter(Boolean).map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
+function getAge(r){if(!r.dob)return null;const a=Math.floor((Date.now()-new Date(r.dob))/31536000000);return(a>=15&&a<=75)?a:null;}
+function renderJoins(){
+  const q=(document.getElementById('join-search')?.value||'').toLowerCase();
+  const deptF=document.getElementById('join-dept')?.value||'';
+  const mo=document.getElementById('join-month')?.value||'';
+  const gF=document.getElementById('join-gender')?.value||'';
+  const posF=document.getElementById('join-pos')?.value||'';
+  const ageF=document.getElementById('join-age')?.value||'';
+  const refF=document.getElementById('join-referrer')?.value||'';
+  const deptOf=r=>r.section||r.dept||'—';
+  function ageOk(r,band){const a=getAge(r);if(!band)return true;if(band==='18-25')return a!==null&&a<=25;if(band==='26-30')return a!==null&&a>=26&&a<=30;if(band==='31-35')return a!==null&&a>=31&&a<=35;if(band==='36-40')return a!==null&&a>=36&&a<=40;if(band==='40+')return a!==null&&a>40;return true;}
+  let rows=JOINS.filter(r=>
+    (!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
+    &&(!deptF||deptOf(r)===deptF)&&(!mo||(r.joinDate||'').startsWith(mo))
+    &&(!gF||(r.gender||'').toUpperCase()===gF)&&(!posF||(r.position||'').includes(posF))
+    &&ageOk(r,ageF)&&(!refF||(r.introducer||'')===refF)
+  ).sort((a,b)=>(b.joinDate||'').localeCompare(a.joinDate||''));
+  const total=rows.length,female=rows.filter(r=>(r.gender||'').toUpperCase()==='F').length;
+  const today2=new Date().toISOString().slice(0,10);
+  const sew=getAttSnap();
+  document.getElementById('join-summary-cards').innerHTML=[
+    {cls:'join-c',   val:total,                    sub:sew.sewHC?'車縫工 '+sew.sewHC+' 人':'',  lbl:'篩選人數'},
+    {cls:'info-c',   val:rows.filter(r=>(r.joinDate||'').startsWith(today2.slice(0,7))).length, sub:sew.totalHC?'在職 '+sew.totalHC:'', lbl:'本月入職'},
+    {cls:'info-c',   val:female+'F/'+(total-female), sub:sew.rate?'出勤率 '+sew.rate:'',         lbl:'性別分佈'},
+  ].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
 // Dept breakdown
 const dm={};rows.forEach(r=>{const d=deptOf(r);dm[d]=(dm[d]||0)+1;});document.querySelector('#join-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<tr><td>${d}</td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:var(--ok)"></div></div></td></tr>`).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
 // Gender breakdown
@@ -526,19 +567,18 @@ updateFilters();updateBadges();}
 // ── Resigns ──
 function renderResigns(){const q=(document.getElementById('resign-search')?.value||'').toLowerCase();const deptF=document.getElementById('resign-dept')?.value||'';const mo=document.getElementById('resign-month')?.value||'';const tp=document.getElementById('resign-type')?.value||'';const gF=document.getElementById('resign-gender')?.value||'';const rcF=document.getElementById('resign-reason-cat')?.value||'';
 const tenDays=r=>r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
-const tenureF=document.getElementById('resign-tenure')?.value||'';
-function tenureInBand(r,band){const d=tenDays(r);if(!band)return true;if(band==='lt6m')return d<180;if(band==='6m-1y')return d>=180&&d<365;if(band==='1y-2y')return d>=365&&d<730;if(band==='2y-3y')return d>=730&&d<1095;if(band==='3y+')return d>=1095;return true;}
-let rows=RESIGNS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||(r.dept||'')=== deptF)&&(!mo||(r.resignDate||'').startsWith(mo))&&(!tp||r.resignType===tp)&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||'')=== rcF)&&tenureInBand(r,tenureF)).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
+const tnF=document.getElementById('resign-tenure')?.value||'';
+  function tenOk(r,band){const d=tenDays(r);if(!band)return true;if(band==='lt6m')return d<180;if(band==='6m1y')return d>=180&&d<365;if(band==='1y2y')return d>=365&&d<730;if(band==='2y3y')return d>=730&&d<1095;if(band==='3yp')return d>=1095;return true;}
+  let rows=RESIGNS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||(r.dept||'')=== deptF)&&(!mo||(r.resignDate||'').startsWith(mo))&&(!tp||r.resignType===tp)&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||'')=== rcF)&&tenOk(r,tnF)).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
 const total=rows.length,tc={resign:0,dismiss:0,self:0,expel:0};rows.forEach(r=>{if(tc[r.resignType]!==undefined)tc[r.resignType]++;});
 const mo2=new Date().toISOString().slice(0,7);
-const attSnap2=getAttSnap();const sewHC2=attSnap2.sewHC,totalHC2=attSnap2.totalHC;
-document.getElementById('resign-summary-cards').innerHTML=[
-  {cls:'resign-c',val:total,sub:`本月${rows.filter(r=>(r.resignDate||'').startsWith(mo2)).length}人${totalHC2?' · 在職 '+totalHC2:''}`,lbl:'篩選離職'},
-  {cls:'warn-c',val:tc.resign,sub:'辭職',lbl:'Resigned'},
-  {cls:'warn-c',val:tc.self,sub:'自離',lbl:'Self-resign'},
-  {cls:'resign-c',val:tc.dismiss+tc.expel,sub:'辭退/開除',lbl:'Company'},
-  sewHC2?{cls:'info-c',val:sewHC2,sub:'最新考勤日',lbl:'車縫在職'}:null,
-].filter(Boolean).map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
+const sew2=getAttSnap();
+  document.getElementById('resign-summary-cards').innerHTML=[
+    {cls:'resign-c',val:total,          sub:sew2.sewHC?'車縫工 '+sew2.sewHC+' 人':'本月'+rows.filter(r=>(r.resignDate||'').startsWith(mo2)).length+'人', lbl:'篩選離職'},
+    {cls:'warn-c',  val:tc.resign,      sub:sew2.totalHC?'在職 '+sew2.totalHC:'辭職',     lbl:'Resigned'},
+    {cls:'warn-c',  val:tc.self,        sub:'自離',      lbl:'Self-resign'},
+    {cls:'resign-c',val:tc.dismiss+tc.expel, sub:'辭退/開除', lbl:'Company'},
+  ].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
 // Reason category breakdown
 const cm={};rows.forEach(r=>{const c=r.reasonCat||'其他';cm[c]=(cm[c]||0)+1;});document.querySelector('#resign-reason-bd tbody').innerHTML=Object.entries(cm).sort((a,b)=>b[1]-a[1]).map(([c,n])=>{const colors=REASON_COLORS[c];const[bg,col]=colors?colors.split(':'):['#f5f5f5','#616161'];return`<tr><td><span class="reason-tag" style="background:${bg};color:${col}">${c}</span></td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:${col}"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
 // Dept breakdown
@@ -550,10 +590,8 @@ document.getElementById('resign-tbody').innerHTML=rows.length?rows.map((r,i)=>{c
 updateFilters();updateBadges();}
 
 // ── Filter helpers ──
-function updateFilters(){const deptOf=r=>r.section||r.dept||'';const depts=[...new Set([...JOINS.map(deptOf),...RESIGNS.map(r=>r.dept||'')].filter(Boolean))].sort();const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse();['join-dept','resign-dept'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部部門</option>'+depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');});['join-month','resign-month'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');});const positions=[...new Set(JOINS.map(r=>(r.position||'').trim()).filter(Boolean))].sort();const posEl=document.getElementById('join-pos');if(posEl){const cur=posEl.value;posEl.innerHTML='<option value="">全部職位</option>'+positions.map(p=>`<option${p===cur?' selected':''}>${p}</option>`).join('');}// Reason cat filter – always show all 14 categories, mark used ones
-const rcEl=document.getElementById('resign-reason-cat');if(rcEl){const used=new Set(RESIGNS.map(r=>r.reasonCat).filter(Boolean));const cur=rcEl.value;rcEl.innerHTML='<option value="">全部原因</option>'+REASON_CATS.map(cat=>{const n=RESIGNS.filter(r=>r.reasonCat===cat).length;return`<option value="${cat}"${cat===cur?' selected':''}>${cat}${n?` (${n})`:'  '}</option>`;}).join('');}
-// Referrer list
-const refEl=document.getElementById('join-referrer');if(refEl){const refs=[...new Set(JOINS.map(r=>(r.introducer||'').trim()).filter(Boolean))].sort();const cur2=refEl.value;refEl.innerHTML='<option value="">全部</option>'+refs.map(r=>`<option${r===cur2?' selected':''}>${r}</option>`).join('');}}
+function updateFilters(){const deptOf=r=>r.section||r.dept||'';const depts=[...new Set([...JOINS.map(deptOf),...RESIGNS.map(r=>r.dept||'')].filter(Boolean))].sort();const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse();['join-dept','resign-dept'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部部門</option>'+depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');});['join-month','resign-month'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');});const positions=[...new Set(JOINS.map(r=>(r.position||'').trim()).filter(Boolean))].sort();const posEl=document.getElementById('join-pos');if(posEl){const cur=posEl.value;posEl.innerHTML='<option value="">全部職位</option>'+positions.map(p=>`<option${p===cur?' selected':''}>${p}</option>`).join('');}// Reason cat filter
+const rcEl=document.getElementById('resign-reason-cat');if(rcEl){const used=[...new Set(RESIGNS.map(r=>r.reasonCat).filter(Boolean))].sort();const cur=rcEl.value;rcEl.innerHTML='<option value="">全部原因</option>'+used.map(c=>`<option${c===cur?' selected':''}>${c}</option>`).join('');}}
 function updateBadges(){setBadge('bdg-join',JOINS.length);setBadge('bdg-resign',RESIGNS.length);setBadge('bdg-anomaly',document.getElementById('page-anomaly').classList.contains('active')?0:0);}
 function setBadge(id,n){const el=document.getElementById(id);if(!el)return;el.textContent=n;el.style.display=n?'':'none';}
 
@@ -578,8 +616,29 @@ function addFiles(files){_pendingFiles=[...(files||[])];const list=document.getE
 async function parseFiles(){if(!_pendingFiles.length)return;document.getElementById('parse-status').textContent='解析中…';_importBuf={joins:[],resigns:[]};const overwrite=document.getElementById('chk-overwrite').checked;for(const f of _pendingFiles){try{let xls=[];if(/\.(msg|eml)$/i.test(f.name)){xls=await extractXlsx(f);}else if(/\.(xlsx|xls)$/i.test(f.name)){const buf=await f.arrayBuffer();xls=[{name:f.name,data:new Uint8Array(buf)}];}for(const xf of xls)await parseWb(xf.data,overwrite);}catch(ex){toast(`❌ ${f.name}: ${ex.message}`,'err');}}showPreview();document.getElementById('parse-status').textContent=`✅ 入職 ${_importBuf.joins.length} 筆 · 離職 ${_importBuf.resigns.length} 筆`;}
 
 async function parseWb(data,overwrite){const wb=XLSX.read(data,{type:'array',cellDates:true});const existJoinIds=new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));const existResignKeys=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));for(const sn of wb.SheetNames){const snL=sn.toLowerCase().trim();const ws=wb.Sheets[sn];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(!rows.length)continue;
-if(snL.includes('join')||snL.includes('jion')||snL.includes('入職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cDate=ci('join date')<0?ci('join'):ci('join date');const cDept=ci('dept'),cSec=ci('section'),cPos=ci('pos');const cId=ci('id number')<0?ci('id'):ci('id number');const cName=ci('name'),cGender=ci('gender'),cDob=ci('birth')<0?ci('dob'):ci('birth');const cAge=ci('age'),cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel'),cIntro=ci('introdu')<0?ci('introduce'):ci('introdu'),cRmk=ci('remark')<0?ci('note'):ci('remark');for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];const nameVal=String(row[cName]||'').trim();if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;const empId=String(row[cId]||'').trim();const joinDate=parseDate(row[cDate]);if(!joinDate)continue;if(!overwrite&&empId&&existJoinIds.has(empId))continue;// DOB: try dob column, then compute from age
-let dob=parseDate(row[cDob],true)||'';if(!dob&&cAge>=0){const ageRaw=parseInt(String(row[cAge]||'').trim());if(ageRaw>=15&&ageRaw<=70){const yr=new Date().getFullYear()-ageRaw;dob=`${yr}-01-01`;}}const intro=cIntro>=0?String(row[cIntro]||'').trim():'';_importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob,address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:intro,remark:String(row[cRmk]||'').trim()});}}
+if(snL.includes('join')||snL.includes('jion')||snL.includes('入職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cDate=ci('join date')<0?ci('join'):ci('join date');const cDept=ci('dept'),cSec=ci('section'),cPos=ci('pos');const cId=ci('id number')<0?ci('id'):ci('id number');const cName=ci('name'),cGender=ci('gender'),cDob=ci('birth');// Extended column detection for DOB and Age
+const cAge=[...hdr.keys()].find(i=>/(^age$|^年齡$|^umur$|ages)/.test(hdr[i]))||-1;
+const cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel');
+const cIntro=[...hdr.keys()].find(i=>/(intro|refer|by\s*friend|介紹|giới thiệu)/.test(hdr[i]))||-1;
+const cRmk=ci('remark')<0?ci('note'):ci('remark');
+// Find DOB: try multiple header patterns
+const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|out sinh|출생|生日|出生|ngày sinh)/.test(hdr[i]))||-1;
+for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];
+  const nameVal=String(row[cName]||'').trim();
+  if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
+  const empId=String(row[cId]||'').trim();
+  const joinDate=parseDate(row[cDate],false);if(!joinDate)continue;
+  if(!overwrite&&empId&&existJoinIds.has(empId))continue;
+  // DOB: try dob column (isDob=true), then compute from age column
+  let dob=parseDate(row[cDob2],true)||parseDate(row[cDob],true)||'';
+  if(!dob&&cAge>=0){
+    const raw=row[cAge];
+    // might be a number, or date-like value representing age as year
+    if(typeof raw==='number'&&raw>=15&&raw<=75)dob=`${new Date().getFullYear()-raw}-01-01`;
+    else{const ageNum=parseInt(String(raw||'').trim());if(ageNum>=15&&ageNum<=75)dob=`${new Date().getFullYear()-ageNum}-01-01`;}
+  }
+  const intro=cIntro>=0?String(row[cIntro]||'').trim():'';
+  _importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob,address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:intro,remark:String(row[cRmk]||'').trim()});}}
 if(snL.includes('resign')||snL.includes('離職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(工號|resign.?date|離職日|STT|Name)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).replace(/\n/g,' ').trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cId=ci('工號')<0?(ci('id')<0?ci('stt'):ci('id')):ci('工號'),cName=ci('姓名')<0?ci('name'):ci('姓名'),cJoin=ci('到職')<0?(ci('join')<0?ci('start'):ci('join')):ci('到職'),cDept=ci('部門')<0?ci('section'):ci('部門'),cPos=ci('職務')<0?ci('pos'):ci('職務'),cGender=ci('性別')<0?ci('gender'):ci('性別');const cResign=ci('辭職'),cDismiss=ci('辭退'),cSelf=ci('自離'),cExpel=ci('開除');const cResignDate=ci('離職日')<0?ci('resign date'):ci('離職日'),cDays=ci('在職天數')<0?ci('working'):ci('在職天數'),cReason=ci('原因')<0?ci('reason'):ci('原因'),cRmk=ci('備注')<0?ci('remark'):ci('備注');for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];const nameVal=String(row[cName]||'').trim();if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;const empId=String(row[cId]||'').trim();const resignDate=parseDate(row[cResignDate]);if(!resignDate)continue;const key=empId+'_'+resignDate;if(!overwrite&&existResignKeys.has(key))continue;const chk=v=>String(v||'').trim().toLowerCase();let resignType='resign';if(cSelf>=0&&chk(row[cSelf])==='√')resignType='self';else if(cExpel>=0&&chk(row[cExpel])==='√')resignType='expel';else if(cDismiss>=0&&chk(row[cDismiss])==='√')resignType='dismiss';const joinDate2=parseDate(row[cJoin])||'';let days=parseInt(String(row[cDays]||'').trim())||0;if(!days&&joinDate2&&resignDate)days=Math.ceil((new Date(resignDate)-new Date(joinDate2))/86400000);const reasonRaw=String(row[cReason]||'').trim();// auto-map reason to category
 let reasonCat='',reason=reasonRaw;const rLow=reasonRaw.toLowerCase();if(/voluntary|resign|辭職/.test(rLow))reasonCat='Voluntary';else if(/attend|出勤/.test(rLow))reasonCat='Attendance';else if(/no call|no show|曠職/.test(rLow))reasonCat='No Call';else if(/perform|績效/.test(rLow))reasonCat='Performance';else if(/health|病|sick/.test(rLow))reasonCat='Health';else if(/pregn|child|baby|懷孕|育兒/.test(rLow))reasonCat='Pregnancy';else if(/family|home|go home|家庭|回家/.test(rLow))reasonCat='Family';else if(/reloc|move|搬/.test(rLow))reasonCat='Relocation';else if(/transfer|調職/.test(rLow))reasonCat='Transfer';else if(/contract|合約/.test(rLow))reasonCat='Contract End';else if(/dismiss|expel|辭退|開除/.test(rLow))reasonCat='Dismissal';else if(/salar|pay|薪/.test(rLow))reasonCat='Salary';else if(/personal|個人/.test(rLow))reasonCat='Personal';else if(reasonRaw)reasonCat='Other';
 _importBuf.resigns.push({id:'r_'+uid(),empId,name:nameVal,resignDate,joinDate:joinDate2,dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',workingDays:days,resignType,reasonCat,reason,remark:String(row[cRmk]||'').trim()});}}}}
@@ -599,9 +658,11 @@ function exportResignsExcel(){if(!RESIGNS.length){toast('無資料','warn');retu
 function downloadTemplate(){const wb=XLSX.utils.book_new();const j=XLSX.utils.aoa_to_sheet([['STT','Join date','Dept','Section','Pos','ID number','Name','Gender','Date of Birth','Age','Address','Telephone','Introduce by','Remark'],[1,'2026-04-21','Production','Line12','Sewing Operator',5913,'CHAN DARA','F','1995-08-15',30,'Sihanouk','010681661','By friend','']]);const r=XLSX.utils.aoa_to_sheet([['序號','工號','姓名','到職日期','部門','職務','性別','出生日期','年齡','辭職','辭退','自離','開除','離職日期','在職天數','離職原因','備注'],[1,5595,'CHHOM SREYMEY','2024-10-22','Line11','Sewing operator','F','2000-09-12',26,'√','','','','2026-04-01',527,'Go home childcare','']]);XLSX.utils.book_append_sheet(wb,j,'Jion');XLSX.utils.book_append_sheet(wb,r,'Resign');XLSX.writeFile(wb,'AC_HRA_Template.xlsx');}
 
 // ── Cloud ──
-async function sendTgSummary(){const mo=new Date().toISOString().slice(0,7);const mj=JOINS.filter(r=>(r.joinDate||'').startsWith(mo)).length,mr=RESIGNS.filter(r=>(r.resignDate||'').startsWith(mo)).length;const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});const text=`🚪 <b>AC HRA 入離職摘要</b> — ${ts}\n─────────────────────\n📅 ${mo}\n🟢 入職：${mj} 人\n🔴 離職：${mr} 人\n📊 淨增減：${mj>=mr?'+':''}${mj-mr} 人\n─────────────────────\n🏭 VRT Sihanoukville`;const gasUrl=localStorage.getItem(K_GAS)||'';if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok){toast('✅ Telegram 已發送','ok');return;}}catch(e){}}const TOKEN=SETS.tgToken||'8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg',CHAT=SETS.tgChat||'-5233667043';fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})}).then(r=>r.json()).then(d=>toast(d.ok?'✅ Telegram 已發送':'❌ 失敗',d.ok?'ok':'err')).catch(e=>toast('❌ '+e.message,'err'));}
+async function sendTgSummary(){const mo=new Date().toISOString().slice(0,7);const mj=JOINS.filter(r=>(r.joinDate||'').startsWith(mo)).length,mr=RESIGNS.filter(r=>(r.resignDate||'').startsWith(mo)).length;const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});const text=`🚪 <b>AC HRA 入離職摘要</b> — ${ts}\n─────────────────────\n📅 ${mo}\n🟢 入職：${mj} 人\n🔴 離職：${mr} 人\n📊 淨增減：${mj>=mr?'+':''}${mj-mr} 人\n─────────────────────\n🏭 VRT Sihanoukville`;const gasUrl=localStorage.getItem(K_GAS)||'';
+loadAttIDB().catch(()=>{});if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok){toast('✅ Telegram 已發送','ok');return;}}catch(e){}}const TOKEN=SETS.tgToken||'8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg',CHAT=SETS.tgChat||'-5233667043';fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})}).then(r=>r.json()).then(d=>toast(d.ok?'✅ Telegram 已發送':'❌ 失敗',d.ok?'ok':'err')).catch(e=>toast('❌ '+e.message,'err'));}
 async function sendAnomalyTg(){const issues=[];document.querySelectorAll('#anomaly-list .alert').forEach(el=>{if(!el.textContent.includes('✅'))issues.push(el.textContent.trim());});if(!issues.length){toast('無異常可發送','warn');return;}const text=`⚠️ <b>AC HRA 異常</b>\n${issues.slice(0,10).join('\n')}\n🏭 VRT Sihanoukville`;const ok=await tgSend(text);toast(ok?'✅ 已發送':'❌ 失敗',ok?'ok':'err');}
-async function tgSend(text){const gasUrl=localStorage.getItem(K_GAS)||'';if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok)return true;}catch(e){}}const TOKEN=SETS.tgToken||'',CHAT=SETS.tgChat||'';if(!TOKEN||!CHAT)return false;try{const r=await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})});return(await r.json()).ok;}catch(e){return false;}}
+async function tgSend(text){const gasUrl=localStorage.getItem(K_GAS)||'';
+loadAttIDB().catch(()=>{});if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok)return true;}catch(e){}}const TOKEN=SETS.tgToken||'',CHAT=SETS.tgChat||'';if(!TOKEN||!CHAT)return false;try{const r=await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})});return(await r.json()).ok;}catch(e){return false;}}
 async function testTg(){const ok=await tgSend('✅ AC HRA 入離職系統 Telegram 測試\n🏭 VRT Sihanoukville');toast(ok?'✅ Telegram OK':'❌ Telegram 失敗',ok?'ok':'err');}
 async function testGas(){const url=localStorage.getItem(K_GAS)||'';if(!url){toast('未設定 GAS URL','warn');return;}try{const r=await fetch(url+'?action=heartbeat',{redirect:'follow'});const d=await r.json();toast(d.ok?'✅ GAS OK':'❌ GAS 錯誤',d.ok?'ok':'err');}catch(e){toast('❌ GAS 連線失敗','err');}}
 
@@ -616,12 +677,44 @@ function clearAllData(){if(!confirm('確認清除所有資料？'))return;JOINS=
 // ── Helpers ──
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 const td=()=>new Date().toISOString().slice(0,10);
-function parseDate(v,isDob){if(!v)return'';if(v instanceof Date){const y=v.getFullYear(),mo=v.getMonth()+1,d=v.getDate();const minY=isDob?1950:2000;if(y<minY||y>2060)return'';return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}if(typeof v==='number'&&v>0){// Excel serial: regular dates ~40000-70000; DOB can be ~25000-50000
-const d2=new Date(Math.round((v-25569)*86400000));const yr=d2.getUTCFullYear();if(isDob&&yr>=1950&&yr<=2010)return`${yr}-${String(d2.getUTCMonth()+1).padStart(2,'0')}-${String(d2.getUTCDate()).padStart(2,'0')}`;if(!isDob&&v>40000&&v<70000)return`${yr}-${String(d2.getUTCMonth()+1).padStart(2,'0')}-${String(d2.getUTCDate()).padStart(2,'0')}`;}const s=String(v).trim();// dd/mm/yyyy or dd-mm-yyyy (DOB common format)
-let m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.]((?:19|20)\d{2})$/);if(m){const[,d,mo,yr]=m;return`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}// yyyy-mm-dd or yyyy/mm/dd
-m=s.match(/((?:19|20)\d{2})[-\/\.](\d{1,2})[-\/\.](\d{1,2})/);if(m)return`${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;// mm/dd/yyyy (US format)
-m=s.match(/^(\d{1,2})\/(\d{1,2})\/((?:19|20)\d{2})$/);if(m){const yr=m[3],mo=m[1],d=m[2];return`${yr}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;}const dt=new Date(s);const minY2=isDob?1950:2000;if(!isNaN(dt)&&dt.getFullYear()>=minY2&&dt.getFullYear()<=2060)return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;return'';}
-function calcAge(dob){if(!dob)return null;const d=new Date(dob),n=new Date();const age=n.getFullYear()-d.getFullYear()-(n<new Date(n.getFullYear(),d.getMonth(),d.getDate())?1:0);return(age>=15&&age<=70)?age:null;}
+// parseDate: isDob=true accepts 1950-2010 range for birth years
+function parseDate(v,isDob){
+  const minY=isDob?1950:2000,maxY=isDob?2010:2060;
+  if(!v&&v!==0)return'';
+  if(v instanceof Date){
+    const y=v.getFullYear(),mo=v.getMonth()+1,d=v.getDate();
+    if(y>=minY&&y<=maxY)return`${y}-${String(mo).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    // Sometimes Excel Date objects lose timezone – try UTC
+    const yu=v.getUTCFullYear();
+    if(yu>=minY&&yu<=maxY)return`${yu}-${String(v.getUTCMonth()+1).padStart(2,'0')}-${String(v.getUTCDate()).padStart(2,'0')}`;
+    return'';
+  }
+  if(typeof v==='number'&&v>0){
+    // DOB serials: ~20000-50000 (1954-2036); join serials ~40000-70000
+    const d2=new Date(Math.round((v-25569)*86400000));
+    const yr=d2.getUTCFullYear();
+    if(yr>=minY&&yr<=maxY)return`${yr}-${String(d2.getUTCMonth()+1).padStart(2,'0')}-${String(d2.getUTCDate()).padStart(2,'0')}`;
+    return'';
+  }
+  const s=String(v).trim();
+  if(!s)return'';
+  let m;
+  // dd/mm/yyyy or dd-mm-yyyy (very common DOB format in Cambodia)
+  m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.]((19|20)\d{2})$/);
+  if(m&&+m[3]>=minY&&+m[3]<=maxY)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // yyyy/mm/dd or yyyy-mm-dd
+  m=s.match(/^((19|20)\d{2})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
+  if(m&&+m[1]>=minY&&+m[1]<=maxY)return`${m[1]}-${m[3].padStart(2,'0')}-${m[4].padStart(2,'0')}`;
+  // mm/dd/yyyy (US format)
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/((19|20)\d{2})$/);
+  if(m&&+m[3]>=minY&&+m[3]<=maxY)return`${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+  // Try native Date parse as last resort
+  const dt=new Date(s);
+  if(!isNaN(dt)&&dt.getFullYear()>=minY&&dt.getFullYear()<=maxY)
+    return`${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return'';
+}
+function calcAge(dob){if(!dob)return null;const a=Math.floor((Date.now()-new Date(dob))/31536000000);return(a>=15&&a<=75)?a:null;}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.modal-bg').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('open');});
 function mkChart(id,cfg){if(_charts[id])try{_charts[id].destroy();}catch(e){}const el=document.getElementById(id);if(!el)return;_charts[id]=new Chart(el,cfg);}
@@ -632,148 +725,192 @@ function renderAll(){renderSummary();renderJoins();renderResigns();if(document.g
 
 
 // ══════════════════════════════════════════════════════════
-// ATTENDANCE IDB CROSS-LINK (like sewing→cutting pattern)
+// ATTENDANCE IDB  (pattern: sewing reads cutting IDB)
 // ══════════════════════════════════════════════════════════
-let ATT_DATA = null; // null=not loaded, []=empty
-let _cmpRange = 'month', _cmpPivot = new Date();
+let ATT_DATA=null;   // null=not loaded yet
+let _cmpRange='month',_cmpPivot=new Date();
 
-// Read AC_HRA_Attendance IndexedDB (same DB as attendance module)
 async function loadAttIDB(force){
-  if(ATT_DATA !== null && !force) return ATT_DATA;
-  const attempts = [
-    {db:'AC_HRA_Attendance', store:'records'},
-  ];
-  for(const {db,store} of attempts){
+  if(ATT_DATA!==null&&!force)return ATT_DATA;
+  const attempts=[{db:'AC_HRA_Attendance',store:'records'}];
+  for(const{db,store}of attempts){
     try{
-      const p = await new Promise(res=>{
-        const req = indexedDB.open(db);
-        req.onerror = ()=>res([]);
-        req.onsuccess = e=>{
+      const rows=await new Promise(res=>{
+        const req=indexedDB.open(db);
+        req.onerror=()=>res([]);
+        req.onsuccess=e=>{
           const d=e.target.result;
           if(!d.objectStoreNames.contains(store)){d.close();res([]);return;}
           const all=[];
           try{
-            const cursor=d.transaction(store,'readonly').objectStore(store).openCursor();
-            cursor.onsuccess=ev=>{if(ev.target.result){all.push(ev.target.result.value);ev.target.result.continue();}else{d.close();res(all);}};
-            cursor.onerror=()=>{d.close();res([]);};
-          }catch(e2){d.close();res([]);}
+            const cur=d.transaction(store,'readonly').objectStore(store).openCursor();
+            cur.onsuccess=ev=>{if(ev.target.result){all.push(ev.target.result.value);ev.target.result.continue();}else{d.close();res(all);}};
+            cur.onerror=()=>{d.close();res([]);};
+          }catch(ex){d.close();res([]);}
         };
       });
-      if(p.length>0){
-        // Filter out subtotal/grand rows
-        ATT_DATA=p.filter(r=>!r.isSubtotal&&!r.isGrand&&(r.date||r.m||r.f));
-        const st=document.getElementById('cmp-att-status');
-        if(st)st.textContent=`考勤 ${ATT_DATA.length} 筆 · ${[...new Set(ATT_DATA.map(r=>r.date))].length} 天`;
+      if(rows.length){
+        // exclude subtotal/grand rows
+        ATT_DATA=rows.filter(r=>!r.isSubtotal&&!r.isGrand);
+        const uniq=[...new Set(ATT_DATA.map(r=>r.date))];
+        const el=document.getElementById('cmp-att-status');
+        if(el)el.textContent=`考勤 ${ATT_DATA.length} 筆 · ${uniq.length} 天`;
         return ATT_DATA;
       }
     }catch(e){}
   }
-  ATT_DATA=[];
-  // Try localStorage fallback
+  // Fallback: localStorage
   try{
     const ls=JSON.parse(localStorage.getItem('vrt_att_v5_db')||'[]');
     if(ls.length){ATT_DATA=ls.filter(r=>!r.isSubtotal&&!r.isGrand);
-      const st=document.getElementById('cmp-att-status');
-      if(st)st.textContent=`考勤(LS) ${ATT_DATA.length} 筆`;}
+      const el=document.getElementById('cmp-att-status');
+      if(el)el.textContent=`考勤(LS) ${ATT_DATA.length} 筆`;
+      return ATT_DATA;}
   }catch(e){}
-  return ATT_DATA;
+  ATT_DATA=[];
+  const el=document.getElementById('cmp-att-status');
+  if(el)el.textContent='考勤無資料';
+  return[];
 }
 
-// Quick snapshot: latest date sewing HC + total HC
+// Determine if a row is a sewing line
+function isSewLine(r){const s=String(r.line||r.lineNo||r.sect||r.dept||'').toUpperCase();return/LINE\s*\d/.test(s);}
+
+// Latest-day snapshot: sewHC, totalHC, rate
 function getAttSnap(){
   if(!ATT_DATA||!ATT_DATA.length)return{sewHC:0,totalHC:0,rate:''};
-  const isSew=r=>{const s=String(r.line||r.lineNo||r.sect||r.dept||'').toUpperCase();const m=s.match(/LINE\s*(\d{1,2})/);return m&&+m[1]>=1&&+m[1]<=30;};
-  const latestDate=[...new Set(ATT_DATA.map(r=>r.date).filter(Boolean))].sort().pop()||'';
-  if(!latestDate)return{sewHC:0,totalHC:0,rate:''};
-  const dayRows=ATT_DATA.filter(r=>r.date===latestDate);
-  const sewRows=dayRows.filter(isSew);
-  const sewHC=sewRows.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
-  // Get grand total or sum
-  const grand=dayRows.find(r=>r.isGrand)||null;
-  const totalHC=grand?(+grand.m||0)+(+grand.f||0):dayRows.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
-  const att=dayRows.reduce((s,r)=>s+(+r.att||0),0);
-  const rate=totalHC>0?(att/totalHC*100).toFixed(1)+'%':'';
-  return{sewHC,totalHC,rate,latestDate};
+  const latest=[...new Set(ATT_DATA.map(r=>r.date).filter(Boolean))].sort().pop()||'';
+  if(!latest)return{sewHC:0,totalHC:0,rate:''};
+  const day=ATT_DATA.filter(r=>r.date===latest);
+  const sewHC=day.filter(isSewLine).reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
+  const totalHC=day.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
+  const att=day.reduce((s,r)=>s+(+r.att||0),0);
+  return{sewHC,totalHC,rate:totalHC?((att/totalHC)*100).toFixed(1)+'%':'',latest};
 }
 
-// ── Compare range ──
-function setCmpRange(r,btn){_cmpRange=r;document.querySelectorAll('#cmp-range-nav .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderCompare();}
+// Get average sewing HC for a given month string "2026-04"
+function getMonthSewHC(mo){
+  if(!ATT_DATA||!ATT_DATA.length)return 0;
+  const days=[...new Set(ATT_DATA.filter(r=>(r.date||'').startsWith(mo)).map(r=>r.date))];
+  if(!days.length)return 0;
+  return Math.round(days.reduce((s,d)=>{
+    const hc=ATT_DATA.filter(r=>r.date===d&&isSewLine(r)).reduce((a,r)=>a+(+r.m||0)+(+r.f||0),0);
+    return s+hc;
+  },0)/days.length);
+}
+
+// ── Compare range helpers ──
+function setCmpRange(r,btn){_cmpRange=r;document.querySelectorAll('#page-compare .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderCompare();}
 function moveCmp(dir){const d=new Date(_cmpPivot);if(dir===0){_cmpPivot=new Date();}else if(_cmpRange==='day'){_cmpPivot=new Date(d.setDate(d.getDate()+dir));}else if(_cmpRange==='week'){_cmpPivot=new Date(d.setDate(d.getDate()+dir*7));}else if(_cmpRange==='month'){_cmpPivot=new Date(d.setMonth(d.getMonth()+dir));}else{_cmpPivot=new Date(d.setFullYear(d.getFullYear()+dir));}renderCompare();}
 
-function getCmpPeriods(){
+function getCmpPeriodCfg(){
   const y=_cmpPivot.getFullYear(),mo=_cmpPivot.getMonth();
   if(_cmpRange==='day'){
-    // show last 30 days as individual day columns
-    const arr=[];for(let i=29;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i);arr.push(d.toISOString().slice(0,10));}
-    return{periods:arr,label:_cmpPivot.toLocaleDateString('zh-TW'),keyFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,10),dispFn:k=>k.slice(5)};
+    const ps=[];for(let i=29;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i);ps.push(d.toISOString().slice(0,10));}
+    return{ps,lbl:_cmpPivot.toLocaleDateString('zh-TW'),kFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,10),dFn:k=>k.slice(5)};
   }
   if(_cmpRange==='week'){
-    const arr=[];for(let i=11;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i*7);const jan=new Date(d.getFullYear(),0,1);const w=Math.ceil(((d-jan)/86400000+jan.getDay()+1)/7);arr.push(`${d.getFullYear()}-W${String(w).padStart(2,'0')}`);}
-    const wKey=d=>{if(!d)return'';const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return`${dt.getFullYear()}-W${String(w).padStart(2,'0')}`;};
-    return{periods:[...new Set(arr)],label:'近12週',keyFn:r=>{const dd=r.date||r.joinDate||r.resignDate||'';return dd?wKey(dd):'';},dispFn:k=>k.slice(5)};
+    const wKey=s=>{if(!s)return'';const d=new Date(s),j=new Date(d.getFullYear(),0,1);return`${d.getFullYear()}-W${String(Math.ceil(((d-j)/86400000+j.getDay()+1)/7)).padStart(2,'0')}`;};
+    const ps=[];for(let i=11;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i*7);ps.push(wKey(d.toISOString().slice(0,10)));}
+    return{ps:[...new Set(ps)],lbl:'近12週',kFn:r=>wKey(r.date||r.joinDate||r.resignDate||''),dFn:k=>k.slice(5)};
   }
   if(_cmpRange==='month'){
-    const arr=[];for(let i=11;i>=0;i--){const d=new Date(y,mo-i,1);arr.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);}
-    return{periods:arr,label:`${y}年`,keyFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,7),dispFn:k=>k.slice(5)+'月'};
+    const ps=[];for(let i=11;i>=0;i--){const d=new Date(y,mo-i,1);ps.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`);}
+    return{ps,lbl:`${y}年`,kFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,7),dFn:k=>k.slice(5)+'月'};
   }
-  // year
-  const arr=[];for(let i=4;i>=0;i--)arr.push(String(y-i));
-  return{periods:arr,label:'近5年',keyFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,4),dispFn:k=>k+'年'};
+  const ps=[];for(let i=4;i>=0;i--)ps.push(String(y-i));
+  return{ps,lbl:'近5年',kFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,4),dFn:k=>k+'年'};
 }
 
 async function renderCompare(){
   const att=await loadAttIDB();
-  const {periods,label,keyFn,dispFn}=getCmpPeriods();
-  document.getElementById('cmp-period-lbl').textContent=label;
+  const{ps,lbl,kFn,dFn}=getCmpPeriodCfg();
+  const deptF=document.getElementById('cmp-dept')?.value||'';
+  document.getElementById('cmp-label').textContent=lbl;
+  document.getElementById('cmp-range-lbl').textContent=`近 ${ps.length} 個${_cmpRange==='day'?'天':_cmpRange==='week'?'週':_cmpRange==='month'?'月':'年'}`;
 
-  // Build maps
-  const isSew=r=>{const s=String(r.line||r.lineNo||r.sect||r.dept||'').toUpperCase();const m=s.match(/LINE\s*(\d{1,2})/);return m&&+m[1]>=1&&+m[1]<=30;};
-  const attByP={};const sewByP={};const attRateByP={};
-  att.forEach(r=>{const k=keyFn(r);if(!k||!periods.includes(k))return;if(!attByP[k]){attByP[k]={hc:0,att:0,cnt:0};sewByP[k]=0;}const hc=(+r.m||0)+(+r.f||0);attByP[k].hc+=hc;attByP[k].att+=(+r.att||0);attByP[k].cnt++;if(isSew(r))sewByP[k]+=hc;});
-  // Average HC per period (sum over dates, avg by date count)
-  const attHCByP={};const attAvgByP={};
-  // Re-aggregate by date within period
-  const attByDate={};att.forEach(r=>{const k=keyFn(r);if(!k||!periods.includes(k))return;const dk=r.date||'?';if(!attByDate[k])attByDate[k]={};if(!attByDate[k][dk])attByDate[k][dk]={hc:0,att:0,sewHC:0};attByDate[k][dk].hc+=(+r.m||0)+(+r.f||0);attByDate[k][dk].att+=(+r.att||0);if(isSew(r))attByDate[k][dk].sewHC+=(+r.m||0)+(+r.f||0);});
-  periods.forEach(p=>{const dates=Object.values(attByDate[p]||{});const n=dates.length||1;attHCByP[p]=dates.length?Math.round(dates.reduce((s,d)=>s+d.hc,0)/n):0;sewByP[p]=dates.length?Math.round(dates.reduce((s,d)=>s+d.sewHC,0)/n):0;attRateByP[p]=dates.length&&attHCByP[p]>0?((dates.reduce((s,d)=>s+d.att,0)/n)/attHCByP[p]*100).toFixed(1)+'%':'—';});
+  const pSet=new Set(ps);
+  // --- Attendance aggregation by period ---
+  const attByDateP={};  // period -> date -> {hc, sewHC, att}
+  att.forEach(r=>{
+    const k=kFn(r);if(!pSet.has(k))return;
+    if(!attByDateP[k])attByDateP[k]={};
+    const dk=r.date||'?';
+    if(!attByDateP[k][dk])attByDateP[k][dk]={hc:0,sewHC:0,att:0};
+    const hc=(+r.m||0)+(+r.f||0);
+    attByDateP[k][dk].hc+=hc;attByDateP[k][dk].att+=(+r.att||0);
+    if(isSewLine(r))attByDateP[k][dk].sewHC+=hc;
+  });
+  // Average per period
+  const avgHC={},avgSew={},attRate={};
+  ps.forEach(p=>{
+    const days=Object.values(attByDateP[p]||{});
+    const n=days.length||1;
+    avgHC[p]=days.length?Math.round(days.reduce((s,d)=>s+d.hc,0)/n):0;
+    avgSew[p]=days.length?Math.round(days.reduce((s,d)=>s+d.sewHC,0)/n):0;
+    const attSum=days.reduce((s,d)=>s+d.att,0);
+    attRate[p]=avgHC[p]>0?((attSum/n)/avgHC[p]*100).toFixed(1)+'%':'—';
+  });
 
-  const joinByP={};const resignByP={};
-  JOINS.forEach(r=>{const k=keyFn({joinDate:r.joinDate});if(k&&periods.includes(k)){joinByP[k]=(joinByP[k]||0)+1;}});
-  RESIGNS.forEach(r=>{const k=keyFn({resignDate:r.resignDate});if(k&&periods.includes(k)){resignByP[k]=(resignByP[k]||0)+1;}});
+  // --- Join/Resign aggregation by period ---
+  const joinByP={},resignByP={};
+  const filterJoin=r=>!deptF||(r.section||r.dept||'')=== deptF;
+  const filterResign=r=>!deptF||(r.dept||'')=== deptF;
+  JOINS.filter(filterJoin).forEach(r=>{const k=kFn({joinDate:r.joinDate});if(pSet.has(k)){joinByP[k]=(joinByP[k]||0)+1;}});
+  RESIGNS.filter(filterResign).forEach(r=>{const k=kFn({resignDate:r.resignDate});if(pSet.has(k)){resignByP[k]=(resignByP[k]||0)+1;}});
 
-  // KPI: current period
-  const cp=periods[periods.length-1];
-  const snap=getAttSnap();
+  // --- KPI strip: latest period ---
+  const cp=ps[ps.length-1];const snap=getAttSnap();
+  const thisJ=joinByP[cp]||0,thisR=resignByP[cp]||0,net=thisJ-thisR;
+  const avgResign=RESIGNS.length>0?(RESIGNS.length/Math.max(1,[...new Set(RESIGNS.map(r=>(r.resignDate||'').slice(0,7)).filter(Boolean))].length)).toFixed(1):0;
+  const turnoverRate=avgHC[cp]>0?((thisR/avgHC[cp])*100).toFixed(1)+'%':'—';
   document.getElementById('cmp-kpi').innerHTML=[
-    {v:snap.totalHC||attHCByP[cp]||'—',l:'考勤在職(均)',cls:'info-k'},
-    {v:snap.sewHC||sewByP[cp]||'—',l:'車縫在職',cls:'info-k'},
-    {v:joinByP[cp]||0,l:'入職 '+dispFn(cp),cls:'join-k'},
-    {v:resignByP[cp]||0,l:'離職 '+dispFn(cp),cls:'resign-k'},
-    {v:((joinByP[cp]||0)-(resignByP[cp]||0)),l:'淨增減',cls:(joinByP[cp]||0)>=(resignByP[cp]||0)?'join-k':'resign-k'},
-    {v:snap.rate||attRateByP[cp]||'—',l:'出勤率',cls:'info-k'},
+    {v:snap.totalHC||avgHC[cp]||'—',l:'考勤在職(均)',cls:'info-k'},
+    {v:snap.sewHC||avgSew[cp]||'—', l:'車縫工(均)',cls:'info-k'},
+    {v:thisJ,l:`入職 ${dFn(cp)}`,cls:'join-k'},
+    {v:thisR,l:`離職 ${dFn(cp)}`,cls:'resign-k'},
+    {v:net,  l:'淨增減',cls:net>=0?'join-k':'resign-k'},
+    {v:snap.rate||attRate[cp]||'—',l:'出勤率',cls:'info-k'},
+    {v:turnoverRate,l:'離職率',cls:thisR>3?'resign-k':''},
   ].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${typeof k.v==='number'&&k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
 
-  // Trend chart
-  const labels=periods.map(dispFn);
-  mkChart('ch-cmp',{type:'bar',data:{labels,datasets:[
-    {type:'line',label:'考勤HC(均)',data:periods.map(p=>attHCByP[p]||0),borderColor:'#1a7abf',backgroundColor:'transparent',pointRadius:3,tension:.3,yAxisID:'yHC'},
-    {type:'line',label:'車縫HC',data:periods.map(p=>sewByP[p]||0),borderColor:'#0ea5e9',backgroundColor:'transparent',pointRadius:3,tension:.3,borderDash:[4,2],yAxisID:'yHC'},
-    {type:'bar',label:'入職',data:periods.map(p=>joinByP[p]||0),backgroundColor:'rgba(46,125,50,.7)',borderRadius:3,yAxisID:'yJR'},
-    {type:'bar',label:'離職',data:periods.map(p=>resignByP[p]||0),backgroundColor:'rgba(198,40,40,.7)',borderRadius:3,yAxisID:'yJR'},
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{yHC:{position:'left',title:{display:true,text:'在職人數'},ticks:{font:{size:10}}},yJR:{position:'right',title:{display:true,text:'入/離職'},grid:{drawOnChartArea:false},ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45}}}}});
+  // --- Trend chart ---
+  mkChart('ch-cmp-trend',{type:'bar',data:{labels:ps.map(dFn),datasets:[
+    {type:'line',label:'考勤HC(均)',data:ps.map(p=>avgHC[p]||0),borderColor:'#1a7abf',backgroundColor:'transparent',pointRadius:3,tension:.3,yAxisID:'yA'},
+    {type:'line',label:'車縫工(均)',data:ps.map(p=>avgSew[p]||0),borderColor:'#0ea5e9',backgroundColor:'transparent',pointRadius:2,tension:.3,borderDash:[4,2],yAxisID:'yA'},
+    {type:'bar', label:'入職',data:ps.map(p=>joinByP[p]||0),backgroundColor:'rgba(16,185,129,.75)',borderRadius:3,yAxisID:'yB'},
+    {type:'bar', label:'離職',data:ps.map(p=>resignByP[p]||0),backgroundColor:'rgba(239,68,68,.75)',borderRadius:3,yAxisID:'yB'},
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{labels:{font:{size:10}}}},
+    scales:{
+      yA:{position:'left',title:{display:true,text:'在職人數',font:{size:10}},ticks:{font:{size:10}},beginAtZero:false},
+      yB:{position:'right',title:{display:true,text:'入/離職',font:{size:10}},grid:{drawOnChartArea:false},ticks:{font:{size:10},stepSize:1},beginAtZero:true},
+      x:{ticks:{font:{size:10},maxRotation:45}}}}});
 
-  // Dept breakdown
-  const deptJoin={},deptResign={};
-  const pSet=new Set(periods);
-  JOINS.forEach(r=>{if(keyFn({joinDate:r.joinDate})&&pSet.has(keyFn({joinDate:r.joinDate}))){const d=r.section||r.dept||'—';deptJoin[d]=(deptJoin[d]||0)+1;}});
-  RESIGNS.forEach(r=>{if(pSet.has(keyFn({resignDate:r.resignDate}))){const d=r.dept||'—';if(!deptResign[d])deptResign[d]={n:0,days:0,reasons:{}};deptResign[d].n++;const td2=(+r.workingDays||0);deptResign[d].days+=td2;const rc=r.reasonCat||'—';deptResign[d].reasons[rc]=(deptResign[d].reasons[rc]||0)+1;}});
-  // Get att HC per dept
-  const attDept={};att.forEach(r=>{const k=keyFn(r);if(!pSet.has(k))return;const d=String(r.line||r.sect||r.dept||'').trim()||'—';if(!attDept[d])attDept[d]=0;attDept[d]+=(+r.m||0)+(+r.f||0);});
-  document.querySelector('#cmp-join-dept tbody').innerHTML=Object.entries(deptJoin).sort((a,b)=>b[1]-a[1]).slice(0,12).map(([d,n])=>`<tr><td>${d}</td><td><b>${n}</b></td><td style="color:#1a7abf">${attDept[d]||'—'}</td><td>${JOINS.length?Math.round(n/JOINS.length*100):0}%</td></tr>`).join('')||'<tr><td colspan="4" style="color:#aaa">—</td></tr>';
-  document.querySelector('#cmp-resign-dept tbody').innerHTML=Object.entries(deptResign).sort((a,b)=>b[1].n-a[1].n).slice(0,12).map(([d,v])=>{const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;const topR=Object.entries(v.reasons).sort((a,b)=>b[1]-a[1])[0];return`<tr><td>${d}</td><td><b>${v.n}</b></td><td style="color:#92400e">${avg}年</td><td style="font-size:10px;color:#666">${topR?topR[0]:'—'}</td></tr>`;}).join('')||'<tr><td colspan="4" style="color:#aaa">—</td></tr>';
+  // --- Dept join table ---
+  const deptJ={};JOINS.filter(filterJoin).forEach(r=>{const k=kFn({joinDate:r.joinDate});if(!pSet.has(k))return;const d=r.section||r.dept||'—';deptJ[d]=(deptJ[d]||0)+1;});
+  // Att HC by dept-like group
+  const deptAttHC={},deptSewHC2={};
+  att.forEach(r=>{const k=kFn(r);if(!pSet.has(k))return;const d=String(r.line||r.sect||r.dept||'').trim()||'—';if(!deptAttHC[d])deptAttHC[d]=0;deptAttHC[d]+=(+r.m||0)+(+r.f||0);if(isSewLine(r)){if(!deptSewHC2[d])deptSewHC2[d]=0;deptSewHC2[d]+=(+r.m||0)+(+r.f||0);}});
+  document.querySelector('#cmp-join-tbl tbody').innerHTML=Object.entries(deptJ).sort((a,b)=>b[1]-a[1]).slice(0,12)
+    .map(([d,n])=>`<tr><td>${d}</td><td><b style="color:var(--ok)">${n}</b></td><td style="color:#1a7abf">${deptAttHC[d]?Math.round(deptAttHC[d]/ps.length):'—'}</td><td style="color:#0ea5e9">${deptSewHC2[d]?Math.round(deptSewHC2[d]/ps.length):'—'}</td></tr>`)
+    .join('')||'<tr><td colspan="4" style="color:#aaa;text-align:center">無資料</td></tr>';
 
-  // Detail table
-  document.getElementById('cmp-detail-lbl').textContent=`(${periods.length} 個期間)`;
-  document.getElementById('cmp-tbody').innerHTML=periods.slice().reverse().map(p=>{const hc=attHCByP[p]||0,sew=sewByP[p]||0,j=joinByP[p]||0,r2=resignByP[p]||0,net=j-r2,rate=attRateByP[p]||'—';return`<tr><td style="font-family:monospace;font-weight:600">${dispFn(p)}</td><td class="center">${hc||'—'}</td><td class="center" style="color:#1a7abf">${sew||'—'}</td><td class="center" style="color:var(--ok);font-weight:700">${j||'—'}</td><td class="center" style="color:var(--danger);font-weight:700">${r2||'—'}</td><td class="center" style="font-weight:700;color:${net>=0?'var(--ok)':'var(--danger)'}">${net>=0?'+':''}${net}</td><td class="center">${rate}</td></tr>`;}).join('')||'<tr><td colspan="7" style="color:#aaa;text-align:center;padding:20px">無資料</td></tr>';
+  // --- Dept resign table ---
+  const deptR={};RESIGNS.filter(filterResign).forEach(r=>{const k=kFn({resignDate:r.resignDate});if(!pSet.has(k))return;const d=r.dept||'—';if(!deptR[d])deptR[d]={n:0,days:0,rc:{}};deptR[d].n++;deptR[d].days+=(+r.workingDays||0);const rc=r.reasonCat||'—';deptR[d].rc[rc]=(deptR[d].rc[rc]||0)+1;});
+  document.querySelector('#cmp-resign-tbl tbody').innerHTML=Object.entries(deptR).sort((a,b)=>b[1].n-a[1].n).slice(0,12)
+    .map(([d,v])=>{const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;const top=Object.entries(v.rc).sort((a,b)=>b[1]-a[1])[0];return`<tr><td>${d}</td><td><b style="color:var(--danger)">${v.n}</b></td><td>${avg}年</td><td style="font-size:10px;color:#6b7a9e">${top?top[0]:'—'}</td></tr>`;})
+    .join('')||'<tr><td colspan="4" style="color:#aaa;text-align:center">無資料</td></tr>';
+
+  // --- Period detail table ---
+  document.getElementById('cmp-detail-lbl').textContent=`(${ps.length} 個期間)`;
+  const tenDays2=r=>+r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
+  document.getElementById('cmp-tbody').innerHTML=ps.slice().reverse().map(p=>{
+    const hc=avgHC[p]||0,sew=avgSew[p]||0,j=joinByP[p]||0,r2=resignByP[p]||0,net2=j-r2;
+    const tr=hc>0?((r2/hc)*100).toFixed(1)+'%':'—';
+    const nc=net2>=0?'var(--ok)':'var(--danger)';
+    return`<tr><td style="font-family:monospace;font-weight:600">${dFn(p)}</td><td class="center">${hc||'—'}</td><td class="center" style="color:#1a7abf">${sew||'—'}</td><td class="center" style="color:var(--ok);font-weight:700">${j||'—'}</td><td class="center" style="color:var(--danger);font-weight:700">${r2||'—'}</td><td class="center" style="font-weight:700;color:${nc}">${net2>=0?'+':''}${net2}</td><td class="center">${attRate[p]||'—'}</td><td class="center">${tr}</td></tr>`;
+  }).join('')||'<tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">無資料 — 請先匯入資料並讀取考勤</td></tr>';
 }
 
 // ── Init ──
@@ -782,7 +919,6 @@ document.querySelectorAll('.lang-switch button').forEach((b,i)=>b.classList.togg
 renderAll();
 // Load settings into form if on settings page
 const gasUrl=localStorage.getItem(K_GAS)||'';
-// Auto-load attendance IDB silently
 loadAttIDB().catch(()=>{});
 </script>
 </body>
