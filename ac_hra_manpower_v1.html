@@ -835,6 +835,33 @@ function clearReqs(){if(!confirm('清除全部需求？'))return;REQS=[];saveReq
 function clearRecruit(){if(!confirm('清除全部招募記錄？'))return;RECRUIT=[];saveRecruit();renderRecruit();toast('已清除','info');}
 
 // ── IMPORT XLSX ──
+// ── normalizeHeader: handles mixed Chinese/English header variants ──
+function normalizeHeader(raw){
+  const s=String(raw||'').replace(/[\n\r\s_]+/g,' ').trim().toLowerCase();
+  // Emp ID
+  if(/^(emp.?id|employee.?id|card.?id|card|工號|員工號|id.?number|id.?no|stt)$/i.test(s.replace(/ /g,'')))return'empId';
+  // Name
+  if(/^(name|姓名|khmer.?name)$/i.test(s.replace(/ /g,'')))return'name';
+  // Date
+  if(/^(join.?date|register.?date|入職日|登記日)$/.test(s.replace(/ /g,'')))return'date';
+  // Dept
+  if(/^(dept|department|section|部門|科别)$/.test(s.replace(/ /g,'')))return'dept';
+  // Position
+  if(/^(pos|position|job.?title|職位|職務)$/.test(s.replace(/ /g,'')))return'position';
+  // Gender
+  if(/^(gender|性別|sex)$/.test(s.replace(/ /g,'')))return'gender';
+  // DOB
+  if(/^(dob|birth|出生日期|date.?of.?birth)$/.test(s.replace(/ /g,'')))return'dob';
+  // Resign date
+  if(/^(resign.?date|離職日|leave.?date)$/.test(s.replace(/ /g,'')))return'resignDate';
+  // Required
+  if(/^(required|需求|hiring.?need)$/.test(s.replace(/ /g,'')))return'required';
+  // Result
+  if(/^(result|outcome|pass|錄取|結果)$/.test(s.replace(/ /g,'')))return'result';
+  return s;
+}
+function nhCI(hdr,key){return hdr.findIndex(h=>normalizeHeader(h)===key);}
+
 async function importReqXlsx(evt){
   const f=evt.target.files[0];if(!f)return;evt.target.value='';
   const buf=await f.arrayBuffer();
@@ -865,53 +892,104 @@ async function importReqXlsx(evt){
       added++;
     }
   }
-  saveReqs();renderReq();toast(`✅ 匯入 ${added} 筆需求`,'ok');
+  saveReqs();renderReq();toast(`✅ 人力需求匯入：新增 ${added} 筆 (${wb.SheetNames.join(', ')})`,'ok');
 }
 
 async function importRecruitXlsx(evt){
-  const f=evt.target.files?.[0]||evt;if(!f||!f.name)return;
+  const f=evt.target?.files?.[0]||evt;if(!f||!f.name)return;
   const target=evt.target||evt;if(target.value!==undefined)target.value='';
   const buf=await f.arrayBuffer();
   const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
-  let added=0;
+  let added=0,skipped=0,dupCount=0;
+  const fname=(f.name||'').toLowerCase();
+  // Detect file type: Manpower Report vs Recruit Report
+  const isManpowerReport=fname.includes('manpower')||wb.SheetNames.some(s=>/^(vrt|join|joining list|resigned|resign)$/i.test(s.trim()));
+
   for(const sn of wb.SheetNames){
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});
-    if(rows.length<2)continue;
-    // Find header row
+    const snL=sn.trim().toLowerCase();
+    const ws=wb.Sheets[sn];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    if(rows.length<3)continue;
+
+    // For Manpower Report: process Join sheet and Resigned sheet separately
+    if(isManpowerReport){
+      if(snL==='join'||snL==='joining list'||snL.includes('join')&&!snL.includes('resign')){
+        // Parse as join records → add to RECRUIT with result='join'
+        let hdrIdx=0;
+        for(let r=0;r<Math.min(6,rows.length);r++){
+          if(rows[r].some(v=>/(join.?date|name|姓名|dept|id.?number)/i.test(String(v)))){hdrIdx=r;break;}
+        }
+        const hdr=rows[hdrIdx].map(v=>String(v||'').trim());
+        const ni=k=>hdr.findIndex(h=>new RegExp(k,'i').test(h));
+        const cDate=ni('join.?date')>=0?ni('join.?date'):ni('date');
+        const cName=ni('name')>=0?ni('name'):2; // fallback col index
+        const cId=ni('id.?number')>=0?ni('id.?number'):ni('id')>=0?ni('id'):ni('card');
+        const cDept=ni('dept')>=0?ni('dept'):ni('depart')>=0?ni('depart'):ni('section');
+        const cPos=ni('pos')>=0?ni('pos'):ni('position');
+        const cGen=ni('gender')>=0?ni('gender'):ni('sex');
+        const cSec=ni('^section$')>=0?ni('^section$'):ni('section');
+        for(let ri=hdrIdx+1;ri<rows.length;ri++){
+          const row=rows[ri];
+          const nameVal=String(row[cName]||'').trim();
+          if(!nameVal||nameVal==='Name'||/^(0|—|-)$/.test(nameVal))continue;
+          const joinDate=parseDate(row[cDate]);
+          if(!joinDate)continue;
+          const empId=String(row[cId]||'').trim();
+          const dupKey=empId+'_'+joinDate;
+          if(RECRUIT.some(r=>r.empId===empId&&r.joinDate===joinDate)){dupCount++;continue;}
+          RECRUIT.push({id:uid(),date:joinDate,name:nameVal,empId,
+            dept:String(row[cDept]||row[cSec]||'').trim(),
+            position:String(row[cPos]||'').trim(),
+            gender:String(row[cGen]||'F').trim().toUpperCase().slice(0,1)||'F',
+            referral:'',result:'join',joinDate,remark:'Imported from Manpower Report'});
+          added++;
+        }
+      }else if(snL==='resigned'||snL==='resign'||snL==='resigned list'){
+        skipped++;// resign records go to onboarding module, skip here
+      }
+      continue;
+    }
+
+    // Generic Recruit Report format (Recruit List, Joining List sheets)
     let hdrIdx=0;
-    for(let r=0;r<Math.min(5,rows.length);r++){
+    for(let r=0;r<Math.min(6,rows.length);r++){
       if(rows[r].some(v=>/(name|姓名|date|日期|join|dept)/i.test(String(v)))){hdrIdx=r;break;}
     }
-    const hdr=rows[hdrIdx].map(v=>String(v).trim().toLowerCase());
-    const ci=n=>hdr.findIndex(h=>h.includes(n));
-    const cDate=ci('date')<0?ci('日期'):ci('date');
-    const cName=ci('name')<0?ci('姓名'):ci('name');
-    const cId  =ci('id')<0?ci('工號'):ci('id');
-    const cDept=ci('dept')<0?ci('部門'):ci('dept');
-    const cPos =ci('pos')<0?ci('職位'):ci('pos');
-    const cGen =ci('gender')<0?ci('性別'):ci('gender');
-    const cRef =ci('ref')<0?(ci('intro')<0?ci('介紹'):ci('intro')):ci('ref');
-    const cRes =ci('result')<0?ci('結果'):ci('result');
-    const cJoin=ci('join date')<0?ci('入職日'):ci('join date');
-    const cRmk =ci('remark')<0?ci('備注'):ci('remark');
+    const hdr=rows[hdrIdx].map(v=>String(v||'').replace(/[\n\r]/g,' ').trim().toLowerCase());
+    const ci=kw=>hdr.findIndex(h=>h.includes(kw));
+    const cDate=ci('date')>=0?ci('date'):ci('登記日');
+    const cName=ci('name')>=0?ci('name'):ci('姓名');
+    const cId=ci('id')>=0?ci('id'):ci('工號');
+    const cDept=ci('dept')>=0?ci('dept'):ci('部門');
+    const cPos=ci('pos')>=0?ci('pos'):ci('position')>=0?ci('position'):ci('職位');
+    const cGen=ci('gender')>=0?ci('gender'):ci('性別');
+    const cRef=ci('ref')>=0?ci('ref'):ci('intro')>=0?ci('intro'):ci('introduc')>=0?ci('introduc'):ci('介紹');
+    const cRes=ci('result')>=0?ci('result'):ci('結果');
+    const cJoin=ci('join date')>=0?ci('join date'):ci('入職日');
+    const cRmk=ci('remark')>=0?ci('remark'):ci('備注');
+    const cSec=ci('section')>=0?ci('section'):ci('組別');
+
     for(let i=hdrIdx+1;i<rows.length;i++){
       const row=rows[i];
-      const name=String(row[cName]||'').trim();if(!name)continue;
-      // Normalize result
+      const name=String(row[cName]||'').trim();if(!name||name==='Name')continue;
+      const date=parseDate(row[cDate]);
+      const empId=String(row[cId]||'').trim();
       const resRaw=String(row[cRes]||'').toLowerCase().trim();
       const result=resRaw.includes('join')||resRaw.includes('入職')?'join':
                    resRaw.includes('reject')||resRaw.includes('拒')?'reject':
                    resRaw.includes('no show')||resRaw.includes('未到')?'no_show':'pending';
-      RECRUIT.push({id:uid(),date:parseDate(row[cDate]),name,
-        empId:String(row[cId]||'').trim(),
-        dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),
+      if(RECRUIT.some(r=>r.empId===empId&&r.date===date&&r.name===name)){dupCount++;continue;}
+      RECRUIT.push({id:uid(),date,name,empId,
+        dept:String(row[cDept]||row[cSec]||'').trim(),
+        position:String(row[cPos]||'').trim(),
         gender:String(row[cGen]||'F').trim().toUpperCase().slice(0,1)||'F',
         referral:String(row[cRef]||'').trim(),result,
         joinDate:parseDate(row[cJoin]),remark:String(row[cRmk]||'').trim()});
       added++;
     }
   }
-  saveRecruit();renderRecruit();toast(`✅ 匯入 ${added} 筆招募記錄`,'ok');
+  saveRecruit();renderRecruit();
+  toast(`✅ 匯入完成：新增 ${added} 筆 | 重複跳過 ${dupCount} 筆 | 略過 Sheet ${skipped} 個`,'ok');
 }
 function rcDrop(e){e.preventDefault();document.getElementById('rcDropZone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)importRecruitXlsx(f);}
 

@@ -227,6 +227,8 @@ table tbody tr:hover{background:#fbf9f0}
         </div>
         <button class="btn gold small" onclick="openDashProbModal()">+ <span data-i18n="btnAdd">新增</span></button>
         <button class="btn small" onclick="document.getElementById('probDashFile').click()">📥 <span data-i18n="importExcel">匯入 Excel</span></button>
+        <button class="btn small" style="background:#1a7abf;color:#fff" onclick="syncToGas()" title="Upload to Cloud">☁⬆ 上傳</button>
+        <button class="btn small" style="background:#2e7d32;color:#fff" onclick="pullFromGas()" title="Download from Cloud">☁⬇ 下載</button>
         <input type="file" id="probDashFile" accept=".xlsx,.xls" style="display:none" onchange="importProbDash(event)">
         <button class="btn small danger" onclick="deleteSelectedProbs()">🗑 <span data-i18n="btnDelete">刪除</span></button>
         <button class="btn small warning" onclick="clearAllProbs()">⚡ <span data-i18n="btnClearAll">全清除</span></button>
@@ -288,6 +290,8 @@ table tbody tr:hover{background:#fbf9f0}
         </div>
         <button class="btn gold small" onclick="openDashContModal()">+ <span data-i18n="btnAdd">新增</span></button>
         <button class="btn small" onclick="document.getElementById('contDashFile').click()">📥 <span data-i18n="importExcel">匯入 Excel</span></button>
+        <button class="btn small" style="background:#1a7abf;color:#fff" onclick="syncToGas()" title="Upload to Cloud">☁⬆ 上傳</button>
+        <button class="btn small" style="background:#2e7d32;color:#fff" onclick="pullFromGas()" title="Download from Cloud">☁⬇ 下載</button>
         <input type="file" id="contDashFile" accept=".xlsx,.xls" style="display:none" onchange="importContDash(event)">
         <button class="btn small danger" onclick="deleteSelectedConts()">🗑 <span data-i18n="btnDelete">刪除</span></button>
         <button class="btn small warning" onclick="clearAllConts()">⚡ <span data-i18n="btnClearAll">全清除</span></button>
@@ -2524,6 +2528,26 @@ async function sendTelegramAnomalies(){
 }
 
 /* ========== GAS 同步 ========== */
+async function pullFromGas(){
+  const url=SETTINGS.gasUrl;
+  if(!url){toast(t("errNoGasUrl")||"請先設定 GAS URL","danger");return;}
+  toast("☁⬇ 從雲端下載中…","info");
+  try{
+    const r=await fetch(url+"?action=pull&tool=contract",{method:"GET",redirect:"follow"});
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    const d=await r.json();
+    if(d&&d.data){
+      const payload=typeof d.data==='string'?JSON.parse(d.data):d.data;
+      if(payload.employees)EMPLOYEES=payload.employees;
+      if(payload.probations)PROBATIONS=payload.probations;
+      if(payload.contracts)CONTRACTS=payload.contracts;
+      save();
+      renderAll?.();
+      toast("☁⬇ 下載完成","success");
+    }else{toast("☁️ 雲端尚無資料","info");}
+  }catch(e){toast("❌ 下載失敗："+e.message,"danger");}
+}
+
 async function syncToGas(){
   if(!SETTINGS.gasUrl){toast(t("errNoGasUrl")||"請先設定 GAS URL","danger");return}
   toast("⬆ "+( t("syncing")||"同步中…"),"info");
