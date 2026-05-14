@@ -359,11 +359,25 @@ textarea.form-input{resize:vertical;min-height:56px}
             <th class="center" style="color:#10b981">入職</th>
             <th class="center" style="color:#ef4444">離職</th>
             <th class="center">淨增</th>
+            <th class="center">預期HC</th>
             <th class="center">出勤率</th>
             <th class="center">離職率</th>
           </tr>
         </thead>
         <tbody id="cmp-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Group/Line diff analysis table -->
+  <div class="detail-section" style="margin-top:12px">
+    <div class="detail-hd">📊 組別差異分析 <span id="cmp-diff-lbl" style="font-weight:400;color:#aaa;font-size:10px">(本月預期 vs 實際)</span></div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>組別 / LINE</th><th class="center">考勤HC</th><th class="center">入職</th><th class="center">離職</th><th class="center">淨增</th><th class="center">出勤率</th></tr>
+        </thead>
+        <tbody id="cmp-diff-tbody"></tbody>
       </table>
     </div>
   </div>
@@ -512,6 +526,56 @@ function loadData(){try{JOINS=JSON.parse(localStorage.getItem(K_JOINS)||'[]');}c
 function saveJoins(){localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}
 function saveResigns(){localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}
 
+// ══════════════════════════════════════════════════
+// NORMALIZE + SEWING DETECTION (Patch A)
+// ══════════════════════════════════════════════════
+
+// Canonicalize group/line name (handles LINE1/LINE 1/L01/line1/1組 etc.)
+function normalizeGroup(s){
+  const n=String(s||'').trim().toUpperCase().replace(/[\s\u3000]+/g,'');
+  if(!n)return'';
+  let m;
+  // LINE/L + digit(s)
+  if(m=n.match(/^(?:LINE|L)0*(\d{1,2})$/))return'LINE'+m[1];
+  // A/B + digit(s)  (A1-A30, B1-B30)
+  if(m=n.match(/^[AB]0*(\d{1,2})$/))return'LINE'+m[1];
+  // APRON/GARMENT + digit(s)
+  if(m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/))return'LINE'+m[1];
+  // bare digit
+  if(m=n.match(/^0*(\d{1,2})$/)){const i=+m[1];if(i>=1&&i<=30)return'LINE'+i;}
+  // Non-sewing dept aliases
+  if(/^QC|品管|QUALITY/.test(n))return'QC';
+  if(/^PACK/.test(n))return'PACK';
+  if(/^CUT|裁剪/.test(n))return'CUT';
+  if(/^ADMIN|行政/.test(n))return'ADMIN';
+  if(/^WH|WAREHOUSE|倉/.test(n))return'WH';
+  if(/^FINISH/.test(n))return'FINISH';
+  if(/^SAMPLE/.test(n))return'SAMPLE';
+  return n;
+}
+
+// Detect sewing line from normalised group name
+function isNormSewing(normName){
+  return /^LINE\d+$/.test(normName||'');
+}
+
+// Check if a Join/Resign record is sewing (uses OWN dept data, NOT attendance)
+function isSewingRecord(r){
+  const raw=r.section||r.dept||'';
+  return isNormSewing(normalizeGroup(raw));
+}
+
+// Correct age calculation: Age = JoinDate - BirthDate
+function calcAgeAtJoin(dob,joinDate){
+  if(!dob)return null;
+  const b=new Date(dob);
+  if(isNaN(b.getTime()))return null;
+  const ref=joinDate?new Date(joinDate):new Date();
+  let age=ref.getFullYear()-b.getFullYear();
+  if(ref<new Date(ref.getFullYear(),b.getMonth(),b.getDate()))age--;
+  return(age>=14&&age<=75)?age:null;
+}
+
 // ── Tabs ──
 function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const tab=btn.dataset.page;document.getElementById('page-'+tab).classList.add('active');if(tab==='summary')renderSummary();if(tab==='joins')renderJoins();if(tab==='resigns')renderResigns();if(tab==='anomaly')runAnomalyCheck();if(tab==='compare'){renderCompare();updateFilters();}if(tab==='settings')loadSettingsForm();}
 
@@ -541,7 +605,7 @@ function renderJoins(){
   const ageF=document.getElementById('join-age')?.value||'';
   const refF=document.getElementById('join-referrer')?.value||'';
   const deptOf=r=>r.section||r.dept||'—';
-  function ageOk(r,band){const a=getAge(r);if(!band)return true;if(band==='18-25')return a!==null&&a<=25;if(band==='26-30')return a!==null&&a>=26&&a<=30;if(band==='31-35')return a!==null&&a>=31&&a<=35;if(band==='36-40')return a!==null&&a>=36&&a<=40;if(band==='40+')return a!==null&&a>40;return true;}
+  function ageOk(r,band){const a=calcAgeAtJoin(r.dob,r.joinDate);if(!band)return true;if(band==='18-25')return a!==null&&a<=25;if(band==='26-30')return a!==null&&a>=26&&a<=30;if(band==='31-35')return a!==null&&a>=31&&a<=35;if(band==='36-40')return a!==null&&a>=36&&a<=40;if(band==='40+')return a!==null&&a>40;return true;}
   let rows=JOINS.filter(r=>
     (!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
     &&(!deptF||deptOf(r)===deptF)&&(!mo||(r.joinDate||'').startsWith(mo))
@@ -550,18 +614,22 @@ function renderJoins(){
   ).sort((a,b)=>(b.joinDate||'').localeCompare(a.joinDate||''));
   const total=rows.length,female=rows.filter(r=>(r.gender||'').toUpperCase()==='F').length;
   const today2=new Date().toISOString().slice(0,10);
-  const sew=getAttSnap();
+  const sewJ=rows.filter(isSewingRecord).length;
+  const nsJ=rows.length-sewJ;
+  const maleJ=rows.filter(r=>(r.gender||'').toUpperCase()==='M').length;
   document.getElementById('join-summary-cards').innerHTML=[
-    {cls:'join-c',   val:total,                    sub:sew.sewHC?'車縫工 '+sew.sewHC+' 人':'',  lbl:'篩選人數'},
-    {cls:'info-c',   val:rows.filter(r=>(r.joinDate||'').startsWith(today2.slice(0,7))).length, sub:sew.totalHC?'在職 '+sew.totalHC:'', lbl:'本月入職'},
-    {cls:'info-c',   val:female+'F/'+(total-female), sub:sew.rate?'出勤率 '+sew.rate:'',         lbl:'性別分佈'},
+    {cls:'join-c', val:total,    sub:'', lbl:'入職總人數'},
+    {cls:'info-c', val:sewJ,     sub:'車縫', lbl:'Sewing Join'},
+    {cls:'info-c', val:nsJ,      sub:'非車縫', lbl:'Non-Sewing Join'},
+    {cls:'',       val:maleJ,    sub:'男 Male', lbl:'M'},
+    {cls:'',       val:female,   sub:'女 Female', lbl:'F'},
   ].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
 // Dept breakdown
 const dm={};rows.forEach(r=>{const d=deptOf(r);dm[d]=(dm[d]||0)+1;});document.querySelector('#join-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<tr><td>${d}</td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:var(--ok)"></div></div></td></tr>`).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
 // Gender breakdown
-const ageG={'18-25':0,'26-30':0,'31-35':0,'36-40':0,'40+':0,'不明':0};rows.forEach(r=>{if(!r.dob){ageG['不明']++;return;}const age=new Date().getFullYear()-new Date(r.dob).getFullYear();if(age<=25)ageG['18-25']++;else if(age<=30)ageG['26-30']++;else if(age<=35)ageG['31-35']++;else if(age<=40)ageG['36-40']++;else ageG['40+']++;});document.querySelector('#join-gender-bd tbody').innerHTML=[['女 F',female,total],['男 M',total-female,total],...Object.entries(ageG).filter(([,n])=>n>0).map(([k,n])=>[`齡 ${k}`,n,total])].map(([l,n,tt])=>`<tr><td>${l}</td><td><b>${n}</b></td><td>${tt?Math.round(n/tt*100):0}%</td></tr>`).join('');
+const ageG={'18-25':0,'26-30':0,'31-35':0,'36-40':0,'40+':0,'不明':0};rows.forEach(r=>{const age=calcAgeAtJoin(r.dob,r.joinDate);if(age===null){ageG['不明']++;return;}if(age<=25)ageG['18-25']++;else if(age<=30)ageG['26-30']++;else if(age<=35)ageG['31-35']++;else if(age<=40)ageG['36-40']++;else ageG['40+']++;});document.querySelector('#join-gender-bd tbody').innerHTML=[['女 F',female,total],['男 M',total-female,total],...Object.entries(ageG).filter(([,n])=>n>0).map(([k,n])=>[`齡 ${k}`,n,total])].map(([l,n,tt])=>`<tr><td>${l}</td><td><b>${n}</b></td><td>${tt?Math.round(n/tt*100):0}%</td></tr>`).join('');
 const cl=document.getElementById('join-count-lbl');if(cl)cl.textContent=`共 ${rows.length} 筆`;
-document.getElementById('join-tbody').innerHTML=rows.length?rows.map((r,i)=>{const age=r.dob?Math.floor((new Date()-new Date(r.dob))/31536000000):'—';return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td>${r.gender||'—'}</td><td>${age}</td><td style="font-size:11px">${r.tel||'—'}</td><td style="font-size:11px">${r.introducer||'—'}</td><td style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${r.remark||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openJoinModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delJoin('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
+document.getElementById('join-tbody').innerHTML=rows.length?rows.map((r,i)=>{const age=calcAgeAtJoin(r.dob,r.joinDate);const ageDisp=age!==null?age:'—';return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td>${r.gender||'—'}</td><td>${ageDisp}</td><td style="font-size:11px">${r.tel||'—'}</td><td style="font-size:11px">${r.introducer||'—'}</td><td style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${r.remark||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openJoinModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delJoin('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
 updateFilters();updateBadges();}
 
 // ── Resigns ──
@@ -572,12 +640,16 @@ const tnF=document.getElementById('resign-tenure')?.value||'';
   let rows=RESIGNS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||(r.dept||'')=== deptF)&&(!mo||(r.resignDate||'').startsWith(mo))&&(!tp||r.resignType===tp)&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||'')=== rcF)&&tenOk(r,tnF)).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
 const total=rows.length,tc={resign:0,dismiss:0,self:0,expel:0};rows.forEach(r=>{if(tc[r.resignType]!==undefined)tc[r.resignType]++;});
 const mo2=new Date().toISOString().slice(0,7);
-const sew2=getAttSnap();
+const sewR=rows.filter(isSewingRecord).length;
+  const nsR=rows.length-sewR;
+  const maleR=rows.filter(r=>(r.gender||'').toUpperCase()==='M').length;
+  const femaleR=rows.filter(r=>(r.gender||'').toUpperCase()==='F').length;
   document.getElementById('resign-summary-cards').innerHTML=[
-    {cls:'resign-c',val:total,          sub:sew2.sewHC?'車縫工 '+sew2.sewHC+' 人':'本月'+rows.filter(r=>(r.resignDate||'').startsWith(mo2)).length+'人', lbl:'篩選離職'},
-    {cls:'warn-c',  val:tc.resign,      sub:sew2.totalHC?'在職 '+sew2.totalHC:'辭職',     lbl:'Resigned'},
-    {cls:'warn-c',  val:tc.self,        sub:'自離',      lbl:'Self-resign'},
-    {cls:'resign-c',val:tc.dismiss+tc.expel, sub:'辭退/開除', lbl:'Company'},
+    {cls:'resign-c', val:total,  sub:'', lbl:'離職總人數'},
+    {cls:'warn-c',   val:sewR,   sub:'車縫', lbl:'Sewing Resign'},
+    {cls:'warn-c',   val:nsR,    sub:'非車縫', lbl:'Non-Sewing Resign'},
+    {cls:'',         val:maleR,  sub:'男 Male', lbl:'M'},
+    {cls:'',         val:femaleR,sub:'女 Female', lbl:'F'},
   ].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
 // Reason category breakdown
 const cm={};rows.forEach(r=>{const c=r.reasonCat||'其他';cm[c]=(cm[c]||0)+1;});document.querySelector('#resign-reason-bd tbody').innerHTML=Object.entries(cm).sort((a,b)=>b[1]-a[1]).map(([c,n])=>{const colors=REASON_COLORS[c];const[bg,col]=colors?colors.split(':'):['#f5f5f5','#616161'];return`<tr><td><span class="reason-tag" style="background:${bg};color:${col}">${c}</span></td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:${col}"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
@@ -616,13 +688,13 @@ function addFiles(files){_pendingFiles=[...(files||[])];const list=document.getE
 async function parseFiles(){if(!_pendingFiles.length)return;document.getElementById('parse-status').textContent='解析中…';_importBuf={joins:[],resigns:[]};const overwrite=document.getElementById('chk-overwrite').checked;for(const f of _pendingFiles){try{let xls=[];if(/\.(msg|eml)$/i.test(f.name)){xls=await extractXlsx(f);}else if(/\.(xlsx|xls)$/i.test(f.name)){const buf=await f.arrayBuffer();xls=[{name:f.name,data:new Uint8Array(buf)}];}for(const xf of xls)await parseWb(xf.data,overwrite);}catch(ex){toast(`❌ ${f.name}: ${ex.message}`,'err');}}showPreview();document.getElementById('parse-status').textContent=`✅ 入職 ${_importBuf.joins.length} 筆 · 離職 ${_importBuf.resigns.length} 筆`;}
 
 async function parseWb(data,overwrite){const wb=XLSX.read(data,{type:'array',cellDates:true});const existJoinIds=new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));const existResignKeys=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));for(const sn of wb.SheetNames){const snL=sn.toLowerCase().trim();const ws=wb.Sheets[sn];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(!rows.length)continue;
-if(snL.includes('join')||snL.includes('jion')||snL.includes('入職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cDate=ci('join date')<0?ci('join'):ci('join date');const cDept=ci('dept'),cSec=ci('section'),cPos=ci('pos');const cId=ci('id number')<0?ci('id'):ci('id number');const cName=ci('name'),cGender=ci('gender'),cDob=ci('birth');// Extended column detection for DOB and Age
-const cAge=[...hdr.keys()].find(i=>/(^age$|^年齡$|^umur$|ages)/.test(hdr[i]))||-1;
+if(snL.includes('join')||snL.includes('jion')||snL.includes('入職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cDate=ci('join date')<0?ci('join'):ci('join date');const cDept=ci('dept'),cSec=ci('section'),cPos=ci('pos');const cId=ci('id number')<0?ci('id'):ci('id number');const cName=ci('name'),cGender=ci('gender'),cDob=ci('birth');// Extended column detection – DOB, Age, Referrer
+const cAge=[...hdr.keys()].find(i=>/(^age$|^年齡$|^umur$|^ages$)/.test(hdr[i]))||-1;
 const cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel');
-const cIntro=[...hdr.keys()].find(i=>/(intro|refer|by\s*friend|介紹|giới thiệu)/.test(hdr[i]))||-1;
-const cRmk=ci('remark')<0?ci('note'):ci('remark');
-// Find DOB: try multiple header patterns
-const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|out sinh|출생|生日|出生|ngày sinh)/.test(hdr[i]))||-1;
+const cIntro=[...hdr.keys()].find(i=>/(intro|refer|recomm|by\s*friend|介紹|推薦|介紹人|推薦人|referral|referrer|introducer)/.test(hdr[i]))||-1;
+const cRmk=ci('remark')<0?(ci('note')<0?ci('備注'):ci('note')):ci('remark');
+// DOB column: try many header patterns in order
+const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|出生日|ngày sinh|birthday|date.*birth|birth.*date)/.test(hdr[i]))||-1;
 for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];
   const nameVal=String(row[cName]||'').trim();
   if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
@@ -630,15 +702,15 @@ for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];
   const joinDate=parseDate(row[cDate],false);if(!joinDate)continue;
   if(!overwrite&&empId&&existJoinIds.has(empId))continue;
   // DOB: try dob column (isDob=true), then compute from age column
-  let dob=parseDate(row[cDob2],true)||parseDate(row[cDob],true)||'';
+  let dob=(cDob2>=0?parseDate(row[cDob2],true):'') || (cDob>=0?parseDate(row[cDob],true):'') || '';
   if(!dob&&cAge>=0){
     const raw=row[cAge];
     // might be a number, or date-like value representing age as year
     if(typeof raw==='number'&&raw>=15&&raw<=75)dob=`${new Date().getFullYear()-raw}-01-01`;
     else{const ageNum=parseInt(String(raw||'').trim());if(ageNum>=15&&ageNum<=75)dob=`${new Date().getFullYear()-ageNum}-01-01`;}
   }
-  const intro=cIntro>=0?String(row[cIntro]||'').trim():'';
-  _importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob,address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:intro,remark:String(row[cRmk]||'').trim()});}}
+  const intro=(cIntro>=0?String(row[cIntro]||'').trim():'').replace(/^[-–—]/,'').trim();
+  _importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob,address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:intro,referrer:intro,remark:String(row[cRmk]||'').trim()});}}
 if(snL.includes('resign')||snL.includes('離職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(工號|resign.?date|離職日|STT|Name)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).replace(/\n/g,' ').trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cId=ci('工號')<0?(ci('id')<0?ci('stt'):ci('id')):ci('工號'),cName=ci('姓名')<0?ci('name'):ci('姓名'),cJoin=ci('到職')<0?(ci('join')<0?ci('start'):ci('join')):ci('到職'),cDept=ci('部門')<0?ci('section'):ci('部門'),cPos=ci('職務')<0?ci('pos'):ci('職務'),cGender=ci('性別')<0?ci('gender'):ci('性別');const cResign=ci('辭職'),cDismiss=ci('辭退'),cSelf=ci('自離'),cExpel=ci('開除');const cResignDate=ci('離職日')<0?ci('resign date'):ci('離職日'),cDays=ci('在職天數')<0?ci('working'):ci('在職天數'),cReason=ci('原因')<0?ci('reason'):ci('原因'),cRmk=ci('備注')<0?ci('remark'):ci('備注');for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];const nameVal=String(row[cName]||'').trim();if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;const empId=String(row[cId]||'').trim();const resignDate=parseDate(row[cResignDate]);if(!resignDate)continue;const key=empId+'_'+resignDate;if(!overwrite&&existResignKeys.has(key))continue;const chk=v=>String(v||'').trim().toLowerCase();let resignType='resign';if(cSelf>=0&&chk(row[cSelf])==='√')resignType='self';else if(cExpel>=0&&chk(row[cExpel])==='√')resignType='expel';else if(cDismiss>=0&&chk(row[cDismiss])==='√')resignType='dismiss';const joinDate2=parseDate(row[cJoin])||'';let days=parseInt(String(row[cDays]||'').trim())||0;if(!days&&joinDate2&&resignDate)days=Math.ceil((new Date(resignDate)-new Date(joinDate2))/86400000);const reasonRaw=String(row[cReason]||'').trim();// auto-map reason to category
 let reasonCat='',reason=reasonRaw;const rLow=reasonRaw.toLowerCase();if(/voluntary|resign|辭職/.test(rLow))reasonCat='Voluntary';else if(/attend|出勤/.test(rLow))reasonCat='Attendance';else if(/no call|no show|曠職/.test(rLow))reasonCat='No Call';else if(/perform|績效/.test(rLow))reasonCat='Performance';else if(/health|病|sick/.test(rLow))reasonCat='Health';else if(/pregn|child|baby|懷孕|育兒/.test(rLow))reasonCat='Pregnancy';else if(/family|home|go home|家庭|回家/.test(rLow))reasonCat='Family';else if(/reloc|move|搬/.test(rLow))reasonCat='Relocation';else if(/transfer|調職/.test(rLow))reasonCat='Transfer';else if(/contract|合約/.test(rLow))reasonCat='Contract End';else if(/dismiss|expel|辭退|開除/.test(rLow))reasonCat='Dismissal';else if(/salar|pay|薪/.test(rLow))reasonCat='Salary';else if(/personal|個人/.test(rLow))reasonCat='Personal';else if(reasonRaw)reasonCat='Other';
 _importBuf.resigns.push({id:'r_'+uid(),empId,name:nameVal,resignDate,joinDate:joinDate2,dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',workingDays:days,resignType,reasonCat,reason,remark:String(row[cRmk]||'').trim()});}}}}
@@ -781,8 +853,10 @@ function getAttSnap(){
   if(!ATT_DATA||!ATT_DATA.length)return{sewHC:0,totalHC:0,rate:''};
   const latest=[...new Set(ATT_DATA.map(r=>r.date).filter(Boolean))].sort().pop()||'';
   if(!latest)return{sewHC:0,totalHC:0,rate:''};
-  const day=ATT_DATA.filter(r=>r.date===latest);
-  const sewHC=day.filter(isSewLine).reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
+  // filter aggregates before summing
+  const aggRe=/(TOTAL|GRAND|SUBTOTAL|合計|總計|小計)/;
+  const day=ATT_DATA.filter(r=>r.date===latest&&!r.isSubtotal&&!r.isGrand&&!aggRe.test(String(r.dept||r.line||'').toUpperCase()));
+  const sewHC=day.filter(r=>isNormSewing(normalizeGroup(r.line||r.sect||r.dept||''))).reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
   const totalHC=day.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
   const att=day.reduce((s,r)=>s+(+r.att||0),0);
   return{sewHC,totalHC,rate:totalHC?((att/totalHC)*100).toFixed(1)+'%':'',latest};
@@ -791,10 +865,12 @@ function getAttSnap(){
 // Get average sewing HC for a given month string "2026-04"
 function getMonthSewHC(mo){
   if(!ATT_DATA||!ATT_DATA.length)return 0;
-  const days=[...new Set(ATT_DATA.filter(r=>(r.date||'').startsWith(mo)).map(r=>r.date))];
+  const aggRe=/(TOTAL|GRAND|SUBTOTAL|合計|總計|小計)/;
+  const filtered=ATT_DATA.filter(r=>!r.isSubtotal&&!r.isGrand&&!aggRe.test(String(r.dept||r.line||'').toUpperCase()));
+  const days=[...new Set(filtered.filter(r=>(r.date||'').startsWith(mo)).map(r=>r.date))];
   if(!days.length)return 0;
   return Math.round(days.reduce((s,d)=>{
-    const hc=ATT_DATA.filter(r=>r.date===d&&isSewLine(r)).reduce((a,r)=>a+(+r.m||0)+(+r.f||0),0);
+    const hc=filtered.filter(r=>r.date===d&&isNormSewing(normalizeGroup(r.line||r.sect||r.dept||''))).reduce((a,r)=>a+(+r.m||0)+(+r.f||0),0);
     return s+hc;
   },0)/days.length);
 }
@@ -830,18 +906,31 @@ async function renderCompare(){
   document.getElementById('cmp-range-lbl').textContent=`近 ${ps.length} 個${_cmpRange==='day'?'天':_cmpRange==='week'?'週':_cmpRange==='month'?'月':'年'}`;
 
   const pSet=new Set(ps);
-  // --- Attendance aggregation by period ---
-  const attByDateP={};  // period -> date -> {hc, sewHC, att}
+
+  // ─── Attendance HC aggregation (Patch F) ───────────────────────────────
+  // Each ATT row = one LINE/DEPT for one DAY → m+f is already that line's HC
+  // Per day: sum all non-aggregate lines → total factory HC for that day
+  // Per period: average the daily totals (NOT sum across days)
+  // Filter: skip any row flagged isSubtotal/isGrand OR whose dept name implies aggregate
+  function isAggregateRow(r){
+    if(r.isSubtotal||r.isGrand)return true;
+    const d=String(r.dept||r.line||r.sect||r.group||'').toUpperCase();
+    return/(TOTAL|GRAND|SUBTOTAL|合計|總計|小計)/.test(d);
+  }
+  const attByDateP={};  // period -> date -> {hc, sewHC, att, lines:Set}
   att.forEach(r=>{
+    if(isAggregateRow(r))return;        // ← skip aggregates
     const k=kFn(r);if(!pSet.has(k))return;
     if(!attByDateP[k])attByDateP[k]={};
     const dk=r.date||'?';
     if(!attByDateP[k][dk])attByDateP[k][dk]={hc:0,sewHC:0,att:0};
     const hc=(+r.m||0)+(+r.f||0);
-    attByDateP[k][dk].hc+=hc;attByDateP[k][dk].att+=(+r.att||0);
-    if(isSewLine(r))attByDateP[k][dk].sewHC+=hc;
+    attByDateP[k][dk].hc+=hc;
+    attByDateP[k][dk].att+=(+r.att||0);
+    const normG=normalizeGroup(r.line||r.sect||r.dept||'');
+    if(isNormSewing(normG))attByDateP[k][dk].sewHC+=hc;
   });
-  // Average per period
+  // Average HC per period across days
   const avgHC={},avgSew={},attRate={};
   ps.forEach(p=>{
     const days=Object.values(attByDateP[p]||{});
@@ -851,6 +940,9 @@ async function renderCompare(){
     const attSum=days.reduce((s,d)=>s+d.att,0);
     attRate[p]=avgHC[p]>0?((attSum/n)/avgHC[p]*100).toFixed(1)+'%':'—';
   });
+  // Debug
+  const cp0=ps[ps.length-1];
+  console.log('[Compare HC Debug]',{period:cp0,days:Object.keys(attByDateP[cp0]||{}).length,avgHC:avgHC[cp0],avgSew:avgSew[cp0],rawRows:att.length,afterFilter:att.filter(r=>!isAggregateRow(r)).length});
 
   // --- Join/Resign aggregation by period ---
   const joinByP={},resignByP={};
@@ -862,17 +954,24 @@ async function renderCompare(){
   // --- KPI strip: latest period ---
   const cp=ps[ps.length-1];const snap=getAttSnap();
   const thisJ=joinByP[cp]||0,thisR=resignByP[cp]||0,net=thisJ-thisR;
-  const avgResign=RESIGNS.length>0?(RESIGNS.length/Math.max(1,[...new Set(RESIGNS.map(r=>(r.resignDate||'').slice(0,7)).filter(Boolean))].length)).toFixed(1):0;
-  const turnoverRate=avgHC[cp]>0?((thisR/avgHC[cp])*100).toFixed(1)+'%':'—';
+  const curHC=snap.totalHC||avgHC[cp]||0;
+  // Expected HC = previous period HC + join - resign
+  const prevP=ps[ps.length-2];
+  const prevHC=prevP?avgHC[prevP]||0:0;
+  const expectedHC=prevHC?prevHC+thisJ-thisR:0;
+  const diffHC=expectedHC&&curHC?curHC-expectedHC:null;
+  const turnoverRate=curHC>0?((thisR/curHC)*100).toFixed(1)+'%':'—';
   document.getElementById('cmp-kpi').innerHTML=[
-    {v:snap.totalHC||avgHC[cp]||'—',l:'考勤在職(均)',cls:'info-k'},
-    {v:snap.sewHC||avgSew[cp]||'—', l:'車縫工(均)',cls:'info-k'},
-    {v:thisJ,l:`入職 ${dFn(cp)}`,cls:'join-k'},
-    {v:thisR,l:`離職 ${dFn(cp)}`,cls:'resign-k'},
-    {v:net,  l:'淨增減',cls:net>=0?'join-k':'resign-k'},
+    {v:curHC||'—',          l:'考勤在職(均)', cls:'info-k'},
+    {v:snap.sewHC||avgSew[cp]||'—', l:'車縫工(均)',  cls:'info-k'},
+    {v:thisJ,                l:`入職 ${dFn(cp)}`,cls:'join-k'},
+    {v:thisR,                l:`離職 ${dFn(cp)}`,cls:'resign-k'},
+    {v:net,                  l:'淨增減',      cls:net>=0?'join-k':'resign-k'},
     {v:snap.rate||attRate[cp]||'—',l:'出勤率',cls:'info-k'},
-    {v:turnoverRate,l:'離職率',cls:thisR>3?'resign-k':''},
-  ].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${typeof k.v==='number'&&k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
+    {v:turnoverRate,         l:'離職率',       cls:thisR>3?'resign-k':''},
+    expectedHC?{v:expectedHC,l:'預期HC',    cls:'info-k'}:null,
+    diffHC!==null?{v:(diffHC>=0?'+':'')+diffHC,l:'HC差異',cls:Math.abs(diffHC)>5?'resign-k':''}:null,
+  ].filter(Boolean).map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${typeof k.v==='number'&&k.v<0?'color:var(--danger)':typeof k.v==='string'&&k.v.startsWith('-')?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
 
   // --- Trend chart ---
   mkChart('ch-cmp-trend',{type:'bar',data:{labels:ps.map(dFn),datasets:[
@@ -904,13 +1003,63 @@ async function renderCompare(){
 
   // --- Period detail table ---
   document.getElementById('cmp-detail-lbl').textContent=`(${ps.length} 個期間)`;
-  const tenDays2=r=>+r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
+  // Build running expected HC across periods
+  let runHC=avgHC[ps[0]]||0;
   document.getElementById('cmp-tbody').innerHTML=ps.slice().reverse().map(p=>{
     const hc=avgHC[p]||0,sew=avgSew[p]||0,j=joinByP[p]||0,r2=resignByP[p]||0,net2=j-r2;
     const tr=hc>0?((r2/hc)*100).toFixed(1)+'%':'—';
     const nc=net2>=0?'var(--ok)':'var(--danger)';
-    return`<tr><td style="font-family:monospace;font-weight:600">${dFn(p)}</td><td class="center">${hc||'—'}</td><td class="center" style="color:#1a7abf">${sew||'—'}</td><td class="center" style="color:var(--ok);font-weight:700">${j||'—'}</td><td class="center" style="color:var(--danger);font-weight:700">${r2||'—'}</td><td class="center" style="font-weight:700;color:${nc}">${net2>=0?'+':''}${net2}</td><td class="center">${attRate[p]||'—'}</td><td class="center">${tr}</td></tr>`;
-  }).join('')||'<tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">無資料 — 請先匯入資料並讀取考勤</td></tr>';
+    // expected = previous period's HC + net
+    const exp=hc&&net2!==0?hc-net2:0;
+    return`<tr>
+      <td style="font-family:monospace;font-weight:600">${dFn(p)}</td>
+      <td class="center">${hc||'—'}</td>
+      <td class="center" style="color:#1a7abf">${sew||'—'}</td>
+      <td class="center" style="color:var(--ok);font-weight:700">${j||'—'}</td>
+      <td class="center" style="color:var(--danger);font-weight:700">${r2||'—'}</td>
+      <td class="center" style="font-weight:700;color:${nc}">${net2>=0?'+':''}${net2}</td>
+      <td class="center" style="color:#6366f1">${exp||'—'}</td>
+      <td class="center">${attRate[p]||'—'}</td>
+      <td class="center">${tr}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="9" style="color:#aaa;text-align:center;padding:20px">無資料 — 請先匯入資料並讀取考勤</td></tr>';
+
+  // --- Group/Line diff analysis for current period ---
+  const cp2=ps[ps.length-1];
+  const lineData={};
+  att.filter(r=>!isAggregateRow(r)).forEach(r=>{
+    const k=kFn(r);if(k!==cp2)return;
+    const ng=normalizeGroup(r.line||r.sect||r.dept||'');if(!ng)return;
+    if(!lineData[ng])lineData[ng]={hc:0,att:0,days:new Set()};
+    const dk=r.date||'?';
+    lineData[ng].hc+=(+r.m||0)+(+r.f||0);
+    lineData[ng].att+=(+r.att||0);
+    lineData[ng].days.add(dk);
+  });
+  // compute averages per line; join/resign from own data
+  const joinLineMap={},resignLineMap={};
+  JOINS.forEach(r=>{const k=kFn({joinDate:r.joinDate});if(k!==cp2)return;const g=normalizeGroup(r.section||r.dept||'');if(g)joinLineMap[g]=(joinLineMap[g]||0)+1;});
+  RESIGNS.forEach(r=>{const k=kFn({resignDate:r.resignDate});if(k!==cp2)return;const g=normalizeGroup(r.dept||'');if(g)resignLineMap[g]=(resignLineMap[g]||0)+1;});
+
+  const allGroups=[...new Set([...Object.keys(lineData),...Object.keys(joinLineMap),...Object.keys(resignLineMap)])].sort();
+  document.getElementById('cmp-diff-lbl').textContent=`(${dFn(cp2)} · ${allGroups.length} 個組別)`;
+  document.getElementById('cmp-diff-tbody').innerHTML=allGroups.map(g=>{
+    const ld=lineData[g]||{hc:0,att:0,days:new Set([1])};
+    const days=ld.days.size||1;
+    const avgHCg=Math.round(ld.hc/days);
+    const attRateG=avgHCg>0?((ld.att/days)/avgHCg*100).toFixed(1)+'%':'—';
+    const j=joinLineMap[g]||0,r2=resignLineMap[g]||0,net2=j-r2;
+    const isSew=isNormSewing(g);
+    const nc=net2>0?'color:var(--ok)':net2<0?'color:var(--danger)':'';
+    return`<tr>
+      <td><b style="color:${isSew?'#1a7abf':'#555'}">${g}</b>${isSew?' 🔵':''}</td>
+      <td class="center">${avgHCg||'—'}</td>
+      <td class="center" style="color:var(--ok)">${j||'—'}</td>
+      <td class="center" style="color:var(--danger)">${r2||'—'}</td>
+      <td class="center" style="font-weight:700;${nc}">${net2>=0?'+':''}${net2}</td>
+      <td class="center">${attRateG}</td>
+    </tr>`;
+  }).join('')||'<tr><td colspan="6" style="color:#aaa;text-align:center;padding:16px">無考勤資料</td></tr>';
 }
 
 // ── Init ──
