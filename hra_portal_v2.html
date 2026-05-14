@@ -305,6 +305,11 @@ body::before{
       <button class="gbtn gbtn-push" id="btnPush" onclick="pushAll()" disabled>☁ Push All</button>
       <button class="gbtn gbtn-pull" id="btnPull" onclick="pullAll()" disabled>⬇ Pull All</button>
     </div>
+    <div class="gas-row" style="margin-top:5px;flex-wrap:wrap;gap:5px">
+      <button class="gbtn" style="flex:1;background:#f59e0b;color:#1e3a5f;font-weight:700" onclick="fixWebhookGAS()" title="/hra沒反應時按此">🔧 重設Webhook</button>
+      <button class="gbtn" style="flex:1;background:#8b5cf6;color:#fff" onclick="testHraCmd()" title="發送/hra測試">📱 測試/hra</button>
+      <button class="gbtn" style="flex:1;background:rgba(255,255,255,.15);color:#fff" onclick="checkWebhookStatus()">🔍 Webhook狀態</button>
+    </div>
   </div>
 
   <!-- Log -->
@@ -475,6 +480,61 @@ function updateStats(cloudSnaps) {
 }
 
 // ── GAS ──────────────────────────────
+// ── /hra Webhook Diagnostics & Fix ──────────────────────
+const TG_BOT_TOKEN = '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
+const TG_CHAT      = '-5233667043';
+
+async function fixWebhookGAS() {
+  if (!GAS_URL) { toast('❌ 請先設定 GAS URL'); return; }
+  toast('🔧 重設 Webhook 中…');
+  try {
+    const r = await fetch(`${GAS_URL}?action=fixWebhook`, { redirect:'follow' });
+    const d = await r.json();
+    toast(d.ok !== false ? '✅ Webhook 已重設，請稍候測試 /hra' : '❌ ' + (d.error||'失敗'));
+    log(d.ok !== false ? '✓ fixWebhook OK' : '✗ fixWebhook 失敗', d.ok !== false ? 'ok':'err');
+  } catch(e) {
+    try {
+      const r2 = await fetch(GAS_URL, { method:'POST', redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body: JSON.stringify({ action:'fixWebhook' }) });
+      const d2 = await r2.json();
+      toast(d2.ok !== false ? '✅ Webhook 已重設' : '❌ ' + (d2.error||'失敗'));
+      log('fixWebhook (POST fallback): '+(d2.ok!==false?'OK':'失敗'), d2.ok!==false?'ok':'err');
+    } catch(e2) { toast('❌ ' + e2.message); log('fixWebhook failed: '+e2.message,'err'); }
+  }
+}
+
+async function checkWebhookStatus() {
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getWebhookInfo`);
+    const d = await r.json();
+    if (d.ok) {
+      const url  = d.result.url || '（未設定）';
+      const err  = d.result.last_error_message || '—';
+      const pend = d.result.pending_update_count || 0;
+      const ok2  = url.includes('/exec');
+      toast(ok2 ? '✅ Webhook 正常指向 /exec' : '⚠ Webhook 未設定或指向 /dev，請重設');
+      log(`URL: …${url.slice(-45)||'空'}  Pending: ${pend}`, ok2?'ok':'err');
+      if (err !== '—') log(`Last error: ${err}`, 'err');
+    } else { toast('❌ Token 錯誤：' + d.description); }
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
+async function testHraCmd() {
+  toast('📱 向群組發送 /hra…');
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ chat_id:TG_CHAT, text:'/hra', parse_mode:'HTML' }),
+    });
+    const d = await r.json();
+    if (d.ok) {
+      toast('✅ /hra 已發送 — 若Bot沒回應請點「重設Webhook」');
+      log('✓ /hra 已送出。若無回應 → 點「重設Webhook」再試', 'ok');
+    } else { toast('❌ ' + d.description); }
+  } catch(e) { toast('❌ ' + e.message); }
+}
+
 function saveGas() {
   const url = document.getElementById('gasInput').value.trim();
   if (!url) return;
