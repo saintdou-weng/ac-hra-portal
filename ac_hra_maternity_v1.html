@@ -417,6 +417,7 @@ tr:hover td{background:#fdf5f7}
   </div>
   <div class="kpi-strip" style="margin-bottom:10px">
     <div class="kpi rose"><div class="kpi-n" id="pk-total">0</div><div class="kpi-l" id="pkl-total">懷孕中</div></div>
+    <div class="kpi blue"><div class="kpi-n" id="pk-sew-count" style="font-size:14px">—</div><div class="kpi-l">車縫🔵/非車縫</div></div>
     <div class="kpi amber"><div class="kpi-n" id="pk-edd30">0</div><div class="kpi-l" id="pkl-edd30">30天EDD</div></div>
     <div class="kpi blue"><div class="kpi-n" id="pk-new">0</div><div class="kpi-l" id="pkl-new">本期新增</div></div>
     <div class="kpi teal"><div class="kpi-n" id="pk-dept">0</div><div class="kpi-l" id="pkl-dept">部門數</div></div>
@@ -510,6 +511,7 @@ tr:hover td{background:#fdf5f7}
     <div class="kpi blue"><div class="kpi-n" id="nk-persons">0</div><div class="kpi-l">受惠人數</div></div>
     <div class="kpi teal"><div class="kpi-n" id="nk-amount">0</div><div class="kpi-l">本期金額(USD)</div></div>
     <div class="kpi amber"><div class="kpi-n" id="nk-months">0</div><div class="kpi-l">月份數</div></div>
+  <div class="kpi blue"><div class="kpi-n" id="nk-sew" style="font-size:13px">—</div><div class="kpi-l">車縫🔵/非車縫</div></div>
   </div>
   <div class="tw">
     <table id="nurTable">
@@ -1420,6 +1422,9 @@ function renderPregnant(){
   const edd30=rows.filter(e=>e.edd&&Math.round((new Date(e.edd)-now)/86400000)<=30&&Math.round((new Date(e.edd)-now)/86400000)>=0).length;
   const depts=new Set(rows.map(e=>e.dept).filter(Boolean)).size;
   document.getElementById('pk-total').textContent=rows.length;
+  const sewPreg=countSewMaternity(rows);
+  const sewPregEl=document.getElementById('pk-sew-count');
+  if(sewPregEl)sewPregEl.textContent=sewPreg.sew+'🔵/'+sewPreg.nonSew+'⬜';
   document.getElementById('pk-edd30').textContent=edd30;
   document.getElementById('pk-new').textContent=rows.length;
   document.getElementById('pk-dept').textContent=depts;
@@ -1584,6 +1589,12 @@ function renderMaternity(){
   const avgMon=rows.reduce((s,e)=>s+(+calcMatPay(e).avg),0)/(rows.length||1);
 
   document.getElementById('mk-total').textContent=rows.length;
+  const matEmpList=(DB.employees||[]).filter(e=>e.status==='maternity'||e.status==='pregnant');
+  const sewMatCount=countSewMaternity(matEmpList);
+  const sewMatEl=document.getElementById('mk-sew');
+  const sewMatWrap=document.getElementById('mk-sew-wrap');
+  if(sewMatEl){sewMatEl.textContent=sewMatCount.sew+'🔵/'+sewMatCount.nonSew+'⬜';}
+  if(sewMatWrap&&matEmpList.length)sewMatWrap.style.display='';
   document.getElementById('mk-ret30').textContent=ret30;
   document.getElementById('mk-pay').textContent='$'+totalPay.toFixed(0);
   document.getElementById('mk-avg').textContent='$'+avgMon.toFixed(0);
@@ -2608,6 +2619,19 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 const NUR_KEY = 'vrt_nursing_fees_v2';
 let NURSING = [];  // {id, cardId, name, dept, babyDob, startMonth, amount, payMonth, sheetName}
 
+// ── Sewing line detection for maternity ──────────────────
+function isSewDeptMat(dept){
+  const n=String(dept||'').replace(/[\s_-]+/g,'').toUpperCase();
+  if(/QC|PACK|CUT|ADMIN|WH|FINISH|SAMPLE|MECHANIC|PRESS|MARKER|QUALITY/.test(n))return false;
+  if(/LINE\d|LINE\s*\d|^[AB]\d/.test(n))return true;
+  if(/APRON\d|GARMENT\d/.test(n))return true;
+  return false;
+}
+function countSewMaternity(arr){
+  const sew=(arr||[]).filter(e=>isSewDeptMat(e.dept||e.section||''));
+  return{sew:sew.length,nonSew:(arr||[]).length-sew.length};
+}
+
 function loadNursing(){try{NURSING=JSON.parse(localStorage.getItem(NUR_KEY)||'[]');}catch(e){NURSING=[];}}
 function saveNursing(){localStorage.setItem(NUR_KEY,JSON.stringify(NURSING));}
 
@@ -2753,6 +2777,10 @@ function updateNurKPIs(){
   if(el('nk-persons'))el('nk-persons').textContent=[...new Set(cur.map(r=>r.cardId||r.name).filter(Boolean))].length;
   if(el('nk-amount'))el('nk-amount').textContent='$'+cur.reduce((s,r)=>s+(+r.amount||0),0).toFixed(2);
   if(el('nk-months'))el('nk-months').textContent=[...new Set(NURSING.map(r=>r.payMonth).filter(Boolean))].length;
+  // Sewing count from dept
+  const sewNur=cur.filter(r=>isSewDeptMat(r.dept||'')).length;
+  const nsNur=cur.length-sewNur;
+  if(el('nk-sew'))el('nk-sew').textContent=sewNur+'🔵 / '+nsNur+'⬜';
 }
 
 function delNurRow(id){

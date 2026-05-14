@@ -1136,6 +1136,14 @@ function navDash(type,dir){
 }
 
 // ── Render probation table ────────────────────────────────
+// Sewing line detection for contract
+function isSewDeptContract(dept){
+  const n=String(dept||'').replace(/[\s_-]+/g,'').toUpperCase();
+  if(/QC|PACK|CUT|ADMIN|WH|FINISH|SAMPLE|MECHANIC|PRESSING|MARKER|QUALITY/.test(n))return false;
+  if(/LINE\d|LINE\s*\d|^[AB]\d|APRON\d|GARMENT\d/.test(n))return true;
+  return false;
+}
+
 function renderDashProb(){
   // ── KPI strip ──
   const remDays=SETTINGS.reminderDays||15; const today=todayISO();
@@ -1146,6 +1154,8 @@ function renderDashProb(){
   const overdue=DASH_PROBS.filter(p=>p.result==="pending"&&p.probEnd&&daysFromToday(p.probEnd)<0).length;
   const rate=passed+failed>0?Math.round(passed/(passed+failed)*100):0;
   const strip=document.getElementById("probKpiStrip");
+  const sewProb=DASH_PROBS.filter(p=>isSewDeptContract(p.dept||'')).length;
+  const sewProbPct=total>0?Math.round(sewProb/total*100):0;
   if(strip)strip.innerHTML=[
     {l:t("probKpiTotal"),  v:total,  c:"#1e3a8a"},
     {l:t("probKpiPassed"), v:passed, c:"#059669"},
@@ -1153,6 +1163,7 @@ function renderDashProb(){
     {l:t("probKpiFailed"), v:failed, c:"#dc2626"},
     {l:t("probKpiOverdue"),v:overdue,c:"#9f1239"},
     {l:t("probKpiPassRate"),v:rate+"%" ,c:rate>=70?"#059669":rate>=50?"#d97706":"#dc2626"},
+    {l:"車縫🔵",v:sewProb+` (${sewProbPct}%)`,c:"#0ea5e9"},
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashProbSearch")?.value||"").toLowerCase();
   const resF=(document.getElementById("dashProbResult")?.value||"");
@@ -1210,11 +1221,11 @@ function renderDashCont(){
   const cudc=DASH_CONTS.filter(c=>c.contractType==="UDC").length;
   const cstrip=document.getElementById("contKpiStrip");
   // 車工數據（Production dept. + 含 Sewing/Line 的 section）
-  const sewRecs=DASH_CONTS.filter(r=>{
-    const d=(r.dept||"").toLowerCase(); const s=(r.section||"").toLowerCase();
-    return d.includes("production")||d.includes("sewing")||/^l(ine)?\s*\d/i.test(s)||s.includes("sewing");
-  });
+  // Use strict sewing detection (LINE1-30, A1-30, APRON)
+  const sewRecs=DASH_CONTS.filter(r=>isSewDeptContract(r.dept||r.section||''));
   const sewTotal=sewRecs.length;
+  const sewPct=ctotal>0?Math.round(sewTotal/ctotal*100):0;
+  const nonSewTotal=ctotal-sewTotal;
   const sewF=sewRecs.filter(r=>r.gender==="F").length;
   const sewM=sewRecs.filter(r=>r.gender==="M").length;
   if(cstrip)cstrip.innerHTML=[
@@ -1224,8 +1235,9 @@ function renderDashCont(){
     {l:t("contKpiSoon"),   v:csoon,   c:"#d97706"},
     {l:t("contKpiFDC"),    v:cfdc,    c:"#b8860b"},
     {l:t("contKpiUDC"),    v:cudc,    c:"#0369a1"},
-    {l:"🧵 "+t("sewTotal")||"車工人數", v:sewTotal,c:"#0f766e"},
-    {l:"F/M",              v:`${sewF}/${sewM}`,c:"#6d28d9"},
+    {l:"車縫🔵 Sewing",   v:`${sewTotal} (${sewPct}%)`,c:"#0f766e"},
+    {l:"非車縫 Non-Sew",  v:nonSewTotal,c:"#6b7280"},
+    {l:"F / M",            v:`${sewF}/${sewM}`,c:"#6d28d9"},
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashContSearch")?.value||"").toLowerCase();
   const statusF=(document.getElementById("dashContStatus")?.value||"");

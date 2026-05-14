@@ -233,6 +233,7 @@ textarea.form-input{resize:vertical;min-height:56px}
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div class="detail-section"><div class="detail-hd">📋 離職原因分佈 <span style="font-weight:400;font-size:10px;color:#aaa">(直接讀取原始欄位)</span></div><table class="bd-table" id="resign-reason-bd"><thead><tr><th>離職原因</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
     <div class="detail-section"><div class="detail-hd">部門/年資分佈</div><table class="bd-table" id="resign-dept-bd"><thead><tr><th>部門</th><th>人數</th><th>平均年資</th></tr></thead><tbody></tbody></table></div>
+    <div class="detail-section"><div class="detail-hd">⏱ 工齡分佈 Tenure Band</div><table class="bd-table" id="resign-tenure-bd"><thead><tr><th>工齡段</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
   </div>
   <div class="detail-section">
     <div class="detail-hd">離職明細 <span id="resign-count-lbl" style="font-weight:400;color:#888"></span></div>
@@ -670,6 +671,20 @@ const sewR=rows.filter(isSewingRecord).length;
   document.querySelector('#resign-reason-bd tbody').innerHTML=Object.entries(cm).filter(([k])=>k!=='—').sort((a,b)=>b[1]-a[1]).map(([c,n])=>{const colors=REASON_COLORS[c];const[bg,col]=colors?colors.split(':'):['#e8eaf6','#283593'];return`<tr><td><span class="reason-tag" style="background:${bg};color:${col}">${c}</span></td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:${col}"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa;text-align:center">無原因資料</td></tr>';
 // Dept breakdown
 const dm={};rows.forEach(r=>{const d=r.dept||'—';if(!dm[d])dm[d]={n:0,days:0};dm[d].n++;dm[d].days+=tenDays(r);});document.querySelector('#resign-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n).map(([d,v])=>{const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;return`<tr><td>${d}</td><td><b>${v.n}</b></td><td>${avg}年</td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
+// Tenure band breakdown (規格: under 1yr / 1~2yrs / 2~3yrs / 3~4yrs / 4~5yrs / 5~6yrs / above 6yrs)
+const tenureBands=[
+  {label:'Under 1yr < 1年',   min:0,   max:365},
+  {label:'1–2 yrs',           min:365, max:730},
+  {label:'2–3 yrs',           min:730, max:1095},
+  {label:'3–4 yrs',           min:1095,max:1460},
+  {label:'4–5 yrs',           min:1460,max:1825},
+  {label:'5–6 yrs',           min:1825,max:2190},
+  {label:'Above 6 yrs > 6年', min:2190,max:Infinity},
+];
+const tenureBandCnt={};tenureBands.forEach(b=>tenureBandCnt[b.label]=0);
+rows.forEach(r=>{const d=tenDays(r);const b=tenureBands.find(b=>d>=b.min&&d<b.max);if(b)tenureBandCnt[b.label]++;});
+const tenureTbEl=document.querySelector('#resign-tenure-bd tbody');
+if(tenureTbEl)tenureTbEl.innerHTML=tenureBands.map(b=>{const n=tenureBandCnt[b.label];if(!n)return'';const pct=total?Math.round(n/total*100):0;return`<tr><td style="font-size:11px">${b.label}</td><td><b>${n}</b></td><td>${pct}%<div class="rate-bar"><div class="rate-fill" style="width:${pct}%;background:#1a7abf"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
 const typeColors={resign:'#ef4444',dismiss:'#f59e0b',self:'#8b5cf6',expel:'#c0392b'};
 const typeMap={resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'};
 const rcl=document.getElementById('resign-count-lbl');if(rcl)rcl.textContent=`共 ${rows.length} 筆`;

@@ -257,9 +257,9 @@ textarea.fi{resize:vertical;min-height:52px}
 <!-- ══ RECRUIT REPORT ══ -->
 <div class="page" id="page-recruit">
   <div class="toolbar">
-    <input class="sbox" id="rcSrch" placeholder="🔍 搜尋姓名/工號…" oninput="renderRecruit()">
-    <select class="fsel" id="rcDeptF" onchange="renderRecruit()"><option value="">全部部門</option></select>
-    <select class="fsel" id="rcMonthF" onchange="renderRecruit()"><option value="">全部月份</option></select>
+    <input class="sbox" id="rcSrch" placeholder="🔍 Search name / ID…" data-zh="搜尋姓名/工號…" data-en="Search name / ID…" data-km="ស្វែងរក…" oninput="renderRecruit()">
+    <select class="fsel" id="rcDeptF" onchange="renderRecruit()"><option value="" data-zh="全部部門" data-en="All Dept">全部部門</option></select>
+    <select class="fsel" id="rcMonthF" onchange="renderRecruit()"><option value="" data-zh="全部月份" data-en="All Months">全部月份</option></select>
     <select class="fsel" id="rcResultF" onchange="renderRecruit()">
       <option value="">全部結果</option>
       <option value="join">✅ 入職</option>
@@ -465,6 +465,8 @@ const I18N = {
        no_data:'尚無資料，請新增或匯入',
      },
   en:{ title:'Manpower Planning', status_open:'Open', status_partial:'Partial', status_closed:'Closed', status_urgent:'Urgent',
+       del_confirm:'Delete this record?', del_reqs_confirm:'Clear all requirements?', del_rec_confirm:'Clear all recruitment records?',
+       del_all_confirm:'Clear all manpower data?', saved:'Saved', deleted:'Deleted', cleared:'Cleared', imported:'Imported',
        priority_urgent:'Urgent', priority_normal:'Normal', priority_low:'Low',
        reason_new:'New Position', reason_replace:'Replacement', reason_expand:'Expansion', reason_seasonal:'Seasonal', reason_contract:'Contract', reason_other:'Other',
        result_join:'Joined', result_pending:'Pending', result_reject:'Rejected', result_no_show:'No Show',
@@ -486,7 +488,10 @@ function setLang(l){
   LANG=l; localStorage.setItem('ac_hra_lang',l);
   document.querySelectorAll('.lb').forEach((b,i)=>b.classList.toggle('on',['zh','en','km'][i]===l));
   document.getElementById('hTitle').textContent=t('title');
-  document.querySelectorAll('[data-zh]').forEach(el=>{const v=el.getAttribute('data-'+l)||el.getAttribute('data-zh');if(v)el.textContent=v;});
+  document.querySelectorAll('[data-zh]').forEach(el=>{const v=el.getAttribute('data-'+l)||el.getAttribute('data-zh');if(v){if(el.tagName==='OPTION')el.textContent=v;else el.textContent=v;}});
+  // Update search placeholder
+  const rc=document.getElementById('rcSrch');
+  if(rc){const ph=rc.getAttribute('data-'+l)||rc.getAttribute('data-zh');if(ph)rc.placeholder='🔍 '+ph;}
   renderAll();
 }
 
@@ -631,7 +636,12 @@ function renderReq(){
 
   // Table
   const thead=document.getElementById('reqTh');
-  if(thead) thead.innerHTML=['#','標題','部門','職位','需求','到位','缺口','達成率','狀態','日期','截止','備注','操作'].map(h=>`<th>${h}</th>`).join('');
+  const thLabels=LANG==='en'
+    ?['#','Title','Dept','Position','Req.','Filled','Gap','Rate%','Status','Date','Deadline','Remark','Action']
+    :LANG==='km'
+    ?['#','ចំណងជើង','ផ្នែក','តំណែង','ត្រូវការ','បំពេញ','ខ្វះ','%','ស្ថានភាព','ថ្ងៃ','ថ្ងៃកំណត់','ចំណារ','']
+    :['#','標題','部門','職位','需求','到位','缺口','達成率','狀態','日期','截止','備注','操作'];
+  if(thead) thead.innerHTML=thLabels.map(h=>`<th>${h}</th>`).join('');
   document.getElementById('reqTbody').innerHTML=rows.length?rows.map((r,i)=>{
     const req=+r.required||0,fil=+r.filled||0,rate3=fillRate(req,fil);
     return`<tr>
