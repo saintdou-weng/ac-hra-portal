@@ -199,15 +199,15 @@ textarea.form-input{resize:vertical;min-height:56px}
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="join-gender" onchange="renderJoins()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>職位</label><select class="flt" id="join-pos" onchange="renderJoins()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>年齡段</label><select class="flt" id="join-age" onchange="renderJoins()"><option value="">全部</option><option value="18-25">18–25</option><option value="26-30">26–30</option><option value="31-35">31–35</option><option value="36-40">36–40</option><option value="40+">40+</option></select></div>
-    <div class="sum-filter-group"><label>介紹人</label><select class="flt" id="join-referrer" onchange="renderJoins()"><option value="">全部</option></select></div>
     <input class="sbox" id="join-search" placeholder="搜尋姓名/工號…" oninput="renderJoins()" style="flex:1;min-width:140px">
     <button class="btn gold small" onclick="openJoinModal()">＋ 新增</button>
     <button class="btn ghost small" onclick="exportJoinsExcel()">⬇ Excel</button>
   </div>
   <div class="sum-grid" id="join-summary-cards"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
     <div class="detail-section"><div class="detail-hd">部門分佈</div><table class="bd-table" id="join-dept-bd"><thead><tr><th>部門</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
     <div class="detail-section"><div class="detail-hd">性別/年齡分佈</div><table class="bd-table" id="join-gender-bd"><thead><tr><th>類別</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
+    <div class="detail-section"><div class="detail-hd">👥 介紹人統計</div><table class="bd-table" id="join-referrer-bd"><thead><tr><th>介紹人</th><th>人數</th><th>佔比</th></tr></thead><tbody><tr><td colspan="3" style="color:#aaa;text-align:center">載入中…</td></tr></tbody></table></div>
   </div>
   <div class="detail-section">
     <div class="detail-hd">入職明細 <span id="join-count-lbl" style="font-weight:400;color:#888"></span></div>
@@ -225,14 +225,13 @@ textarea.form-input{resize:vertical;min-height:56px}
     <div class="sum-filter-group"><label>部門</label><select class="flt" id="resign-dept" onchange="renderResigns()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="resign-gender" onchange="renderResigns()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>離職類型</label><select class="flt" id="resign-type" onchange="renderResigns()"><option value="">全部</option><option value="resign">辭職</option><option value="dismiss">辭退</option><option value="self">自離</option><option value="expel">開除</option></select></div>
-    <div class="sum-filter-group"><label>原因分類</label><select class="flt" id="resign-reason-cat" onchange="renderResigns()"><option value="">全部</option></select></div>
     <input class="sbox" id="resign-search" placeholder="搜尋姓名/工號…" oninput="renderResigns()" style="flex:1;min-width:140px">
     <button class="btn gold small" onclick="openResignModal()">＋ 新增</button>
     <button class="btn ghost small" onclick="exportResignsExcel()">⬇ Excel</button>
   </div>
   <div class="sum-grid" id="resign-summary-cards"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div class="detail-section"><div class="detail-hd">離職原因分類分佈</div><table class="bd-table" id="resign-reason-bd"><thead><tr><th>原因</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
+    <div class="detail-section"><div class="detail-hd">📋 離職原因分佈 <span style="font-weight:400;font-size:10px;color:#aaa">(直接讀取原始欄位)</span></div><table class="bd-table" id="resign-reason-bd"><thead><tr><th>離職原因</th><th>人數</th><th>佔比</th></tr></thead><tbody></tbody></table></div>
     <div class="detail-section"><div class="detail-hd">部門/年資分佈</div><table class="bd-table" id="resign-dept-bd"><thead><tr><th>部門</th><th>人數</th><th>平均年資</th></tr></thead><tbody></tbody></table></div>
   </div>
   <div class="detail-section">
@@ -346,7 +345,7 @@ textarea.form-input{resize:vertical;min-height:56px}
     </div>
   </div>
 
-  <!-- Period detail table -->
+  <!-- Period detail table (simplified: Join/Resign compare only) -->
   <div class="detail-section">
     <div class="detail-hd">期間明細對照 <span id="cmp-detail-lbl" style="font-weight:400;color:#aaa;font-size:10px"></span></div>
     <div class="table-scroll">
@@ -354,14 +353,14 @@ textarea.form-input{resize:vertical;min-height:56px}
         <thead>
           <tr>
             <th>期間</th>
-            <th class="center">考勤HC(均)</th>
-            <th class="center">車縫工(均)</th>
-            <th class="center" style="color:#10b981">入職</th>
-            <th class="center" style="color:#ef4444">離職</th>
-            <th class="center">淨增</th>
-            <th class="center">預期HC</th>
-            <th class="center">出勤率</th>
-            <th class="center">離職率</th>
+            <th class="center" style="color:#10b981">考勤 入職</th>
+            <th class="center" style="color:#10b981">HR 入職</th>
+            <th class="center">差異</th>
+            <th class="center" style="color:#ef4444">考勤 離職</th>
+            <th class="center" style="color:#ef4444">HR 離職</th>
+            <th class="center">差異</th>
+            <th class="center">淨增(HR)</th>
+            <th class="center">離職比例</th>
           </tr>
         </thead>
         <tbody id="cmp-tbody"></tbody>
@@ -369,13 +368,13 @@ textarea.form-input{resize:vertical;min-height:56px}
     </div>
   </div>
 
-  <!-- Group/Line diff analysis table -->
+  <!-- Dept-level Join/Resign breakdown -->
   <div class="detail-section" style="margin-top:12px">
-    <div class="detail-hd">📊 組別差異分析 <span id="cmp-diff-lbl" style="font-weight:400;color:#aaa;font-size:10px">(本月預期 vs 實際)</span></div>
+    <div class="detail-hd">📊 部門入/離職明細 <span id="cmp-diff-lbl" style="font-weight:400;color:#aaa;font-size:10px"></span></div>
     <div class="table-scroll">
       <table>
         <thead>
-          <tr><th>組別 / LINE</th><th class="center">考勤HC</th><th class="center">入職</th><th class="center">離職</th><th class="center">淨增</th><th class="center">出勤率</th></tr>
+          <tr><th>部門 / LINE</th><th class="center" style="color:#10b981">入職</th><th class="center" style="color:#ef4444">離職</th><th class="center">淨增</th><th class="center">離職比例</th></tr>
         </thead>
         <tbody id="cmp-diff-tbody"></tbody>
       </table>
@@ -586,7 +585,7 @@ function getRangeDates(){const d=new Date(pivotDate);d.setHours(0,0,0,0);let sta
 function inRange(ds){if(!ds)return false;const{start,end}=getRangeDates();return ds>=start&&ds<end;}
 
 // ── Summary ──
-function renderSummary(){const{start,end,label}=getRangeDates();document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[{v:joins.length,l:'入職',cls:'join-k'},{v:resigns.length,l:'離職',cls:'resign-k'},{v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v<0?k.v:k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();}
+function renderSummary(){const{start,end,label}=getRangeDates();document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[{v:joins.length,l:'入職',cls:'join-k'},{v:resigns.length,l:'離職',cls:'resign-k'},{v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},{v:sewJ,l:'車縫入職',cls:'join-k'},{v:sewR,l:'車縫離職',cls:'resign-k'},{v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();}
 
 function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];const s=new Date(start),e=new Date(end);const days=Math.ceil((e-s)/86400000);if(days>90){const jm={},rm={};joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();months.forEach(m=>{labels.push(m.slice(5));jD.push(jm[m]||0);rD.push(rm[m]||0);});}else{for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){const ds=d.toISOString().slice(0,10);labels.push(ds.slice(5));jD.push(joins.filter(r=>r.joinDate===ds).length);rD.push(resigns.filter(r=>r.resignDate===ds).length);}}mkChart('ch-join',{type:'bar',data:{labels,datasets:[{label:'入職',data:jD,backgroundColor:'#10b981',borderRadius:3}]},options:barOpts()});mkChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:'離職',data:rD,backgroundColor:'#c62828',borderRadius:3}]},options:barOpts()});}
 
@@ -617,18 +616,26 @@ function renderJoins(){
   const sewJ=rows.filter(isSewingRecord).length;
   const nsJ=rows.length-sewJ;
   const maleJ=rows.filter(r=>(r.gender||'').toUpperCase()==='M').length;
+  const pct=n=>total?Math.round(n/total*100)+'%':'—';
   document.getElementById('join-summary-cards').innerHTML=[
-    {cls:'join-c', val:total,    sub:'', lbl:'入職總人數'},
-    {cls:'info-c', val:sewJ,     sub:'車縫', lbl:'Sewing Join'},
-    {cls:'info-c', val:nsJ,      sub:'非車縫', lbl:'Non-Sewing Join'},
-    {cls:'',       val:maleJ,    sub:'男 Male', lbl:'M'},
-    {cls:'',       val:female,   sub:'女 Female', lbl:'F'},
+    {cls:'join-c', val:total,          sub:total?`車縫 ${sewJ} / 非車縫 ${nsJ}`:'', lbl:'入職總人數'},
+    {cls:'info-c', val:sewJ,           sub:pct(sewJ),  lbl:'Sewing Join'},
+    {cls:'info-c', val:nsJ,            sub:pct(nsJ),   lbl:'Non-Sewing Join'},
+    {cls:'',       val:maleJ,          sub:pct(maleJ), lbl:'Male 男'},
+    {cls:'',       val:female,         sub:pct(female),lbl:'Female 女'},
   ].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
 // Dept breakdown
 const dm={};rows.forEach(r=>{const d=deptOf(r);dm[d]=(dm[d]||0)+1;});document.querySelector('#join-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1]-a[1]).map(([d,n])=>`<tr><td>${d}</td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:var(--ok)"></div></div></td></tr>`).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
 // Gender breakdown
 const ageG={'18-25':0,'26-30':0,'31-35':0,'36-40':0,'40+':0,'不明':0};rows.forEach(r=>{const age=calcAgeAtJoin(r.dob,r.joinDate);if(age===null){ageG['不明']++;return;}if(age<=25)ageG['18-25']++;else if(age<=30)ageG['26-30']++;else if(age<=35)ageG['31-35']++;else if(age<=40)ageG['36-40']++;else ageG['40+']++;});document.querySelector('#join-gender-bd tbody').innerHTML=[['女 F',female,total],['男 M',total-female,total],...Object.entries(ageG).filter(([,n])=>n>0).map(([k,n])=>[`齡 ${k}`,n,total])].map(([l,n,tt])=>`<tr><td>${l}</td><td><b>${n}</b></td><td>${tt?Math.round(n/tt*100):0}%</td></tr>`).join('');
-const cl=document.getElementById('join-count-lbl');if(cl)cl.textContent=`共 ${rows.length} 筆`;
+// 介紹人統計表
+  const refBd=document.querySelector('#join-referrer-bd tbody');
+  if(refBd){
+    const rm={};rows.forEach(r=>{const ref=(r.introducer||r.referrer||'').trim();if(ref&&ref!=='-'&&ref.toLowerCase()!=='n/a')rm[ref]=(rm[ref]||0)+1;});
+    const refTotal=Object.values(rm).reduce((s,n)=>s+n,0);
+    refBd.innerHTML=Object.entries(rm).sort((a,b)=>b[1]-a[1]).slice(0,15).map(([ref,n])=>`<tr><td>${ref}</td><td><b>${n}</b></td><td>${refTotal?Math.round(n/refTotal*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${refTotal?n/refTotal*100:0}%;background:#1a7abf"></div></div></td></tr>`).join('')||'<tr><td colspan="3" style="color:#aaa;text-align:center">無介紹人資料</td></tr>';
+  }
+  const cl=document.getElementById('join-count-lbl');if(cl)cl.textContent=`共 ${rows.length} 筆`;
 document.getElementById('join-tbody').innerHTML=rows.length?rows.map((r,i)=>{const age=calcAgeAtJoin(r.dob,r.joinDate);const ageDisp=age!==null?age:'—';return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td>${r.gender||'—'}</td><td>${ageDisp}</td><td style="font-size:11px">${r.tel||'—'}</td><td style="font-size:11px">${r.introducer||'—'}</td><td style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${r.remark||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openJoinModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delJoin('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
 updateFilters();updateBadges();}
 
@@ -644,15 +651,23 @@ const sewR=rows.filter(isSewingRecord).length;
   const nsR=rows.length-sewR;
   const maleR=rows.filter(r=>(r.gender||'').toUpperCase()==='M').length;
   const femaleR=rows.filter(r=>(r.gender||'').toUpperCase()==='F').length;
+  const pctR=n=>total?Math.round(n/total*100)+'%':'—';
   document.getElementById('resign-summary-cards').innerHTML=[
-    {cls:'resign-c', val:total,  sub:'', lbl:'離職總人數'},
-    {cls:'warn-c',   val:sewR,   sub:'車縫', lbl:'Sewing Resign'},
-    {cls:'warn-c',   val:nsR,    sub:'非車縫', lbl:'Non-Sewing Resign'},
-    {cls:'',         val:maleR,  sub:'男 Male', lbl:'M'},
-    {cls:'',         val:femaleR,sub:'女 Female', lbl:'F'},
+    {cls:'resign-c', val:total,   sub:total?`車縫 ${sewR} / 非車縫 ${nsR}`:'', lbl:'離職總人數'},
+    {cls:'warn-c',   val:sewR,    sub:pctR(sewR),   lbl:'Sewing Resign'},
+    {cls:'warn-c',   val:nsR,     sub:pctR(nsR),    lbl:'Non-Sewing Resign'},
+    {cls:'',         val:maleR,   sub:pctR(maleR),  lbl:'Male 男'},
+    {cls:'',         val:femaleR, sub:pctR(femaleR),lbl:'Female 女'},
   ].map(k=>`<div class="sum-card ${k.cls}"><div class="sum-val">${k.val}</div><div class="sum-sub">${k.sub}</div><div class="sum-lbl">${k.lbl}</div></div>`).join('');
 // Reason category breakdown
-const cm={};rows.forEach(r=>{const c=r.reasonCat||'其他';cm[c]=(cm[c]||0)+1;});document.querySelector('#resign-reason-bd tbody').innerHTML=Object.entries(cm).sort((a,b)=>b[1]-a[1]).map(([c,n])=>{const colors=REASON_COLORS[c];const[bg,col]=colors?colors.split(':'):['#f5f5f5','#616161'];return`<tr><td><span class="reason-tag" style="background:${bg};color:${col}">${c}</span></td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:${col}"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
+// Raw reason reader: prefer reasonCat, fallback to raw reason field
+  const cm={};rows.forEach(r=>{
+    // Use whichever field has real content: reasonCat first, then reason, then remark
+    const raw=(r.reasonCat&&r.reasonCat!=='Other'&&r.reasonCat!=='其他'&&r.reasonCat!=='other')?r.reasonCat:(r.reason||r.remark||'').trim()||r.reasonCat||'—';
+    const key=raw||'—';
+    cm[key]=(cm[key]||0)+1;
+  });
+  document.querySelector('#resign-reason-bd tbody').innerHTML=Object.entries(cm).filter(([k])=>k!=='—').sort((a,b)=>b[1]-a[1]).map(([c,n])=>{const colors=REASON_COLORS[c];const[bg,col]=colors?colors.split(':'):['#e8eaf6','#283593'];return`<tr><td><span class="reason-tag" style="background:${bg};color:${col}">${c}</span></td><td><b>${n}</b></td><td>${total?Math.round(n/total*100):0}%<div class="rate-bar"><div class="rate-fill" style="width:${total?n/total*100:0}%;background:${col}"></div></div></td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa;text-align:center">無原因資料</td></tr>';
 // Dept breakdown
 const dm={};rows.forEach(r=>{const d=r.dept||'—';if(!dm[d])dm[d]={n:0,days:0};dm[d].n++;dm[d].days+=tenDays(r);});document.querySelector('#resign-dept-bd tbody').innerHTML=Object.entries(dm).sort((a,b)=>b[1].n-a[1].n).map(([d,v])=>{const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;return`<tr><td>${d}</td><td><b>${v.n}</b></td><td>${avg}年</td></tr>`;}).join('')||'<tr><td colspan="3" style="color:#aaa">—</td></tr>';
 const typeColors={resign:'#ef4444',dismiss:'#f59e0b',self:'#8b5cf6',expel:'#c0392b'};
@@ -951,115 +966,91 @@ async function renderCompare(){
   JOINS.filter(filterJoin).forEach(r=>{const k=kFn({joinDate:r.joinDate});if(pSet.has(k)){joinByP[k]=(joinByP[k]||0)+1;}});
   RESIGNS.filter(filterResign).forEach(r=>{const k=kFn({resignDate:r.resignDate});if(pSet.has(k)){resignByP[k]=(resignByP[k]||0)+1;}});
 
-  // --- KPI strip: latest period ---
-  const cp=ps[ps.length-1];const snap=getAttSnap();
+  // ─── KPI: HR Join/Resign only (simplified, no Attendance HC) ────────────
+  const cp=ps[ps.length-1];
   const thisJ=joinByP[cp]||0,thisR=resignByP[cp]||0,net=thisJ-thisR;
-  const curHC=snap.totalHC||avgHC[cp]||0;
-  // Expected HC = previous period HC + join - resign
-  const prevP=ps[ps.length-2];
-  const prevHC=prevP?avgHC[prevP]||0:0;
-  const expectedHC=prevHC?prevHC+thisJ-thisR:0;
-  const diffHC=expectedHC&&curHC?curHC-expectedHC:null;
-  const turnoverRate=curHC>0?((thisR/curHC)*100).toFixed(1)+'%':'—';
+  const sewJ2=JOINS.filter(r=>isSewingRecord(r)&&pSet.has(kFn({joinDate:r.joinDate}))).length;
+  const sewR2=RESIGNS.filter(r=>isSewingRecord(r)&&pSet.has(kFn({resignDate:r.resignDate}))).length;
+  const sewNet=sewJ2-sewR2;
+  // Resign ratio: resign / (join+resign) — temporary simplified metric
+  const resignRatio=thisJ+thisR>0?((thisR/(thisJ+thisR))*100).toFixed(1)+'%':'—';
+
   document.getElementById('cmp-kpi').innerHTML=[
-    {v:curHC||'—',          l:'考勤在職(均)', cls:'info-k'},
-    {v:snap.sewHC||avgSew[cp]||'—', l:'車縫工(均)',  cls:'info-k'},
-    {v:thisJ,                l:`入職 ${dFn(cp)}`,cls:'join-k'},
-    {v:thisR,                l:`離職 ${dFn(cp)}`,cls:'resign-k'},
-    {v:net,                  l:'淨增減',      cls:net>=0?'join-k':'resign-k'},
-    {v:snap.rate||attRate[cp]||'—',l:'出勤率',cls:'info-k'},
-    {v:turnoverRate,         l:'離職率',       cls:thisR>3?'resign-k':''},
-    expectedHC?{v:expectedHC,l:'預期HC',    cls:'info-k'}:null,
-    diffHC!==null?{v:(diffHC>=0?'+':'')+diffHC,l:'HC差異',cls:Math.abs(diffHC)>5?'resign-k':''}:null,
-  ].filter(Boolean).map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${typeof k.v==='number'&&k.v<0?'color:var(--danger)':typeof k.v==='string'&&k.v.startsWith('-')?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
+    // attJ removed
+    {v:thisJ,       l:`HR 入職 ${dFn(cp)}`,cls:'join-k'},
+    // attJ diff removed
+    // attR removed
+    {v:thisR,       l:`HR 離職 ${dFn(cp)}`,cls:'resign-k'},
+    // attR diff removed
+    {v:net,         l:'淨增減(HR)',      cls:net>=0?'join-k':'resign-k'},
+    {v:resignRatio, l:'離職比例',        cls:parseFloat(resignRatio)>30?'resign-k':''},
+  ].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${typeof k.v==='number'&&k.v<0?'color:var(--danger)':''}">${typeof k.v==='number'?k.v:(k.v??'—')}</div><div class="kpi-l">${k.l}</div></div>`).join('');
 
-  // --- Trend chart ---
+  // Trend chart: HR Join/Resign + Sewing breakdown
+  const sewJbyP={},sewRbyP={};
+  ps.forEach(p=>{
+    sewJbyP[p]=JOINS.filter(r=>isSewingRecord(r)&&kFn({joinDate:r.joinDate})===p).length;
+    sewRbyP[p]=RESIGNS.filter(r=>isSewingRecord(r)&&kFn({resignDate:r.resignDate})===p).length;
+  });
   mkChart('ch-cmp-trend',{type:'bar',data:{labels:ps.map(dFn),datasets:[
-    {type:'line',label:'考勤HC(均)',data:ps.map(p=>avgHC[p]||0),borderColor:'#1a7abf',backgroundColor:'transparent',pointRadius:3,tension:.3,yAxisID:'yA'},
-    {type:'line',label:'車縫工(均)',data:ps.map(p=>avgSew[p]||0),borderColor:'#0ea5e9',backgroundColor:'transparent',pointRadius:2,tension:.3,borderDash:[4,2],yAxisID:'yA'},
-    {type:'bar', label:'入職',data:ps.map(p=>joinByP[p]||0),backgroundColor:'rgba(16,185,129,.75)',borderRadius:3,yAxisID:'yB'},
-    {type:'bar', label:'離職',data:ps.map(p=>resignByP[p]||0),backgroundColor:'rgba(239,68,68,.75)',borderRadius:3,yAxisID:'yB'},
-  ]},options:{responsive:true,maintainAspectRatio:false,
-    plugins:{legend:{labels:{font:{size:10}}}},
-    scales:{
-      yA:{position:'left',title:{display:true,text:'在職人數',font:{size:10}},ticks:{font:{size:10}},beginAtZero:false},
-      yB:{position:'right',title:{display:true,text:'入/離職',font:{size:10}},grid:{drawOnChartArea:false},ticks:{font:{size:10},stepSize:1},beginAtZero:true},
-      x:{ticks:{font:{size:10},maxRotation:45}}}}});
+    {label:'入職(全)',   data:ps.map(p=>joinByP[p]||0),   backgroundColor:'rgba(16,185,129,.7)', borderRadius:3},
+    {label:'離職(全)',   data:ps.map(p=>resignByP[p]||0), backgroundColor:'rgba(239,68,68,.7)',  borderRadius:3},
+    {type:'line',label:'車縫入職',data:ps.map(p=>sewJbyP[p]||0),borderColor:'#059669',backgroundColor:'transparent',pointRadius:3,tension:.3},
+    {type:'line',label:'車縫離職',data:ps.map(p=>sewRbyP[p]||0),borderColor:'#dc2626',backgroundColor:'transparent',pointRadius:3,tension:.3,borderDash:[4,2]},
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10},stepSize:1}},x:{ticks:{font:{size:10},maxRotation:45}}}}});
 
-  // --- Dept join table ---
-  const deptJ={};JOINS.filter(filterJoin).forEach(r=>{const k=kFn({joinDate:r.joinDate});if(!pSet.has(k))return;const d=r.section||r.dept||'—';deptJ[d]=(deptJ[d]||0)+1;});
-  // Att HC by dept-like group
-  const deptAttHC={},deptSewHC2={};
-  att.forEach(r=>{const k=kFn(r);if(!pSet.has(k))return;const d=String(r.line||r.sect||r.dept||'').trim()||'—';if(!deptAttHC[d])deptAttHC[d]=0;deptAttHC[d]+=(+r.m||0)+(+r.f||0);if(isSewLine(r)){if(!deptSewHC2[d])deptSewHC2[d]=0;deptSewHC2[d]+=(+r.m||0)+(+r.f||0);}});
-  document.querySelector('#cmp-join-tbl tbody').innerHTML=Object.entries(deptJ).sort((a,b)=>b[1]-a[1]).slice(0,12)
-    .map(([d,n])=>`<tr><td>${d}</td><td><b style="color:var(--ok)">${n}</b></td><td style="color:#1a7abf">${deptAttHC[d]?Math.round(deptAttHC[d]/ps.length):'—'}</td><td style="color:#0ea5e9">${deptSewHC2[d]?Math.round(deptSewHC2[d]/ps.length):'—'}</td></tr>`)
+  // --- Dept join/resign table (from HR data) ---
+  const deptJoin2={},deptResign2={};
+  JOINS.filter(filterJoin).forEach(r=>{const k=kFn({joinDate:r.joinDate});if(!pSet.has(k))return;const d=r.section||r.dept||'—';deptJoin2[d]=(deptJoin2[d]||0)+1;});
+  RESIGNS.filter(filterResign).forEach(r=>{const k=kFn({resignDate:r.resignDate});if(!pSet.has(k))return;const d=r.dept||'—';if(!deptResign2[d])deptResign2[d]={n:0,days:0,rc:{}};deptResign2[d].n++;deptResign2[d].days+=(+r.workingDays||0);const rc=(r.reasonCat&&r.reasonCat!=='Other')?r.reasonCat:(r.reason||'—').trim();deptResign2[d].rc[rc]=(deptResign2[d].rc[rc]||0)+1;});
+  document.querySelector('#cmp-join-tbl tbody').innerHTML=Object.entries(deptJoin2).sort((a,b)=>b[1]-a[1]).slice(0,15)
+    .map(([d,n])=>`<tr><td>${d}</td><td><b style="color:var(--ok)">${n}</b></td><td style="color:#aaa">${deptResign2[d]?.n||'—'}</td><td style="color:${isNormSewing(normalizeGroup(d))?'#1a7abf':'#aaa'}">${isNormSewing(normalizeGroup(d))?'🔵 車縫':'—'}</td></tr>`)
     .join('')||'<tr><td colspan="4" style="color:#aaa;text-align:center">無資料</td></tr>';
-
-  // --- Dept resign table ---
-  const deptR={};RESIGNS.filter(filterResign).forEach(r=>{const k=kFn({resignDate:r.resignDate});if(!pSet.has(k))return;const d=r.dept||'—';if(!deptR[d])deptR[d]={n:0,days:0,rc:{}};deptR[d].n++;deptR[d].days+=(+r.workingDays||0);const rc=r.reasonCat||'—';deptR[d].rc[rc]=(deptR[d].rc[rc]||0)+1;});
-  document.querySelector('#cmp-resign-tbl tbody').innerHTML=Object.entries(deptR).sort((a,b)=>b[1].n-a[1].n).slice(0,12)
+  document.querySelector('#cmp-resign-tbl tbody').innerHTML=Object.entries(deptResign2).sort((a,b)=>b[1].n-a[1].n).slice(0,15)
     .map(([d,v])=>{const avg=v.n?Math.round(v.days/v.n/365*10)/10:0;const top=Object.entries(v.rc).sort((a,b)=>b[1]-a[1])[0];return`<tr><td>${d}</td><td><b style="color:var(--danger)">${v.n}</b></td><td>${avg}年</td><td style="font-size:10px;color:#6b7a9e">${top?top[0]:'—'}</td></tr>`;})
     .join('')||'<tr><td colspan="4" style="color:#aaa;text-align:center">無資料</td></tr>';
 
-  // --- Period detail table ---
+  // --- Period detail table (simplified: Att Join/Resign vs HR Join/Resign) ---
   document.getElementById('cmp-detail-lbl').textContent=`(${ps.length} 個期間)`;
-  // Build running expected HC across periods
-  let runHC=avgHC[ps[0]]||0;
   document.getElementById('cmp-tbody').innerHTML=ps.slice().reverse().map(p=>{
-    const hc=avgHC[p]||0,sew=avgSew[p]||0,j=joinByP[p]||0,r2=resignByP[p]||0,net2=j-r2;
-    const tr=hc>0?((r2/hc)*100).toFixed(1)+'%':'—';
+    const hrJ=joinByP[p]||0,hrR=resignByP[p]||0;
+    const net2=hrJ-hrR,sJ=sewJbyP[p]||0,sR=sewRbyP[p]||0,sNet=sJ-sR;
+    const ratio=hrJ+hrR>0?((hrR/(hrJ+hrR))*100).toFixed(1)+'%':'—';
     const nc=net2>=0?'var(--ok)':'var(--danger)';
-    // expected = previous period's HC + net
-    const exp=hc&&net2!==0?hc-net2:0;
+    const snc=sNet>=0?'var(--ok)':'var(--danger)';
     return`<tr>
       <td style="font-family:monospace;font-weight:600">${dFn(p)}</td>
-      <td class="center">${hc||'—'}</td>
-      <td class="center" style="color:#1a7abf">${sew||'—'}</td>
-      <td class="center" style="color:var(--ok);font-weight:700">${j||'—'}</td>
-      <td class="center" style="color:var(--danger);font-weight:700">${r2||'—'}</td>
+      <td class="center" style="color:var(--ok);font-weight:700">${hrJ||'—'}</td>
+      <td class="center" style="color:var(--danger);font-weight:700">${hrR||'—'}</td>
       <td class="center" style="font-weight:700;color:${nc}">${net2>=0?'+':''}${net2}</td>
-      <td class="center" style="color:#6366f1">${exp||'—'}</td>
-      <td class="center">${attRate[p]||'—'}</td>
-      <td class="center">${tr}</td>
+      <td class="center" style="color:#059669">${sJ||'—'}</td>
+      <td class="center" style="color:#dc2626">${sR||'—'}</td>
+      <td class="center" style="font-weight:700;color:${snc}">${sNet>=0?'+':''}${sNet}</td>
+      <td class="center">${ratio}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="9" style="color:#aaa;text-align:center;padding:20px">無資料 — 請先匯入資料並讀取考勤</td></tr>';
+  }).join('')||'<tr><td colspan="8" style="color:#aaa;text-align:center;padding:20px">無資料 — 請先匯入資料</td></tr>';
 
-  // --- Group/Line diff analysis for current period ---
+  // --- Dept/Line breakdown for current period ---
   const cp2=ps[ps.length-1];
-  const lineData={};
-  att.filter(r=>!isAggregateRow(r)).forEach(r=>{
-    const k=kFn(r);if(k!==cp2)return;
-    const ng=normalizeGroup(r.line||r.sect||r.dept||'');if(!ng)return;
-    if(!lineData[ng])lineData[ng]={hc:0,att:0,days:new Set()};
-    const dk=r.date||'?';
-    lineData[ng].hc+=(+r.m||0)+(+r.f||0);
-    lineData[ng].att+=(+r.att||0);
-    lineData[ng].days.add(dk);
-  });
-  // compute averages per line; join/resign from own data
-  const joinLineMap={},resignLineMap={};
-  JOINS.forEach(r=>{const k=kFn({joinDate:r.joinDate});if(k!==cp2)return;const g=normalizeGroup(r.section||r.dept||'');if(g)joinLineMap[g]=(joinLineMap[g]||0)+1;});
-  RESIGNS.forEach(r=>{const k=kFn({resignDate:r.resignDate});if(k!==cp2)return;const g=normalizeGroup(r.dept||'');if(g)resignLineMap[g]=(resignLineMap[g]||0)+1;});
-
-  const allGroups=[...new Set([...Object.keys(lineData),...Object.keys(joinLineMap),...Object.keys(resignLineMap)])].sort();
-  document.getElementById('cmp-diff-lbl').textContent=`(${dFn(cp2)} · ${allGroups.length} 個組別)`;
-  document.getElementById('cmp-diff-tbody').innerHTML=allGroups.map(g=>{
-    const ld=lineData[g]||{hc:0,att:0,days:new Set([1])};
-    const days=ld.days.size||1;
-    const avgHCg=Math.round(ld.hc/days);
-    const attRateG=avgHCg>0?((ld.att/days)/avgHCg*100).toFixed(1)+'%':'—';
-    const j=joinLineMap[g]||0,r2=resignLineMap[g]||0,net2=j-r2;
-    const isSew=isNormSewing(g);
+  const joinLineMap2={},resignLineMap2={};
+  JOINS.forEach(r=>{const k=kFn({joinDate:r.joinDate});if(k!==cp2)return;const g=r.section||r.dept||'—';joinLineMap2[g]=(joinLineMap2[g]||0)+1;});
+  RESIGNS.forEach(r=>{const k=kFn({resignDate:r.resignDate});if(k!==cp2)return;const g=r.dept||'—';resignLineMap2[g]=(resignLineMap2[g]||0)+1;});
+  const allDepts=[...new Set([...Object.keys(joinLineMap2),...Object.keys(resignLineMap2)])].sort();
+  document.getElementById('cmp-diff-lbl').textContent=`(${dFn(cp2)} · ${allDepts.length} 個部門)`;
+  const allTotal=allDepts.reduce((s,g)=>(joinLineMap2[g]||0)+(resignLineMap2[g]||0)+s,0);
+  document.getElementById('cmp-diff-tbody').innerHTML=allDepts.map(g=>{
+    const j=joinLineMap2[g]||0,r2=resignLineMap2[g]||0,net2=j-r2;
+    const isSew=isNormSewing(normalizeGroup(g));
+    const ratio2=j+r2>0?((r2/(j+r2))*100).toFixed(1)+'%':'—';
     const nc=net2>0?'color:var(--ok)':net2<0?'color:var(--danger)':'';
     return`<tr>
       <td><b style="color:${isSew?'#1a7abf':'#555'}">${g}</b>${isSew?' 🔵':''}</td>
-      <td class="center">${avgHCg||'—'}</td>
       <td class="center" style="color:var(--ok)">${j||'—'}</td>
       <td class="center" style="color:var(--danger)">${r2||'—'}</td>
       <td class="center" style="font-weight:700;${nc}">${net2>=0?'+':''}${net2}</td>
-      <td class="center">${attRateG}</td>
+      <td class="center">${ratio2}</td>
     </tr>`;
-  }).join('')||'<tr><td colspan="6" style="color:#aaa;text-align:center;padding:16px">無考勤資料</td></tr>';
+  }).join('')||'<tr><td colspan="5" style="color:#aaa;text-align:center;padding:16px">無資料</td></tr>';
 }
 
 // ── Init ──
