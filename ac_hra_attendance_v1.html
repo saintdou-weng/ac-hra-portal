@@ -2326,35 +2326,38 @@ async function renderSewCmp() {
     const lineFilter = document.getElementById('sc-line')?.value || '';
     if (!period) { _st('請選擇期間'); return; }
 
-    // Helper: safely convert any date format to YYYY-MM-DD string
+    // Helper: convert any date format to YYYY-MM-DD using LOCAL time (avoids UTC timezone shift)
     const toDateStr = d => {
       if (!d) return '';
-      if (d instanceof Date) return d.toISOString().slice(0,10);
+      if (d instanceof Date) {
+        const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${dd}`;
+      }
       const s = String(d);
-      // Already ISO format "2026-04-09..." → slice
       if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-      // Fallback: try parsing
-      const parsed = new Date(s);
-      return isNaN(parsed) ? s.slice(0,10) : parsed.toISOString().slice(0,10);
+      const p = new Date(s);
+      if (!isNaN(p)) { const y=p.getFullYear(),m=String(p.getMonth()+1).padStart(2,'0'),dd=String(p.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;}
+      return s.slice(0,10);
     };
 
-    // 2. Build dates Set in O(1) — critical for performance
-    const allD = allDates();
-    const datesArr = allD.filter(d => scPeriodKey(d) === period);
-    if (!datesArr.length) { _st(`⚠ 無考勤記錄 (period=${period})`); return; }
-    const datesSet = new Set(datesArr.map(toDateStr));  // normalize to YYYY-MM-DD, handles Date objects
+    // 2. Build period-check function — avoids ALL date format mismatch issues
+    // Instead of datesSet, use scPeriodKey directly on each record (O(n) single pass, no nested loop)
+    const inPeriod = d => {
+      if (!d) return false;
+      return scPeriodKey(toDateStr(d)) === period;
+    };
 
-    // Yield to DOM so browser can paint before heavy loop
+    // Quick sanity check: how many DB records are in this period?
     await new Promise(r => setTimeout(r, 0));
-    _st(`▶ 處理考勤 ${datesArr.length}天 …`);
+    _st(`▶ 掃描考勤中 …`);
     await new Promise(r => setTimeout(r, 0));
 
     // 3. Build attMap: lineId → {hcSum, days, join, resign}
-    // Use datesSet.has() for O(1) — NOT dates.includes()
+    // Uses inPeriod() — no datesSet, no format mismatch
     const attMap = {};
     let attRowCount = 0;
     DB.forEach(r => {
-      if (!datesSet.has(toDateStr(r.date))) return;
+      if (!inPeriod(r.date)) return;
       if (r.isSubtotal || r.isGrand) return;
       const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
       if (!raw) return;
@@ -2364,7 +2367,7 @@ async function renderSewCmp() {
       if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
       const mf = (+r.m||0)+(+r.f||0);
       attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
-      attMap[lid].days.add(toDateStr(r.date));
+      attMap[lid].days.add(toDateStr(r.date));  // store normalized
       attMap[lid].join   += (+r.join||0);
       attMap[lid].resign += (+r.resign||0);
       attRowCount++;
@@ -2374,8 +2377,7 @@ async function renderSewCmp() {
     const sewMap = {};
     let sewRowCount = 0;
     sew.forEach(r => {
-      const rd = toDateStr(r.date);
-      if (!datesSet.has(rd)) return;
+      if (!inPeriod(r.date)) return;
       const lid = normSCLine(String(r.lineNo||r.line||'').trim());
       if (!isSCLine(lid)) return;
       if (lineFilter && lid !== lineFilter) return;
@@ -2404,7 +2406,7 @@ async function renderSewCmp() {
     // 7. Debug status (visible in UI)
     const attLnCnt = Object.keys(attLineHC).length;
     const sewLnCnt = Object.keys(sewLineW).length;
-    _st(`出勤: ${attLnCnt}線 ${datesArr.length}天 (${attRowCount}筆) | 車縫: ${sewLnCnt}線 (${sewRowCount}筆)`);
+    _st(`出勤: ${attLnCnt}線 ${attRowCount}筆 | 車縫: ${sewLnCnt}線 ${sewRowCount}筆 | period=${period}`);
     console.log('[Att×Sewing]', {period, dates:datesArr.length, attRows:attRowCount, sewRows:sewRowCount, attLines:Object.keys(attLineHC), sewLines:Object.keys(sewLineW), attTotal, sewTotal});
 
     // 8. Update KPI cards
@@ -2447,7 +2449,9 @@ async function renderSewCmp() {
         <td style="text-align:right;font-weight:700;${dc}">${(attLnCnt>0&&sewLnCnt>0)?(d2>=0?'+':'')+d2:'—'}</td>
         <td style="text-align:right">${(attLnCnt>0&&sewLnCnt>0&&sHC>0)?m2:'—'}</td>
         <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
-        <td style="text-align:right;font-size:11px;color:#6b7a9e">${days}天</td>
+        <td style="text-align:right;font-size:11px;color:#6b7a9e">${
+          (()=>{ const avg=aHC||sHC; const d=attMap[lid]?.days.size||sewMap[lid]?.days.size||1; const pcs=sewMap[lid]?.pcs||0; return avg>0&&pcs>0?Math.round(pcs/avg/d)+'件':'—'; })()
+        }</td>
       </tr>`;
     }).join('');
 
@@ -2461,7 +2465,7 @@ async function renderSewCmp() {
             <th style="padding:7px 10px;text-align:right">差異<br><small>Diff</small></th>
             <th style="padding:7px 10px;text-align:right">匹配%</th>
             <th style="padding:7px 10px;text-align:right">產量</th>
-            <th style="padding:7px 10px;text-align:right">天數</th>
+            <th style="padding:7px 10px;text-align:right">件/人<br><small>PPW</small></th>
           </tr></thead>
           <tbody style="background:#fff">${rowsHtml}</tbody>
         </table>`
