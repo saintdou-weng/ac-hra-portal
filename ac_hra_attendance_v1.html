@@ -2362,38 +2362,28 @@ async function renderSewCmp() {
       _f0++;
       if (!inPeriod(r.date)) return; _f1++;
       if (r.isSubtotal || r.isGrand) return; _f2++;
-      const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
+      // Strip slash suffix FIRST: "LINE 12/車縫12" → "LINE 12" (same as aggregateSewingLines)
+      const rawFull = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
+      const raw = rawFull.replace(/[/／].*/,'').trim();
       if (!raw) return; _f3++;
 
-      // ── Step 1: Is this a sewing line? Use proven isSewingLine logic (no ttl check) ──
-      const rawLo = raw.toLowerCase();
-      const nonSewing = /^(qc|quality|pack|packing|cut|cutting|admin|wh|warehouse|finish|finishing|sample|mechanic|press|pressing|marker|inspect)/i.test(raw.replace(/\s/g,''));
-      if (nonSewing) return;
-      // Positive sewing detection (mirrors isSewingLine without ttl requirement)
-      const isSewMatch =
-        isSCLine(normSCLine(raw)) ||                              // LINE_N / L_N / bare digit
-        /^\d{1,2}$/.test(raw.replace(/\s/g,'')) ||               // bare digits "1"~"30"
-        /^[ab]\d{1,2}$/i.test(raw.replace(/\s/g,'')) ||          // A1~B30
-        /^(line|sewing|縫|car|sew)/i.test(raw) ||                // keyword prefix
-        (/sewing|stitching|縫|車縫/i.test(raw) && /\d/.test(raw)); // keyword + digit
+      // ── Step 1: Sewing detection using isSewingLine logic ──
+      const isSewMatch = isSewingLine(r);  // reuse proven function directly
       if (!isSewMatch) return; _f4++;
 
-      // ── Step 2: Extract LINE_N identifier ──
+      // ── Step 2: Extract LINE_N — raw is now clean (slash stripped) ──
       let lid = normSCLine(raw);
       if (!isSCLine(lid)) {
-        // Fallback: extract any 1-2 digit number from the field
+        // Number extraction fallback
         const digits = raw.replace(/[^\d]/g,'');
-        if (digits) {
-          const num = parseInt(digits.slice(-2)); // take last 2 digits
-          if (num >= 1 && num <= 30) lid = 'LINE' + num;
-        }
+        if (digits) { const num = +digits.slice(-2); if (num>=1&&num<=30) lid='LINE'+num; }
       }
       if (!isSCLine(lid)) return; _f5++;
       if (lineFilter && lid !== lineFilter) return;
       if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
       const mf = (+r.m||0)+(+r.f||0);
       attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
-      attMap[lid].days.add(toDateStr(r.date));  // store normalized
+      attMap[lid].days.add(toDateStr(r.date));
       attMap[lid].join   += (+r.join||0);
       attMap[lid].resign += (+r.resign||0);
       attRowCount++;
