@@ -2326,11 +2326,23 @@ async function renderSewCmp() {
     const lineFilter = document.getElementById('sc-line')?.value || '';
     if (!period) { _st('請選擇期間'); return; }
 
+    // Helper: safely convert any date format to YYYY-MM-DD string
+    const toDateStr = d => {
+      if (!d) return '';
+      if (d instanceof Date) return d.toISOString().slice(0,10);
+      const s = String(d);
+      // Already ISO format "2026-04-09..." → slice
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+      // Fallback: try parsing
+      const parsed = new Date(s);
+      return isNaN(parsed) ? s.slice(0,10) : parsed.toISOString().slice(0,10);
+    };
+
     // 2. Build dates Set in O(1) — critical for performance
     const allD = allDates();
     const datesArr = allD.filter(d => scPeriodKey(d) === period);
     if (!datesArr.length) { _st(`⚠ 無考勤記錄 (period=${period})`); return; }
-    const datesSet = new Set(datesArr);  // O(1) lookup
+    const datesSet = new Set(datesArr.map(toDateStr));  // normalize to YYYY-MM-DD, handles Date objects
 
     // Yield to DOM so browser can paint before heavy loop
     await new Promise(r => setTimeout(r, 0));
@@ -2342,7 +2354,7 @@ async function renderSewCmp() {
     const attMap = {};
     let attRowCount = 0;
     DB.forEach(r => {
-      if (!datesSet.has(r.date)) return;
+      if (!datesSet.has(toDateStr(r.date))) return;
       if (r.isSubtotal || r.isGrand) return;
       const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
       if (!raw) return;
@@ -2352,7 +2364,7 @@ async function renderSewCmp() {
       if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
       const mf = (+r.m||0)+(+r.f||0);
       attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
-      attMap[lid].days.add(r.date);
+      attMap[lid].days.add(toDateStr(r.date));
       attMap[lid].join   += (+r.join||0);
       attMap[lid].resign += (+r.resign||0);
       attRowCount++;
@@ -2362,7 +2374,7 @@ async function renderSewCmp() {
     const sewMap = {};
     let sewRowCount = 0;
     sew.forEach(r => {
-      const rd = String(r.date||'').slice(0,10);
+      const rd = toDateStr(r.date);
       if (!datesSet.has(rd)) return;
       const lid = normSCLine(String(r.lineNo||r.line||'').trim());
       if (!isSCLine(lid)) return;
