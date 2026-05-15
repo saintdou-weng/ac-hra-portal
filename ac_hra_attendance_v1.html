@@ -2214,6 +2214,19 @@ async function loadSewingIDB(force) {
 }
 
 // ── Normalise line name ──────────────────────────────────
+// ── isSewingLineByName: checks only by name, no m+f>0 requirement ──
+function isSewingLineByName(r) {
+  if (!r || r.isSubtotal || r.isGrand) return false;
+  // Get raw line name — use String() to safely handle numeric values
+  const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
+  if (!raw) return false;
+  const n = raw.replace(/[\s_\-]+/g,'').toUpperCase();
+  // Hard-exclude non-sewing departments
+  if (/^(QC|QUALITY|PACK|PACKING|CUT|CUTTING|ADMIN|WH|WAREHOUSE|FINISH|FINISHING|SAMPLE|MECHANIC|PRESS|PRESSING|MARKER|INSPECT)/.test(n)) return false;
+  // Positive match: LINE/L + number, A/B + number, APRON/GARMENT + number
+  return isSCLine(normSCLine(raw));
+}
+
 function normSCLine(s) {
   const n = String(s||'').replace(/[\s_-]+/g,'').toUpperCase();
   let m;
@@ -2287,7 +2300,7 @@ function navSC(dir) {
 function initSewCmp() {
   scPopulateSel();
   // Populate LINE filter from attendance (Attendance = Master)
-  const lines = [...new Set(DB.filter(r=>isSewingLineByName(r)).map(r=>{const rf=(r.line||'').trim()||(r.sect||'').trim()||(r.group||'');return normSCLine(rf);}).filter(l=>isSCLine(l)))].sort((a,b)=>{
+  const lines = [...new Set(DB.filter(r=>isSewingLineByName(r)).map(r=>{const rf=String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||'');return normSCLine(rf);}).filter(l=>isSCLine(l)))].sort((a,b)=>{
     const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
   });
   const lSel = document.getElementById('sc-line');
@@ -2314,13 +2327,15 @@ async function renderSewCmp() {
     if (!dates.includes(r.date)) return;
     // Name-only check: bypass ttl<1 guard in isSewingLine
     if (!isSewingLineByName(r)) return;
-    const rawLineField = (r.line||'').trim() || (r.sect||'').trim() || (r.group||'');
+    const rawLineField = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
     const lid = normSCLine(rawLineField);
     if (!isSCLine(lid)) return;
     if (lineFilter && lid !== lineFilter) return;
     if (!attLineMap[lid]) attLineMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0, att:0};
-    // HC: m+f first, fallback to att (some formats store only att, not m/f)
-    attLineMap[lid].hcSum += ((r.m||0)+(r.f||0)) || (+r.att||0) || (+r.total||0);
+    // HC: try m+f first, then att, then total — String() guards against numeric r.m
+    const mf = (+r.m||0) + (+r.f||0);
+    const hcVal = mf > 0 ? mf : (+r.att||0) > 0 ? (+r.att||0) : (+r.total||0);
+    attLineMap[lid].hcSum += hcVal;
     attLineMap[lid].days.add(r.date);
     attLineMap[lid].join   += (r.join||0);
     attLineMap[lid].resign += (r.resign||0);
@@ -2374,8 +2389,14 @@ async function renderSewCmp() {
     kEl('sc-match').style.color = pct >= 95 ? '#1a6e5c' : pct >= 85 ? '#f59e0b' : '#ef4444';
   }
 
-  // Debug
-  console.log('[Att×Sewing]', {period:curPeriod, dates:dates.length, attLines:Object.keys(attLineHC), sewLines:Object.keys(sewLineW), attTotal, sewTotal});
+  // Debug — visible in UI
+  const _dbgEl = document.getElementById('sc-status');
+  const _attLns = Object.keys(attLineHC);
+  const _sewLns = Object.keys(sewLineW);
+  console.log('[Att×Sewing]', {period:curPeriod, dates:dates.length, attLines:_attLns, sewLines:_sewLns, attTotal, sewTotal,
+    attSample: DB.filter(r=>dates.includes(r.date)&&isSewingLineByName(r)).slice(0,2).map(r=>({date:r.date,line:r.line,sect:r.sect,m:r.m,f:r.f,att:r.att}))
+  });
+  if (_dbgEl) _dbgEl.textContent = `出勤: ${_attLns.length}線 ${dates.length}天 | 車縫IDB: ${_sewLns.length}線 ${sew.length}筆`;
   // ── Line order follows Attendance (master) ─────────────
   const attLines = Object.keys(attLineHC).sort((a,b)=>{
     const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
@@ -2436,7 +2457,7 @@ async function renderSewCmp() {
     const pdates = allDates().filter(d => scPeriodKey(d) === p);
     let aSum=0, aCount=0;
     pdates.forEach(d => {
-      const pRows = DB.filter(r=>r.date===d&&isSewingLineByName(r)&&(!lineFilter||normSCLine((r.line||'').trim()||(r.sect||'').trim()||(r.group||''))=== lineFilter));
+      const pRows = DB.filter(r=>r.date===d&&isSewingLineByName(r)&&(!lineFilter||normSCLine(String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||''))=== lineFilter));
       if (pRows.length) { aSum+=pRows.reduce((s,r)=>s+(r.m||0)+(r.f||0),0); aCount++; }
     });
     trendAtt.push(aCount>0?Math.round(aSum/aCount):0);
