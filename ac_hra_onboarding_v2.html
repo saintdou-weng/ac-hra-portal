@@ -142,13 +142,15 @@ textarea.form-input{resize:vertical;min-height:56px}
     <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="cloudPush()" title="Upload to Cloud">☁⬆</button>
     <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="cloudPull()" title="Download from Cloud">☁⬇</button>
     <span id="cloud-status" style="font-size:10px;color:rgba(255,255,255,.7)"></span>
-    <select id="tg-period-sel" style="font-size:11px;padding:3px 6px;border-radius:5px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;cursor:pointer" title="Telegram 發送期間">
-      <option value="day">今日</option>
-      <option value="week">本週</option>
-      <option value="month" selected>本月</option>
-      <option value="year">本年</option>
-    </select>
-    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="sendTgPeriod()" title="傳送 Telegram 摘要">📱 TG</button>
+    <div style="position:relative">
+      <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="toggleTgMenu()" title="Telegram 摘要">📱 TG</button>
+      <div id="tg-menu" style="display:none;position:absolute;right:0;top:100%;margin-top:4px;background:#fff;border:1px solid #d0d5e8;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:999;min-width:110px;overflow:hidden">
+        <div onclick="sendTgPeriod('day');hideTgMenu()" style="padding:8px 14px;cursor:pointer;font-size:12px;color:#1a2e4a;border-bottom:1px solid #f0f4fa">📅 今日</div>
+        <div onclick="sendTgPeriod('week');hideTgMenu()" style="padding:8px 14px;cursor:pointer;font-size:12px;color:#1a2e4a;border-bottom:1px solid #f0f4fa">📅 本週</div>
+        <div onclick="sendTgPeriod('month');hideTgMenu()" style="padding:8px 14px;cursor:pointer;font-size:12px;color:#1a2e4a;border-bottom:1px solid #f0f4fa">📅 本月</div>
+        <div onclick="sendTgPeriod('year');hideTgMenu()" style="padding:8px 14px;cursor:pointer;font-size:12px;color:#1a2e4a">📅 本年</div>
+      </div>
+    </div>
     <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="printPage()">🖨</button>
     <div class="lang-switch">
       <button data-lang="zh" class="active" onclick="setLang('zh')">繁中</button>
@@ -185,18 +187,7 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- SUMMARY -->
 <div class="page active" id="page-summary">
-  <div class="range-nav">
-    <div class="range-tabs">
-      <button class="on" data-r="day"   onclick="setRange('day',this)">日</button>
-      <button data-r="week"  onclick="setRange('week',this)">週</button>
-      <button data-r="month" onclick="setRange('month',this)">月</button>
-      <button data-r="year"  onclick="setRange('year',this)">年</button>
-    </div>
-    <button class="arr-btn" onclick="moveRange(-1)">◀</button>
-    <div class="period-lbl" id="period-label">—</div>
-    <button class="arr-btn" onclick="moveRange(1)">▶</button>
-    <button class="arr-btn" onclick="moveRange(0)" title="今天">●</button>
-  </div>
+<!-- period nav: controlled by unified #hra-range-nav above -->
   <div class="kpi-strip" id="sum-kpi"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
     <div class="section-card"><div class="section-title">入職趨勢</div><div class="ch-wrap"><canvas id="ch-join"></canvas></div></div>
@@ -253,7 +244,7 @@ textarea.form-input{resize:vertical;min-height:56px}
       <button onclick="setRRange('year',this)">年</button>
     </div>
     <button class="nav-btn" onclick="moveRRange(-1)">◀</button>
-    <span id="r-period-label" style="font-size:13px;font-weight:700;min-width:110px;text-align:center"></span>
+
     <button class="nav-btn" onclick="moveRRange(1)">▶</button>
     <button class="nav-btn" onclick="moveRRange(0)" title="今天" style="font-size:11px;padding:4px 8px">●</button>
     <select class="flt" id="resign-month-sel" onchange="renderResigns()" style="min-width:110px"></select>
@@ -737,7 +728,9 @@ function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.re
 
 
 // ── Summary ──
-function renderSummary(){const label=hraPLabel(hraKey());if(document.getElementById('period-label'))document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;
+function renderSummary(){
+  try{
+const label=hraPLabel(hraKey());if(document.getElementById('period-label'))document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;
   const sjPct=joins.length>0?Math.round(sewJ/joins.length*100):0;
   const srPct=resigns.length>0?Math.round(sewR/resigns.length*100):0;
   const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[
@@ -746,7 +739,9 @@ function renderSummary(){const label=hraPLabel(hraKey());if(document.getElementB
     {v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},
     {v:`${sewJ} (${sjPct}%)`,l:'車縫入職 🔵',cls:'join-k'},
     {v:`${sewR} (${srPct}%)`,l:'車縫離職 🔵',cls:'resign-k'},
-    {v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();}
+    {v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();
+  }catch(_err){console.error('[renderSumma]',_err);toast&&toast(_err.message,'err');}
+}
 
 function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];const s=new Date(start),e=new Date(end);const days=Math.ceil((e-s)/86400000);if(days>90){const jm={},rm={};joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();months.forEach(m=>{labels.push(m.slice(5));jD.push(jm[m]||0);rD.push(rm[m]||0);});}else{for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){const ds=d.toISOString().slice(0,10);labels.push(ds.slice(5));jD.push(joins.filter(r=>r.joinDate===ds).length);rD.push(resigns.filter(r=>r.resignDate===ds).length);}}mkChart('ch-join',{type:'bar',data:{labels,datasets:[{label:'入職',data:jD,backgroundColor:'#10b981',borderRadius:3}]},options:barOpts()});mkChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:'離職',data:rD,backgroundColor:'#c62828',borderRadius:3}]},options:barOpts()});}
 
@@ -757,12 +752,12 @@ function renderMonthlyTable(){const months=[...new Set([...JOINS.map(r=>(r.joinD
 // ── Joins ──
 function getAge(r){if(!r.dob)return null;const a=Math.floor((Date.now()-new Date(r.dob))/31536000000);return(a>=15&&a<=75)?a:null;}
 function renderJoins(){
+  try{
+
   const q=(document.getElementById('join-search')?.value||'').toLowerCase();
   const deptF=document.getElementById('join-dept')?.value||'';
   const mo=document.getElementById('join-month')?.value||'';
-  // Period nav: filter by current J range (overrides month dropdown when nav active)
-  updateJNav();
-  const _jStart=getNavDates(RANGE_J,pivotJ).start, _jEnd=getNavDates(RANGE_J,pivotJ).end;
+  // Period nav: unified system via inRange()
   const gF=document.getElementById('join-gender')?.value||'';
   const posF=document.getElementById('join-pos')?.value||'';
   const ageF=document.getElementById('join-age')?.value||'';
@@ -771,7 +766,7 @@ function renderJoins(){
   function ageOk(r,band){const a=calcAgeAtJoin(r.dob,r.joinDate);if(!band)return true;if(band==='18-25')return a!==null&&a<=25;if(band==='26-30')return a!==null&&a>=26&&a<=30;if(band==='31-35')return a!==null&&a>=31&&a<=35;if(band==='36-40')return a!==null&&a>=36&&a<=40;if(band==='40+')return a!==null&&a>40;return true;}
   updateJNav();
   let rows=JOINS.filter(r=>
-    inNavRange(r.joinDate||'',RANGE_J,pivotJ)
+    inRange(r.joinDate||'')
     &&(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
     &&(!deptF||deptOf(r)===deptF)
     &&(!gF||(r.gender||'').toUpperCase()===gF)&&(!posF||(r.position||'').includes(posF))
@@ -803,16 +798,20 @@ const ageG={'18-25':0,'26-30':0,'31-35':0,'36-40':0,'40+':0,'不明':0};rows.for
   }
   const cl=document.getElementById('join-count-lbl');if(cl)cl.textContent=`共 ${rows.length} 筆`;
 document.getElementById('join-tbody').innerHTML=rows.length?rows.map((r,i)=>{const age=calcAgeAtJoin(r.dob,r.joinDate);const ageDisp=age!==null?age:'—';return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td>${r.section||'—'}</td><td>${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td>${r.gender||'—'}</td><td>${ageDisp}</td><td style="font-size:11px">${r.tel||'—'}</td><td style="font-size:11px">${r.introducer||'—'}</td><td style="font-size:11px;max-width:80px;overflow:hidden;text-overflow:ellipsis">${r.remark||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openJoinModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delJoin('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
-updateFilters();updateBadges();}
+updateFilters();updateBadges();
+  }catch(_err){console.error('[renderJoins]',_err);toast&&toast(_err.message,'err');}
+}
 
 // ── Resigns ──
-function renderResigns(){const q=(document.getElementById('resign-search')?.value||'').toLowerCase();const deptF=document.getElementById('resign-dept')?.value||'';const mo=document.getElementById('resign-month')?.value||'';const tp=document.getElementById('resign-type')?.value||'';const gF=document.getElementById('resign-gender')?.value||'';const rcF=document.getElementById('resign-reason-cat')?.value||'';
+function renderResigns(){
+  try{
+const q=(document.getElementById('resign-search')?.value||'').toLowerCase();const deptF=document.getElementById('resign-dept')?.value||'';const mo=document.getElementById('resign-month')?.value||'';const tp=document.getElementById('resign-type')?.value||'';const gF=document.getElementById('resign-gender')?.value||'';const rcF=document.getElementById('resign-reason-cat')?.value||'';
 const tenDays=r=>r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
 const tnF=document.getElementById('resign-tenure')?.value||'';
   function tenOk(r,band){const d=tenDays(r);if(!band)return true;if(band==='lt6m')return d<180;if(band==='6m1y')return d>=180&&d<365;if(band==='1y2y')return d>=365&&d<730;if(band==='2y3y')return d>=730&&d<1095;if(band==='3yp')return d>=1095;return true;}
   updateRNav();
   let rows=RESIGNS.filter(r=>
-    inNavRange(r.resignDate||'',RANGE_R,pivotR)
+    inRange(r.resignDate||'')
     &&(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
     &&(!deptF||(r.dept||'')=== deptF)&&(!tp||r.resignType===tp)
     &&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||r.reason||'')=== rcF)
@@ -861,7 +860,9 @@ const typeColors={resign:'#ef4444',dismiss:'#f59e0b',self:'#8b5cf6',expel:'#c039
 const typeMap={resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'};
 const rcl=document.getElementById('resign-count-lbl');if(rcl)rcl.textContent=`共 ${rows.length} 筆`;
 document.getElementById('resign-tbody').innerHTML=rows.length?rows.map((r,i)=>{const td=tenDays(r);const tenStr=td>365?Math.round(td/365*10)/10+'年':(td>30?Math.round(td/30)+'月':td+'天');return`<tr><td style="color:#aaa">${i+1}</td><td style="font-family:monospace">${r.empId||'—'}</td><td><b>${r.name}</b></td><td>${r.dept||'—'}</td><td style="font-size:11px">${r.position||'—'}</td><td style="font-family:monospace">${r.joinDate||'—'}</td><td style="font-family:monospace">${r.resignDate||'—'}</td><td style="font-family:monospace;color:#1a7abf;font-weight:600">${tenStr}</td><td>${r.gender||'—'}</td><td><span style="color:${typeColors[r.resignType]||'#999'};font-weight:700;font-size:11px">${typeMap[r.resignType]||'—'}</span></td><td>${getReasonBadge(r)}</td><td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;color:#6b7a9e">${r.reason||'—'}</td><td style="white-space:nowrap"><button class="btn ghost small" onclick="openResignModal('${r.id}')">✏️</button> <button class="btn danger small" onclick="delResign('${r.id}')">🗑</button></td></tr>`;}).join(''):`<tr><td colspan="13" style="text-align:center;color:var(--muted);padding:20px">無記錄</td></tr>`;
-updateFilters();updateBadges();}
+updateFilters();updateBadges();
+  }catch(_err){console.error('[renderResig]',_err);toast&&toast(_err.message,'err');}
+}
 
 // ── Filter helpers ──
 function updateFilters(){const deptOf=r=>r.section||r.dept||'';const depts=[...new Set([...JOINS.map(deptOf),...RESIGNS.map(r=>r.dept||'')].filter(Boolean))].sort();const months=[...new Set([...JOINS.map(r=>(r.joinDate||'').slice(0,7)),...RESIGNS.map(r=>(r.resignDate||'').slice(0,7))].filter(Boolean))].sort().reverse();['join-dept','resign-dept'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部部門</option>'+depts.map(d=>`<option${d===cur?' selected':''}>${d}</option>`).join('');});['join-month','resign-month'].forEach(id=>{const sel=document.getElementById(id);if(!sel)return;const cur=sel.value;sel.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');});const positions=[...new Set(JOINS.map(r=>(r.position||'').trim()).filter(Boolean))].sort();const posEl=document.getElementById('join-pos');if(posEl){const cur=posEl.value;posEl.innerHTML='<option value="">全部職位</option>'+positions.map(p=>`<option${p===cur?' selected':''}>${p}</option>`).join('');}// Reason cat filter
@@ -984,16 +985,25 @@ async function cloudPull(){
 }
 
 // ── Telegram with period selection ────────────────────────
-async function sendTgPeriod(){
-  const mode=document.getElementById('tg-period-sel')?.value||'month';
+// ── Shims for old setRange/moveRange calls (delegates to unified system) ──
+function setRange(m,btn){hraSetMode(m,null);document.querySelectorAll('.hra-mode-btn').forEach(b=>b.classList.toggle('on',b.dataset.mode===m));}
+function moveRange(dir){if(dir===0)hraToday();else hraNav(dir);}
+function jumpPivot(v){hraJumpTo(v);}
+
+function toggleTgMenu(){const m=document.getElementById('tg-menu');if(m)m.style.display=m.style.display==='none'?'block':'none';}
+function hideTgMenu(){const m=document.getElementById('tg-menu');if(m)m.style.display='none';}
+document.addEventListener('click',e=>{if(!e.target.closest('#tg-menu')&&!e.target.closest('[onclick*="toggleTgMenu"]'))hideTgMenu();});
+
+async function sendTgPeriod(mode){
+  mode=mode||'month';
   const modeLabel={day:'今日',week:'本週',month:'本月',year:'本年'}[mode]||'本月';
-  // Temporarily switch range to selected mode and get data
-  const origRange=RANGE, origPivot=new Date(pivotDate);
-  RANGE=mode; pivotDate=new Date();
-  const{start,end,label}=getRangeDates();
+  // Use unified HRA date system temporarily for selected TG period
+  const _origMode=HRA_MODE, _origPivot=new Date(HRA_PIVOT);
+  HRA_MODE=mode; HRA_PIVOT=new Date();
+  const label=hraPLabel(hraKey());
   const joins=JOINS.filter(r=>inRange(r.joinDate||''));
   const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));
-  RANGE=origRange; pivotDate=origPivot;  // restore
+  HRA_MODE=_origMode; HRA_PIVOT=_origPivot;  // restore
   const sewJ=joins.filter(isSewingRecord).length;
   const sewR=resigns.filter(isSewingRecord).length;
   const sewPct=joins.length>0?Math.round(sewJ/joins.length*100):0;
