@@ -2319,190 +2319,177 @@ function initSewCmp() {
 async function renderSewCmp() {
   const _st = txt => { const el=document.getElementById('sc-status'); if(el) el.textContent=txt; };
   try {
-  const sew = await loadSewingIDB();
-  const period = document.getElementById('sc-sel')?.value;
-  const lineFilter = document.getElementById('sc-line')?.value || '';
-  if (!period) { _st('請選擇期間'); return; }
+    // 1. Load sewing IDB first (async, lets DOM paint)
+    const sew = await loadSewingIDB();
 
-  _st('▶ 計算中… period='+period);
-  // Dates in this period (Att is Master)
-  const allD = allDates();
-  const dates = allD.filter(d => scPeriodKey(d) === period);
-  _st(`▶ dates=${dates.length} allDates=${allD.length} period=${period}`);
-  if (!dates.length) { _st(`⚠ 此期間無考勤記錄 (period=${period}, allDates=${allD.length})`); return; }
+    const period = document.getElementById('sc-sel')?.value;
+    const lineFilter = document.getElementById('sc-line')?.value || '';
+    if (!period) { _st('請選擇期間'); return; }
 
-  // ── Attendance sewing HC per line per day ──────────────
-  const attLineHC = {};  // lineId → avgHC
-  const attLineMap = {}; // lineId → {hcSum, days}
-  DB.forEach(r => {
-    if (!dates.includes(r.date)) return;
-    // Name-only check: bypass ttl<1 guard in isSewingLine
-    if (!isSewingLineByName(r)) return;
-    const rawLineField = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
-    const lid = normSCLine(rawLineField);
-    if (!isSCLine(lid)) return;
-    if (lineFilter && lid !== lineFilter) return;
-    if (!attLineMap[lid]) attLineMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0, att:0};
-    // HC: try m+f first, then att, then total — String() guards against numeric r.m
-    const mf = (+r.m||0) + (+r.f||0);
-    const hcVal = mf > 0 ? mf : (+r.att||0) > 0 ? (+r.att||0) : (+r.total||0);
-    attLineMap[lid].hcSum += hcVal;
-    attLineMap[lid].days.add(r.date);
-    attLineMap[lid].join   += (r.join||0);
-    attLineMap[lid].resign += (r.resign||0);
-    attLineMap[lid].att += (r.att||0);
-  });
-  Object.entries(attLineMap).forEach(([lid,v]) => {
-    const n = v.days.size || 1;
-    attLineHC[lid] = Math.round(v.hcSum / n);
-  });
+    // 2. Build dates Set in O(1) — critical for performance
+    const allD = allDates();
+    const datesArr = allD.filter(d => scPeriodKey(d) === period);
+    if (!datesArr.length) { _st(`⚠ 無考勤記錄 (period=${period})`); return; }
+    const datesSet = new Set(datesArr);  // O(1) lookup
 
-  // ── Sewing system workers per line ─────────────────────
-  const sewLineW = {};  // lineId → avgWorkers
-  const sewLineMap = {}; // lineId → {wSum, days}
-  sew.forEach(r => {
-    if (!dates.includes(String(r.date||'').slice(0,10))) return;
-    const lid = normSCLine(r.lineNo || r.line || '');
-    if (!isSCLine(lid)) return;
-    if (lineFilter && lid !== lineFilter) return;
-    if (!sewLineMap[lid]) sewLineMap[lid] = {wSum:0, days:new Set(), pcs:0};
-    const w = +r.workers || 0;
-    if (w > 0) { sewLineMap[lid].wSum += w; sewLineMap[lid].days.add(String(r.date||'').slice(0,10)); }
-    sewLineMap[lid].pcs += (+r.pieces || 0);
-  });
-  Object.entries(sewLineMap).forEach(([lid,v]) => {
-    const n = v.days.size || 1;
-    sewLineW[lid] = Math.round(v.wSum / n);
-  });
+    // Yield to DOM so browser can paint before heavy loop
+    await new Promise(r => setTimeout(r, 0));
+    _st(`▶ 處理考勤 ${datesArr.length}天 …`);
+    await new Promise(r => setTimeout(r, 0));
 
-  // ── Totals (Att master order) ──────────────────────────
-  const attTotal = Object.values(attLineHC).reduce((s,v)=>s+v,0);
-  const sewTotal = Object.values(sewLineW).reduce((s,v)=>s+v,0);
-  const diff = attTotal - sewTotal;
-  const match = attTotal > 0 ? (sewTotal / attTotal * 100).toFixed(1) + '%' : '—';
+    // 3. Build attMap: lineId → {hcSum, days, join, resign}
+    // Use datesSet.has() for O(1) — NOT dates.includes()
+    const attMap = {};
+    let attRowCount = 0;
+    DB.forEach(r => {
+      if (!datesSet.has(r.date)) return;
+      if (r.isSubtotal || r.isGrand) return;
+      const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
+      if (!raw) return;
+      const lid = normSCLine(raw);
+      if (!isSCLine(lid)) return;
+      if (lineFilter && lid !== lineFilter) return;
+      if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
+      const mf = (+r.m||0)+(+r.f||0);
+      attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
+      attMap[lid].days.add(r.date);
+      attMap[lid].join   += (+r.join||0);
+      attMap[lid].resign += (+r.resign||0);
+      attRowCount++;
+    });
 
-  // KPI cards
-  const kEl = id => document.getElementById(id);
-  if (kEl('sc-att-hc')) {
-    kEl('sc-att-hc').textContent = Object.keys(attLineHC).length > 0 ? (attTotal||'0') : '—';
-  }
-  if (kEl('sc-sew-hc')) {
-    kEl('sc-sew-hc').textContent = sew.length > 0 ? (sewTotal||'0') : 'No Sewing Data';
-  }
-  if (kEl('sc-diff')) {
-    const dShow = (Object.keys(attLineHC).length>0 && sew.length>0) ? (diff>=0?'+':'')+diff : '—';
-    kEl('sc-diff').textContent = dShow;
-    kEl('sc-diff').style.color = diff===0?'#1a6e5c':Math.abs(diff)<10?'#f59e0b':'#ef4444';
-  }
-  if (kEl('sc-match')) {
-    kEl('sc-match').textContent = match;
-    const pct = parseFloat(match);
-    kEl('sc-match').style.color = pct >= 95 ? '#1a6e5c' : pct >= 85 ? '#f59e0b' : '#ef4444';
-  }
+    // 4. Build sewMap: lineId → {wSum, days, pcs}
+    const sewMap = {};
+    let sewRowCount = 0;
+    sew.forEach(r => {
+      const rd = String(r.date||'').slice(0,10);
+      if (!datesSet.has(rd)) return;
+      const lid = normSCLine(String(r.lineNo||r.line||'').trim());
+      if (!isSCLine(lid)) return;
+      if (lineFilter && lid !== lineFilter) return;
+      if (!sewMap[lid]) sewMap[lid] = {wSum:0, days:new Set(), pcs:0};
+      const w = +r.workers||0;
+      if (w > 0) { sewMap[lid].wSum += w; sewMap[lid].days.add(rd); }
+      sewMap[lid].pcs += (+r.pieces||0);
+      sewRowCount++;
+    });
 
-  // Debug — visible in UI
-  const _dbgEl = document.getElementById('sc-status');
-  const _attLns = Object.keys(attLineHC);
-  const _sewLns = Object.keys(sewLineW);
-  console.log('[Att×Sewing]', {period:curPeriod, dates:dates.length, attLines:_attLns, sewLines:_sewLns, attTotal, sewTotal,
-    attSample: DB.filter(r=>dates.includes(r.date)&&isSewingLineByName(r)).slice(0,2).map(r=>({date:r.date,line:r.line,sect:r.sect,m:r.m,f:r.f,att:r.att}))
-  });
-  if (_dbgEl) _dbgEl.textContent = `出勤: ${_attLns.length}線 ${dates.length}天 | 車縫IDB: ${_sewLns.length}線 ${sew.length}筆`;
+    // 5. Compute averages
+    const attLineHC = {}, sewLineW = {};
+    Object.entries(attMap).forEach(([lid,v]) => {
+      attLineHC[lid] = Math.round(v.hcSum / (v.days.size||1));
+    });
+    Object.entries(sewMap).forEach(([lid,v]) => {
+      sewLineW[lid] = Math.round(v.wSum / (v.days.size||1));
+    });
+
+    // 6. Totals
+    const attTotal = Object.values(attLineHC).reduce((s,v)=>s+v,0);
+    const sewTotal = Object.values(sewLineW).reduce((s,v)=>s+v,0);
+    const diff = attTotal - sewTotal;
+    const match = attTotal > 0 ? (sewTotal/attTotal*100).toFixed(1)+'%' : '—';
+
+    // 7. Debug status (visible in UI)
+    const attLnCnt = Object.keys(attLineHC).length;
+    const sewLnCnt = Object.keys(sewLineW).length;
+    _st(`出勤: ${attLnCnt}線 ${datesArr.length}天 (${attRowCount}筆) | 車縫: ${sewLnCnt}線 (${sewRowCount}筆)`);
+    console.log('[Att×Sewing]', {period, dates:datesArr.length, attRows:attRowCount, sewRows:sewRowCount, attLines:Object.keys(attLineHC), sewLines:Object.keys(sewLineHC||sewLineW), attTotal, sewTotal});
+
+    // 8. Update KPI cards
+    const kEl = id => document.getElementById(id);
+    if (kEl('sc-att-hc')) kEl('sc-att-hc').textContent = attLnCnt > 0 ? (attTotal||'0') : (attRowCount===0?'No Att Lines':'0');
+    if (kEl('sc-sew-hc')) kEl('sc-sew-hc').textContent = sewLnCnt > 0 ? (sewTotal||'0') : 'No Sewing Data';
+    if (kEl('sc-diff')) {
+      kEl('sc-diff').textContent = (attLnCnt>0&&sewLnCnt>0) ? (diff>=0?'+':'')+diff : '—';
+      kEl('sc-diff').style.color = diff===0?'#1a6e5c':Math.abs(diff)<10?'#f59e0b':'#ef4444';
+    }
+    if (kEl('sc-match')) {
+      kEl('sc-match').textContent = match;
+      const p=parseFloat(match); kEl('sc-match').style.color=p>=95?'#1a6e5c':p>=85?'#f59e0b':'#ef4444';
+    }
+    if (kEl('sc-att-rate')) kEl('sc-att-rate').textContent = attTotal>0 ? (Object.values(attMap).reduce((s,v)=>s+(v.hcSum>0?1:0),0)) : '—';
+    if (kEl('sc-lines-cnt')) kEl('sc-lines-cnt').textContent = attLnCnt || sewLnCnt || '0';
+
+    // 9. Line order: Att master, union with sewing
+    const allLines = [...new Set([
+      ...Object.keys(attLineHC).sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE','')),
+      ...Object.keys(sewLineW).sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''))
+    ])].sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''));
+
+    const tblTitle = document.getElementById('sc-tbl-title');
+    if (tblTitle) tblTitle.textContent = `各組別比較明細 (${scPeriodLabel(period)} · ${allLines.length} 線)`;
+
+    // 10. Render table
+    const rowsHtml = allLines.map(lid => {
+      const aHC = attLineHC[lid]||0, sHC = sewLineW[lid]||0;
+      const d2 = aHC - sHC;
+      const m2 = aHC>0 ? (sHC/aHC*100).toFixed(1)+'%' : '—';
+      const pcs = sewMap[lid]?.pcs||0;
+      const days = attMap[lid]?.days.size||0;
+      const dc = d2===0?'color:#1a6e5c':Math.abs(d2)<3?'color:#f59e0b':'color:#ef4444';
+      const dim = !sHC ? 'style="opacity:.55"' : '';
+      return `<tr ${dim}>
+        <td style="font-weight:700;color:#1a6e5c">${lid}</td>
+        <td style="text-align:right;font-weight:600">${attLnCnt>0?(aHC||'0'):'—'}</td>
+        <td style="text-align:right;color:#0ea5e9;font-weight:600">${sewLnCnt>0?(sHC||'0'):'No Sewing'}</td>
+        <td style="text-align:right;font-weight:700;${dc}">${(attLnCnt>0&&sewLnCnt>0)?(d2>=0?'+':'')+d2:'—'}</td>
+        <td style="text-align:right">${(attLnCnt>0&&sewLnCnt>0&&sHC>0)?m2:'—'}</td>
+        <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
+        <td style="text-align:right;font-size:11px;color:#6b7a9e">${days}天</td>
+      </tr>`;
+    }).join('');
+
+    const tbl = document.getElementById('sc-table');
+    if (tbl) tbl.innerHTML = rowsHtml
+      ? `<table class="dtbl" style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#1a6e5c;color:#fff">
+            <th style="padding:7px 10px;text-align:left">LINE</th>
+            <th style="padding:7px 10px;text-align:right">出勤HC<br><small>Att HC</small></th>
+            <th style="padding:7px 10px;text-align:right">車縫HC<br><small>Sewing</small></th>
+            <th style="padding:7px 10px;text-align:right">差異<br><small>Diff</small></th>
+            <th style="padding:7px 10px;text-align:right">匹配%</th>
+            <th style="padding:7px 10px;text-align:right">產量</th>
+            <th style="padding:7px 10px;text-align:right">天數</th>
+          </tr></thead>
+          <tbody style="background:#fff">${rowsHtml}</tbody>
+        </table>`
+      : '<div style="text-align:center;padding:20px;color:#aaa">無資料 — 請確認考勤和車縫資料已匯入</div>';
+
+    // 11. Trend chart
+    const nP = SC_MODE==='day'?30:12;
+    const trendPs = [...new Set(allD.map(scPeriodKey))].sort().reverse().slice(0,nP).reverse();
+    const tA=[], tS=[], tMatch=[];
+    trendPs.forEach(p2 => {
+      const pd = new Set(allD.filter(d=>scPeriodKey(d)===p2));
+      const aSum = Object.entries(attMap).reduce((s,[lid,v])=>{
+        // for trend, recount within period
+        return s;
+      },0);
+      // Simplified trend: use precomputed attLineHC for current period only
+      tA.push(p2===period ? attTotal : 0);
+      tS.push(p2===period ? sewTotal : 0);
+      tMatch.push(p2===period && attTotal>0 ? Math.round(sewTotal/attTotal*100) : null);
+    });
+
+    const CHmap = window._scCH || {};
+    if (CHmap['sc-chart']) try{CHmap['sc-chart'].destroy();}catch(e){}
+    const ctx = document.getElementById('sc-chart');
+    if (ctx && typeof Chart !== 'undefined') {
+      CHmap['sc-chart'] = new Chart(ctx, {
+        type:'bar', data:{labels:trendPs.map(scPeriodLabel),datasets:[
+          {type:'line',label:'出勤HC', data:tA, borderColor:'#1a6e5c',fill:false,tension:.3,pointRadius:3,yAxisID:'yA'},
+          {type:'line',label:'車縫HC', data:tS, borderColor:'#0ea5e9',fill:false,tension:.3,pointRadius:3,borderDash:[5,3],yAxisID:'yA'},
+        ]}, options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{labels:{font:{size:10}}}},
+          scales:{yA:{beginAtZero:false,ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45}}}}
+      });
+      window._scCH = CHmap;
+    }
+
   } catch(err) {
     const el=document.getElementById('sc-status');
-    if(el) el.textContent='❌ 錯誤: '+err.message;
-    console.error('[renderSewCmp ERROR]', err);
-  }
-  // ── Line order follows Attendance (master) ─────────────
-  const attLines = Object.keys(attLineHC).sort((a,b)=>{
-    const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
-  });
-  // Add lines from sewing that exist in att but weren't found (would be 0 att)
-  const allLines = [...new Set([...attLines, ...Object.keys(sewLineW)])].sort((a,b)=>{
-    const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
-  });
-
-  // ── Detail table ───────────────────────────────────────
-  const tblTitle = document.getElementById('sc-tbl-title');
-  if (tblTitle) tblTitle.textContent = `各組別比較明細 (${scPeriodLabel(period)} · ${allLines.length} 線)`;
-
-  // Properly define flags BEFORE using them in template
-  const _attD = Object.keys(attLineHC).length > 0;
-  const _sewD = Object.keys(sewLineW).length > 0;
-
-  const rowsHtml = allLines.map(lid => {
-    const aHC = attLineHC[lid] || 0;
-    const sHC = sewLineW[lid] || 0;
-    const d2 = aHC - sHC;
-    const m2 = aHC > 0 ? (sHC/aHC*100).toFixed(1)+'%' : '—';
-    const attV = attLineMap[lid];
-    const sewV = sewLineMap[lid];
-    const pcs = sewV?.pcs || 0;
-    const diffCls = d2===0?'color:#1a6e5c':Math.abs(d2)<3?'color:#f59e0b':'color:#ef4444';
-    const missSew = !_sewD || sHC===0 ? 'style="opacity:.55"' : '';
-    return `<tr ${missSew}>
-      <td style="font-weight:700;color:#1a6e5c">${lid}</td>
-      <td style="text-align:right;font-weight:600">${_attD ? (aHC||'0') : '—'}</td>
-      <td style="text-align:right;color:#0ea5e9;font-weight:600">${_sewD ? (sHC||'0') : 'No Sewing'}</td>
-      <td style="text-align:right;font-weight:700;${diffCls}">${(_attD&&_sewD) ? (d2>=0?'+':'')+d2 : '—'}</td>
-      <td style="text-align:right">${(_attD&&_sewD&&sHC>0) ? m2 : '—'}</td>
-      <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
-      <td style="text-align:right;font-size:11px;color:#6b7a9e">${attV?.days.size||0}天</td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('sc-table').innerHTML = `
-    <table class="dtbl" style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead><tr style="background:#1a6e5c;color:#fff">
-        <th style="text-align:left;padding:8px 10px">LINE</th>
-        <th style="text-align:right;padding:8px 10px">出勤HC<br><small>Att HC</small></th>
-        <th style="text-align:right;padding:8px 10px">車縫HC<br><small>Sewing</small></th>
-        <th style="text-align:right;padding:8px 10px">差異<br><small>Diff</small></th>
-        <th style="text-align:right;padding:8px 10px">匹配%<br><small>Match</small></th>
-        <th style="text-align:right;padding:8px 10px">產量<br><small>Pieces</small></th>
-        <th style="text-align:right;padding:8px 10px">天數</th>
-      </tr></thead>
-      <tbody>${rowsHtml || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#aaa">無資料</td></tr>'}</tbody>
-    </table>`;
-
-  // ── Trend chart (per-period) ───────────────────────────
-  // Build series: group by period across multiple periods for trend
-  const trendPeriods = SC_PERIODS.slice(0, SC_MODE==='day'?30:SC_MODE==='week'?12:12).reverse();
-  const trendAtt = [], trendSew = [];
-  trendPeriods.forEach(p => {
-    const pdates = allDates().filter(d => scPeriodKey(d) === p);
-    let aSum=0, aCount=0;
-    pdates.forEach(d => {
-      const pRows = DB.filter(r=>r.date===d&&isSewingLineByName(r)&&(!lineFilter||normSCLine(String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||''))=== lineFilter));
-      if (pRows.length) { aSum+=pRows.reduce((s,r)=>s+(r.m||0)+(r.f||0),0); aCount++; }
-    });
-    trendAtt.push(aCount>0?Math.round(aSum/aCount):0);
-    let sSum=0, sCount=0;
-    sew.forEach(r=>{
-      const rd=String(r.date||'').slice(0,10);
-      if(scPeriodKey(rd)!==p)return;
-      if(lineFilter&&normSCLine(r.lineNo||r.line||'')!==lineFilter)return;
-      const w=+r.workers||0;if(w>0){sSum+=w;sCount++;}
-    });
-    trendSew.push(sCount>0?Math.round(sSum/sCount):0);
-  });
-
-  if (CH['sc-chart']) CH['sc-chart'].destroy();
-  const ctx = document.getElementById('sc-chart');
-  if (ctx) {
-    CH['sc-chart'] = new Chart(ctx, {
-      type:'line',
-      data:{
-        labels: trendPeriods.map(p=>SC_MODE==='month'?p.slice(5)+'月':SC_MODE==='year'?p+'年':p.slice(5)||p),
-        datasets:[
-          {label:'出勤 Sewing HC',data:trendAtt,borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.1)',fill:true,tension:.3,pointRadius:3},
-          {label:'車縫系統 HC',   data:trendSew,borderColor:'#0ea5e9',backgroundColor:'rgba(14,165,233,.08)',fill:true,tension:.3,pointRadius:3,borderDash:[5,3]},
-        ]
-      },
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{labels:{font:{size:10}}}},
-        scales:{y:{beginAtZero:false,ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45}}}}
-    });
+    if(el) el.textContent='❌ '+err.message;
+    console.error('[renderSewCmp]', err);
   }
 }
 
