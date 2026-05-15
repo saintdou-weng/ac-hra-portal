@@ -2223,8 +2223,11 @@ function isSewingLineByName(r) {
   const n = raw.replace(/[\s_\-]+/g,'').toUpperCase();
   // Hard-exclude non-sewing departments
   if (/^(QC|QUALITY|PACK|PACKING|CUT|CUTTING|ADMIN|WH|WAREHOUSE|FINISH|FINISHING|SAMPLE|MECHANIC|PRESS|PRESSING|MARKER|INSPECT)/.test(n)) return false;
-  // Positive match: LINE/L + number, A/B + number, APRON/GARMENT + number
-  return isSCLine(normSCLine(raw));
+  // Positive: normSCLine now handles bare digits too ("12"→"LINE12")
+  if (isSCLine(normSCLine(raw))) return true;
+  // Extra: sewing keyword + digit (e.g. "車縫1組")
+  if (/sewing|stitching|縫|車縫/i.test(raw) && /\d/.test(raw)) return true;
+  return false;
 }
 
 function normSCLine(s) {
@@ -2233,6 +2236,8 @@ function normSCLine(s) {
   if (m=n.match(/^(?:LINE|L)0*(\d{1,2})$/)) return 'LINE'+m[1];
   if (m=n.match(/^[AB]0*(\d{1,2})$/))        return 'LINE'+m[1];
   if (m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/)) return 'LINE'+m[1];
+  // Bare digit 1-30 → attendance stores sewing lines as "12" not "LINE12"
+  if (m=n.match(/^0*(\d{1,2})$/)) { const num=+m[1]; if(num>=1&&num<=30) return 'LINE'+num; }
   return n;
 }
 
