@@ -2317,13 +2317,19 @@ function initSewCmp() {
 
 // ── Main render ───────────────────────────────────────────
 async function renderSewCmp() {
+  const _st = txt => { const el=document.getElementById('sc-status'); if(el) el.textContent=txt; };
+  try {
   const sew = await loadSewingIDB();
   const period = document.getElementById('sc-sel')?.value;
   const lineFilter = document.getElementById('sc-line')?.value || '';
-  if (!period) return;
+  if (!period) { _st('請選擇期間'); return; }
 
+  _st('▶ 計算中… period='+period);
   // Dates in this period (Att is Master)
-  const dates = allDates().filter(d => scPeriodKey(d) === period);
+  const allD = allDates();
+  const dates = allD.filter(d => scPeriodKey(d) === period);
+  _st(`▶ dates=${dates.length} allDates=${allD.length} period=${period}`);
+  if (!dates.length) { _st(`⚠ 此期間無考勤記錄 (period=${period}, allDates=${allD.length})`); return; }
 
   // ── Attendance sewing HC per line per day ──────────────
   const attLineHC = {};  // lineId → avgHC
@@ -2402,6 +2408,11 @@ async function renderSewCmp() {
     attSample: DB.filter(r=>dates.includes(r.date)&&isSewingLineByName(r)).slice(0,2).map(r=>({date:r.date,line:r.line,sect:r.sect,m:r.m,f:r.f,att:r.att}))
   });
   if (_dbgEl) _dbgEl.textContent = `出勤: ${_attLns.length}線 ${dates.length}天 | 車縫IDB: ${_sewLns.length}線 ${sew.length}筆`;
+  } catch(err) {
+    const el=document.getElementById('sc-status');
+    if(el) el.textContent='❌ 錯誤: '+err.message;
+    console.error('[renderSewCmp ERROR]', err);
+  }
   // ── Line order follows Attendance (master) ─────────────
   const attLines = Object.keys(attLineHC).sort((a,b)=>{
     const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
