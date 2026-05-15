@@ -166,6 +166,21 @@ textarea.form-input{resize:vertical;min-height:56px}
   <button data-page="compare"  onclick="goTab(this)">📈 <span data-i="tab_compare">比較分析</span></button>
   <button data-page="settings" onclick="goTab(this)">⚙️ <span data-i="tab_settings">設定</span></button>
 </nav>
+
+  <!-- ══ UNIFIED HRA PERIOD NAV ══ -->
+  <div class="range-nav" id="hra-range-nav" style="display:flex;align-items:center;gap:6px;padding:8px 16px;background:#f0f4fa;border-bottom:1px solid #d0d5e8;flex-wrap:wrap">
+    <div class="range-tabs" style="display:flex;gap:2px">
+      <button class="hra-mode-btn" data-mode="day"   onclick="hraSetMode('day',this)"   style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:12px;cursor:pointer;background:#fff;color:#6b7a9e">日</button>
+      <button class="hra-mode-btn" data-mode="week"  onclick="hraSetMode('week',this)"  style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:12px;cursor:pointer;background:#fff;color:#6b7a9e">週</button>
+      <button class="hra-mode-btn on" data-mode="month" onclick="hraSetMode('month',this)" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:12px;cursor:pointer;background:#1a7abf;color:#fff;font-weight:700">月</button>
+      <button class="hra-mode-btn" data-mode="year"  onclick="hraSetMode('year',this)"  style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:12px;cursor:pointer;background:#fff;color:#6b7a9e">年</button>
+    </div>
+    <button onclick="hraNav(-1)" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:14px;cursor:pointer;background:#fff">◀</button>
+    <select id="hra-psel" onchange="hraJumpTo(this.value)" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:12px;min-width:120px;cursor:pointer"></select>
+    <button onclick="hraNav(1)" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:5px;font-size:14px;cursor:pointer;background:#fff">▶</button>
+    <button onclick="hraToday()" style="padding:5px 8px;border:1px solid #d0d5e8;border-radius:5px;font-size:12px;cursor:pointer;background:#fff" title="今天">●</button>
+    <span id="hra-period-lbl" style="font-size:13px;font-weight:700;color:#1a7abf;min-width:100px"></span>
+  </div>
 <main>
 
 <!-- SUMMARY -->
@@ -202,21 +217,7 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- JOINS -->
 <div class="page" id="page-joins">
-  <!-- Period navigator (mirrors Summary tab) -->
-  <div class="range-nav" style="margin-bottom:8px">
-    <div class="range-tabs">
-      <button onclick="setJRange('day',this)">日</button>
-      <button onclick="setJRange('week',this)">週</button>
-      <button class="on" onclick="setJRange('month',this)">月</button>
-      <button onclick="setJRange('year',this)">年</button>
-    </div>
-    <button class="nav-btn" onclick="moveJRange(-1)">◀</button>
-    <span id="j-period-label" style="font-size:13px;font-weight:700;min-width:110px;text-align:center"></span>
-    <button class="nav-btn" onclick="moveJRange(1)">▶</button>
-    <button class="nav-btn" onclick="moveJRange(0)" title="今天" style="font-size:11px;padding:4px 8px">●</button>
-    <select class="flt" id="join-month" onchange="renderJoins()" style="min-width:110px"></select>
-    <span style="font-size:11px;color:var(--muted)" id="j-count-lbl"></span>
-  </div>
+
   <div class="sum-filters">
     <div class="sum-filter-group" style="display:none"><label>月份（隱藏）</label><select class="flt" id="join-month-old"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>部門</label><select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部</option></select></div>
@@ -534,6 +535,115 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <div id="toasts"></div>
 <script>
+// ══════════════════════════════════════════════════════════════
+// HRA UNIFIED DATE SYSTEM  (ported from sewing_v5 AC_MODE)
+// Single source of truth: HRA_MODE + HRA_PIVOT
+// ══════════════════════════════════════════════════════════════
+let HRA_MODE  = 'month';     // 'day'|'week'|'month'|'year'
+let HRA_PIVOT = new Date();  // current pivot date
+
+// Local date string (avoids UTC timezone shift)
+function _lds(d) {
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${dd}`;
+}
+
+// Period key — maps any date string to its period bucket
+function hraPKey(s) {
+  if (!s) return '';
+  const d = String(s).slice(0,10);
+  if (HRA_MODE==='day')   return d;
+  if (HRA_MODE==='week')  {
+    const dt=new Date(d), jan=new Date(dt.getFullYear(),0,1);
+    const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);
+    return `${dt.getFullYear()}-W${String(w).padStart(2,'0')}`;
+  }
+  if (HRA_MODE==='month') return d.slice(0,7);
+  return d.slice(0,4);
+}
+
+// Human-readable period label
+function hraPLabel(k) {
+  if (!k) return '—';
+  if (HRA_MODE==='day')   return k;
+  if (HRA_MODE==='week')  return k;
+  if (HRA_MODE==='month') return `${k.slice(0,4)}年${k.slice(5,7)}月`;
+  return `${k}年`;
+}
+
+// Current pivot as period key
+function hraKey() { return hraPKey(_lds(HRA_PIVOT)); }
+
+// Is a date string in the current period?
+function inRange(s) { return !!s && hraPKey(s) === hraKey(); }
+
+// Navigate to previous/next period
+function hraNav(dir) {
+  const d = new Date(HRA_PIVOT);
+  if      (HRA_MODE==='day')   d.setDate(d.getDate()+dir);
+  else if (HRA_MODE==='week')  d.setDate(d.getDate()+dir*7);
+  else if (HRA_MODE==='month') d.setMonth(d.getMonth()+dir);
+  else                         d.setFullYear(d.getFullYear()+dir);
+  HRA_PIVOT = d;
+  hraPopulateSel();
+  renderAll();
+}
+
+// Jump to today
+function hraToday() { HRA_PIVOT=new Date(); hraPopulateSel(); renderAll(); }
+
+// Populate period dropdown from all known dates in JOINS + RESIGNS
+function hraPopulateSel() {
+  const allDates = [
+    ...JOINS.map(r=>r.joinDate||''),
+    ...RESIGNS.map(r=>r.resignDate||''),
+  ].filter(Boolean);
+  const periods = [...new Set(allDates.map(hraPKey))].filter(Boolean).sort().reverse();
+  const sel = document.getElementById('hra-psel');
+  if (!sel) return;
+  const cur = hraKey();
+  sel.innerHTML = periods.length
+    ? periods.map(p=>`<option value="${p}"${p===cur?' selected':''}>${hraPLabel(p)}</option>`).join('')
+    : '<option value="">— 請先匯入資料 —</option>';
+  if (!periods.includes(cur) && periods.length) {
+    // Jump pivot to first available period
+    const first = periods[0];
+    const y=+first.slice(0,4), mo=HRA_MODE==='month'?+first.slice(5,7)-1:0;
+    HRA_PIVOT = new Date(y, mo, 1);
+    sel.value = hraKey();
+  }
+  // Update period label
+  const lbl = document.getElementById('hra-period-lbl');
+  if (lbl) lbl.textContent = hraPLabel(hraKey());
+}
+
+// Switch mode (日/週/月/年)
+function hraSetMode(m, btn) {
+  HRA_MODE = m;
+  document.querySelectorAll('.hra-mode-btn').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  hraPopulateSel();
+  renderAll();
+}
+
+// Jump to selected period from dropdown
+function hraJumpTo(val) {
+  if (!val) return;
+  const y = +val.slice(0,4);
+  const mo = HRA_MODE==='month' ? +val.slice(5,7)-1 : 0;
+  const d  = HRA_MODE==='day'   ? +val.slice(8,10) : 1;
+  HRA_PIVOT = new Date(y, mo, d||1);
+  hraPopulateSel();
+  renderAll();
+}
+
+// ── Compat shims for legacy code ──────────────────────────
+// (so existing updateJNav / updateRNav calls don't crash)
+const updateJNav = () => hraPopulateSel();
+const updateRNav = () => hraPopulateSel();
+const inNavRange = (date) => inRange(date);
+
+
 // ═══════════════════════════════════════
 // AC HRA Onboarding v3 — with Resign Reason Category
 // ═══════════════════════════════════════
@@ -620,42 +730,14 @@ function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.re
 
 // ── Range nav ──
 // ── Join page period nav ──────────────────────────────
-let RANGE_J='month', pivotJ=new Date();
-function setJRange(r,btn){RANGE_J=r;document.querySelectorAll('#page-joins .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');updateJNav();renderJoins();}
-function moveJRange(dir){const d=new Date(pivotJ);if(dir===0){pivotJ=new Date();}else if(RANGE_J==='day'){pivotJ=new Date(d.setDate(d.getDate()+dir));}else if(RANGE_J==='week'){pivotJ=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE_J==='month'){pivotJ=new Date(d.setMonth(d.getMonth()+dir));}else{pivotJ=new Date(d.setFullYear(d.getFullYear()+dir));}updateJNav();renderJoins();}
-function updateJNav(){
-  const{start,end,label}=getNavDates(RANGE_J,pivotJ);
-  const lbl=document.getElementById('j-period-label');if(lbl)lbl.textContent=label;
-  // Also update dropdown to match current period
-  const sel=document.getElementById('join-month');
-  if(sel){const mo=start.slice(0,7);const cur=sel.value;if([...sel.options].some(o=>o.value===mo))sel.value=mo;}
-  return{start,end};
-}
-function getNavDates(range,pivot){
-  const p=pivot||new Date();
-  const y=p.getFullYear(),mo=p.getMonth(),d=p.getDate();
-  let start,end,label;
-  if(range==='day'){start=end=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;label=start;}
-  else if(range==='week'){const day=new Date(p);day.setDate(d-(p.getDay()||7)+1);const dayE=new Date(day);dayE.setDate(dayE.getDate()+6);start=day.toISOString().slice(0,10);end=dayE.toISOString().slice(0,10);label=`${start}~${end.slice(5)}`;}
-  else if(range==='month'){start=`${y}-${String(mo+1).padStart(2,'0')}-01`;end=new Date(y,mo+1,0).toISOString().slice(0,10);label=`${y}年${mo+1}月`;}
-  else{start=`${y}-01-01`;end=`${y}-12-31`;label=`${y}年`;}
-  return{start,end,label};
-}
-function inNavRange(date,range,pivot){if(!date)return false;const{start,end}=getNavDates(range,pivot);return date>=start&&date<=end;}
+
 
 // ── Resign page period nav ────────────────────────────
-let RANGE_R='month', pivotR=new Date();
-function setRRange(r,btn){RANGE_R=r;document.querySelectorAll('#page-resigns .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');updateRNav();renderResigns();}
-function moveRRange(dir){const d=new Date(pivotR);if(dir===0){pivotR=new Date();}else if(RANGE_R==='day'){pivotR=new Date(d.setDate(d.getDate()+dir));}else if(RANGE_R==='week'){pivotR=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE_R==='month'){pivotR=new Date(d.setMonth(d.getMonth()+dir));}else{pivotR=new Date(d.setFullYear(d.getFullYear()+dir));}updateRNav();renderResigns();}
-function updateRNav(){const{start,end,label}=getNavDates(RANGE_R,pivotR);const lbl=document.getElementById('r-period-label');if(lbl)lbl.textContent=label;return{start,end};}
 
-function setRange(r,btn){RANGE=r;document.querySelectorAll('.range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderSummary();}
-function moveRange(dir){const d=new Date(pivotDate);if(dir===0){pivotDate=new Date();}else if(RANGE==='day'){pivotDate=new Date(d.setDate(d.getDate()+dir));}else if(RANGE==='week'){pivotDate=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE==='month'){pivotDate=new Date(d.setMonth(d.getMonth()+dir));}else if(RANGE==='year'){pivotDate=new Date(d.setFullYear(d.getFullYear()+dir));}renderSummary();}
-function getRangeDates(){const d=new Date(pivotDate);d.setHours(0,0,0,0);let start,end,label;if(RANGE==='day'){start=new Date(d);end=new Date(d);end.setDate(end.getDate()+1);label=d.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});}else if(RANGE==='week'){const dow=d.getDay()||7;start=new Date(d);start.setDate(d.getDate()-dow+1);end=new Date(start);end.setDate(start.getDate()+7);label=`${start.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})} – ${new Date(end-1).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})}`;}else if(RANGE==='month'){start=new Date(d.getFullYear(),d.getMonth(),1);end=new Date(d.getFullYear(),d.getMonth()+1,1);label=`${d.getFullYear()}年${d.getMonth()+1}月`;}else{start=new Date(d.getFullYear(),0,1);end=new Date(d.getFullYear()+1,0,1);label=`${d.getFullYear()}年`;}return{start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),label};}
-function inRange(ds){if(!ds)return false;const{start,end}=getRangeDates();return ds>=start&&ds<end;}
+
 
 // ── Summary ──
-function renderSummary(){const{start,end,label}=getRangeDates();document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;
+function renderSummary(){const label=hraPLabel(hraKey());if(document.getElementById('period-label'))document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;
   const sjPct=joins.length>0?Math.round(sewJ/joins.length*100):0;
   const srPct=resigns.length>0?Math.round(sewR/resigns.length*100):0;
   const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[
@@ -809,7 +891,7 @@ async function parseFiles(){if(!_pendingFiles.length)return;document.getElementB
 
 async function parseWb(data,overwrite){const wb=XLSX.read(data,{type:'array',cellDates:true});const existJoinIds=new Set(JOINS.map(r=>String(r.empId||'').trim()).filter(Boolean));const existResignKeys=new Set(RESIGNS.map(r=>String(r.empId||'')+'_'+String(r.resignDate||'')));for(const sn of wb.SheetNames){const snL=sn.toLowerCase().trim();const ws=wb.Sheets[sn];const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});if(!rows.length)continue;
 if(snL.includes('join')||snL.includes('jion')||snL.includes('入職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(join.?date|入職日|STT)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cDate=ci('join date')<0?ci('join'):ci('join date');const cDept=ci('dept'),cSec=ci('section'),cPos=ci('pos');const cId=ci('id number')<0?ci('id'):ci('id number');const cName=ci('name'),cGender=ci('gender'),cDob=ci('birth');// Extended column detection – DOB, Age, Referrer
-const cAge=[...hdr.keys()].find(i=>/(^age$|^年齡$|^umur$|^ages$)/.test(hdr[i]))||-1;
+const cAge=[...hdr.keys()].find(i=>/(^age$|^年齡$|^umur$|^ages$|^tuổi$|^age.*yr|^age.*year)/.test(hdr[i].replace(/\s+/g,'').toLowerCase()))||-1;
 const cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel');
 const cIntro=[...hdr.keys()].find(i=>/(intro|refer|recomm|by\s*friend|介紹|推薦|介紹人|推薦人|referral|referrer|introducer)/.test(hdr[i]))||-1;
 const cRmk=ci('remark')<0?(ci('note')<0?ci('備注'):ci('note')):ci('remark');
@@ -839,6 +921,7 @@ for(const _di of _dobSources){
   if(dob)break;
 }
   if(!dob&&cAgeDirect>=0){const _ageD=parseInt(String(row[cAgeDirect]||'').trim());if(_ageD>=14&&_ageD<=75)dob=`${new Date().getFullYear()-_ageD}-01-01`;}
+  if(!dob&&cAge>=0&&cAge!==cAgeDirect){const _ageB=parseInt(String(row[cAge]||'').trim());if(_ageB>=14&&_ageB<=75)dob=`${new Date().getFullYear()-_ageB}-01-01`;}
 if(!dob&&cAge>=0){
     const raw=row[cAge];
     // might be a number, or date-like value representing age as year
