@@ -717,7 +717,17 @@ const label=hraPLabel(hraKey());if(document.getElementById('period-label'))docum
     {v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},
     {v:`${sewJ} (${sjPct}%)`,l:'車縫入職 🔵',cls:'join-k'},
     {v:`${sewR} (${srPct}%)`,l:'車縫離職 🔵',cls:'resign-k'},
-    {v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();
+    {v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');// Compute start/end from unified HRA system
+  const {start:_s,end:_e}=(()=>{
+    const p=new Date(HRA_PIVOT);
+    if(HRA_MODE==='day'){const d=_lds(p);return{start:d,end:d};}
+    if(HRA_MODE==='week'){const dow=p.getDay()||7;const s=new Date(p);s.setDate(p.getDate()-dow+1);const e=new Date(s);e.setDate(s.getDate()+6);return{start:_lds(s),end:_lds(e)};}
+    if(HRA_MODE==='month'){const s=new Date(p.getFullYear(),p.getMonth(),1);const e=new Date(p.getFullYear(),p.getMonth()+1,0);return{start:_lds(s),end:_lds(e)};}
+    return{start:`${p.getFullYear()}-01-01`,end:`${p.getFullYear()}-12-31`};
+  })();
+  try{renderTrendCharts(joins,resigns,_s,_e);}catch(e){console.error('[TrendChart]',e);}
+  try{renderReasonChart(resigns);}catch(e){console.error('[ReasonChart]',e);}
+  try{renderMonthlyTable();}catch(e){console.error('[MonthlyTable]',e);}
   }catch(_err){console.error('[renderSumma]',_err);toast&&toast(_err.message,'err');}
 }
 
