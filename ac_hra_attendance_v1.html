@@ -2364,9 +2364,32 @@ async function renderSewCmp() {
       if (r.isSubtotal || r.isGrand) return; _f2++;
       const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
       if (!raw) return; _f3++;
-      const lid = normSCLine(raw);
-      if (!isSCLine(lid)) return; _f4++;
-      if (lineFilter && lid !== lineFilter) return; _f5++;
+
+      // ── Step 1: Is this a sewing line? Use proven isSewingLine logic (no ttl check) ──
+      const rawLo = raw.toLowerCase();
+      const nonSewing = /^(qc|quality|pack|packing|cut|cutting|admin|wh|warehouse|finish|finishing|sample|mechanic|press|pressing|marker|inspect)/i.test(raw.replace(/\s/g,''));
+      if (nonSewing) return;
+      // Positive sewing detection (mirrors isSewingLine without ttl requirement)
+      const isSewMatch =
+        isSCLine(normSCLine(raw)) ||                              // LINE_N / L_N / bare digit
+        /^\d{1,2}$/.test(raw.replace(/\s/g,'')) ||               // bare digits "1"~"30"
+        /^[ab]\d{1,2}$/i.test(raw.replace(/\s/g,'')) ||          // A1~B30
+        /^(line|sewing|縫|car|sew)/i.test(raw) ||                // keyword prefix
+        (/sewing|stitching|縫|車縫/i.test(raw) && /\d/.test(raw)); // keyword + digit
+      if (!isSewMatch) return; _f4++;
+
+      // ── Step 2: Extract LINE_N identifier ──
+      let lid = normSCLine(raw);
+      if (!isSCLine(lid)) {
+        // Fallback: extract any 1-2 digit number from the field
+        const digits = raw.replace(/[^\d]/g,'');
+        if (digits) {
+          const num = parseInt(digits.slice(-2)); // take last 2 digits
+          if (num >= 1 && num <= 30) lid = 'LINE' + num;
+        }
+      }
+      if (!isSCLine(lid)) return; _f5++;
+      if (lineFilter && lid !== lineFilter) return;
       if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
       const mf = (+r.m||0)+(+r.f||0);
       attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
