@@ -477,6 +477,11 @@ tr:hover td{background:#fdf5f7}
 
 <!-- ══════════ TAB: 薪資記錄 ══════════ -->
 <div class="sec" id="sec-salary">
+  <div class="kpi-strip" style="margin-bottom:10px">
+    <div class="kpi blue"><div class="kpi-n" id="sk-total">0</div><div class="kpi-l">薪資記錄</div></div>
+    <div class="kpi teal"><div class="kpi-n" id="sk-amount">$0</div><div class="kpi-l">總金額</div></div>
+    <div class="kpi rose"><div class="kpi-n" id="sk-sew" style="font-size:13px">—</div><div class="kpi-l">車縫/非車縫</div></div>
+  </div>
   <div class="toolbar">
     <input class="search-box" id="salSrch" oninput="renderSalary()" placeholder="Search…">
     <select class="fsel" id="salIdF" onchange="renderSalary()"><option value="">— All —</option></select>
@@ -1161,7 +1166,7 @@ function renderTab(name){
   if(name==='master')    renderMaster();
   if(name==='pregnant')  renderPregnant();
   if(name==='maternity') renderMaternity();
-  if(name==='salary')    renderSalary();
+  if(name==='salary'){renderSalary();updateSalKPI();}
   if(name==='nursing')   renderNursing();
   if(name==='settings')  goStab('dept',document.getElementById('stab-dept'));
 }
@@ -1700,6 +1705,18 @@ function renderMaternity(){
 // Per-person cards — each maternity employee gets their own block
   // (page vars moved to date-nav blocks)
 function setSalPage(p){salPage=p;renderSalary();}
+function updateSalKPI(){
+  try{
+    const recs=JSON.parse(localStorage.getItem('vrt_salary_records')||'[]');
+    const total=recs.length;
+    const amount=recs.reduce((s,r)=>s+(+r.amount||+r.salary||0),0);
+    const sew=recs.filter(r=>isSewDeptMat(r.dept||r.section||'')).length;
+    const el=id=>document.getElementById(id);
+    if(el('sk-total'))el('sk-total').textContent=total;
+    if(el('sk-amount'))el('sk-amount').textContent='$'+(amount||0).toFixed(0);
+    if(el('sk-sew'))el('sk-sew').textContent=sew+'🔵/'+(total-sew)+'⬜';
+  }catch(e){}
+}
 function renderSalary(){
   const q=(document.getElementById('salSrch')?.value||'').toLowerCase();
   const idF=document.getElementById('salIdF')?.value||'';

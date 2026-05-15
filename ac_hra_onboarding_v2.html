@@ -724,7 +724,8 @@ const cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel');
 const cIntro=[...hdr.keys()].find(i=>/(intro|refer|recomm|by\s*friend|介紹|推薦|介紹人|推薦人|referral|referrer|introducer)/.test(hdr[i]))||-1;
 const cRmk=ci('remark')<0?(ci('note')<0?ci('備注'):ci('note')):ci('remark');
 // DOB column: try many header patterns in order
-const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|出生日|ngày sinh|birthday|date.*birth|birth.*date)/.test(hdr[i]))||-1;
+const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|出生日|ngày sinh|birthday|date.*birth|birth.*date|birth_date|dateofbirth|date_of_birth)/.test(hdr[i]))||-1;
+const cAgeDirect=[...hdr.keys()].find(i=>/(^age$|^年齡$|^tuổi$|^umur$|^อายุ$)/.test(hdr[i]))||-1;
 for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];
   const nameVal=String(row[cName]||'').trim();
   if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;
@@ -732,8 +733,23 @@ for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];
   const joinDate=parseDate(row[cDate],false);if(!joinDate)continue;
   if(!overwrite&&empId&&existJoinIds.has(empId))continue;
   // DOB: try dob column (isDob=true), then compute from age column
-  let dob=(cDob2>=0?parseDate(row[cDob2],true):'') || (cDob>=0?parseDate(row[cDob],true):'') || '';
-  if(!dob&&cAge>=0){
+  // Try multiple DOB columns
+let dob='';
+const _dobSources=[cDob2, cDob].filter(i=>i>=0);
+for(const _di of _dobSources){
+  dob=parseDate(row[_di],true)||'';
+  if(dob)break;
+  // Try parsing string formats: YYYYMMDD, DDMMYYYY
+  const _raw=String(row[_di]||'').trim().replace(/[\s./-]/g,'');
+  if(/^\d{8}$/.test(_raw)){
+    const _y=+_raw.slice(0,4),_m=+_raw.slice(4,6),_d=+_raw.slice(6,8);
+    if(_y>=1950&&_y<=2010&&_m>=1&&_m<=12&&_d>=1&&_d<=31)
+      dob=`${_y}-${String(_m).padStart(2,'0')}-${String(_d).padStart(2,'0')}`;
+  }
+  if(dob)break;
+}
+  if(!dob&&cAgeDirect>=0){const _ageD=parseInt(String(row[cAgeDirect]||'').trim());if(_ageD>=14&&_ageD<=75)dob=`${new Date().getFullYear()-_ageD}-01-01`;}
+if(!dob&&cAge>=0){
     const raw=row[cAge];
     // might be a number, or date-like value representing age as year
     if(typeof raw==='number'&&raw>=15&&raw<=75)dob=`${new Date().getFullYear()-raw}-01-01`;

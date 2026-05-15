@@ -880,9 +880,20 @@ async function importReqXlsx(evt){
   for(const sn of wb.SheetNames){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});
     if(rows.length<2)continue;
-    const hdr=rows[0].map(v=>String(v).trim().toLowerCase());
-    const ci=n=>hdr.findIndex(h=>h.includes(n));
-    const cTitle=ci('title')<0?ci('需求'):ci('title');
+    // Smart header row detection (handle merged cells / title rows)
+    let hdrIdx=0;
+    for(let ri=0;ri<Math.min(8,rows.length);ri++){
+      if(!rows[ri]||!rows[ri].some(Boolean))continue;
+      const rs=rows[ri].map(v=>String(v||'')).join('|');
+      if(/(title|job|position|dept|部門|需求|required|hire|manpower|人力|recruit|date|status)/i.test(rs)){hdrIdx=ri;break;}
+    }
+    const hdr=rows[hdrIdx].map(v=>String(v||'').trim().toLowerCase());
+    const ci=n=>{
+      let i=hdr.findIndex(h=>h===n);
+      if(i<0)i=hdr.findIndex(h=>h.includes(n));
+      return i;
+    };
+    const cTitle=[ci('title'),ci('job'),ci('position'),ci('pos'),ci('需求'),ci('職位')].find(i=>i>=0)??-1;
     const cDept=ci('dept')<0?ci('部門'):ci('dept');
     const cPos=ci('pos')<0?ci('職位'):ci('pos');
     const cReq=ci('required')<0?ci('需求人'):ci('required');
@@ -962,8 +973,10 @@ async function importRecruitXlsx(evt){
 
     // Generic Recruit Report format (Recruit List, Joining List sheets)
     let hdrIdx=0;
-    for(let r=0;r<Math.min(6,rows.length);r++){
-      if(rows[r].some(v=>/(name|姓名|date|日期|join|dept)/i.test(String(v)))){hdrIdx=r;break;}
+    for(let r=0;r<Math.min(10,rows.length);r++){
+      if(!rows[r]||!rows[r].some(Boolean))continue;
+      const rs=rows[r].map(v=>String(v||'')).join('|');
+      if(/(name|姓名|date|日期|join|dept|id|no\b|stt|result|register|age|gender|sex|recruit)/i.test(rs)){hdrIdx=r;break;}
     }
     const hdr=rows[hdrIdx].map(v=>String(v||'').replace(/[\n\r]/g,' ').trim().toLowerCase());
     const ci=kw=>hdr.findIndex(h=>h.includes(kw));
@@ -999,7 +1012,8 @@ async function importRecruitXlsx(evt){
     }
   }
   saveRecruit();renderRecruit();
-  toast(`✅ 匯入完成：新增 ${added} 筆 | 重複跳過 ${dupCount} 筆 | 略過 Sheet ${skipped} 個`,'ok');
+  const _wMsg = (added===0&&skipped>0) ? ' ⚠ 確認Excel欄位名稱是否含name/date/dept/id等關鍵字' : '';
+  toast(`✅ 匯入完成：新增 ${added} 筆 | 重複 ${dupCount} | Sheet略過 ${skipped}${_wMsg}`,'ok');
 }
 function rcDrop(e){e.preventDefault();document.getElementById('rcDropZone').classList.remove('drag');const f=e.dataTransfer.files[0];if(f)importRecruitXlsx(f);}
 

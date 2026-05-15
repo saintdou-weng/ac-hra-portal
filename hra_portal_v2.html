@@ -656,49 +656,20 @@ async function sendTgMenu() {
   const BASE = 'https://saintdou-weng.github.io/ac-hra-portal';
   const ts   = new Date().toLocaleString('zh-TW', { timeZone:'Asia/Phnom_Penh', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
   const totalRecs = getLocalCount();
-  const isEN = (LANG === 'en');
-
-  // Portal modules — synced with portal UI
-  const PORTAL_MODULES = [
-    {id:'attendance',  file:'ac_hra_attendance_v1.html',  icon:'🕐', zh:'出勤',    en:'Attendance'},
-    {id:'contract',    file:'ac_hra_contract_v2.html',    icon:'📋', zh:'合約',    en:'Contract'},
-    {id:'join',        file:'ac_hra_onboarding_v2.html',  icon:'🚪', zh:'入離職',  en:'Join/Resign'},
-    {id:'maternity',   file:'ac_hra_maternity_v1.html',   icon:'🤱', zh:'產假護理', en:'Maternity'},
-    {id:'calendar',    file:'ac_hra_calendar_v2.html',    icon:'📅', zh:'行事曆',  en:'Calendar'},
-    {id:'analysis',    file:'ac_hra_complete_v2.html',    icon:'📊', zh:'整合分析', en:'Analytics'},
-    {id:'manpower',    file:'ac_hra_manpower_v1.html',    icon:'👥', zh:'人力規劃', en:'Manpower'},
-    {id:'sewing',      file:'../vrt-prod/sewing_v5.html', icon:'🧵', zh:'車縫生產', en:'Sewing Prod'},
-  ];
-
-  // Title line
-  const titleLine = isEN
-    ? `🏥 <b>AC HRA Portal</b> — ${ts}`
-    : `🏥 <b>AC HRA Portal</b> — ${ts}`;
-  const statusLine = isEN
-    ? `Local Records: ${totalRecs}  |  VRT · SHV`
-    : `本地記錄: ${totalRecs} 筆  |  VRT 西港`;
-
-  const text = [titleLine, '─────────────────────',
-    ...PORTAL_MODULES.map(m=>`${m.icon} ${isEN?m.en:m.zh}`),
-    '─────────────────────', statusLine,
+  const text = [
+    `🏥 <b>AC HRA Portal</b> — ${ts}`,
+    `─────────────────────`,
+    `🕐 出勤 Attendance`,
+    `📋 合約 Contract`,
+    `🚪 入離職 Onboarding`,
+    `🤱 產假 Maternity`,
+    `📅 行事曆 Calendar`,
+    `📊 整合分析 Analytics`,
+    `📋 人力規劃 Manpower`,
+    `─────────────────────`,
+    `📊 本地記錄 Local: ${totalRecs} 筆`,
+    `🏭 Vantage River Textiles · SHV`,
   ].join('\n');
-
-  // Inline keyboard: 2 modules per row + cloud status row + lang row
-  const modButtons = PORTAL_MODULES.map(m=>({
-    text: `${m.icon} ${isEN?m.en:m.zh}`,
-    url:  `${BASE}/${m.file}`,
-  }));
-  const keyboard_rows = [];
-  for(let i=0;i<modButtons.length;i+=2){
-    keyboard_rows.push(modButtons.slice(i,i+2));
-  }
-  keyboard_rows.push([{text: isEN?'☁ Cloud Status':'☁ 雲端狀態', url:`${BASE}/`}]);
-  keyboard_rows.push([
-    {text:'繁中', callback_data:'lang_zh'},
-    {text:'English', callback_data:'lang_en'},
-    {text:'ភ្នំពេញ', callback_data:'lang_km'},
-  ]);
-  const reply_markup = JSON.stringify({ inline_keyboard: keyboard_rows });
 
   if (GAS_URL) {
     try {
@@ -717,7 +688,7 @@ async function sendTgMenu() {
   try {
     const r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ chat_id:CHAT, text, parse_mode:'HTML', reply_markup }),
+      body: JSON.stringify({ chat_id:CHAT, text, parse_mode:'HTML' }),
     });
     const d = await r.json();
     if (d.ok) toast('✅ Telegram 已發送');

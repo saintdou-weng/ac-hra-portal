@@ -2357,11 +2357,16 @@ async function renderSewCmp() {
 
   // KPI cards
   const kEl = id => document.getElementById(id);
-  if (kEl('sc-att-hc')) kEl('sc-att-hc').textContent = attTotal || '—';
-  if (kEl('sc-sew-hc')) kEl('sc-sew-hc').textContent = sewTotal || '—';
+  if (kEl('sc-att-hc')) {
+    kEl('sc-att-hc').textContent = Object.keys(attLineHC).length > 0 ? (attTotal||'0') : '—';
+  }
+  if (kEl('sc-sew-hc')) {
+    kEl('sc-sew-hc').textContent = sew.length > 0 ? (sewTotal||'0') : 'No Sewing Data';
+  }
   if (kEl('sc-diff')) {
-    kEl('sc-diff').textContent = sewTotal ? (diff >= 0 ? '+' : '') + diff : '—';
-    kEl('sc-diff').style.color = diff === 0 ? '#1a6e5c' : Math.abs(diff) < 10 ? '#f59e0b' : '#ef4444';
+    const dShow = (Object.keys(attLineHC).length>0 && sew.length>0) ? (diff>=0?'+':'')+diff : '—';
+    kEl('sc-diff').textContent = dShow;
+    kEl('sc-diff').style.color = diff===0?'#1a6e5c':Math.abs(diff)<10?'#f59e0b':'#ef4444';
   }
   if (kEl('sc-match')) {
     kEl('sc-match').textContent = match;
@@ -2369,6 +2374,8 @@ async function renderSewCmp() {
     kEl('sc-match').style.color = pct >= 95 ? '#1a6e5c' : pct >= 85 ? '#f59e0b' : '#ef4444';
   }
 
+  // Debug
+  console.log('[Att×Sewing]', {period:curPeriod, dates:dates.length, attLines:Object.keys(attLineHC), sewLines:Object.keys(sewLineW), attTotal, sewTotal});
   // ── Line order follows Attendance (master) ─────────────
   const attLines = Object.keys(attLineHC).sort((a,b)=>{
     const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
@@ -2382,6 +2389,10 @@ async function renderSewCmp() {
   const tblTitle = document.getElementById('sc-tbl-title');
   if (tblTitle) tblTitle.textContent = `各組別比較明細 (${scPeriodLabel(period)} · ${allLines.length} 線)`;
 
+  // Properly define flags BEFORE using them in template
+  const _attD = Object.keys(attLineHC).length > 0;
+  const _sewD = Object.keys(sewLineW).length > 0;
+
   const rowsHtml = allLines.map(lid => {
     const aHC = attLineHC[lid] || 0;
     const sHC = sewLineW[lid] || 0;
@@ -2391,13 +2402,13 @@ async function renderSewCmp() {
     const sewV = sewLineMap[lid];
     const pcs = sewV?.pcs || 0;
     const diffCls = d2===0?'color:#1a6e5c':Math.abs(d2)<3?'color:#f59e0b':'color:#ef4444';
-    const missSew = sHC === 0 ? 'style="opacity:.5"' : '';
+    const missSew = !_sewD || sHC===0 ? 'style="opacity:.55"' : '';
     return `<tr ${missSew}>
       <td style="font-weight:700;color:#1a6e5c">${lid}</td>
-      <td style="text-align:right;font-weight:600">${_attHasData?(aHC||0):'—'}</td>
-      <td style="text-align:right;color:#0ea5e9;font-weight:600">${_sewHasData?(sHC||0):(_attHasData?'No Sew':'—')}</td>
-      <td style="text-align:right;font-weight:700;${diffCls}">${(_attHasData&&_sewHasData)?((d2>=0?'+':'')+d2):'—'}</td>
-      <td style="text-align:right">${(_attHasData&&_sewHasData&&sHC>0)?m2:'—'}</td>
+      <td style="text-align:right;font-weight:600">${_attD ? (aHC||'0') : '—'}</td>
+      <td style="text-align:right;color:#0ea5e9;font-weight:600">${_sewD ? (sHC||'0') : 'No Sewing'}</td>
+      <td style="text-align:right;font-weight:700;${diffCls}">${(_attD&&_sewD) ? (d2>=0?'+':'')+d2 : '—'}</td>
+      <td style="text-align:right">${(_attD&&_sewD&&sHC>0) ? m2 : '—'}</td>
       <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
       <td style="text-align:right;font-size:11px;color:#6b7a9e">${attV?.days.size||0}天</td>
     </tr>`;
