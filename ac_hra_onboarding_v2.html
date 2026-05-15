@@ -138,8 +138,17 @@ textarea.form-input{resize:vertical;min-height:56px}
 <body>
 <header>
   <h1 id="hdr-title">🚪 AC HRA 入離職管理 v3</h1>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="sendTgSummary()">📱 TG</button>
+  <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="cloudPush()" title="Upload to Cloud">☁⬆</button>
+    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="cloudPull()" title="Download from Cloud">☁⬇</button>
+    <span id="cloud-status" style="font-size:10px;color:rgba(255,255,255,.7)"></span>
+    <select id="tg-period-sel" style="font-size:11px;padding:3px 6px;border-radius:5px;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.15);color:#fff;cursor:pointer" title="Telegram 發送期間">
+      <option value="day">今日</option>
+      <option value="week">本週</option>
+      <option value="month" selected>本月</option>
+      <option value="year">本年</option>
+    </select>
+    <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="sendTgPeriod()" title="傳送 Telegram 摘要">📱 TG</button>
     <button class="btn small ghost" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="printPage()">🖨</button>
     <div class="lang-switch">
       <button data-lang="zh" class="active" onclick="setLang('zh')">繁中</button>
@@ -586,7 +595,16 @@ function getRangeDates(){const d=new Date(pivotDate);d.setHours(0,0,0,0);let sta
 function inRange(ds){if(!ds)return false;const{start,end}=getRangeDates();return ds>=start&&ds<end;}
 
 // ── Summary ──
-function renderSummary(){const{start,end,label}=getRangeDates();document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[{v:joins.length,l:'入職',cls:'join-k'},{v:resigns.length,l:'離職',cls:'resign-k'},{v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},{v:sewJ,l:'車縫入職',cls:'join-k'},{v:sewR,l:'車縫離職',cls:'resign-k'},{v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();}
+function renderSummary(){const{start,end,label}=getRangeDates();document.getElementById('period-label').textContent=label;const joins=JOINS.filter(r=>inRange(r.joinDate||''));const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));const sewJ=joins.filter(isSewingRecord).length;const sewR=resigns.filter(isSewingRecord).length;const sewNet=sewJ-sewR;
+  const sjPct=joins.length>0?Math.round(sewJ/joins.length*100):0;
+  const srPct=resigns.length>0?Math.round(sewR/resigns.length*100):0;
+  const types=['resign','dismiss','self','expel'];document.getElementById('sum-kpi').innerHTML=[
+    {v:joins.length,l:'入職',cls:'join-k'},
+    {v:resigns.length,l:'離職',cls:'resign-k'},
+    {v:joins.length-resigns.length,l:'淨增減',cls:joins.length>=resigns.length?'join-k':'resign-k'},
+    {v:`${sewJ} (${sjPct}%)`,l:'車縫入職 🔵',cls:'join-k'},
+    {v:`${sewR} (${srPct}%)`,l:'車縫離職 🔵',cls:'resign-k'},
+    {v:sewNet,l:'車縫淨增',cls:sewNet>=0?'join-k':'resign-k'},...types.map(tp=>({v:resigns.filter(r=>r.resignType===tp).length,l:{resign:'辭職',dismiss:'辭退',self:'自離',expel:'開除'}[tp],cls:''}))].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${k.v<0?'color:var(--danger)':''}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');renderTrendCharts(joins,resigns,start,end);renderReasonChart(resigns);renderMonthlyTable();}
 
 function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];const s=new Date(start),e=new Date(end);const days=Math.ceil((e-s)/86400000);if(days>90){const jm={},rm={};joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();months.forEach(m=>{labels.push(m.slice(5));jD.push(jm[m]||0);rD.push(rm[m]||0);});}else{for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){const ds=d.toISOString().slice(0,10);labels.push(ds.slice(5));jD.push(joins.filter(r=>r.joinDate===ds).length);rD.push(resigns.filter(r=>r.resignDate===ds).length);}}mkChart('ch-join',{type:'bar',data:{labels,datasets:[{label:'入職',data:jD,backgroundColor:'#10b981',borderRadius:3}]},options:barOpts()});mkChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:'離職',data:rD,backgroundColor:'#c62828',borderRadius:3}]},options:barOpts()});}
 
@@ -724,7 +742,7 @@ const cAddr=ci('address'),cTel=ci('tel')<0?ci('phone'):ci('tel');
 const cIntro=[...hdr.keys()].find(i=>/(intro|refer|recomm|by\s*friend|介紹|推薦|介紹人|推薦人|referral|referrer|introducer)/.test(hdr[i]))||-1;
 const cRmk=ci('remark')<0?(ci('note')<0?ci('備注'):ci('note')):ci('remark');
 // DOB column: try many header patterns in order
-const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|出生日|ngày sinh|birthday|date.*birth|birth.*date|birth_date|dateofbirth|date_of_birth)/.test(hdr[i]))||-1;
+const cDob2=[...hdr.keys()].find(i=>/(birth|dob|born|出生日|生日|ngày sinh|birthday|date.*birth|birth.*date|birth_date|dateofbirth|date_of_birth|date_nais|nais|sinh|năm sinh)/.test(hdr[i]))||-1;
 const cAgeDirect=[...hdr.keys()].find(i=>/(^age$|^年齡$|^tuổi$|^umur$|^อายุ$)/.test(hdr[i]))||-1;
 for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];
   const nameVal=String(row[cName]||'').trim();
@@ -756,7 +774,7 @@ if(!dob&&cAge>=0){
     else{const ageNum=parseInt(String(raw||'').trim());if(ageNum>=15&&ageNum<=75)dob=`${new Date().getFullYear()-ageNum}-01-01`;}
   }
   const intro=(cIntro>=0?String(row[cIntro]||'').trim():'').replace(/^[-–—]/,'').trim();
-  _importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob,address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:intro,referrer:intro,remark:String(row[cRmk]||'').trim()});}}
+  _importBuf.joins.push({id:'j_'+uid(),empId,name:nameVal,joinDate,dept:String(row[cDept]||'').trim(),section:String(row[cSec]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',dob,address:String(row[cAddr]||'').trim(),tel:String(row[cTel]||'').trim(),introducer:intro,referrer:intro,remark:String(row[cRmk]||'').trim(),_dobSrcCol:dob?Math.max(cDob2,cDob,cAgeDirect):-1});}}
 if(snL.includes('resign')||snL.includes('離職')){const hdrRow=rows.findIndex(r=>r.some(v=>/(工號|resign.?date|離職日|STT|Name)/i.test(String(v))));if(hdrRow<0)continue;const hdr=rows[hdrRow].map(v=>String(v).replace(/\n/g,' ').trim().toLowerCase());const ci=n=>hdr.findIndex(h=>h.includes(n.toLowerCase()));const cId=ci('工號')<0?(ci('id')<0?ci('stt'):ci('id')):ci('工號'),cName=ci('姓名')<0?ci('name'):ci('姓名'),cJoin=ci('到職')<0?(ci('join')<0?ci('start'):ci('join')):ci('到職'),cDept=ci('部門')<0?ci('section'):ci('部門'),cPos=ci('職務')<0?ci('pos'):ci('職務'),cGender=ci('性別')<0?ci('gender'):ci('性別');const cResign=ci('辭職'),cDismiss=ci('辭退'),cSelf=ci('自離'),cExpel=ci('開除');const cResignDate=ci('離職日')<0?ci('resign date'):ci('離職日'),cDays=ci('在職天數')<0?ci('working'):ci('在職天數'),cReason=ci('原因')<0?ci('reason'):ci('原因'),cRmk=ci('備注')<0?ci('remark'):ci('備注');for(let i=hdrRow+1;i<rows.length;i++){const row=rows[i];const nameVal=String(row[cName]||'').trim();if(!nameVal||nameVal.toLowerCase()==='name'||/^\d+$/.test(nameVal))continue;const empId=String(row[cId]||'').trim();const resignDate=parseDate(row[cResignDate]);if(!resignDate)continue;const key=empId+'_'+resignDate;if(!overwrite&&existResignKeys.has(key))continue;const chk=v=>String(v||'').trim().toLowerCase();let resignType='resign';if(cSelf>=0&&chk(row[cSelf])==='√')resignType='self';else if(cExpel>=0&&chk(row[cExpel])==='√')resignType='expel';else if(cDismiss>=0&&chk(row[cDismiss])==='√')resignType='dismiss';const joinDate2=parseDate(row[cJoin])||'';let days=parseInt(String(row[cDays]||'').trim())||0;if(!days&&joinDate2&&resignDate)days=Math.ceil((new Date(resignDate)-new Date(joinDate2))/86400000);const reasonRaw=String(row[cReason]||'').trim();// auto-map reason to category
 let reasonCat='',reason=reasonRaw;const rLow=reasonRaw.toLowerCase();if(/voluntary|resign|辭職/.test(rLow))reasonCat='Voluntary';else if(/attend|出勤/.test(rLow))reasonCat='Attendance';else if(/no call|no show|曠職/.test(rLow))reasonCat='No Call';else if(/perform|績效/.test(rLow))reasonCat='Performance';else if(/health|病|sick/.test(rLow))reasonCat='Health';else if(/pregn|child|baby|懷孕|育兒/.test(rLow))reasonCat='Pregnancy';else if(/family|home|go home|家庭|回家/.test(rLow))reasonCat='Family';else if(/reloc|move|搬/.test(rLow))reasonCat='Relocation';else if(/transfer|調職/.test(rLow))reasonCat='Transfer';else if(/contract|合約/.test(rLow))reasonCat='Contract End';else if(/dismiss|expel|辭退|開除/.test(rLow))reasonCat='Dismissal';else if(/salar|pay|薪/.test(rLow))reasonCat='Salary';else if(/personal|個人/.test(rLow))reasonCat='Personal';else if(reasonRaw)reasonCat='Other';
 _importBuf.resigns.push({id:'r_'+uid(),empId,name:nameVal,resignDate,joinDate:joinDate2,dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),gender:String(row[cGender]||'F').trim().toUpperCase().slice(0,1)||'F',workingDays:days,resignType,reasonCat,reason,remark:String(row[cRmk]||'').trim()});}}}}
@@ -776,6 +794,70 @@ function exportResignsExcel(){if(!RESIGNS.length){toast('無資料','warn');retu
 function downloadTemplate(){const wb=XLSX.utils.book_new();const j=XLSX.utils.aoa_to_sheet([['STT','Join date','Dept','Section','Pos','ID number','Name','Gender','Date of Birth','Age','Address','Telephone','Introduce by','Remark'],[1,'2026-04-21','Production','Line12','Sewing Operator',5913,'CHAN DARA','F','1995-08-15',30,'Sihanouk','010681661','By friend','']]);const r=XLSX.utils.aoa_to_sheet([['序號','工號','姓名','到職日期','部門','職務','性別','出生日期','年齡','辭職','辭退','自離','開除','離職日期','在職天數','離職原因','備注'],[1,5595,'CHHOM SREYMEY','2024-10-22','Line11','Sewing operator','F','2000-09-12',26,'√','','','','2026-04-01',527,'Go home childcare','']]);XLSX.utils.book_append_sheet(wb,j,'Jion');XLSX.utils.book_append_sheet(wb,r,'Resign');XLSX.writeFile(wb,'AC_HRA_Template.xlsx');}
 
 // ── Cloud ──
+// ── Cloud Push / Pull ──────────────────────────────────
+async function cloudPush(){
+  const url=localStorage.getItem(K_GAS)||'';
+  if(!url){toast('請先在設定頁填入 GAS URL','warn');return;}
+  const el=document.getElementById('cloud-status');
+  if(el)el.textContent='☁⬆ 上傳中…';
+  try{
+    const payload=JSON.stringify({action:'push',tool:'onboarding',data:{joins:JOINS,resigns:RESIGNS}});
+    const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
+    const d=await r.json();
+    if(el)el.textContent=d.ok?'✅ 已上傳':'❌ 上傳失敗';
+    toast(d.ok?'✅ Upload Success':'❌ 上傳失敗',d.ok?'ok':'err');
+  }catch(e){if(el)el.textContent='❌ '+e.message;toast('❌ '+e.message,'err');}
+}
+async function cloudPull(){
+  const url=localStorage.getItem(K_GAS)||'';
+  if(!url){toast('請先在設定頁填入 GAS URL','warn');return;}
+  const el=document.getElementById('cloud-status');
+  if(el)el.textContent='☁⬇ 下載中…';
+  try{
+    const r=await fetch(`${url}?action=pull&tool=onboarding`,{redirect:'follow'});
+    const d=await r.json();
+    if(d&&d.data){
+      const p=typeof d.data==='string'?JSON.parse(d.data):d.data;
+      if(p.joins){JOINS=p.joins;localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}
+      if(p.resigns){RESIGNS=p.resigns;localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}
+      renderAll();
+      const now=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
+      if(el)el.textContent=`✅ 已更新 ${now}`;
+      toast('⬇ Data Updated','ok');
+    }else{if(el)el.textContent='☁ 雲端無資料';toast('雲端尚無資料','warn');}
+  }catch(e){if(el)el.textContent='❌ '+e.message;toast('❌ '+e.message,'err');}
+}
+
+// ── Telegram with period selection ────────────────────────
+async function sendTgPeriod(){
+  const mode=document.getElementById('tg-period-sel')?.value||'month';
+  const modeLabel={day:'今日',week:'本週',month:'本月',year:'本年'}[mode]||'本月';
+  // Temporarily switch range to selected mode and get data
+  const origRange=RANGE, origPivot=new Date(pivotDate);
+  RANGE=mode; pivotDate=new Date();
+  const{start,end,label}=getRangeDates();
+  const joins=JOINS.filter(r=>inRange(r.joinDate||''));
+  const resigns=RESIGNS.filter(r=>inRange(r.resignDate||''));
+  RANGE=origRange; pivotDate=origPivot;  // restore
+  const sewJ=joins.filter(isSewingRecord).length;
+  const sewR=resigns.filter(isSewingRecord).length;
+  const sewPct=joins.length>0?Math.round(sewJ/joins.length*100):0;
+  const net=joins.length-resigns.length;
+  const ratio=joins.length+resigns.length>0?Math.round(resigns.length/(joins.length+resigns.length)*100):0;
+  const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const text=`🚪 <b>AC HRA 入離職摘要</b> — ${ts}
+📅 ${modeLabel}（${label}）
+─────────────────────
+🟢 入職：<b>${joins.length}</b> 人（車縫 ${sewJ} / ${sewPct}%）
+🔴 離職：<b>${resigns.length}</b> 人（車縫 ${sewR}）
+📊 淨增減：${net>=0?'+':''}${net} 人
+📉 離職比例：${ratio}%
+─────────────────────
+🏭 VRT Sihanoukville`;
+  await tgSend(text);
+  toast('📱 Telegram 已發送','ok');
+}
+
 async function sendTgSummary(){const mo=new Date().toISOString().slice(0,7);const mj=JOINS.filter(r=>(r.joinDate||'').startsWith(mo)).length,mr=RESIGNS.filter(r=>(r.resignDate||'').startsWith(mo)).length;const ts=new Date().toLocaleString('zh-TW',{timeZone:'Asia/Phnom_Penh',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});const text=`🚪 <b>AC HRA 入離職摘要</b> — ${ts}\n─────────────────────\n📅 ${mo}\n🟢 入職：${mj} 人\n🔴 離職：${mr} 人\n📊 淨增減：${mj>=mr?'+':''}${mj-mr} 人\n─────────────────────\n🏭 VRT Sihanoukville`;const gasUrl=localStorage.getItem(K_GAS)||'';
 loadAttIDB().catch(()=>{});if(gasUrl){try{const r=await fetch(gasUrl,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',text})});const d=await r.json();if(d.ok){toast('✅ Telegram 已發送','ok');return;}}catch(e){}}const TOKEN=SETS.tgToken||'8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg',CHAT=SETS.tgChat||'-5233667043';fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:CHAT,text,parse_mode:'HTML'})}).then(r=>r.json()).then(d=>toast(d.ok?'✅ Telegram 已發送':'❌ 失敗',d.ok?'ok':'err')).catch(e=>toast('❌ '+e.message,'err'));}
 async function sendAnomalyTg(){const issues=[];document.querySelectorAll('#anomaly-list .alert').forEach(el=>{if(!el.textContent.includes('✅'))issues.push(el.textContent.trim());});if(!issues.length){toast('無異常可發送','warn');return;}const text=`⚠️ <b>AC HRA 異常</b>\n${issues.slice(0,10).join('\n')}\n🏭 VRT Sihanoukville`;const ok=await tgSend(text);toast(ok?'✅ 已發送':'❌ 失敗',ok?'ok':'err');}
@@ -820,6 +902,9 @@ function parseDate(v,isDob){
   // dd/mm/yyyy or dd-mm-yyyy (very common DOB format in Cambodia)
   m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.]((19|20)\d{2})$/);
   if(m&&+m[3]>=minY&&+m[3]<=maxY)return`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  // 2-digit year: dd/mm/yy → add 1900 or 2000
+  m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
+  if(m){const yr=+m[3]+(+m[3]<=30?2000:1900);if(yr>=minY&&yr<=maxY)return`${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
   // yyyy/mm/dd or yyyy-mm-dd
   m=s.match(/^((19|20)\d{2})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
   if(m&&+m[1]>=minY&&+m[1]<=maxY)return`${m[1]}-${m[3].padStart(2,'0')}-${m[4].padStart(2,'0')}`;
@@ -1006,15 +1091,16 @@ async function renderCompare(){
   // Resign ratio: resign / (join+resign) — temporary simplified metric
   const resignRatio=thisJ+thisR>0?((thisR/(thisJ+thisR))*100).toFixed(1)+'%':'—';
 
+  const sewJPct=thisJ>0?Math.round(sewJ2/thisJ*100):0;
+  const sewRPct=thisR>0?Math.round(sewR2/thisR*100):0;
   document.getElementById('cmp-kpi').innerHTML=[
-    // attJ removed
-    {v:thisJ,       l:`HR 入職 ${dFn(cp)}`,cls:'join-k'},
-    // attJ diff removed
-    // attR removed
-    {v:thisR,       l:`HR 離職 ${dFn(cp)}`,cls:'resign-k'},
-    // attR diff removed
-    {v:net,         l:'淨增減(HR)',      cls:net>=0?'join-k':'resign-k'},
-    {v:resignRatio, l:'離職比例',        cls:parseFloat(resignRatio)>30?'resign-k':''},
+    {v:thisJ,                      l:`HR 入職 ${dFn(cp)}`,  cls:'join-k'},
+    {v:thisR,                      l:`HR 離職 ${dFn(cp)}`,  cls:'resign-k'},
+    {v:net,                        l:'淨增減',               cls:net>=0?'join-k':'resign-k'},
+    {v:`${sewJ2} (${sewJPct}%)`,   l:'車縫入職 🔵',         cls:'join-k'},
+    {v:`${sewR2} (${sewRPct}%)`,   l:'車縫離職 🔵',         cls:'resign-k'},
+    {v:sewNet,                     l:'車縫淨增',              cls:sewNet>=0?'join-k':'resign-k'},
+    {v:resignRatio,                l:'離職比例',              cls:parseFloat(resignRatio)>30?'resign-k':''},
   ].map(k=>`<div class="kpi ${k.cls}"><div class="kpi-n" style="${typeof k.v==='number'&&k.v<0?'color:var(--danger)':''}">${typeof k.v==='number'?k.v:(k.v??'—')}</div><div class="kpi-l">${k.l}</div></div>`).join('');
 
   // Trend chart: HR Join/Resign + Sewing breakdown
