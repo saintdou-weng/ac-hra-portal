@@ -2353,17 +2353,20 @@ async function renderSewCmp() {
     await new Promise(r => setTimeout(r, 0));
 
     // 3. Build attMap: lineId → {hcSum, days, join, resign}
-    // Uses inPeriod() — no datesSet, no format mismatch
+    // Debug counters per filter stage
+    let _f0=0,_f1=0,_f2=0,_f3=0,_f4=0,_f5=0;
+    const _sampleDate = DB.length ? String(DB[0].date).slice(0,30) : 'empty';
     const attMap = {};
     let attRowCount = 0;
     DB.forEach(r => {
-      if (!inPeriod(r.date)) return;
-      if (r.isSubtotal || r.isGrand) return;
+      _f0++;
+      if (!inPeriod(r.date)) return; _f1++;
+      if (r.isSubtotal || r.isGrand) return; _f2++;
       const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
-      if (!raw) return;
+      if (!raw) return; _f3++;
       const lid = normSCLine(raw);
-      if (!isSCLine(lid)) return;
-      if (lineFilter && lid !== lineFilter) return;
+      if (!isSCLine(lid)) return; _f4++;
+      if (lineFilter && lid !== lineFilter) return; _f5++;
       if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
       const mf = (+r.m||0)+(+r.f||0);
       attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
@@ -2406,7 +2409,8 @@ async function renderSewCmp() {
     // 7. Debug status (visible in UI)
     const attLnCnt = Object.keys(attLineHC).length;
     const sewLnCnt = Object.keys(sewLineW).length;
-    _st(`出勤: ${attLnCnt}線 ${attRowCount}筆 | 車縫: ${sewLnCnt}線 ${sewRowCount}筆 | period=${period}`);
+    const _dateEx = _sampleDate;
+    _st(`f0=${_f0} f1(period)=${_f1} f2(noSub)=${_f2} f3(hasLine)=${_f3} f4(isSCLine)=${_f4} f5=${_f5} | att=${attRowCount} | sew=${sewRowCount} | date0="${_dateEx}"`);
     console.log('[Att×Sewing]', {period, dates:period, attRows:attRowCount, sewRows:sewRowCount, attLines:Object.keys(attLineHC), sewLines:Object.keys(sewLineW), attTotal, sewTotal});
 
     // 8. Update KPI cards
