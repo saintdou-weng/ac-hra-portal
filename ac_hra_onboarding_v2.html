@@ -236,20 +236,7 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- RESIGNS -->
 <div class="page" id="page-resigns">
-  <div class="range-nav" style="margin-bottom:8px">
-    <div class="range-tabs">
-      <button onclick="setRRange('day',this)">日</button>
-      <button onclick="setRRange('week',this)">週</button>
-      <button class="on" onclick="setRRange('month',this)">月</button>
-      <button onclick="setRRange('year',this)">年</button>
-    </div>
-    <button class="nav-btn" onclick="moveRRange(-1)">◀</button>
 
-    <button class="nav-btn" onclick="moveRRange(1)">▶</button>
-    <button class="nav-btn" onclick="moveRRange(0)" title="今天" style="font-size:11px;padding:4px 8px">●</button>
-    <select class="flt" id="resign-month-sel" onchange="renderResigns()" style="min-width:110px"></select>
-    <span style="font-size:11px;color:var(--muted)" id="r-count-lbl"></span>
-  </div>
   <div class="sum-filters">
     <!-- hidden: resign-month kept for compat -->
     <div class="sum-filter-group" style="display:none"><label>月份</label><select class="flt" id="resign-month"><option value="">全部</option></select></div>
@@ -331,18 +318,9 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- COMPARE : Attendance × Join/Resign Analysis -->
 <div class="page" id="page-compare">
+  <!-- Compare filters: only dept + att button; date from unified header nav -->
   <div class="sum-filters" style="margin-bottom:12px">
-    <div class="range-tabs">
-      <button class="on" data-r="day"   onclick="setCmpRange('day',this)">日</button>
-      <button data-r="week"  onclick="setCmpRange('week',this)">週</button>
-      <button data-r="month" onclick="setCmpRange('month',this)">月</button>
-      <button data-r="year"  onclick="setCmpRange('year',this)">年</button>
-    </div>
-    <button class="arr-btn" onclick="moveCmp(-1)">◀</button>
-    <div class="period-lbl" id="cmp-label">—</div>
-    <button class="arr-btn" onclick="moveCmp(1)">▶</button>
-    <button class="arr-btn" onclick="moveCmp(0)" title="今天">●</button>
-    <select class="flt" id="cmp-dept" onchange="renderCompare()" style="min-width:100px"><option value="">全部部門</option></select>
+    <select class="flt" id="cmp-dept" onchange="renderCompare()" style="min-width:140px"><option value="">全部部門</option></select>
     <button class="btn ghost small" onclick="loadAttIDB(true).then(renderCompare)" style="margin-left:4px">🔄 讀取考勤</button>
     <span id="cmp-att-status" style="font-size:11px;color:var(--muted)">未讀取</span>
   </div>
@@ -743,7 +721,7 @@ const label=hraPLabel(hraKey());if(document.getElementById('period-label'))docum
   }catch(_err){console.error('[renderSumma]',_err);toast&&toast(_err.message,'err');}
 }
 
-function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];const s=new Date(start),e=new Date(end);const days=Math.ceil((e-s)/86400000);if(days>90){const jm={},rm={};joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();months.forEach(m=>{labels.push(m.slice(5));jD.push(jm[m]||0);rD.push(rm[m]||0);});}else{for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){const ds=d.toISOString().slice(0,10);labels.push(ds.slice(5));jD.push(joins.filter(r=>r.joinDate===ds).length);rD.push(resigns.filter(r=>r.resignDate===ds).length);}}mkChart('ch-join',{type:'bar',data:{labels,datasets:[{label:'入職',data:jD,backgroundColor:'#10b981',borderRadius:3}]},options:barOpts()});mkChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:'離職',data:rD,backgroundColor:'#c62828',borderRadius:3}]},options:barOpts()});}
+function renderTrendCharts(joins,resigns,start,end){const labels=[],jD=[],rD=[];const s=new Date(start),e=new Date(end);const days=Math.ceil((e-s)/86400000);if(days>90){const jm={},rm={};joins.forEach(r=>{const m=(r.joinDate||'').slice(0,7);jm[m]=(jm[m]||0)+1;});resigns.forEach(r=>{const m=(r.resignDate||'').slice(0,7);rm[m]=(rm[m]||0)+1;});const months=[...new Set([...Object.keys(jm),...Object.keys(rm)])].sort();months.forEach(m=>{labels.push(m.slice(5));jD.push(jm[m]||0);rD.push(rm[m]||0);});}else{for(let d=new Date(s);d<e;d.setDate(d.getDate()+1)){const ds=_lds(d);labels.push(ds.slice(5));jD.push(joins.filter(r=>r.joinDate===ds).length);rD.push(resigns.filter(r=>r.resignDate===ds).length);}}mkChart('ch-join',{type:'bar',data:{labels,datasets:[{label:'入職',data:jD,backgroundColor:'#10b981',borderRadius:3}]},options:barOpts()});mkChart('ch-resign',{type:'bar',data:{labels,datasets:[{label:'離職',data:rD,backgroundColor:'#c62828',borderRadius:3}]},options:barOpts()});}
 
 function renderReasonChart(resigns){const cm={};REASON_CATS.forEach(c=>cm[c]=0);resigns.forEach(r=>{const cat=r.reasonCat||'Other';if(cm[cat]!==undefined)cm[cat]++;else cm['Other']=(cm['Other']||0)+1;});const labels=Object.keys(cm).filter(k=>cm[k]>0);const vals=labels.map(k=>cm[k]);const colors=labels.map(k=>{const c=REASON_COLORS[k];return c?c.split(':')[0]:'#9ca3af';});mkChart('ch-reason',{type:'doughnut',data:{labels,datasets:[{data:vals,backgroundColor:colors,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});}
 
@@ -1103,7 +1081,7 @@ function renderAll(){renderSummary();renderJoins();renderResigns();if(document.g
 // ATTENDANCE IDB  (pattern: sewing reads cutting IDB)
 // ══════════════════════════════════════════════════════════
 let ATT_DATA=null;   // null=not loaded yet
-let _cmpRange='month',_cmpPivot=new Date();
+// Compare uses unified HRA_MODE/HRA_PIVOT (no separate state)
 
 async function loadAttIDB(force){
   if(ATT_DATA!==null&&!force)return ATT_DATA;
@@ -1179,18 +1157,19 @@ function getMonthSewHC(mo){
 }
 
 // ── Compare range helpers ──
-function setCmpRange(r,btn){_cmpRange=r;document.querySelectorAll('#page-compare .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderCompare();}
-function moveCmp(dir){const d=new Date(_cmpPivot);if(dir===0){_cmpPivot=new Date();}else if(_cmpRange==='day'){_cmpPivot=new Date(d.setDate(d.getDate()+dir));}else if(_cmpRange==='week'){_cmpPivot=new Date(d.setDate(d.getDate()+dir*7));}else if(_cmpRange==='month'){_cmpPivot=new Date(d.setMonth(d.getMonth()+dir));}else{_cmpPivot=new Date(d.setFullYear(d.getFullYear()+dir));}renderCompare();}
+// setCmpRange/moveCmp removed — compare uses HRA_MODE/HRA_PIVOT
 
 function getCmpPeriodCfg(){
+  // Use unified HRA_MODE/HRA_PIVOT instead of old _cmpRange/_cmpPivot
+  const _cmpRange=HRA_MODE, _cmpPivot=new Date(HRA_PIVOT);
   const y=_cmpPivot.getFullYear(),mo=_cmpPivot.getMonth();
   if(_cmpRange==='day'){
-    const ps=[];for(let i=29;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i);ps.push(d.toISOString().slice(0,10));}
-    return{ps,lbl:_cmpPivot.toLocaleDateString('zh-TW'),kFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,10),dFn:k=>k.slice(5)};
+    const ps=[];for(let i=29;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i);ps.push(_lds(d));}
+    return{ps,lbl:hraPLabel(hraKey()),kFn:r=>String(r.date||r.joinDate||r.resignDate||'').slice(0,10),dFn:k=>k.slice(5)};
   }
   if(_cmpRange==='week'){
     const wKey=s=>{if(!s)return'';const d=new Date(s),j=new Date(d.getFullYear(),0,1);return`${d.getFullYear()}-W${String(Math.ceil(((d-j)/86400000+j.getDay()+1)/7)).padStart(2,'0')}`;};
-    const ps=[];for(let i=11;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i*7);ps.push(wKey(d.toISOString().slice(0,10)));}
+    const ps=[];for(let i=11;i>=0;i--){const d=new Date(_cmpPivot);d.setDate(d.getDate()-i*7);ps.push(wKey(_lds(d)));}
     return{ps:[...new Set(ps)],lbl:'近12週',kFn:r=>wKey(r.date||r.joinDate||r.resignDate||''),dFn:k=>k.slice(5)};
   }
   if(_cmpRange==='month'){
@@ -1205,8 +1184,8 @@ async function renderCompare(){
   const att=await loadAttIDB();
   const{ps,lbl,kFn,dFn}=getCmpPeriodCfg();
   const deptF=document.getElementById('cmp-dept')?.value||'';
-  document.getElementById('cmp-label').textContent=lbl;
-  document.getElementById('cmp-range-lbl').textContent=`近 ${ps.length} 個${_cmpRange==='day'?'天':_cmpRange==='week'?'週':_cmpRange==='month'?'月':'年'}`;
+  // cmp-label removed (uses header nav)
+  if(document.getElementById('cmp-range-lbl'))document.getElementById('cmp-range-lbl').textContent=`近 ${ps.length} 個${HRA_MODE==='day'?'天':HRA_MODE==='week'?'週':HRA_MODE==='month'?'月':'年'}`;
 
   const pSet=new Set(ps);
 
