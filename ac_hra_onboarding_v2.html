@@ -202,8 +202,23 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- JOINS -->
 <div class="page" id="page-joins">
+  <!-- Period navigator (mirrors Summary tab) -->
+  <div class="range-nav" style="margin-bottom:8px">
+    <div class="range-tabs">
+      <button onclick="setJRange('day',this)">日</button>
+      <button onclick="setJRange('week',this)">週</button>
+      <button class="on" onclick="setJRange('month',this)">月</button>
+      <button onclick="setJRange('year',this)">年</button>
+    </div>
+    <button class="nav-btn" onclick="moveJRange(-1)">◀</button>
+    <span id="j-period-label" style="font-size:13px;font-weight:700;min-width:110px;text-align:center"></span>
+    <button class="nav-btn" onclick="moveJRange(1)">▶</button>
+    <button class="nav-btn" onclick="moveJRange(0)" title="今天" style="font-size:11px;padding:4px 8px">●</button>
+    <select class="flt" id="join-month" onchange="renderJoins()" style="min-width:110px"></select>
+    <span style="font-size:11px;color:var(--muted)" id="j-count-lbl"></span>
+  </div>
   <div class="sum-filters">
-    <div class="sum-filter-group"><label>月份</label><select class="flt" id="join-month" onchange="renderJoins()"><option value="">全部</option></select></div>
+    <div class="sum-filter-group" style="display:none"><label>月份（隱藏）</label><select class="flt" id="join-month-old"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>部門</label><select class="flt" id="join-dept" onchange="renderJoins()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="join-gender" onchange="renderJoins()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>職位</label><select class="flt" id="join-pos" onchange="renderJoins()"><option value="">全部</option></select></div>
@@ -229,8 +244,23 @@ textarea.form-input{resize:vertical;min-height:56px}
 
 <!-- RESIGNS -->
 <div class="page" id="page-resigns">
+  <div class="range-nav" style="margin-bottom:8px">
+    <div class="range-tabs">
+      <button onclick="setRRange('day',this)">日</button>
+      <button onclick="setRRange('week',this)">週</button>
+      <button class="on" onclick="setRRange('month',this)">月</button>
+      <button onclick="setRRange('year',this)">年</button>
+    </div>
+    <button class="nav-btn" onclick="moveRRange(-1)">◀</button>
+    <span id="r-period-label" style="font-size:13px;font-weight:700;min-width:110px;text-align:center"></span>
+    <button class="nav-btn" onclick="moveRRange(1)">▶</button>
+    <button class="nav-btn" onclick="moveRRange(0)" title="今天" style="font-size:11px;padding:4px 8px">●</button>
+    <select class="flt" id="resign-month-sel" onchange="renderResigns()" style="min-width:110px"></select>
+    <span style="font-size:11px;color:var(--muted)" id="r-count-lbl"></span>
+  </div>
   <div class="sum-filters">
-    <div class="sum-filter-group"><label>月份</label><select class="flt" id="resign-month" onchange="renderResigns()"><option value="">全部</option></select></div>
+    <!-- hidden: resign-month kept for compat -->
+    <div class="sum-filter-group" style="display:none"><label>月份</label><select class="flt" id="resign-month"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>部門</label><select class="flt" id="resign-dept" onchange="renderResigns()"><option value="">全部</option></select></div>
     <div class="sum-filter-group"><label>性別</label><select class="flt" id="resign-gender" onchange="renderResigns()"><option value="">全部</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
     <div class="sum-filter-group"><label>離職類型</label><select class="flt" id="resign-type" onchange="renderResigns()"><option value="">全部</option><option value="resign">辭職</option><option value="dismiss">辭退</option><option value="self">自離</option><option value="expel">開除</option></select></div>
@@ -589,6 +619,36 @@ function calcAgeAtJoin(dob,joinDate){
 function goTab(btn){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));btn.classList.add('active');const tab=btn.dataset.page;document.getElementById('page-'+tab).classList.add('active');if(tab==='summary')renderSummary();if(tab==='joins')renderJoins();if(tab==='resigns')renderResigns();if(tab==='anomaly')runAnomalyCheck();if(tab==='compare'){renderCompare();updateFilters();}if(tab==='settings')loadSettingsForm();}
 
 // ── Range nav ──
+// ── Join page period nav ──────────────────────────────
+let RANGE_J='month', pivotJ=new Date();
+function setJRange(r,btn){RANGE_J=r;document.querySelectorAll('#page-joins .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');updateJNav();renderJoins();}
+function moveJRange(dir){const d=new Date(pivotJ);if(dir===0){pivotJ=new Date();}else if(RANGE_J==='day'){pivotJ=new Date(d.setDate(d.getDate()+dir));}else if(RANGE_J==='week'){pivotJ=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE_J==='month'){pivotJ=new Date(d.setMonth(d.getMonth()+dir));}else{pivotJ=new Date(d.setFullYear(d.getFullYear()+dir));}updateJNav();renderJoins();}
+function updateJNav(){
+  const{start,end,label}=getNavDates(RANGE_J,pivotJ);
+  const lbl=document.getElementById('j-period-label');if(lbl)lbl.textContent=label;
+  // Also update dropdown to match current period
+  const sel=document.getElementById('join-month');
+  if(sel){const mo=start.slice(0,7);const cur=sel.value;if([...sel.options].some(o=>o.value===mo))sel.value=mo;}
+  return{start,end};
+}
+function getNavDates(range,pivot){
+  const p=pivot||new Date();
+  const y=p.getFullYear(),mo=p.getMonth(),d=p.getDate();
+  let start,end,label;
+  if(range==='day'){start=end=`${y}-${String(mo+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;label=start;}
+  else if(range==='week'){const day=new Date(p);day.setDate(d-(p.getDay()||7)+1);const dayE=new Date(day);dayE.setDate(dayE.getDate()+6);start=day.toISOString().slice(0,10);end=dayE.toISOString().slice(0,10);label=`${start}~${end.slice(5)}`;}
+  else if(range==='month'){start=`${y}-${String(mo+1).padStart(2,'0')}-01`;end=new Date(y,mo+1,0).toISOString().slice(0,10);label=`${y}年${mo+1}月`;}
+  else{start=`${y}-01-01`;end=`${y}-12-31`;label=`${y}年`;}
+  return{start,end,label};
+}
+function inNavRange(date,range,pivot){if(!date)return false;const{start,end}=getNavDates(range,pivot);return date>=start&&date<=end;}
+
+// ── Resign page period nav ────────────────────────────
+let RANGE_R='month', pivotR=new Date();
+function setRRange(r,btn){RANGE_R=r;document.querySelectorAll('#page-resigns .range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');updateRNav();renderResigns();}
+function moveRRange(dir){const d=new Date(pivotR);if(dir===0){pivotR=new Date();}else if(RANGE_R==='day'){pivotR=new Date(d.setDate(d.getDate()+dir));}else if(RANGE_R==='week'){pivotR=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE_R==='month'){pivotR=new Date(d.setMonth(d.getMonth()+dir));}else{pivotR=new Date(d.setFullYear(d.getFullYear()+dir));}updateRNav();renderResigns();}
+function updateRNav(){const{start,end,label}=getNavDates(RANGE_R,pivotR);const lbl=document.getElementById('r-period-label');if(lbl)lbl.textContent=label;return{start,end};}
+
 function setRange(r,btn){RANGE=r;document.querySelectorAll('.range-tabs button').forEach(b=>b.classList.remove('on'));btn.classList.add('on');renderSummary();}
 function moveRange(dir){const d=new Date(pivotDate);if(dir===0){pivotDate=new Date();}else if(RANGE==='day'){pivotDate=new Date(d.setDate(d.getDate()+dir));}else if(RANGE==='week'){pivotDate=new Date(d.setDate(d.getDate()+dir*7));}else if(RANGE==='month'){pivotDate=new Date(d.setMonth(d.getMonth()+dir));}else if(RANGE==='year'){pivotDate=new Date(d.setFullYear(d.getFullYear()+dir));}renderSummary();}
 function getRangeDates(){const d=new Date(pivotDate);d.setHours(0,0,0,0);let start,end,label;if(RANGE==='day'){start=new Date(d);end=new Date(d);end.setDate(end.getDate()+1);label=d.toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'});}else if(RANGE==='week'){const dow=d.getDay()||7;start=new Date(d);start.setDate(d.getDate()-dow+1);end=new Date(start);end.setDate(start.getDate()+7);label=`${start.toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})} – ${new Date(end-1).toLocaleDateString('zh-TW',{month:'2-digit',day:'2-digit'})}`;}else if(RANGE==='month'){start=new Date(d.getFullYear(),d.getMonth(),1);end=new Date(d.getFullYear(),d.getMonth()+1,1);label=`${d.getFullYear()}年${d.getMonth()+1}月`;}else{start=new Date(d.getFullYear(),0,1);end=new Date(d.getFullYear()+1,0,1);label=`${d.getFullYear()}年`;}return{start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10),label};}
@@ -618,15 +678,20 @@ function renderJoins(){
   const q=(document.getElementById('join-search')?.value||'').toLowerCase();
   const deptF=document.getElementById('join-dept')?.value||'';
   const mo=document.getElementById('join-month')?.value||'';
+  // Period nav: filter by current J range (overrides month dropdown when nav active)
+  updateJNav();
+  const _jStart=getNavDates(RANGE_J,pivotJ).start, _jEnd=getNavDates(RANGE_J,pivotJ).end;
   const gF=document.getElementById('join-gender')?.value||'';
   const posF=document.getElementById('join-pos')?.value||'';
   const ageF=document.getElementById('join-age')?.value||'';
   const refF=document.getElementById('join-referrer')?.value||'';
   const deptOf=r=>r.section||r.dept||'—';
   function ageOk(r,band){const a=calcAgeAtJoin(r.dob,r.joinDate);if(!band)return true;if(band==='18-25')return a!==null&&a<=25;if(band==='26-30')return a!==null&&a>=26&&a<=30;if(band==='31-35')return a!==null&&a>=31&&a<=35;if(band==='36-40')return a!==null&&a>=36&&a<=40;if(band==='40+')return a!==null&&a>40;return true;}
+  updateJNav();
   let rows=JOINS.filter(r=>
-    (!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
-    &&(!deptF||deptOf(r)===deptF)&&(!mo||(r.joinDate||'').startsWith(mo))
+    inNavRange(r.joinDate||'',RANGE_J,pivotJ)
+    &&(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
+    &&(!deptF||deptOf(r)===deptF)
     &&(!gF||(r.gender||'').toUpperCase()===gF)&&(!posF||(r.position||'').includes(posF))
     &&ageOk(r,ageF)&&(!refF||(r.introducer||'')===refF)
   ).sort((a,b)=>(b.joinDate||'').localeCompare(a.joinDate||''));
@@ -663,7 +728,14 @@ function renderResigns(){const q=(document.getElementById('resign-search')?.valu
 const tenDays=r=>r.workingDays||(r.joinDate&&r.resignDate?Math.ceil((new Date(r.resignDate)-new Date(r.joinDate))/86400000):0);
 const tnF=document.getElementById('resign-tenure')?.value||'';
   function tenOk(r,band){const d=tenDays(r);if(!band)return true;if(band==='lt6m')return d<180;if(band==='6m1y')return d>=180&&d<365;if(band==='1y2y')return d>=365&&d<730;if(band==='2y3y')return d>=730&&d<1095;if(band==='3yp')return d>=1095;return true;}
-  let rows=RESIGNS.filter(r=>(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&(!deptF||(r.dept||'')=== deptF)&&(!mo||(r.resignDate||'').startsWith(mo))&&(!tp||r.resignType===tp)&&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||'')=== rcF)&&tenOk(r,tnF)).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
+  updateRNav();
+  let rows=RESIGNS.filter(r=>
+    inNavRange(r.resignDate||'',RANGE_R,pivotR)
+    &&(!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))
+    &&(!deptF||(r.dept||'')=== deptF)&&(!tp||r.resignType===tp)
+    &&(!gF||(r.gender||'').toUpperCase()===gF)&&(!rcF||(r.reasonCat||r.reason||'')=== rcF)
+    &&tenOk(r,tnF)
+  ).sort((a,b)=>(b.resignDate||'').localeCompare(a.resignDate||''));
 const total=rows.length,tc={resign:0,dismiss:0,self:0,expel:0};rows.forEach(r=>{if(tc[r.resignType]!==undefined)tc[r.resignType]++;});
 const mo2=new Date().toISOString().slice(0,7);
 const sewR=rows.filter(isSewingRecord).length;
@@ -905,6 +977,13 @@ function parseDate(v,isDob){
   // 2-digit year: dd/mm/yy → add 1900 or 2000
   m=s.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2})$/);
   if(m){const yr=+m[3]+(+m[3]<=30?2000:1900);if(yr>=minY&&yr<=maxY)return`${yr}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
+  // dd-Mon-yy or dd-Mon-yyyy (e.g. "2-Mar-04", "2-Mar-2004")
+  const _MON={jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12};
+  m=s.match(/^(\d{1,2})[\-\s\/](jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\-\s\/](\d{2,4})$/i);
+  if(m){const mo=_MON[m[2].toLowerCase()];const yr=m[3].length===2?(+m[3]<=30?2000:1900)+ +m[3]:+m[3];if(yr>=minY&&yr<=maxY&&mo)return`${yr}-${String(mo).padStart(2,'0')}-${m[1].padStart(2,'0')}`;}
+  // Mon-dd-yyyy (e.g. "Mar-2-2004")
+  m=s.match(/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[\-\s\/](\d{1,2})[\-\s\/](\d{2,4})$/i);
+  if(m){const mo=_MON[m[1].toLowerCase()];const yr=m[3].length===2?(+m[3]<=30?2000:1900)+ +m[3]:+m[3];if(yr>=minY&&yr<=maxY&&mo)return`${yr}-${String(mo).padStart(2,'0')}-${m[2].padStart(2,'0')}`;}
   // yyyy/mm/dd or yyyy-mm-dd
   m=s.match(/^((19|20)\d{2})[\/\-\.](\d{1,2})[\/\-\.](\d{1,2})$/);
   if(m&&+m[1]>=minY&&+m[1]<=maxY)return`${m[1]}-${m[3].padStart(2,'0')}-${m[4].padStart(2,'0')}`;
