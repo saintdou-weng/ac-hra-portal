@@ -2742,24 +2742,46 @@ function normLineForCompare(s){
 }
 
 function readAttendanceML(){
-  // Read attendance DB from localStorage
-  // Attendance key: 'vrt_att_v5_db'
+  // Read attendance DB from localStorage (vrt_att_v5_db)
+  // r.ml = people on maternity leave that day — use LATEST date snapshot
   try{
     const raw=localStorage.getItem(ATT_DB_KEY);
     if(!raw)return null;
     const db=JSON.parse(raw)||[];
-    // Group by normalized line, sum ml (maternity leave)
+    if(!db.length)return null;
+
+    // Find the most recent date that has any ML > 0
+    const dates=[...new Set(db.map(r=>r.date).filter(Boolean))].sort();
+    const latestDate=dates[dates.length-1]||'';
+
+    // Get ML per line for the latest date
     const lineML={};
-    db.forEach(r=>{
+    const latestRecs=db.filter(r=>r.date===latestDate);
+    latestRecs.forEach(r=>{
       if(!r||!r.line)return;
-      const norm=normLineForCompare(String(r.line||''));
+      const norm=normLineForCompare(String(r.line||'').replace(/[/／].*/,'').trim());
       if(!norm)return;
       const ml=+(r.ml||0);
-      if(ml>0){
-        lineML[norm]=(lineML[norm]||0)+ml;
-      }
+      if(ml>0) lineML[norm]=(lineML[norm]||0)+ml;
     });
-    return{lineML, total:db.length, dates:[...new Set(db.map(r=>r.date).filter(Boolean))].length};
+
+    // Also provide a "peak" (max per day) as backup info
+    const peakML={};
+    db.forEach(r=>{
+      if(!r?.line)return;
+      const norm=normLineForCompare(String(r.line||'').replace(/[/\/／].*/,'').trim());
+      if(!norm)return;
+      const ml=+(r.ml||0);
+      if(ml>0) peakML[norm]=Math.max(peakML[norm]||0,ml);
+    });
+
+    return{
+      lineML,          // latest date snapshot (current headcount)
+      peakML,          // peak ML per line (for reference)
+      latestDate,
+      total:db.length,
+      dates:dates.length
+    };
   }catch(e){console.warn('readAttendanceML:',e);return null;}
 }
 
@@ -2778,8 +2800,8 @@ function renderCompare(){
   }
 
   const{lineML, total:attTotal, dates:attDays}=attResult;
-  if(statusEl)statusEl.textContent=`✅ 出勤 ${attTotal} 筆 / ${attDays} 天`;
-  if(logEl)logEl.textContent=`出勤資料: ${attTotal} 筆記錄，${attDays} 天，${Object.keys(lineML).length} 條產假線別`;
+  if(statusEl)statusEl.textContent=`✅ 最新日期: ${attResult.latestDate||'—'} | ${attTotal} 筆/${attDays} 天`;
+  if(logEl)logEl.textContent=`快照日期: ${attResult.latestDate} | 共 ${attTotal} 筆，${attDays} 天 | 最新日 ML 線別: ${Object.keys(lineML).length} 條（如差異大可選較近日期匯入）`;
 
   // Build portal maternity by normalized line/dept
   const portMat={};
