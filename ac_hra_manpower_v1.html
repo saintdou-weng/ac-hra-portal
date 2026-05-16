@@ -1226,108 +1226,109 @@ function nhCI(hdr,key){return hdr.findIndex(h=>normalizeHeader(h)===key);}
 
 
 
-// ── Import Requisition from VRT Manpower Report (direct cell access) ──
+
+// ── Import Requisition from VRT Manpower Report ──────────────────────
 async function importReqXlsx(evt){
   const f=evt?.target?.files?.[0];if(!f)return;
   try{evt.target.value='';}catch(e){}
-
-  if(REQS.length>0&&!confirm('清除現有 '+REQS.length+' 筆需求，匯入新資料？')){return;}
-
-  toast('📂 解析 VRT Manpower Report…','info');
+  toast('📂 解析中…','info');
   try{
     const buf=await f.arrayBuffer();
-    const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:false,raw:true});
+    const wb=XLSX.read(new Uint8Array(buf),{type:'array',raw:false,cellDates:false});
 
-    // Find VRT sheet (with or without trailing space)
+    // Find VRT sheet (with/without trailing space)
     const vrtSn=wb.SheetNames.find(s=>s.trim().toUpperCase()==='VRT')||wb.SheetNames[0];
     const ws=wb.Sheets[vrtSn];
 
-    // Helper: safely read cell value
-    const cv=(r,c)=>{
-      const ref=XLSX.utils.encode_cell({r,c});
-      const cell=ws[ref];
-      if(!cell)return'';
-      // Handle merged cells (value only in master cell)
-      return cell.v!==undefined?String(cell.v):'';
-    };
+    // sheet_to_json with header:1 gives rows as arrays
+    // It DOES handle merged cells (fills in value for all rows in merge range)
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false,blankrows:false});
 
-    // Extract period date from row 4 col C (e.g., "1/Jan/26-30/Apr/26")
-    // → extract end date → "2026-04-30"
-    const periodStr=cv(3,2); // row index 3 = Excel row 4, col index 2 = col C
-    let reportDate=td(); // default to today
-    const mMatch=periodStr.match(/(\d+)\/([A-Za-z]+)\/(\d{2,4})/g);
-    if(mMatch&&mMatch.length){
-      const last=mMatch[mMatch.length-1]; // e.g. "30/Apr/26"
-      const mp=last.match(/(\d+)\/([A-Za-z]+)\/(\d{2,4})/);
-      if(mp){
-        const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
-                      Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
-        const yr=+mp[3]<100?2000+(+mp[3]):+mp[3];
-        const mo=months[mp[2].charAt(0).toUpperCase()+mp[2].slice(1).toLowerCase()]||'01';
-        const dy=String(+mp[1]).padStart(2,'0');
-        reportDate=yr+'-'+mo+'-'+dy;
-      }
-    }
-
-    // Find data start: look for first row where col D (Position) has meaningful text
-    // AND col B has a number OR col C has a dept name
-    // Known structure: header at Excel row 5 (index 4), sub-header row 6, data from row 7 (index 6)
-    let dataStartR=6; // default: Excel row 7 = index 6
-    for(let r=3;r<10;r++){
-      const posH=cv(r,3).trim().toLowerCase();
-      const noH=cv(r,1).trim().toLowerCase();
-      if(posH==='position'&&(noH==='no.'||noH==='no')){
-        dataStartR=r+2; // skip header + sub-header
+    // ── Dynamic column detection: find the row with "Position" header ──
+    let hdrRowIdx=-1, colPos=-1, colDept=-1, colReq=-1;
+    for(let ri=0;ri<Math.min(12,rows.length);ri++){
+      const row=rows[ri];
+      const piIdx=row.findIndex(v=>String(v||'').trim().toLowerCase()==='position');
+      if(piIdx>=0){
+        hdrRowIdx=ri;
+        colPos=piIdx;
+        // Dept is typically one column before Position
+        colDept=Math.max(0,piIdx-1);
+        // Required/Total is one column after Position
+        colReq=piIdx+1;
         break;
       }
     }
 
+    if(colPos<0){
+      toast('⚠ 找不到 Position 欄位。請確認使用 VRT Manpower Report 並選 VRT 工作表。','err');
+      console.warn('VRT rows sample:',rows.slice(0,8).map(r=>r.slice(0,6)));
+      return;
+    }
+
+    // Extract report period date from rows (look for "dd/Mon/yy-dd/Mon/yy" pattern)
+    let reportDate=td();
+    for(let ri=0;ri<Math.min(8,rows.length);ri++){
+      const txt=rows[ri].map(v=>String(v||'')).join(' ');
+      const mArr=txt.match(/(\d+)\/([A-Za-z]{3})\/(\d{2,4})/g);
+      if(mArr&&mArr.length>=2){
+        const last=mArr[mArr.length-1];
+        const mp=last.match(/(\d+)\/([A-Za-z]{3})\/(\d{2,4})/);
+        if(mp){
+          const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+                        Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+          const yr=+mp[3]<100?2000+(+mp[3]):+mp[3];
+          const mo=months[mp[2].charAt(0).toUpperCase()+mp[2].slice(1).toLowerCase()]||'01';
+          reportDate=yr+'-'+mo+'-01';
+        }
+        break;
+      }
+    }
+
+    // Clear existing reqs and import fresh
     REQS=[];
     let added=0,skipped=0,lastDept='';
-    const usedKeys=new Set();
+    const usedPos=new Set();
+    const dataStart=hdrRowIdx+2; // skip header row + sub-header row
 
-    // Read from dataStartR until 10 consecutive empty position rows
-    let emptyCount=0;
-    for(let r=dataStartR;r<dataStartR+60;r++){
-      const noV  =cv(r,1).trim(); // col B
-      const deptV=cv(r,2).trim(); // col C (merged → carry forward)
-      const posV =cv(r,3).trim(); // col D = Position
-      const reqV =cv(r,4).trim(); // col E = Required
+    for(let ri=dataStart;ri<rows.length;ri++){
+      const row=rows[ri];
+      const deptV=String(row[colDept]||'').trim();
+      const posV =String(row[colPos] ||'').trim();
+      const reqV =String(row[colReq] ||'').trim();
 
-      // Carry forward merged dept cell
+      // Carry forward dept from merged cells (sheet_to_json already fills merged, but just in case)
       if(deptV&&!/^\d+$/.test(deptV)&&deptV.toLowerCase()!=='total')lastDept=deptV;
 
-      if(!posV){emptyCount++;if(emptyCount>=5)break;continue;}
-      emptyCount=0;
-
-      // Skip header/summary/total rows
-      if(/^(total|subtotal|grand total|position|from|no\.|no,|dept\.|required)$/i.test(posV)){skipped++;continue;}
-      if(/入職|總人數|離職|Number of employees|Resignation|Total number|Summary/i.test(posV)){skipped++;continue;}
-      if(noV.toLowerCase()==='total'||posV.toLowerCase()==='total'){skipped++;continue;}
+      // Skip empty / header / total rows
+      if(!posV){skipped++;continue;}
+      if(/^(total|subtotal|position|from|no\.|required)$/i.test(posV)){skipped++;continue;}
+      if(/入職|總人數|離職|Number of employees|Resignation|Total number/i.test(posV)){skipped++;continue;}
 
       const dept=lastDept||'—';
+      // Deduplicate by position+dept
       const key=(posV+'|'+dept).toLowerCase();
-      if(usedKeys.has(key)){skipped++;continue;}
-      usedKeys.add(key);
+      if(usedPos.has(key)){skipped++;continue;}
+      usedPos.add(key);
 
-      const required=parseInt(reqV)||0;
-      const isSew=isSewingRecord({position:posV,dept,section:''});
+      const required=Math.max(0,parseInt(reqV)||0);
 
       REQS.push({
         id:uid(), title:posV, dept, position:posV,
         required, filled:0,
-        date:reportDate,  // use report period date
-        deadline:'',
-        priority:isSew?'normal':'normal',
+        date:reportDate,
+        deadline:'', priority:'normal',
         status:required>0?'open':'closed',
-        remark:'VRT '+vrtSn.trim()+' '+reportDate
+        remark:'VRT '+vrtSn.trim()
       });
       added++;
     }
 
     saveReqs();renderReq();populatePeriodLabel();
-    toast('✅ VRT 匯入：'+added+' 需求 (dept: '+[...new Set(REQS.map(r=>r.dept))].join('/')+')'
-         +'\n跳過: '+skipped+' | 報告日期: '+reportDate,'ok');
+    const deptList=[...new Set(REQS.map(r=>r.dept))].join(' / ');
+    toast('✅ VRT 匯入完成\n需求: '+added+' 筆 | 跳過: '+skipped
+         +'\n部門: '+deptList+'\n日期: '+reportDate,'ok');
+    console.log('VRT import done. colPos='+colPos+' colDept='+colDept+' colReq='+colReq+' hdrRow='+hdrRowIdx+' dataStart='+dataStart);
   }catch(e){console.error('importReqXlsx:',e);toast('❌ 匯入失敗: '+e.message,'err');}
 }
 
