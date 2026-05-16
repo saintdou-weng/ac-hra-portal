@@ -274,7 +274,7 @@ textarea.fi{resize:vertical;min-height:52px}
       onchange="rcJumpTo(this.value)"></select>
     <button class="arr" onclick="rcNav(1)">▶</button>
     <button class="arr" onclick="rcToday()" title="今天">●</button>
-    <div class="period-lbl" id="rcPeriodLbl" style="min-width:60px">全部</div>
+    <span id="rcPeriodLbl" style="font-size:12px;font-weight:700;color:var(--sky);min-width:60px;margin-left:2px">全部</span>
   </div>
   <div class="toolbar">
     <input class="sbox" id="rcSrch" placeholder="🔍 Search name / ID…" data-zh="搜尋姓名/工號…" data-en="Search name / ID…" data-km="ស្វែងរក…" oninput="renderRecruit()">
@@ -328,13 +328,21 @@ textarea.fi{resize:vertical;min-height:52px}
 
 <!-- ══ ANALYTICS ══ -->
 <div class="page" id="page-analytics">
-  <div class="rnav">
-    <select class="fsel" id="anaMode" onchange="renderAnalytics()">
-      <option value="month">月</option>
-      <option value="quarter">季</option>
-      <option value="year">年</option>
-    </select>
-    <select class="fsel" id="anaDept" onchange="renderAnalytics()"><option value="">全部部門</option></select>
+  <div class="rnav" id="anaNav">
+    <div class="rtabs ana-rtabs">
+      <button class="on" data-r="all"   onclick="anaSetMode('all',this)">全部</button>
+      <button           data-r="day"   onclick="anaSetMode('day',this)">日</button>
+      <button           data-r="week"  onclick="anaSetMode('week',this)">週</button>
+      <button           data-r="month" onclick="anaSetMode('month',this)">月</button>
+      <button           data-r="year"  onclick="anaSetMode('year',this)">年</button>
+    </div>
+    <button class="arr" onclick="anaNav(-1)">◀</button>
+    <select id="anaPeriodSel" class="fsel" style="min-width:110px;font-family:monospace;font-size:11px"
+      onchange="anaJumpTo(this.value)"></select>
+    <button class="arr" onclick="anaNav(1)">▶</button>
+    <button class="arr" onclick="anaToday()">●</button>
+    <span id="anaPeriodLbl" style="font-size:12px;font-weight:700;color:var(--sky);margin-left:4px">全部</span>
+    <select class="fsel" id="anaDept" onchange="renderAnalytics()" style="margin-left:12px"><option value="">全部部門</option></select>
   </div>
   <div class="kpi-strip" id="anaKpis"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
@@ -572,11 +580,47 @@ function reqJumpTo(val){
 function populatePeriodLabel(){const el=document.getElementById('periodLbl');if(el)el.textContent=pLabel(reqState);}
 function inRange(dateStr){return pInRange(dateStr,reqState);}
 
+// ── Analytics page date wrappers ──
+function anaSetMode(m,btn){
+  anaState.mode=m;
+  document.querySelectorAll('.ana-rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
+  anaUpdateLabel();
+  if(m!=='all'){
+    const sel=document.getElementById('anaPeriodSel');
+    if(sel&&sel.value)anaJumpTo(sel.value);
+    else renderAnalytics();
+  }else renderAnalytics();
+}
+function anaNav(dir){pNav(anaState,dir);anaUpdateLabel();renderAnalytics();}
+function anaToday(){anaState.pivot=new Date();anaUpdateLabel();renderAnalytics();}
+function anaUpdateLabel(){
+  const el=document.getElementById('anaPeriodLbl');if(el)el.textContent=pLabel(anaState);
+  const sel=document.getElementById('anaPeriodSel');if(!sel)return;
+  const allDates=[...REQS.map(r=>r.date),...RECRUIT.map(r=>r.joinDate||r.date)].filter(Boolean);
+  const keys=[...new Set(allDates.map(d=>pKey(d,anaState)))].filter(k=>k&&k!=='ALL').sort().reverse();
+  const cur=pKey(_lds(anaState.pivot),anaState);
+  if(anaState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
+  sel.disabled=false;
+  sel.innerHTML=keys.length?keys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+}
+function anaJumpTo(val){
+  if(!val||anaState.mode==='all')return;
+  const y=+val.slice(0,4),mo=anaState.mode==='month'?+val.slice(5,7)-1:0;
+  anaState.pivot=new Date(y,mo,1);
+  anaUpdateLabel();renderAnalytics();
+}
+
 // ── Recruit page date wrappers ──
 function rcSetMode(m,btn){
   recruitState.mode=m;
   document.querySelectorAll('.rc-rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
-  rcUpdateLabel();renderRecruit();
+  rcUpdateLabel(); // populate dropdown
+  // Auto-jump to first available date in dropdown for non-all modes
+  if(m!=='all'){
+    const sel=document.getElementById('rcPeriodSel');
+    if(sel&&sel.value)rcJumpTo(sel.value);
+    else renderRecruit();
+  }else renderRecruit();
 }
 function rcNav(dir){pNav(recruitState,dir);rcUpdateLabel();renderRecruit();}
 function rcToday(){recruitState.pivot=new Date();rcUpdateLabel();renderRecruit();}
@@ -616,7 +660,18 @@ function normalizeGroup(s){
   return n;
 }
 function isNormSewing(normName){return /^LINE\d+$/.test(normName||'');}
-function isSewingRecord(r){const raw=String(r.dept||r.position||r.section||'').replace(/[/\uFF0F].*/,'');return isNormSewing(normalizeGroup(raw));}
+function isSewingRecord(r){
+  // Check section (most specific line assignment)
+  const sec=String(r.section||'').replace(/[/\uFF0F].*/,'').trim();
+  if(sec&&isNormSewing(normalizeGroup(sec)))return true;
+  // Check dept
+  const dept=String(r.dept||'').replace(/[/\uFF0F].*/,'').trim();
+  if(dept&&isNormSewing(normalizeGroup(dept)))return true;
+  // Check position name: 'Sewing Operator' etc.
+  const pos=String(r.position||'').toLowerCase();
+  if(pos.includes('sewing'))return true;
+  return false;
+}
 let _editReqId = null;
 let _charts = {};
 let GAS_URL = '';
@@ -705,7 +760,7 @@ function goTab(btn){
   document.getElementById('page-'+tab).classList.add('on');
   if(tab==='req')      {populatePeriodLabel();renderReq();}
   if(tab==='recruit')  renderRecruit();
-  if(tab==='analytics'){renderAnalytics();} // renderCompare called inside renderAnalytics
+  if(tab==='analytics'){anaUpdateLabel();renderAnalytics();}
   if(tab==='settings') {loadSettings();loadTgSet();}
 }
 
@@ -895,10 +950,12 @@ function renderRecruit(){
 // ── RENDER ANALYTICS ──
 function renderAnalytics(){
   try{
-  const mode=document.getElementById('anaMode').value||'month';
+  anaUpdateLabel(); // sync dropdown with current state
   const deptF=document.getElementById('anaDept')?.value||'';
-  const allReqs=deptF?REQS.filter(r=>r.dept===deptF):REQS;
-  const allRec =deptF?RECRUIT.filter(r=>r.dept===deptF):RECRUIT;
+  const allReqs=(deptF?REQS.filter(r=>r.dept===deptF):REQS)
+    .filter(r=>pInRange(r.date,anaState));
+  const allRec=(deptF?RECRUIT.filter(r=>r.dept===deptF):RECRUIT)
+    .filter(r=>pInRange(r.joinDate||r.date||'',anaState));
 
   const totalReq=allReqs.reduce((s,r)=>s+(+r.required||0),0);
   const totalFil=allReqs.reduce((s,r)=>s+(+r.filled||0),0);
@@ -1195,7 +1252,7 @@ async function importReqXlsx(evt){
     const cDL=ci('deadline')<0?ci('截止'):ci('deadline');
     const cStatus=ci('status')<0?ci('狀態'):ci('status');
     const cRemark=ci('remark')<0?ci('備注'):ci('remark');
-    for(let i=1;i<rows.length;i++){
+    for(let i=hdrIdx+1;i<rows.length;i++){
       const row=rows[i];
       const title=String(row[cTitle]||'').trim();if(!title){skipped++;continue;}
       // Skip obvious header repeats
@@ -1509,6 +1566,7 @@ function renderAll(){
   loadData();
   populatePeriodLabel();
   rcUpdateLabel();
+  anaUpdateLabel();
   renderReq();
   renderRecruit();
   // Apply language
