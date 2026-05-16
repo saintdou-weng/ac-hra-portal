@@ -1246,6 +1246,17 @@ async function importReqXlsx(evt){
       }
     }
 
+    // ── Find 'Actual Manpower' column (LAST occurrence = YTD actual) ──
+    let colFilled=-1;
+    for(let ri=0;ri<dataStart;ri++){
+      const row=rows[ri];
+      row.forEach((v,ci)=>{
+        if(/actual\s*manpower/i.test(String(v||'').trim()))colFilled=ci;
+      });
+    }
+    // Fallback: rightmost numeric after colReq+10 in header is likely filled
+    console.log('VRT colFilled='+colFilled);
+
     if(colPos<0){
       // Fallback: assume standard VRT layout (col A empty, B=no, C=dept, D=pos, E=req)
       // Try fixed offsets: look for numeric/text pattern in rows
@@ -1316,7 +1327,8 @@ async function importReqXlsx(evt){
 
       REQS.push({
         id:uid(), title:posV, dept, position:posV,
-        required, filled:0,
+        required,
+        filled:(colFilled>=0&&row[colFilled]!=='')?Math.max(0,parseInt(String(row[colFilled]||'0'))||0):0,
         date:reportDate,
         deadline:'', priority:'normal',
         status:required>0?'open':'closed',
