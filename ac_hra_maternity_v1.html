@@ -630,6 +630,30 @@ tr:hover td{background:#fdf5f7}
 
   <!-- CLOUD CONFIG -->
   <div id="stab-cloud-body" style="display:none">
+
+    <!-- TG Settings -->
+    <div class="card" style="margin-bottom:14px">
+      <div class="ct">📱 Telegram 推送設定</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div>
+          <label style="font-size:11px;color:#6b7a9e;font-weight:600">Bot Token</label>
+          <input class="fi" id="tgTokenInput" placeholder="例：8752977449:AAH…" style="width:100%;margin-top:4px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#6b7a9e;font-weight:600">Chat ID（群組需加 -）</label>
+          <input class="fi" id="tgChatInput" placeholder="例：-5233667043" style="width:100%;margin-top:4px">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-rose" onclick="saveTgSettings()">💾 儲存 TG 設定</button>
+        <button class="btn btn-g" onclick="testTgSettings()">📤 測試發送</button>
+        <span id="tgSaveStatus" style="font-size:11px;color:#6b7a9e;align-self:center"></span>
+      </div>
+      <div style="font-size:11px;color:#6b7a9e;margin-top:8px">
+        ⚙ Bot Token：從 @BotFather 取得 &nbsp;|&nbsp; Chat ID：群組加 - 號，個人不加
+      </div>
+    </div>
+
     <div class="card">
       <div class="ct">☁ Google Apps Script (GAS) 設定</div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
@@ -2579,8 +2603,48 @@ function renderSettingsDept(){
 }
 
 let settingStab='dept';
+
+// ── TG Settings ──────────────────────────────────────────
+function loadTgSettings(){
+  const token=localStorage.getItem('vrt_tg_token')||'';
+  const chat=localStorage.getItem('vrt_tg_chat')||'';
+  const ti=document.getElementById('tgTokenInput');
+  const ci=document.getElementById('tgChatInput');
+  if(ti)ti.value=token;
+  if(ci)ci.value=chat;
+}
+function saveTgSettings(){
+  const token=(document.getElementById('tgTokenInput')?.value||'').trim();
+  const chat=(document.getElementById('tgChatInput')?.value||'').trim();
+  if(!token||!chat){
+    document.getElementById('tgSaveStatus').textContent='⚠ 請填入 Token 和 Chat ID';
+    return;
+  }
+  localStorage.setItem('vrt_tg_token',token);
+  localStorage.setItem('vrt_tg_chat',chat);
+  document.getElementById('tgSaveStatus').textContent='✅ 已儲存';
+  setTimeout(()=>{const el=document.getElementById('tgSaveStatus');if(el)el.textContent='';},3000);
+}
+async function testTgSettings(){
+  const token=(document.getElementById('tgTokenInput')?.value||localStorage.getItem('vrt_tg_token')||'').trim();
+  const chat=(document.getElementById('tgChatInput')?.value||localStorage.getItem('vrt_tg_chat')||'').trim();
+  const status=document.getElementById('tgSaveStatus');
+  if(!token||!chat){if(status)status.textContent='⚠ 請先填入並儲存';return;}
+  if(status)status.textContent='📤 發送中…';
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chat,text:'✅ AC HRA 孕婦產假系統 — TG 連線測試成功！',parse_mode:'HTML'})
+    });
+    const d=await r.json();
+    if(d.ok){if(status)status.textContent='✅ 測試成功！';}
+    else{if(status)status.textContent='❌ '+d.description;}
+  }catch(e){if(status)status.textContent='❌ '+e.message;}
+  setTimeout(()=>{const el=document.getElementById('tgSaveStatus');if(el)el.textContent='';},5000);
+}
 function goStab(name,el){
   settingStab=name;
+  if(name==='cloud') loadTgSettings(); // auto-fill TG fields
   document.querySelectorAll('.stab').forEach(b=>b.classList.toggle('on',b.id==='stab-'+name));
   ['dept','emp','cloud','system'].forEach(s=>{
     const el2=document.getElementById('stab-'+s+'-body');
