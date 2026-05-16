@@ -329,6 +329,25 @@ tr:hover td{background:#fdf5f7}
     <div class="kpi blue"><div class="kpi-n" id="k-total">0</div><div class="kpi-l" id="kl-total">👥 總人數</div></div>
   </div>
 
+  <!-- Date Nav (moved to top) -->
+  <div class="date-nav">
+    <div style="display:flex;gap:4px">
+      <button class="dnm" onclick="setMode('day')">日</button>
+      <button class="dnm" onclick="setMode('week')">週</button>
+      <button class="dnm on" onclick="setMode('month')">月</button>
+      <button class="dnm" onclick="setMode('year')">年</button>
+    </div>
+    <button class="btn-nav" onclick="navDate(-1)">◀</button>
+    <div class="date-nav-display" id="dateDisp">—</div>
+    <button class="btn-nav" onclick="navDate(1)">▶</button>
+    <button class="btn-today" onclick="goToday()">今日</button>
+    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-rose" onclick="openEmpModal(null,'')">＋ 新增</button>
+      <button class="btn btn-g" onclick="printRows(masterFiltered(),'總表 — '+getLabel())">🖨️ 列印</button>
+      <button class="btn btn-g" onclick="xlsxExport(masterFiltered(),'VRT_Master_'+today()+'.xlsx')">⬇ Excel</button>
+    </div>
+  </div>
+
   <!-- Analytics Row -->
   <div class="ana-row" id="anaRow">
     <div class="card" style="padding:14px">
@@ -389,25 +408,6 @@ tr:hover td{background:#fdf5f7}
       </td></tr></tbody>
     </table></div>
     <div id="cmpLog" style="font-size:10px;color:#6b7a9e;margin-top:6px"></div>
-  </div>
-
-  <!-- Date Nav -->
-  <div class="date-nav">
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setMode('day')">日</button>
-      <button class="dnm" onclick="setMode('week')">週</button>
-      <button class="dnm on" onclick="setMode('month')">月</button>
-      <button class="dnm" onclick="setMode('year')">年</button>
-    </div>
-    <button class="btn-nav" onclick="navDate(-1)">◀</button>
-    <div class="date-nav-display" id="dateDisp">—</div>
-    <button class="btn-nav" onclick="navDate(1)">▶</button>
-    <button class="btn-today" onclick="goToday()">今日</button>
-    <div style="margin-left:auto;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-rose" onclick="openEmpModal(null,'')">＋ 新增</button>
-      <button class="btn btn-g" onclick="printRows(masterFiltered(),'總表 — '+getLabel())">🖨️ 列印</button>
-      <button class="btn btn-g" onclick="xlsxExport(masterFiltered(),'VRT_Master_'+today()+'.xlsx')">⬇ Excel</button>
-    </div>
   </div>
 
   <div class="tw">
@@ -519,7 +519,8 @@ tr:hover td{background:#fdf5f7}
   </div>
   <div class="toolbar">
     <input class="search-box" id="salSrch" oninput="renderSalary()" placeholder="Search…">
-    <select class="fsel" id="salIdF" onchange="renderSalary()"><option value="">— All —</option></select>
+    <select class="fsel" id="salMonthF" onchange="renderSalary()"><option value="">— 全部月份 —</option></select>
+    <select class="fsel" id="salIdF" onchange="renderSalary()"><option value="">— 全部人員 —</option></select>
     <div class="tbar-r">
       <button class="btn btn-rose" onclick="openSalModal(null)" id="tb-addSal">＋ 新增薪資</button>
       <label class="btn btn-y" style="cursor:pointer"><span id="tb-impSal">📥 匯入薪資 Excel</span>
@@ -1800,6 +1801,16 @@ function updateSalKPI(){
 function renderSalary(){
   const q=(document.getElementById('salSrch')?.value||'').toLowerCase();
   const idF=document.getElementById('salIdF')?.value||'';
+  const moF=document.getElementById('salMonthF')?.value||'';
+
+  // Populate month dropdown
+  const salMonthSel=document.getElementById('salMonthF');
+  if(salMonthSel){
+    const cur=salMonthSel.value;
+    const mos=[...new Set(salaryRecords.map(r=>r.month).filter(Boolean))].sort().reverse();
+    salMonthSel.innerHTML='<option value="">— 全部月份 —</option>'+mos.map(m=>`<option value="${m}"${m===cur?' selected':''}>${m}</option>`).join('');
+    if(cur)salMonthSel.value=cur;
+  }
 
   // Build per-person groups
   const matEmps=employees.filter(e=>['maternity','returned'].includes(e.status));
@@ -1819,7 +1830,7 @@ function renderSalary(){
   container.innerHTML=filtered.length?filtered.map(idNo=>{
     const emp=employees.find(e=>e.idNo===idNo);
     const name=emp?.name||idNo;
-    const recs=salaryRecords.filter(r=>r.idNo===idNo).sort((a,b)=>b.month.localeCompare(a.month));
+    const recs=salaryRecords.filter(r=>r.idNo===idNo&&(!moF||r.month===moF)).sort((a,b)=>b.month.localeCompare(a.month));
     if(!recs.length) return '';
     const pay=emp?calcMatPay(emp):null;
     const totalNet=recs.reduce((s,r)=>s+(+r.netPay||0),0);
@@ -3044,6 +3055,16 @@ async function importNursingFeeExcel(input){
   }
 }
 
+
+// Parse nursing payMonth "Sep'25" → comparable string "202509"
+function parseNurMonth(s){
+  const mo={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+            Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  const m=String(s||'').match(/^([A-Za-z]{3})["']?(\d{2,4})$/);
+  if(!m)return String(s||'');
+  const yr=+m[2]<100?2000+(+m[2]):+m[2];
+  return yr+(mo[m[1].charAt(0).toUpperCase()+m[1].slice(1).toLowerCase()]||'00');
+}
 function renderNursing(){
   try{
   loadNursing();
@@ -3055,10 +3076,10 @@ function renderNursing(){
     (!q||(r.name||'').toLowerCase().includes(q)||(r.cardId||'').includes(q))
     &&(!mo||r.payMonth===mo)
     &&(!dept||(r.dept||'')=== dept)
-  ).sort((a,b)=>String(b.payMonth).localeCompare(String(a.payMonth))||String(a.name).localeCompare(String(b.name)));
+  ).sort((a,b)=>parseNurMonth(b.payMonth).localeCompare(parseNurMonth(a.payMonth))||String(a.name).localeCompare(String(b.name)));
 
   // Update filter selects
-  const months=[...new Set(NURSING.map(r=>r.payMonth).filter(Boolean))].sort().reverse();
+  const months=[...new Set(NURSING.map(r=>r.payMonth).filter(Boolean))].sort((a,b)=>parseNurMonth(b).localeCompare(parseNurMonth(a)));
   const nurMonthEl=document.getElementById('nurMonth');
   if(nurMonthEl){const cur=nurMonthEl.value;nurMonthEl.innerHTML='<option value="">全部月份</option>'+months.map(m=>`<option${m===cur?' selected':''}>${m}</option>`).join('');}
   const depts=[...new Set(NURSING.map(r=>r.dept).filter(Boolean))].sort();
