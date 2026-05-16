@@ -247,7 +247,7 @@ textarea.fi{resize:vertical;min-height:52px}
     <button class="btn btn-p" onclick="openReqModal()">＋ <span data-zh="新增需求" data-en="Add Req." data-km="បន្ថែម">新增需求</span></button>
     <label class="btn btn-g" style="cursor:pointer">📥 <span data-zh="匯入" data-en="Import" data-km="នាំចូល">匯入</span><input type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="importReqXlsx(event)"></label>
     <button class="btn btn-g" onclick="exportReqXlsx()">⬇ Excel</button>
-    <button class="btn btn-d btn-sm" onclick="clearReqs()">🗑</button>
+    <button class="btn btn-d" onclick="clearReqsNow()" title="清除所有人力需求資料">🗑 清除重載</button>
   </div>
   <div class="req-grid" id="reqCards"></div>
   <div class="panel">
@@ -535,6 +535,7 @@ function pKey(dateStr, st){
   if(st.mode==='day')return d;
   if(st.mode==='week'){const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return dt.getFullYear()+'-W'+String(w).padStart(2,'0');}
   if(st.mode==='month')return d.slice(0,7);
+  if(st.mode==='year') return d.slice(0,4);
   return d.slice(0,4);
 }
 function pInRange(dateStr, st){
@@ -563,7 +564,8 @@ function pNav(st,dir){
 function setRange(m,btn){
   reqState.mode=m;
   document.querySelectorAll('.rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
-  if(m==='all'){const el=document.getElementById('periodLbl');if(el)el.textContent='全部';}
+  // Force pivot to 'today' when switching to year/month to avoid stale period
+  if(m==='year'||m==='month')reqState.pivot=new Date();
   populatePeriodLabel();renderReq();
 }
 function moveRange(dir){pNav(reqState,dir);populatePeriodLabel();renderReq();}
@@ -1194,6 +1196,11 @@ function saveReq(){
 }
 function delReq(id){if(!confirm('刪除此需求？'))return;REQS=REQS.filter(x=>x.id!==id);saveReqs();renderReq();toast('已刪除','info');}
 function clearReqs(){if(!confirm('清除全部需求？'))return;REQS=[];saveReqs();renderReq();toast('已清除','info');}
+function clearReqsNow(){
+  REQS=[];saveReqs();
+  renderReq();populatePeriodLabel();
+  toast('✅ 人力需求已清除，請重新匯入 VRT 檔案','info');
+}
 function clearRecruit(){if(!confirm('清除全部招募記錄？'))return;RECRUIT=[];saveRecruit();renderRecruit();toast('已清除','info');}
 
 // ── IMPORT XLSX ──
@@ -1261,8 +1268,23 @@ async function importReqXlsx(evt){
     }
 
     if(colPos<0){
-      toast('⚠ 找不到 Position 欄位。請確認使用 VRT Manpower Report 並選 VRT 工作表。','err');
-      console.warn('VRT rows sample:',rows.slice(0,8).map(r=>r.slice(0,6)));
+      // Fallback: assume standard VRT layout (col A empty, B=no, C=dept, D=pos, E=req)
+      // Try fixed offsets: look for numeric/text pattern in rows
+      for(let ri=3;ri<Math.min(10,rows.length);ri++){
+        const row=rows[ri];
+        // Check if row[2] or row[3] looks like 'Position'
+        for(let ci=1;ci<=4;ci++){
+          if(String(row[ci]||'').trim().toLowerCase()==='position'){
+            colPos=ci;colDept=Math.max(0,ci-1);colReq=ci+1;hdrRowIdx=ri;
+            break;
+          }
+        }
+        if(colPos>=0)break;
+      }
+    }
+    if(colPos<0){
+      const sample=rows.slice(0,8).map(r=>r.slice(0,6).map(v=>String(v||'').slice(0,15)));
+      alert('⚠ 找不到 Position 欄位\n\n前8行前6欄:\n'+sample.map((r,i)=>i+': '+JSON.stringify(r)).join('\n'));
       return;
     }
 
@@ -1326,9 +1348,13 @@ async function importReqXlsx(evt){
 
     saveReqs();renderReq();populatePeriodLabel();
     const deptList=[...new Set(REQS.map(r=>r.dept))].join(' / ');
-    toast('✅ VRT 匯入完成\n需求: '+added+' 筆 | 跳過: '+skipped
-         +'\n部門: '+deptList+'\n日期: '+reportDate,'ok');
-    console.log('VRT import done. colPos='+colPos+' colDept='+colDept+' colReq='+colReq+' hdrRow='+hdrRowIdx+' dataStart='+dataStart);
+    const msg='✅ VRT 匯入完成\n'+
+              '需求: '+added+' 筆 | 跳過: '+skipped+'\n'+
+              '部門: '+deptList+'\n'+
+              '日期: '+reportDate+'\n'+
+              '(colPos='+colPos+' hdrRow='+hdrRowIdx+')';
+    alert(msg);
+    console.log('VRT import done:',{added,skipped,colPos,colDept,colReq,hdrRowIdx,dataStart,deptList,reportDate});
   }catch(e){console.error('importReqXlsx:',e);toast('❌ 匯入失敗: '+e.message,'err');}
 }
 
