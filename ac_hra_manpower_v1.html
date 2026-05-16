@@ -220,17 +220,17 @@ textarea.fi{resize:vertical;min-height:52px}
 <div class="page on" id="page-req">
   <div class="rnav">
     <div class="rtabs">
-      <button data-r="all"  onclick="setRange('all',this)"  class="">全部</button>
-      <button data-r="day"  onclick="setRange('day',this)"  data-zh="日" data-en="Day">日</button>
-      <button data-r="week" onclick="setRange('week',this)" data-zh="週" data-en="Week">週</button>
-      <button data-r="month" onclick="setRange('month',this)" data-zh="月" data-en="Month" class="on">月</button>
-      <button data-r="year" onclick="setRange('year',this)" data-zh="年" data-en="Year">年</button>
+      <button data-r="all"  onclick="reqSetMode('all',this)"  class="">全部</button>
+      <button data-r="day"  onclick="reqSetMode('day',this)"  data-zh="日" data-en="Day">日</button>
+      <button data-r="week" onclick="reqSetMode('week',this)" data-zh="週" data-en="Week">週</button>
+      <button data-r="month" onclick="reqSetMode('month',this)" data-zh="月" data-en="Month" class="on">月</button>
+      <button data-r="year" onclick="reqSetMode('year',this)" data-zh="年" data-en="Year">年</button>
     </div>
-    <button class="arr" onclick="moveRange(-1)">◀</button>
+    <button class="arr" onclick="reqNav(-1)">◀</button>
     <select id="reqPeriodSel" class="fsel" style="min-width:110px;font-family:monospace;font-size:11px"
       onchange="reqJumpTo(this.value)"></select>
-    <button class="arr" onclick="moveRange(1)">▶</button>
-    <button class="arr" onclick="moveRange(0)" title="今天">●</button>
+    <button class="arr" onclick="reqNav(1)">▶</button>
+    <button class="arr" onclick="reqToday()" title="今天">●</button>
   </div>
   <div class="kpi-strip" id="reqKpis"></div>
   <div class="kpi-strip" id="reqSewKpi" style="margin-top:-4px"></div>
@@ -560,66 +560,41 @@ function pNav(st,dir){
   st.pivot=d;
 }
 
-// ── Req page date wrappers ──
-function setRange(m,btn){
+// ── Req page date wrappers (exact same pattern as recruit) ──
+function reqSetMode(m,btn){
   reqState.mode=m;
   document.querySelectorAll('.rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
-  // Force pivot to 'today' when switching to year/month to avoid stale period
-  if(m==='year'||m==='month')reqState.pivot=new Date();
-  populatePeriodLabel();renderReq();
+  reqUpdateLabel();
+  if(m!=='all'){
+    const sel=document.getElementById('reqPeriodSel');
+    if(sel&&sel.value)reqJumpTo(sel.value);
+    else renderReq();
+  }else renderReq();
 }
-function moveRange(dir){pNav(reqState,dir);populatePeriodLabel();renderReq();}
-function reqJumpTo(val){
-  if(!val||reqState.mode==='all')return;
-  const y=+val.slice(0,4),mo=reqState.mode==='month'?+val.slice(5,7)-1:0;
-  const d=reqState.mode==='day'?+val.slice(8,10):1;
-  reqState.pivot=new Date(y,mo,d||1);
-  populatePeriodLabel();renderReq();
-}
-function populatePeriodLabel(){
-  // Always include current pivot period in dropdown (so ◀▶ navigation is visible)
+function reqNav(dir){pNav(reqState,dir);reqUpdateLabel();renderReq();}
+function reqToday(){reqState.pivot=new Date();reqUpdateLabel();renderReq();}
+function reqUpdateLabel(){
   const sel=document.getElementById('reqPeriodSel');
   if(!sel)return;
   const allDates=REQS.map(r=>r.date).filter(Boolean);
   const dataKeys=[...new Set(allDates.map(d=>pKey(d,reqState)))].filter(k=>k&&k!=='ALL');
   const cur=(reqState.mode==='all')?'ALL':pKey(_lds(reqState.pivot),reqState);
-  if(reqState.mode==='all'){sel.innerHTML='<option>— 全部 All —</option>';sel.disabled=true;return;}
-  sel.disabled=false;
-  // Include current pivot period even if no data
-  const allKeys=[...new Set([...dataKeys,cur])].sort().reverse();
-  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
-}
-function inRange(dateStr){return pInRange(dateStr,reqState);}
-
-// ── Analytics page date wrappers ──
-function anaSetMode(m,btn){
-  anaState.mode=m;
-  document.querySelectorAll('.ana-rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
-  anaUpdateLabel();
-  if(m!=='all'){
-    const sel=document.getElementById('anaPeriodSel');
-    if(sel&&sel.value)anaJumpTo(sel.value);
-    else renderAnalytics();
-  }else renderAnalytics();
-}
-function anaNav(dir){pNav(anaState,dir);anaUpdateLabel();renderAnalytics();}
-function anaToday(){anaState.pivot=new Date();anaUpdateLabel();renderAnalytics();}
-function anaUpdateLabel(){
-  const sel=document.getElementById('anaPeriodSel');if(!sel)return;
-  const allDates=[...REQS.map(r=>r.date),...RECRUIT.map(r=>r.joinDate||r.date)].filter(Boolean);
-  const dataKeys=[...new Set(allDates.map(d=>pKey(d,anaState)))].filter(k=>k&&k!=='ALL');
-  const cur=(anaState.mode==='all')?'ALL':pKey(_lds(anaState.pivot),anaState);
-  if(anaState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
+  if(reqState.mode==='all'){sel.innerHTML='<option>— 全部 All —</option>';sel.disabled=true;renderReq();return;}
   sel.disabled=false;
   const allKeys=[...new Set([...dataKeys,cur])].sort().reverse();
-  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option value="">—</option>';
 }
-function anaJumpTo(val){
-  if(!val||anaState.mode==='all')return;
-  const y=+val.slice(0,4),mo=anaState.mode==='month'?+val.slice(5,7)-1:0;
-  anaState.pivot=new Date(y,mo,1);
-  anaUpdateLabel();renderAnalytics();
+function reqJumpTo(val){
+  if(!val||reqState.mode==='all')return;
+  const y=+val.slice(0,4),mo=reqState.mode==='month'?+val.slice(5,7)-1:0;
+  const d=reqState.mode==='day'?+val.slice(8,10):1;
+  reqState.pivot=new Date(y,mo,d||1);
+  reqUpdateLabel();renderReq();
 }
+// Keep old names as aliases for backward compat
+function setRange(m,btn){reqSetMode(m,btn);}
+function moveRange(dir){reqNav(dir);}
+function populatePeriodLabel(){reqUpdateLabel();}
 
 // ── Recruit page date wrappers ──
 function rcSetMode(m,btn){
@@ -1346,7 +1321,14 @@ async function importReqXlsx(evt){
       added++;
     }
 
-    saveReqs();renderReq();populatePeriodLabel();
+    saveReqs();
+    // Auto-jump to imported period
+    if(REQS.length>0&&reqState.mode!=='all'){
+      const firstDate=REQS.map(r=>r.date).filter(Boolean).sort()[0]||'';
+      if(firstDate){reqJumpTo(pKey(firstDate,reqState));}
+      else renderReq();
+    }else renderReq();
+    reqUpdateLabel();
     const deptList=[...new Set(REQS.map(r=>r.dept))].join(' / ');
     const msg='✅ VRT 匯入完成\n'+
               '需求: '+added+' 筆 | 跳過: '+skipped+'\n'+
@@ -1654,7 +1636,7 @@ function renderAll(){
 // ── INIT ──
 (function(){
   loadData();
-  populatePeriodLabel();
+  reqUpdateLabel();
   rcUpdateLabel();
   anaUpdateLabel();
   renderReq();
