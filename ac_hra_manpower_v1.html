@@ -1277,6 +1277,9 @@ async function importReqXlsx(evt){
       }
     }
 
+    // dataStart = hdrRow + 2 (skip header row + sub-header row)
+    const dataStart=hdrRowIdx+2;
+
     // ── Find 'Actual Manpower' column (LAST occurrence = YTD actual) ──
     let colFilled=-1;
     for(let ri=0;ri<dataStart;ri++){
@@ -1332,7 +1335,7 @@ async function importReqXlsx(evt){
     REQS=[];
     let added=0,skipped=0,lastDept='';
     const usedPos=new Set();
-    const dataStart=hdrRowIdx+2; // skip header row + sub-header row
+    // dataStart declared early (above colFilled loop to avoid TDZ)
 
     for(let ri=dataStart;ri<rows.length;ri++){
       const row=rows[ri];
@@ -1580,16 +1583,22 @@ async function cloudPull(){
     const d=await r.json();
     if(!d.ok||!d.data||d.data.data===null){toast('☁️ 雲端尚無資料','info');return;}
     const pay=d.data.data||d.data;
-    // Accept various GAS response structures
-    const reqs=pay.reqs||pay.REQS||pay.data?.reqs||null;
-    const recruit=pay.recruit||pay.RECRUIT||pay.data?.recruit||[];
-    if(reqs){
+    // GAS may return: {reqs,recruit} direct OR {records:[{reqs,recruit}]} OR {summary:{reqs,recruit}}
+    const inner=pay.reqs?pay:
+                pay.records?.[0]?.reqs?pay.records[0]:
+                pay.summary?.reqs?pay.summary:
+                pay.data?.reqs?pay.data:null;
+    const reqs=inner?.reqs||inner?.REQS||null;
+    const recruit=inner?.recruit||inner?.RECRUIT||[];
+    if(reqs&&Array.isArray(reqs)){
       REQS=reqs;RECRUIT=recruit;
       saveReqs();saveRecruit();renderAll();
       toast(`☁ Download complete：需求 ${REQS.length} 筆，招募 ${RECRUIT.length} 筆`,'ok');
     }else{
-      console.warn('cloudPull payload:',pay);
-      toast('❌ 格式錯誤 — GAS 回傳格式不符，請查 Console','err');
+      // Last resort: try to read from records array directly
+      const allRecs=pay.records||[];
+      console.warn('cloudPull payload (no reqs found):',pay,'records:',allRecs.length);
+      toast(`❌ 格式不符：GAS 返回 ${JSON.stringify(Object.keys(pay))} — 請先 Push 資料後再 Pull`,'err');
     }
   }catch(e){toast('❌ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='⬇ Pull';}
