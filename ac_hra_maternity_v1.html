@@ -319,6 +319,23 @@ tr:hover td{background:#fdf5f7}
   <div class="tab"     onclick="goTab('settings',this)">⚙️ 設定</div>
 </nav>
 
+<!-- ══ HRA UNIFIED PERIOD NAV ══ -->
+<div id="hra-range-nav" style="display:flex;align-items:center;gap:6px;padding:7px 14px;background:#f0f4fa;border-bottom:2px solid #b8860b;flex-wrap:wrap">
+  <span style="font-size:11px;font-weight:600;color:#6b7a9e;white-space:nowrap">📅</span>
+  <div style="display:flex;gap:2px">
+    <button class="hra-mode-btn on" data-mode="all"   onclick="hraSetMode('all',this)"   style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:11px;cursor:pointer;background:#1e3a8a;color:#fff;font-weight:700">全部</button>
+    <button class="hra-mode-btn"    data-mode="day"   onclick="hraSetMode('day',this)"   style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:11px;cursor:pointer;background:#fff;color:#6b7a9e">日</button>
+    <button class="hra-mode-btn"    data-mode="week"  onclick="hraSetMode('week',this)"  style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:11px;cursor:pointer;background:#fff;color:#6b7a9e">週</button>
+    <button class="hra-mode-btn"    data-mode="month" onclick="hraSetMode('month',this)" style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:11px;cursor:pointer;background:#fff;color:#6b7a9e">月</button>
+    <button class="hra-mode-btn"    data-mode="year"  onclick="hraSetMode('year',this)"  style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:11px;cursor:pointer;background:#fff;color:#6b7a9e">年</button>
+  </div>
+  <button onclick="hraNav(-1)" style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:13px;cursor:pointer;background:#fff">◀</button>
+  <select id="hra-psel" onchange="hraJumpTo(this.value)" style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:11px;min-width:120px;cursor:pointer"></select>
+  <button onclick="hraNav(1)" style="padding:4px 9px;border:1px solid #d0d5e8;border-radius:5px;font-size:13px;cursor:pointer;background:#fff">▶</button>
+  <button onclick="hraToday()" style="padding:4px 7px;border:1px solid #b8860b;border-radius:5px;font-size:11px;cursor:pointer;background:#fff;color:#1e3a8a" title="今天">●</button>
+  <span id="hra-period-lbl" style="font-size:12px;font-weight:700;color:#1e3a8a;min-width:70px;padding-left:4px">全部 All</span>
+</div>
+
 <!-- ══════════ TAB: 總表 ══════════ -->
 <div class="sec on" id="sec-master">
   <div class="kpi-strip">
@@ -903,8 +920,9 @@ function applyLang() {
   const ctTrend=document.getElementById('ct-trend');if(ctTrend)ctTrend.innerHTML='<span></span>'+T('ct_trend');
   // Salary summary static labels
   document.querySelectorAll('[data-t]').forEach(el=>{ const k=el.getAttribute('data-t'); el.textContent=T(k)||el.textContent; });
-  // Re-render
+  // Re-render (no tab switching — restoreTab() called by caller)
   renderAll(); renderAnalytics();
+  restoreTab();
 }
 let employees = [], salaryRecords = [];
 
@@ -1155,12 +1173,33 @@ function safeMon(v) {
 }
 
 // ════════════════════ NAVIGATION ══════════════════════
+let activeTab = 'master';
 function goTab(name, el) {
+  activeTab = name;
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   document.getElementById('sec-'+name).classList.add('on');
   if (el) el.classList.add('on');
   renderTab(name);
+}
+function initTab(name) {
+  // Set tab without re-rendering (called on init to set default)
+  activeTab = name||'master';
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const secEl=document.getElementById('sec-'+activeTab);
+  if(secEl)secEl.classList.add('on');
+  const tabEl=document.querySelector(`.tab[onclick*="'${activeTab}'"]`);
+  if(tabEl)tabEl.classList.add('on');
+}
+function restoreTab() {
+  // Restore active tab visibility (call after any async init that might reset it)
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  const secEl=document.getElementById('sec-'+activeTab);
+  if(secEl)secEl.classList.add('on');
+  const tabEl=document.querySelector(`.tab[onclick*="'${activeTab}'"]`);
+  if(tabEl)tabEl.classList.add('on');
 }
 function renderTab(name){
   if(name==='master')    renderMaster();
@@ -1266,6 +1305,7 @@ function masterFiltered() { return employees.filter(empInRange); }
 function setMasterPage(p) { masterPage=p; renderMaster(); }
 
 function renderMaster() {
+  try{
   updateHeader();
   document.getElementById('dateDisp').textContent=getLabel();
   const rows=masterFiltered();
@@ -1304,6 +1344,7 @@ function renderMaster() {
   }).join('') : `<tr><td colspan="23" style="text-align:center;padding:30px;color:#6b7a9e">
     ${viewMode!=='year'&&viewMode!=='day'?getLabel()+' ':''}'+T('noRecord')+'</td></tr>`;
   mkPag('masterPag', rows.length, masterPage, 'setMasterPage');
+  }catch(e){console.error('renderMaster:',e);}
 }
 
 // ════════════════════ PREGNANT DATE NAV ═════════════════
@@ -1393,10 +1434,9 @@ function getPregLabel(){
   return document.getElementById('pregDateSel')?.value||'—';
 }
 function empMatchesPregPeriod(e){
-  const v=document.getElementById('pregDateSel')?.value||'';
-  if(!v) return true;
-  const check=(ds)=>Boolean(ds&&dateKey(new Date(ds),pregMode)===v);
-  return check(e.registerTime)||check(e.edd)||check(e.leaveStart);
+  if(HRA_MODE==='all') return true;
+  // HRA unified: match any key date of the pregnancy record
+  return inRange(e.registerTime||'')||inRange(e.edd||'')||inRange(e.leaveStart||'');
 }
 function togglePregTable(){
   pregTableOpen=!pregTableOpen;
@@ -1417,8 +1457,11 @@ function pregFiltered(){
     return true;
   });
 }
+  }catch(e){console.error('renderPregnant:',e);}
+}
 function setPregPage(p){pregPage=p;renderPregnant();}
 function renderPregnant(){
+  try{
   buildPregOptions();
   const rows=pregFiltered();
 
@@ -1429,7 +1472,7 @@ function renderPregnant(){
   document.getElementById('pk-total').textContent=rows.length;
   const sewPreg=countSewMaternity(rows);
   const sewPregEl=document.getElementById('pk-sew-count');
-  if(sewPregEl)sewPregEl.textContent=sewPreg.sew+'🔵/'+sewPreg.nonSew+'⬜';
+  if(sewPregEl)sewPregEl.textContent=sewPreg.sew+'🔵 / '+sewPreg.nonSew+'⚪';
   document.getElementById('pk-edd30').textContent=edd30;
   document.getElementById('pk-new').textContent=rows.length;
   document.getElementById('pk-dept').textContent=depts;
@@ -1542,10 +1585,8 @@ function getMatLabel(){
   return document.getElementById('matDateSel')?.value||'—';
 }
 function empMatchesMatPeriod(e){
-  const v=document.getElementById('matDateSel')?.value||'';
-  if(!v) return true;
-  const check=(ds)=>Boolean(ds&&dateKey(new Date(ds),matMode)===v);
-  return check(e.leaveStart)||check(e.returnDate)||check(e.edd);
+  if(HRA_MODE==='all') return true;
+  return inRange(e.leaveStart||'')||inRange(e.returnDate||'')||inRange(e.edd||'');
 }
 function toggleMatTable(){
   matTableOpen=!matTableOpen;
@@ -1598,7 +1639,7 @@ function renderMaternity(){
   const sewMatCount=countSewMaternity(matEmpList);
   const sewMatEl=document.getElementById('mk-sew');
   const sewMatWrap=document.getElementById('mk-sew-wrap');
-  if(sewMatEl){sewMatEl.textContent=sewMatCount.sew+'🔵/'+sewMatCount.nonSew+'⬜';}
+  if(sewMatEl){sewMatEl.textContent=sewMatCount.sew+'🔵 / '+sewMatCount.nonSew+'⚪';}
   if(sewMatWrap&&matEmpList.length)sewMatWrap.style.display='';
   document.getElementById('mk-ret30').textContent=ret30;
   document.getElementById('mk-pay').textContent='$'+totalPay.toFixed(0);
@@ -1710,7 +1751,7 @@ function updateSalKPI(){
     const recs=JSON.parse(localStorage.getItem('vrt_salary_records')||'[]');
     const total=recs.length;
     const amount=recs.reduce((s,r)=>s+(+r.amount||+r.salary||0),0);
-    const sew=recs.filter(r=>isSewDeptMat(r.dept||r.section||'')).length;
+    const sew=recs.filter(r=>isSewingRecord(r)).length;
     const el=id=>document.getElementById(id);
     if(el('sk-total'))el('sk-total').textContent=total;
     if(el('sk-amount'))el('sk-amount').textContent='$'+(amount||0).toFixed(0);
@@ -2591,8 +2632,8 @@ async function cloudPush() {
     const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},
       body:JSON.stringify({action:'push',tool:'maternity',records:all,recordCount:all.length,updatedAt:new Date().toISOString()})});
     const d=await r.json();
-    if(d.ok){localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:all.length}));cpLog('✓ '+T('pushOK')+' ('+all.length+')','ok');cpStat();}
-    else cpLog('✗ '+(d.error||'error'),'err');
+    if(d.ok){localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:all.length}));cpLog('☁ Upload success ('+all.length+')','ok');cpStat();renderAll();restoreTab();}
+    else cpLog('⚠ Upload failed: '+(d.error||'error'),'err');
   } catch(e){cpLog('✗ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='☁ 推送';}
 }
@@ -2609,7 +2650,7 @@ async function cloudPull() {
     employees=recs.filter(r=>r.type!=='salary'); salaryRecords=recs.filter(r=>r.type==='salary');
     localStorage.setItem(STORAGE_KEY,JSON.stringify({employees,salaryRecords}));
     localStorage.setItem(META_KEY,JSON.stringify({ts:Date.now(),count:recs.length}));
-    renderAll(); cpLog('✓ '+T('pullOK')+' ('+recs.length+')','ok'); cpStat();
+    renderAll(); cpLog('☁ Download complete ('+recs.length+')','ok'); cpStat(); restoreTab();
   } catch(e){cpLog('✗ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='⬇ 拉取';}
 }
@@ -2620,6 +2661,7 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   const url=localStorage.getItem(GAS_KEY)||'';
   document.getElementById('gasInput').value=url;
   setMode('month');
+  hraPopulateSel();   // populate HRA dropdown
   buildPregOptions();
   buildMatOptions();
   // Apply saved language
@@ -2628,6 +2670,8 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   else renderAll();
   renderAnalytics();
   applyLang();
+  initTab('master');  // set default tab without re-rendering
+  restoreTab();       // ensure correct tab is visible after all async
 });
 
 // ══════════════════════════════════════════════════════════
@@ -2636,16 +2680,101 @@ window.addEventListener('DOMContentLoaded', async ()=>{
 const NUR_KEY = 'vrt_nursing_fees_v2';
 let NURSING = [];  // {id, cardId, name, dept, babyDob, startMonth, amount, payMonth, sheetName}
 
-// ── Sewing line detection for maternity ──────────────────
-function isSewDeptMat(dept){
-  const n=String(dept||'').replace(/[\s_-]+/g,'').toUpperCase();
-  if(/QC|PACK|CUT|ADMIN|WH|FINISH|SAMPLE|MECHANIC|PRESS|MARKER|QUALITY/.test(n))return false;
-  if(/LINE\d|LINE\s*\d|^[AB]\d/.test(n))return true;
-  if(/APRON\d|GARMENT\d/.test(n))return true;
-  return false;
+
+// ══ HRA Unified Date System (移植自 ac_hra_onboarding_v2) ══
+let HRA_MODE = 'month';
+let HRA_PIVOT = new Date();
+
+function _lds_mat(d){var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd}
+function hraPKey(s){
+  if(!s)return'';
+  const d=String(s).slice(0,10);
+  if(HRA_MODE==='day')   return d;
+  if(HRA_MODE==='week')  {const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return dt.getFullYear()+'-W'+String(w).padStart(2,'0');}
+  if(HRA_MODE==='month') return d.slice(0,7);
+  return d.slice(0,4);
 }
+function hraPLabel(k){
+  if(!k)return'—';
+  if(HRA_MODE==='day')   return k;
+  if(HRA_MODE==='week')  return k;
+  if(HRA_MODE==='month') return k.slice(0,4)+'年'+k.slice(5,7)+'月';
+  return k+'年';
+}
+function hraKey(){ return hraPKey(_lds_mat(HRA_PIVOT)); }
+function inRange(s){ if(HRA_MODE==='all')return true; return !!s&&hraPKey(s)===hraKey(); }
+function hraNav(dir){
+  const d=new Date(HRA_PIVOT);
+  if(HRA_MODE==='day')        d.setDate(d.getDate()+dir);
+  else if(HRA_MODE==='week')  d.setDate(d.getDate()+dir*7);
+  else if(HRA_MODE==='month') d.setMonth(d.getMonth()+dir);
+  else                        d.setFullYear(d.getFullYear()+dir);
+  HRA_PIVOT=d; hraPopulateSel(); renderAll();
+}
+function hraToday(){ HRA_PIVOT=new Date(); hraPopulateSel(); renderAll(); }
+function hraPopulateSel(){
+  // Read all dates from employees + salary + nursing
+  const allDates=[
+    ...employees.map(r=>r.registerTime||r.leaveStart||r.edd||''),
+    ...salaryRecords.map(r=>r.periodStart||r.periodEnd||''),
+  ].filter(Boolean);
+  const periods=[...new Set(allDates.map(hraPKey))].filter(Boolean).sort().reverse();
+  const sel=document.getElementById('hra-psel');
+  if(!sel)return;
+  const cur=hraKey();
+  if(HRA_MODE==='all'){sel.innerHTML='<option value="">— 全部 All —</option>';sel.disabled=true;}
+  else{
+    sel.disabled=false;
+    sel.innerHTML=periods.length?periods.map(p=>`<option value="${p}"${p===cur?' selected':''}>${hraPLabel(p)}</option>`).join(''):'<option value="">— 請先匯入 —</option>';
+    if(!periods.includes(cur)&&periods.length){const first=periods[0];const y=+first.slice(0,4),mo=HRA_MODE==='month'?+first.slice(5,7)-1:0;HRA_PIVOT=new Date(y,mo,1);sel.value=hraKey();}
+  }
+  const lbl=document.getElementById('hra-period-lbl');
+  if(lbl)lbl.textContent=HRA_MODE==='all'?'全部 All':hraPLabel(hraKey());
+}
+function hraSetMode(m,btn){
+  HRA_MODE=m;
+  document.querySelectorAll('.hra-mode-btn').forEach(b=>b.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  else document.querySelectorAll(`.hra-mode-btn[data-mode="${m}"]`).forEach(b=>b.classList.add('on'));
+  hraPopulateSel(); renderAll();
+}
+function hraJumpTo(val){
+  if(!val||HRA_MODE==='all')return;
+  const y=+val.slice(0,4),mo=HRA_MODE==='month'?+val.slice(5,7)-1:0,d=HRA_MODE==='day'?+val.slice(8,10):1;
+  HRA_PIVOT=new Date(y,mo,d||1); hraPopulateSel(); renderAll();
+}
+
+// ── Sewing detection (移植自 ac_hra_onboarding_v2) ──
+function normalizeGroup(s){
+  const n=String(s||'').trim().toUpperCase().replace(/[\s\u3000\/\uFF0F]+/g,'');
+  if(!n)return'';
+  let m;
+  if(m=n.match(/^(?:LINE|L)0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^[AB]0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^0*(\d{1,2})$/)){const i=+m[1];if(i>=1&&i<=30)return'LINE'+i;}
+  if(/^(QC|品管|QUALITY)/.test(n))return'QC';
+  if(/^PACK/.test(n))return'PACK';
+  if(/^(CUT|裁剪)/.test(n))return'CUT';
+  if(/^(ADMIN|行政)/.test(n))return'ADMIN';
+  if(/^(WH|WAREHOUSE|倉)/.test(n))return'WH';
+  if(/^FINISH/.test(n))return'FINISH';
+  if(/^SAMPLE/.test(n))return'SAMPLE';
+  return n;
+}
+function isNormSewing(normName){ return /^LINE\d+$/.test(normName||''); }
+function isSewingRecord(r){
+  const raw=String(r.dept||r.section||'').replace(/[/\uFF0F].*/,'');
+  return isNormSewing(normalizeGroup(raw));
+}
+// Backward compat
+function isSewDeptMat(dept){
+  const raw=String(dept||'').replace(/[/\uFF0F].*/,'');
+  return isNormSewing(normalizeGroup(raw));
+}
+
 function countSewMaternity(arr){
-  const sew=(arr||[]).filter(e=>isSewDeptMat(e.dept||e.section||''));
+  const sew=(arr||[]).filter(e=>isSewingRecord(e));
   return{sew:sew.length,nonSew:(arr||[]).length-sew.length};
 }
 
@@ -2750,6 +2879,7 @@ async function importNursingFeeExcel(input){
 }
 
 function renderNursing(){
+  try{
   loadNursing();
   const q=String(document.getElementById('nurSrch')?.value||'').toLowerCase();
   const mo=document.getElementById('nurMonth')?.value||'';
@@ -2784,6 +2914,7 @@ function renderNursing(){
   </tr>`).join(''):`<tr><td colspan="9" style="text-align:center;color:#aaa;padding:20px">無護理費記錄 — 請匯入 Nursing Fee Excel</td></tr>`;
 
   updateNurKPIs();
+  }catch(e){console.error('renderNursing:',e);}
 }
 
 function updateNurKPIs(){
@@ -2795,9 +2926,9 @@ function updateNurKPIs(){
   if(el('nk-amount'))el('nk-amount').textContent='$'+cur.reduce((s,r)=>s+(+r.amount||0),0).toFixed(2);
   if(el('nk-months'))el('nk-months').textContent=[...new Set(NURSING.map(r=>r.payMonth).filter(Boolean))].length;
   // Sewing count from dept
-  const sewNur=cur.filter(r=>isSewDeptMat(r.dept||'')).length;
+  const sewNur=cur.filter(r=>isSewingRecord(r)).length;
   const nsNur=cur.length-sewNur;
-  if(el('nk-sew'))el('nk-sew').textContent=sewNur+'🔵 / '+nsNur+'⬜';
+  if(el('nk-sew'))el('nk-sew').textContent=sewNur+'🔵 / '+nsNur+'⚪';
 }
 
 function delNurRow(id){
@@ -2837,6 +2968,74 @@ function exportActiveTab(){
 }
 function saveAll(){saveNursing();toast('💾 已儲存','ok');}
 
+// ── TG Period Popup ──
+function sendTelegram() {
+  const modal=document.getElementById('tgPeriodModal');
+  if(modal)modal.style.display='flex';
+}
+
+async function executeTgSend(period) {
+  const modal=document.getElementById('tgPeriodModal');
+  if(modal)modal.style.display='none';
+  const today=new Date().toISOString().split('T')[0];
+  const periodLabel={all:'全部',day:today,week:'本週',month:today.slice(0,7),year:today.slice(0,4)}[period]||period;
+
+  // Period filter helper
+  function inP(ds){
+    if(period==='all'||!ds)return true;
+    const d=ds.slice(0,10);
+    if(period==='day')return d===today;
+    if(period==='month')return d.slice(0,7)===today.slice(0,7);
+    if(period==='year')return d.slice(0,4)===today.slice(0,4);
+    return true; // week: include all for simplicity
+  }
+
+  const preg=employees.filter(e=>e.status==='pregnant'&&inP(e.registerTime||e.edd));
+  const mat=employees.filter(e=>e.status==='maternity'&&inP(e.leaveStart||e.edd));
+  const sewPreg=preg.filter(e=>isSewingRecord(e));
+  const sewMat=mat.filter(e=>isSewingRecord(e));
+  const nurCur=NURSING.filter(r=>inP(r.payMonth+'-01'));
+
+  let msg=`🏭 <b>VRT Maternity Summary</b>\n`
+         +`📅 Period: ${periodLabel}\n\n`;
+  msg+=`🤰 Pregnant: <b>${preg.length}</b> (Sewing: ${sewPreg.length}/${preg.length})\n`;
+  msg+=`🍼 Maternity: <b>${mat.length}</b> (Sewing: ${sewMat.length}/${mat.length})\n`;
+  msg+=`💊 Nursing Fee Records: <b>${nurCur.length}</b>\n`;
+  msg+=`💵 Nursing Total: <b>$${nurCur.reduce((s,r)=>s+(+r.amount||0),0).toFixed(2)}</b>\n`;
+
+  // EDD upcoming (30d)
+  const now=new Date(); now.setHours(0,0,0,0);
+  const edd30=preg.filter(e=>e.edd&&Math.round((new Date(e.edd)-now)/86400000)<=30&&Math.round((new Date(e.edd)-now)/86400000)>=0);
+  if(edd30.length){msg+=`\n⏰ EDD within 30 days (${edd30.length}):\n`;edd30.forEach(e=>{msg+=`  [${e.idNo}] ${e.name} — ${e.edd}\n`;});}
+
+  const token=localStorage.getItem('vrt_tg_token')||'';
+  const chatId=localStorage.getItem('vrt_tg_chat')||'';
+  if(!token||!chatId){toast('請先設定 Telegram Token & Chat ID','err');return;}
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId,text:msg,parse_mode:'HTML'})});
+    const d=await r.json();
+    if(d.ok)toast('Telegram 已推送','ok');
+    else toast('TG Error: '+d.description,'err');
+  }catch(e){toast('TG 傳送失敗: '+e.message,'err');}
+}
+
 </script>
+
+<!-- TG Period Popup -->
+<div id="tgPeriodModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+    <div style="font-weight:700;font-size:16px;color:#1e3a8a;margin-bottom:16px">📱 選擇推送期間 / Select Period</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <button onclick="executeTgSend('day')"   style="padding:10px;border:1px solid #d0d5e8;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f4fa">📅 今日</button>
+      <button onclick="executeTgSend('week')"  style="padding:10px;border:1px solid #d0d5e8;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f4fa">📅 本週</button>
+      <button onclick="executeTgSend('month')" style="padding:10px;border:1px solid #d0d5e8;border-radius:8px;font-size:13px;cursor:pointer;background:#1a7abf;color:#fff;font-weight:700">📅 本月</button>
+      <button onclick="executeTgSend('year')"  style="padding:10px;border:1px solid #d0d5e8;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f4fa">📅 本年</button>
+      <button onclick="executeTgSend('all')"   style="padding:10px;border:1px solid #d0d5e8;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f4fa;grid-column:1/-1">📊 全部 All</button>
+    </div>
+    <button onclick="document.getElementById('tgPeriodModal').style.display='none'" style="width:100%;padding:8px;border:1px solid #d0d5e8;border-radius:6px;cursor:pointer;background:#f7f8fc;font-size:12px">✕ 取消</button>
+  </div>
+</div>
 </body>
 </html>
