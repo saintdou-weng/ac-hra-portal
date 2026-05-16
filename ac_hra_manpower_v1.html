@@ -211,7 +211,6 @@ textarea.fi{resize:vertical;min-height:52px}
   <button class="on" data-tab="req" onclick="goTab(this)">📋 <span data-zh="人力需求" data-en="Requisition" data-km="តម្រូវការ">人力需求</span></button>
   <button data-tab="recruit" onclick="goTab(this)">📊 <span data-zh="招募報告" data-en="Recruit Report" data-km="របាយការណ៍ជ្រើសរើស">招募報告</span></button>
   <button data-tab="analytics" onclick="goTab(this)">📈 <span data-zh="分析" data-en="Analytics" data-km="វិភាគ">分析</span></button>
-  <button data-tab="compare" onclick="goTab(this)">🔀 <span data-zh="比對分析" data-en="Compare" data-km="ប្រៀបធៀប">比對分析</span></button>
   <button data-tab="settings" onclick="goTab(this)">⚙️ <span data-zh="設定" data-en="Settings" data-km="ការកំណត់">設定</span></button>
 </nav>
 
@@ -271,9 +270,11 @@ textarea.fi{resize:vertical;min-height:52px}
       <button         data-r="year"  onclick="rcSetMode('year',this)"  data-zh="年" data-en="Year">年</button>
     </div>
     <button class="arr" onclick="rcNav(-1)">◀</button>
-    <div class="period-lbl" id="rcPeriodLbl">全部</div>
+    <select id="rcPeriodSel" class="fsel" style="min-width:110px;font-family:monospace;font-size:11px"
+      onchange="rcJumpTo(this.value)"></select>
     <button class="arr" onclick="rcNav(1)">▶</button>
     <button class="arr" onclick="rcToday()" title="今天">●</button>
+    <div class="period-lbl" id="rcPeriodLbl" style="min-width:60px">全部</div>
   </div>
   <div class="toolbar">
     <input class="sbox" id="rcSrch" placeholder="🔍 Search name / ID…" data-zh="搜尋姓名/工號…" data-en="Search name / ID…" data-km="ស្វែងរក…" oninput="renderRecruit()">
@@ -370,60 +371,37 @@ textarea.fi{resize:vertical;min-height:52px}
       <tbody id="deptFillTbody"></tbody>
     </table></div>
   </div>
-</div>
 
-<!-- ══ COMPARE ══ -->
-<div class="page" id="page-compare">
-  <div class="panel" style="margin-bottom:12px">
-    <div class="panel-hd" style="display:flex;justify-content:space-between;align-items:center">
-      <span>🔀 招募 vs 入離職 比對 Recruit vs Onboarding Compare</span>
-      <button class="btn btn-p btn-sm" onclick="renderCompare()">🔄 重整</button>
+  <!-- ══ Onboarding vs Manpower Compare ══ -->
+  <div class="panel" style="margin-top:12px">
+    <div class="panel-hd" style="display:flex;align-items:center;justify-content:space-between">
+      <span>🔀 Onboarding vs Manpower 入職比對</span>
+      <button class="btn btn-p btn-sm" onclick="renderCompare()">🔄 同步</button>
     </div>
     <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
-      💡 自動讀取 onboarding 模組的 localStorage（<b>ac_hra_joins</b>）。需在同一瀏覽器開啟過 onboarding 模組。
+      自動從 <b>ac_hra_joins</b> localStorage 讀取 onboarding 入職資料，與招募報告錄取人數比對。
     </div>
     <div class="kpi-strip" id="cmpKpis" style="margin-bottom:10px"></div>
-  </div>
-
-  <!-- A: Recruit Join vs Onboard Join -->
-  <div class="panel" style="margin-bottom:12px">
-    <div class="panel-hd">A. 入職人數比對 Join Count Compare</div>
-    <div class="tw"><table>
-      <thead><tr>
-        <th>部門 Dept</th>
-        <th style="text-align:center">招募入職 Recruit Join</th>
-        <th style="text-align:center">Onboarding 入職</th>
-        <th style="text-align:center">差異 Diff</th>
-      </tr></thead>
-      <tbody id="cmpJoinTbody"></tbody>
-    </table></div>
-  </div>
-
-  <!-- B: Sewing Compare -->
-  <div class="panel" style="margin-bottom:12px">
-    <div class="panel-hd">B. 車縫人員比對 Sewing Compare</div>
-    <div class="tw"><table>
-      <thead><tr>
-        <th>部門/線別 Dept</th>
-        <th style="text-align:center">招募 Sewing</th>
-        <th style="text-align:center">Onboarding Sewing</th>
-        <th style="text-align:center">差異 Diff</th>
-      </tr></thead>
-      <tbody id="cmpSewTbody"></tbody>
-    </table></div>
-  </div>
-
-  <!-- C: Missing in Onboarding -->
-  <div class="panel">
-    <div class="panel-hd">C. 招募已入職但 Onboarding 缺漏 Missing Onboard</div>
-    <div class="tw"><table>
-      <thead><tr>
-        <th>#</th><th>日期</th><th>姓名</th><th>工號</th><th>部門</th><th>入職日</th>
-      </tr></thead>
-      <tbody id="cmpMissTbody"></tbody>
-    </table></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div>
+        <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--sky)">A. 入職人數比對 (by 部門)</div>
+        <div class="tw"><table><thead><tr>
+          <th>部門 Dept</th>
+          <th style="text-align:center">招募 Recruited</th>
+          <th style="text-align:center">Onboarding</th>
+          <th style="text-align:center">差異 Diff</th>
+        </tr></thead><tbody id="cmpJoinTbody"></tbody></table></div>
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:12px;margin-bottom:6px;color:var(--sky)">B. 招募有 / Onboarding 缺漏</div>
+        <div class="tw" style="max-height:280px;overflow-y:auto"><table><thead><tr>
+          <th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>入職日</th>
+        </tr></thead><tbody id="cmpMissTbody"></tbody></table></div>
+      </div>
+    </div>
   </div>
 </div>
+
 
 <!-- ══ SETTINGS ══ -->
 <div class="page" id="page-settings">
@@ -602,7 +580,23 @@ function rcSetMode(m,btn){
 }
 function rcNav(dir){pNav(recruitState,dir);rcUpdateLabel();renderRecruit();}
 function rcToday(){recruitState.pivot=new Date();rcUpdateLabel();renderRecruit();}
-function rcUpdateLabel(){const el=document.getElementById('rcPeriodLbl');if(el)el.textContent=pLabel(recruitState);}
+function rcUpdateLabel(){
+  const el=document.getElementById('rcPeriodLbl');if(el)el.textContent=pLabel(recruitState);
+  const sel=document.getElementById('rcPeriodSel');
+  if(!sel)return;
+  const allDates=RECRUIT.map(r=>r.joinDate||r.date).filter(Boolean);
+  const keys=[...new Set(allDates.map(d=>pKey(d,recruitState)))].filter(k=>k&&k!=='ALL').sort().reverse();
+  const cur=pKey(_lds(recruitState.pivot),recruitState);
+  if(recruitState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
+  sel.disabled=false;
+  sel.innerHTML=keys.length?keys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+}
+function rcJumpTo(val){
+  if(!val||recruitState.mode==='all')return;
+  const y=+val.slice(0,4),mo=recruitState.mode==='month'?+val.slice(5,7)-1:0;
+  recruitState.pivot=new Date(y,mo,1);
+  rcUpdateLabel();renderRecruit();
+}
 
 // ── Sewing detection (unified, from ac_hra_onboarding_v2) ──
 function normalizeGroup(s){
@@ -711,8 +705,7 @@ function goTab(btn){
   document.getElementById('page-'+tab).classList.add('on');
   if(tab==='req')      {populatePeriodLabel();renderReq();}
   if(tab==='recruit')  renderRecruit();
-  if(tab==='analytics'){renderAnalytics();}
-  if(tab==='compare')  renderCompare();
+  if(tab==='analytics'){renderAnalytics();} // renderCompare called inside renderAnalytics
   if(tab==='settings') {loadSettings();loadTgSet();}
 }
 
@@ -975,6 +968,7 @@ function renderAnalytics(){
   const anaKpisEl=document.getElementById('anaKpis');
   if(anaKpisEl)anaKpisEl.innerHTML+=`<div class="kpi"><div class="kpi-v" style="font-size:13px">${sewAna}🔵/${nonSewAna}⚪</div><div class="kpi-l">車縫/非車縫</div></div>`;
   populateDeptFilter('anaDept',[...REQS.map(r=>r.dept),...RECRUIT.map(r=>r.dept)]);
+  try{renderCompare();}catch(e){console.warn('renderCompare:',e);}
   }catch(e){console.error('renderAnalytics:',e);}
 }
 
@@ -1023,12 +1017,14 @@ function renderCompare(){
     const obSewTotal=Object.values(obSewMap).reduce((a,b)=>a+b,0);
     const diffJoin=rcTotal-obTotal;
     const kpiEl=document.getElementById('cmpKpis');
+    const convRate=rcTotal>0?Math.round(rcJoined.length/rcTotal*100):0;
     if(kpiEl)kpiEl.innerHTML=[
-      {l:'招募入職',v:rcTotal,c:'var(--sky)'},
+      {l:'招募總數',v:rcTotal,c:'var(--sky)'},
+      {l:'招募入職',v:rcJoined.length,c:'var(--sky)'},
       {l:'Onboarding 入職',v:obTotal,c:'var(--ok)'},
       {l:'差異 Diff',v:(diffJoin>0?'+':'')+diffJoin,c:diffJoin===0?'var(--ok)':'var(--danger)'},
-      {l:'招募 Sewing🔵',v:rcSewTotal,c:'var(--sky)'},
-      {l:'Onboarding Sewing🔵',v:obSewTotal,c:'var(--ok)'},
+      {l:'招募 Sewing🔵',v:rcSewTotal,c:'#0f766e'},
+      {l:'錄取率',v:convRate+'%',c:convRate>=50?'var(--ok)':'var(--warn)'},
     ].map(k=>`<div class="kpi"><div class="kpi-v" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
 
     // A: Join count table
@@ -1187,9 +1183,12 @@ async function importReqXlsx(evt){
       if(i<0)i=hdr.findIndex(h=>h.includes(n));
       return i;
     };
-    const cTitle=[ci('title'),ci('job'),ci('position'),ci('pos'),ci('需求'),ci('職位')].find(i=>i>=0)??-1;
-    const cDept=ci('dept')<0?ci('部門'):ci('dept');
-    const cPos=ci('pos')<0?ci('職位'):ci('pos');
+    // Title = requisition name (NOT the job position/role)
+    const cTitle=[ci('標題'),ci('需求名稱'),ci('需求標題'),ci('title'),ci('job title'),ci('需求')].find(i=>i>=0)??0;
+    const cDept=[ci('部門'),ci('dept'),ci('department'),ci('section')].find(i=>i>=0)??-1;
+    // Position/Role column (must differ from cTitle)
+    const _cPos=[ci('職位'),ci('position'),ci('role'),ci('pos')].find(i=>i>=0&&i!==cTitle)??-1;
+    const cPos=_cPos;
     const cReq=ci('required')<0?ci('需求人'):ci('required');
     const cFill=ci('fill')<0?ci('到位'):ci('fill');
     const cDate=ci('date')<0?ci('日期'):ci('date');
@@ -1503,8 +1502,6 @@ function renderAll(){
   try{renderRecruit();}catch(e){console.warn('renderRecruit:',e);}
   if(document.getElementById('page-analytics')?.classList.contains('on'))
     try{renderAnalytics();}catch(e){console.warn('renderAnalytics:',e);}
-  if(document.getElementById('page-compare')?.classList.contains('on'))
-    try{renderCompare();}catch(e){console.warn('renderCompare:',e);}
 }
 
 // ── INIT ──
