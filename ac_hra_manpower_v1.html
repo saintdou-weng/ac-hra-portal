@@ -596,6 +596,37 @@ function setRange(m,btn){reqSetMode(m,btn);}
 function moveRange(dir){reqNav(dir);}
 function populatePeriodLabel(){reqUpdateLabel();}
 
+
+// ── Analytics page date wrappers ─────────────────────────────────────
+function anaSetMode(m,btn){
+  anaState.mode=m;
+  document.querySelectorAll('.ana-rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
+  anaUpdateLabel();
+  if(m!=='all'){
+    const sel=document.getElementById('anaPeriodSel');
+    if(sel&&sel.value)anaJumpTo(sel.value);
+    else renderAnalytics();
+  }else renderAnalytics();
+}
+function anaNav(dir){pNav(anaState,dir);anaUpdateLabel();renderAnalytics();}
+function anaToday(){anaState.pivot=new Date();anaUpdateLabel();renderAnalytics();}
+function anaUpdateLabel(){
+  const sel=document.getElementById('anaPeriodSel');if(!sel)return;
+  const allDates=[...REQS.map(r=>r.date),...RECRUIT.map(r=>r.joinDate||r.date)].filter(Boolean);
+  const dataKeys=[...new Set(allDates.map(d=>pKey(d,anaState)))].filter(k=>k&&k!=='ALL');
+  const cur=(anaState.mode==='all')?'ALL':pKey(_lds(anaState.pivot),anaState);
+  if(anaState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
+  sel.disabled=false;
+  const allKeys=[...new Set([...dataKeys,cur])].sort().reverse();
+  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+}
+function anaJumpTo(val){
+  if(!val||anaState.mode==='all')return;
+  const y=+val.slice(0,4),mo=anaState.mode==='month'?+val.slice(5,7)-1:0;
+  anaState.pivot=new Date(y,mo,1);
+  anaUpdateLabel();renderAnalytics();
+}
+
 // ── Recruit page date wrappers ──
 function rcSetMode(m,btn){
   recruitState.mode=m;
@@ -1549,8 +1580,17 @@ async function cloudPull(){
     const d=await r.json();
     if(!d.ok||!d.data||d.data.data===null){toast('☁️ 雲端尚無資料','info');return;}
     const pay=d.data.data||d.data;
-    if(pay.reqs){REQS=pay.reqs;RECRUIT=pay.recruit||[];saveReqs();saveRecruit();renderAll();toast(`☁ Download complete (需求${REQS.length}·招募${RECRUIT.length})`,'ok');}
-    else toast('❌ 格式錯誤','err');
+    // Accept various GAS response structures
+    const reqs=pay.reqs||pay.REQS||pay.data?.reqs||null;
+    const recruit=pay.recruit||pay.RECRUIT||pay.data?.recruit||[];
+    if(reqs){
+      REQS=reqs;RECRUIT=recruit;
+      saveReqs();saveRecruit();renderAll();
+      toast(`☁ Download complete：需求 ${REQS.length} 筆，招募 ${RECRUIT.length} 筆`,'ok');
+    }else{
+      console.warn('cloudPull payload:',pay);
+      toast('❌ 格式錯誤 — GAS 回傳格式不符，請查 Console','err');
+    }
   }catch(e){toast('❌ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='⬇ Pull';}
 }
