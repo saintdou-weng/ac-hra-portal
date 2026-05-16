@@ -231,7 +231,6 @@ textarea.fi{resize:vertical;min-height:52px}
       onchange="reqJumpTo(this.value)"></select>
     <button class="arr" onclick="moveRange(1)">▶</button>
     <button class="arr" onclick="moveRange(0)" title="今天">●</button>
-    <div class="period-lbl" id="periodLbl" style="min-width:80px">全部</div>
   </div>
   <div class="kpi-strip" id="reqKpis"></div>
   <div class="kpi-strip" id="reqSewKpi" style="margin-top:-4px"></div>
@@ -274,7 +273,6 @@ textarea.fi{resize:vertical;min-height:52px}
       onchange="rcJumpTo(this.value)"></select>
     <button class="arr" onclick="rcNav(1)">▶</button>
     <button class="arr" onclick="rcToday()" title="今天">●</button>
-    <span id="rcPeriodLbl" style="font-size:12px;font-weight:700;color:var(--sky);min-width:60px;margin-left:2px">全部</span>
   </div>
   <div class="toolbar">
     <input class="sbox" id="rcSrch" placeholder="🔍 Search name / ID…" data-zh="搜尋姓名/工號…" data-en="Search name / ID…" data-km="ស្វែងរក…" oninput="renderRecruit()">
@@ -341,7 +339,6 @@ textarea.fi{resize:vertical;min-height:52px}
       onchange="anaJumpTo(this.value)"></select>
     <button class="arr" onclick="anaNav(1)">▶</button>
     <button class="arr" onclick="anaToday()">●</button>
-    <span id="anaPeriodLbl" style="font-size:12px;font-weight:700;color:var(--sky);margin-left:4px">全部</span>
     <select class="fsel" id="anaDept" onchange="renderAnalytics()" style="margin-left:12px"><option value="">全部部門</option></select>
   </div>
   <div class="kpi-strip" id="anaKpis"></div>
@@ -594,7 +591,6 @@ function anaSetMode(m,btn){
 function anaNav(dir){pNav(anaState,dir);anaUpdateLabel();renderAnalytics();}
 function anaToday(){anaState.pivot=new Date();anaUpdateLabel();renderAnalytics();}
 function anaUpdateLabel(){
-  const el=document.getElementById('anaPeriodLbl');if(el)el.textContent=pLabel(anaState);
   const sel=document.getElementById('anaPeriodSel');if(!sel)return;
   const allDates=[...REQS.map(r=>r.date),...RECRUIT.map(r=>r.joinDate||r.date)].filter(Boolean);
   const keys=[...new Set(allDates.map(d=>pKey(d,anaState)))].filter(k=>k&&k!=='ALL').sort().reverse();
@@ -625,7 +621,6 @@ function rcSetMode(m,btn){
 function rcNav(dir){pNav(recruitState,dir);rcUpdateLabel();renderRecruit();}
 function rcToday(){recruitState.pivot=new Date();rcUpdateLabel();renderRecruit();}
 function rcUpdateLabel(){
-  const el=document.getElementById('rcPeriodLbl');if(el)el.textContent=pLabel(recruitState);
   const sel=document.getElementById('rcPeriodSel');
   if(!sel)return;
   const allDates=RECRUIT.map(r=>r.joinDate||r.date).filter(Boolean);
@@ -775,9 +770,7 @@ function moveRange(dir){pNav(reqState,dir);populatePeriodLabel();renderReq();}
 function getRangeDates(){return{};}// replaced by pInRange(dateStr,reqState)
 function inRange(dateStr){const{start,end}=getRangeDates();return(!dateStr)||(dateStr>=start&&dateStr<end);}
 function populatePeriodLabel(){
-  const el=document.getElementById('periodLbl');
-  if(el)el.textContent=pLabel(reqState);
-  // Also populate dropdown
+  // populate dropdown only (removed redundant period label)
   const sel=document.getElementById('reqPeriodSel');
   if(!sel)return;
   const allDates=REQS.map(r=>r.date).filter(Boolean);
@@ -1217,61 +1210,79 @@ function normalizeHeader(raw){
 }
 function nhCI(hdr,key){return hdr.findIndex(h=>normalizeHeader(h)===key);}
 
+
+// ── Import Requisition from VRT Manpower Report ──────────────────────
 async function importReqXlsx(evt){
   const f=evt?.target?.files?.[0];if(!f)return;
   try{evt.target.value='';}catch(e){}
-  toast('📂 正在解析…','info');
-  const buf=await f.arrayBuffer();
-  const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
-  let added=0,skipped=0;
-  for(const sn of wb.SheetNames){
-    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});
-    if(rows.length<2)continue;
-    // Smart header row detection (handle merged cells / title rows)
-    let hdrIdx=0;
-    for(let ri=0;ri<Math.min(8,rows.length);ri++){
-      if(!rows[ri]||!rows[ri].some(Boolean))continue;
+  toast('📂 解析 VRT Manpower Report…','info');
+  try{
+    const buf=await f.arrayBuffer();
+    const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true,raw:false});
+
+    // ── Find VRT sheet (with/without trailing space) ──
+    const vrtSn=wb.SheetNames.find(s=>s.trim().toUpperCase()==='VRT')||wb.SheetNames[0];
+    const ws=wb.Sheets[vrtSn];
+    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
+
+    // Find header row: contains "Position" AND "no."
+    let hdrRow=-1;
+    for(let ri=0;ri<Math.min(10,rows.length);ri++){
       const rs=rows[ri].map(v=>String(v||'')).join('|');
-      if(/(title|job|position|dept|部門|需求|required|hire|manpower|人力|recruit|date|status)/i.test(rs)){hdrIdx=ri;break;}
+      if(/position/i.test(rs)&&/no\./i.test(rs)){hdrRow=ri;break;}
     }
-    const hdr=rows[hdrIdx].map(v=>String(v||'').trim().toLowerCase());
-    const ci=n=>{
-      let i=hdr.findIndex(h=>h===n);
-      if(i<0)i=hdr.findIndex(h=>h.includes(n));
-      return i;
-    };
-    // Title = requisition name (NOT the job position/role)
-    const cTitle=[ci('標題'),ci('需求名稱'),ci('需求標題'),ci('title'),ci('job title'),ci('需求')].find(i=>i>=0)??0;
-    const cDept=[ci('部門'),ci('dept'),ci('department'),ci('section')].find(i=>i>=0)??-1;
-    // Position/Role column (must differ from cTitle)
-    const _cPos=[ci('職位'),ci('position'),ci('role'),ci('pos')].find(i=>i>=0&&i!==cTitle)??-1;
-    const cPos=_cPos;
-    const cReq=ci('required')<0?ci('需求人'):ci('required');
-    const cFill=ci('fill')<0?ci('到位'):ci('fill');
-    const cDate=ci('date')<0?ci('日期'):ci('date');
-    const cDL=ci('deadline')<0?ci('截止'):ci('deadline');
-    const cStatus=ci('status')<0?ci('狀態'):ci('status');
-    const cRemark=ci('remark')<0?ci('備注'):ci('remark');
-    for(let i=hdrIdx+1;i<rows.length;i++){
+    if(hdrRow<0){toast('⚠ 找不到 VRT 表格 header (no./Position)','err');return;}
+
+    // Column indices (0-based): B=1, C=2, D=3, E=4
+    // Data starts at hdrRow+2 (skip sub-header with 非熟手/熟手)
+    const dataStart=hdrRow+2;
+
+    let added=0,skipped=0,lastDept='';
+    // Use hdrIdx for dedup comparison
+    const existingKeys=new Set(REQS.map(r=>(r.position+'|'+r.dept).toLowerCase()));
+
+    for(let i=dataStart;i<rows.length;i++){
       const row=rows[i];
-      const title=String(row[cTitle]||'').trim();if(!title){skipped++;continue;}
-      // Skip obvious header repeats
-      if(/^(title|job|position|dept|部門|標題)$/i.test(title)){skipped++;continue;}
-      // Skip if duplicate (same title+dept+date)
-      const dedupKey=title+'|'+(String(row[cDept]||'').trim())+'|'+(parseDate(row[cDate]));
-      if(REQS.some(r=>r.title===title&&r.dept===String(row[cDept]||'').trim()&&r.date===parseDate(row[cDate]))){skipped++;continue;}
-      REQS.push({id:uid(),title,dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),
-        required:parseInt(row[cReq])||1,filled:parseInt(row[cFill])||0,
-        date:parseDate(row[cDate]),deadline:parseDate(row[cDL]),
-        priority:'normal',status:String(row[cStatus]||'open').toLowerCase().trim()||'open',
-        remark:String(row[cRemark]||'').trim()});
+      const noVal  =String(row[1]||'').trim();
+      const deptVal=String(row[2]||'').trim();
+      const posVal =String(row[3]||'').trim();
+      const reqVal =parseInt(String(row[4]||'0').replace(/[^0-9]/g,''))||0;
+
+      // Carry forward merged dept
+      if(deptVal&&!/^\d+$/.test(deptVal)&&deptVal!=='Total')lastDept=deptVal;
+
+      // Skip empty/summary/total rows
+      if(!posVal){skipped++;continue;}
+      if(/^(total|subtotal|grand total)$/i.test(posVal)){skipped++;continue;}
+      if(/^(total|subtotal)$/i.test(noVal)){skipped++;continue;}
+      // Skip summary stats rows (入職人數, 總人數, 離職, etc.)
+      if(/入職|總人數|離職|Number of employees|Resignation|Total number/i.test(posVal)){skipped++;continue;}
+      // Skip if no required and no dept (orphan rows)
+      if(!reqVal&&!lastDept&&!noVal){skipped++;continue;}
+
+      const dept=lastDept||'—';
+      const key=(posVal+'|'+dept).toLowerCase();
+      if(existingKeys.has(key)){skipped++;continue;}
+      existingKeys.add(key);
+
+      const title=posVal;
+      REQS.push({
+        id:uid(), title,
+        dept, position:posVal,
+        required:reqVal, filled:0,
+        date:td(), deadline:'',
+        priority:'normal',
+        status:reqVal>0?'open':'closed',
+        remark:`VRT Report: ${vrtSn.trim()}`
+      });
       added++;
     }
-  }
-  saveReqs();renderReq();
-  const dupSkip=REQS.length>0?0:0; // dedup handled above
-  toast(`✅ 需求匯入完成：新增 ${added} 筆 | 跳過 ${skipped||0}`,'ok');
+
+    saveReqs();renderReq();
+    toast(`✅ VRT 匯入：${added} 需求 | 跳過 ${skipped}筆`,'ok');
+  }catch(e){console.error('importReqXlsx:',e);toast('❌ 匯入失敗: '+e.message,'err');}
 }
+
 
 async function importRecruitXlsx(evt){
   const f=evt.target?.files?.[0]||evt;if(!f||!f.name)return;
@@ -1302,10 +1313,11 @@ async function importRecruitXlsx(evt){
         const cDate=ni('join.?date')>=0?ni('join.?date'):ni('date');
         const cName=ni('name')>=0?ni('name'):2; // fallback col index
         const cId=ni('id.?number')>=0?ni('id.?number'):ni('id')>=0?ni('id'):ni('card');
-        const cDept=ni('dept')>=0?ni('dept'):ni('depart')>=0?ni('depart'):ni('section');
+        // Join sheet: Section (col 'section'/'Pos') has actual line (Line8,QC A), not 'Production'
+        const cSec=ni('^section$')>=0?ni('^section$'):ni('section')>=0?ni('section'):ni('line');
+        const cDept=ni('dept')>=0?ni('dept'):ni('depart')>=0?ni('depart'):-1;
         const cPos=ni('pos')>=0?ni('pos'):ni('position');
         const cGen=ni('gender')>=0?ni('gender'):ni('sex');
-        const cSec=ni('^section$')>=0?ni('^section$'):ni('section');
         for(let ri=hdrIdx+1;ri<rows.length;ri++){
           const row=rows[ri];
           const nameVal=String(row[cName]||'').trim();
@@ -1315,8 +1327,12 @@ async function importRecruitXlsx(evt){
           const empId=String(row[cId]||'').trim();
           const dupKey=empId+'_'+joinDate;
           if(RECRUIT.some(r=>r.empId===empId&&r.joinDate===joinDate)){dupCount++;continue;}
+          // Prefer Section (Line8/QC A) over broad Dept (Production) for sewing detection
+          const secVal=String(row[cSec]||'').trim();
+          const deptVal=String(row[cDept]||'').trim();
           RECRUIT.push({id:uid(),date:joinDate,name:nameVal,empId,
-            dept:String(row[cDept]||row[cSec]||'').trim(),
+            dept:secVal||deptVal||'—',  // Section first (Line8 etc.)
+            section:secVal,
             position:String(row[cPos]||'').trim(),
             gender:String(row[cGen]||'F').trim().toUpperCase().slice(0,1)||'F',
             referral:'',result:'join',joinDate,remark:'Imported from Manpower Report'});
