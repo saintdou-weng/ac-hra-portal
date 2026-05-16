@@ -373,6 +373,40 @@ tr:hover td{background:#fdf5f7}
     </div>
   </div>
 
+
+  <!-- ══ MATERNITY vs ATTENDANCE COMPARE ══ -->
+  <div class="card" style="padding:14px;margin-bottom:14px" id="compareCard">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+      <div class="ct" style="margin:0">🔀 產假比對 Maternity Compare</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <label class="btn btn-y btn-sm" style="cursor:pointer;font-size:11px">
+          📥 匯入出勤記錄
+          <input type="file" accept=".xlsx,.xls" style="display:none" onchange="importAttendanceCompare(this)">
+        </label>
+        <button class="btn btn-g btn-sm" onclick="renderCompare()" style="font-size:11px">🔄 重整</button>
+        <button class="btn btn-sm" onclick="clearAttendanceData()" style="font-size:11px;background:#fee2e2;color:#dc2626">🗑️ 清除出勤</button>
+      </div>
+    </div>
+    <!-- KPI strip -->
+    <div class="kpi-strip" id="cmp-kpi" style="margin-bottom:10px"></div>
+    <!-- Compare table -->
+    <div class="tw"><table id="cmpTable" style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead><tr style="background:var(--navy,#1e3a8a);color:#fff">
+        <th style="padding:7px 8px;text-align:left">部門 Dept</th>
+        <th style="padding:7px 8px;text-align:center">Portal 產假</th>
+        <th style="padding:7px 8px;text-align:center">出勤 Maternity</th>
+        <th style="padding:7px 8px;text-align:center">差異 Diff</th>
+        <th style="padding:7px 8px;text-align:center">Portal 懷孕</th>
+        <th style="padding:7px 8px;text-align:center">出勤 Pregnant</th>
+        <th style="padding:7px 8px;text-align:center">差異 Diff</th>
+      </tr></thead>
+      <tbody id="cmpTbody"><tr><td colspan="7" style="text-align:center;padding:16px;color:#6b7a9e">
+        匯入出勤記錄後自動比對 / Import attendance file to compare
+      </td></tr></tbody>
+    </table></div>
+    <div id="cmpLog" style="font-size:10px;color:#6b7a9e;margin-top:6px"></div>
+  </div>
+
   <!-- Date Nav -->
   <div class="date-nav">
     <div style="display:flex;gap:4px">
@@ -412,16 +446,7 @@ tr:hover td{background:#fdf5f7}
   <div class="toolbar">
     <input class="search-box" id="pregSrch" oninput="renderPregnant()" placeholder="Search…">
     <select class="fsel" id="pregDept" onchange="renderPregnant()"><option value="">—</option></select>
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setPregMode('day')" id="pm-day">日</button>
-      <button class="dnm" onclick="setPregMode('week')" id="pm-week">週</button>
-      <button class="dnm on" onclick="setPregMode('month')" id="pm-month">月</button>
-      <button class="dnm" onclick="setPregMode('year')" id="pm-year">年</button>
-    </div>
-    <button class="btn-nav" onclick="navPreg(-1)">◀</button>
-    <select id="pregDateSel" class="fsel" style="font-family:monospace;min-width:140px;font-size:12px" onchange="renderPregnant()"></select>
-    <button class="btn-nav" onclick="navPreg(1)">▶</button>
-    <button class="btn-today" onclick="pregToday()">今日</button>
+    <!-- period nav → global HRA bar above -->
     <div class="tbar-r">
       <button class="btn btn-rose" onclick="openEmpModal(null,'pregnant')" id="tb-addPreg">＋ 新增孕婦</button>
       <label class="btn btn-y" style="cursor:pointer"><span id="tb-impPreg">📥 匯入</span>
@@ -455,16 +480,7 @@ tr:hover td{background:#fdf5f7}
   <div class="toolbar">
     <input class="search-box" id="matSrch" oninput="renderMaternity()" placeholder="Search…">
     <select class="fsel" id="matDept" onchange="renderMaternity()"><option value="">—</option></select>
-    <div style="display:flex;gap:4px">
-      <button class="dnm" onclick="setMatMode('day')" id="mm-day">日</button>
-      <button class="dnm" onclick="setMatMode('week')" id="mm-week">週</button>
-      <button class="dnm on" onclick="setMatMode('month')" id="mm-month">月</button>
-      <button class="dnm" onclick="setMatMode('year')" id="mm-year">年</button>
-    </div>
-    <button class="btn-nav" onclick="navMat(-1)">◀</button>
-    <select id="matDateSel" class="fsel" style="font-family:monospace;min-width:140px;font-size:12px" onchange="renderMaternity()"></select>
-    <button class="btn-nav" onclick="navMat(1)">▶</button>
-    <button class="btn-today" onclick="matToday()">今日</button>
+    <!-- period nav → global HRA bar above -->
     <div class="tbar-r">
       <button class="btn btn-rose" onclick="openEmpModal(null,'maternity')" id="tb-addMat">＋ 新增產假</button>
       <label class="btn btn-y" style="cursor:pointer"><span id="tb-impMat">📥 匯入</span>
@@ -760,7 +776,7 @@ let lang = localStorage.getItem('vrt_lang') || 'zh';
 const I18N = {
   zh: {
     appName:'孕婦產假管理系統', pregIn:'懷孕中', matIn:'產假中', retSoon:'即將回歸',
-    master:'📋 總表', pregTab:'🤰 孕婦名單', matTab:'🍼 產假管理', salTab:'💰 薪資記錄', setTab:'⚙️ 設定',
+    master:'📋 總表', pregTab:'🤰 孕婦名單', matTab:'🍼 產假管理', salTab:'💰 薪資記錄', nurTab:'💊 護理費', setTab:'⚙️ 設定',
     addBtn:'＋ 新增', addPreg:'＋ 新增孕婦', addMat:'＋ 新增產假', addSal:'＋ 新增薪資',
     impBtn:'📥 匯入 Excel', impSal:'📥 匯入薪資 Excel',
     print:'🖨️ 列印', excel:'⬇ Excel', clearAll:'🗑️ 全清除',
@@ -802,7 +818,7 @@ const I18N = {
   },
   en: {
     appName:'Maternity Management System', pregIn:'Pregnant', matIn:'On Leave', retSoon:'Returning Soon',
-    master:'📋 Master', pregTab:'🤰 Pregnant', matTab:'🍼 Maternity', salTab:'💰 Salary', setTab:'⚙️ Settings',
+    master:'📋 Master', pregTab:'🤰 Pregnant', matTab:'🍼 Maternity', salTab:'💰 Salary', nurTab:'💊 Nursing Fee', setTab:'⚙️ Settings',
     addBtn:'＋ Add', addPreg:'＋ Add Pregnant', addMat:'＋ Add Maternity', addSal:'＋ Add Salary',
     impBtn:'📥 Import Excel', impSal:'📥 Import Salary Excel',
     print:'🖨️ Print', excel:'⬇ Excel', clearAll:'🗑️ Clear All',
@@ -845,7 +861,7 @@ const I18N = {
   },
   km: {
     appName:'ប្រព័ន្ធគ្រប់គ្រងការសម្រាល', pregIn:'មានផ្ទៃពោះ', matIn:'លំហែមាតុភាព', retSoon:'ត្រឡប់ជិត',
-    master:'📋 តារាងរួម', pregTab:'🤰 មានផ្ទៃពោះ', matTab:'🍼 លំហែមាតុភាព', salTab:'💰 ប្រាក់ខែ', setTab:'⚙️ ការកំណត់',
+    master:'📋 តារាងរួម', pregTab:'🤰 មានផ្ទៃពោះ', matTab:'🍼 លំហែមាតុភាព', salTab:'💰 ប្រាក់ខែ', nurTab:'💊 ថ្លៃបំបៅ', setTab:'⚙️ ការកំណត់',
     addBtn:'＋ បន្ថែម', addPreg:'＋ បន្ថែមមានផ្ទៃពោះ', addMat:'＋ បន្ថែមលំហែ', addSal:'＋ បន្ថែមប្រាក់ខែ',
     impBtn:'📥 នាំចូល Excel', impSal:'📥 នាំចូលប្រាក់ខែ Excel',
     print:'🖨️ បោះពុម្ព', excel:'⬇ Excel', clearAll:'🗑️ លុបទាំងអស់',
@@ -912,8 +928,8 @@ function applyLang() {
   if(sNet)   sNet.closest('.sal-card').querySelector('.sal-lbl').textContent=T('netSum');
   // Tabs
   const tabEls=document.querySelectorAll('.tab');
-  const tabKeys=['master','pregTab','matTab','salTab','setTab'];
-  tabEls.forEach((el,i)=>{ if(tabKeys[i]) el.textContent=T(tabKeys[i]); });
+  const tabKeys=['master','pregTab','matTab','salTab','nurTab','setTab'];
+  tabEls.forEach((el,i)=>{ if(tabKeys[i]) el.innerHTML=T(tabKeys[i])||el.innerHTML; });
   // Analytics labels
   const ctDept=document.getElementById('ct-dept'); if(ctDept) ctDept.innerHTML='<span></span>'+T('ct_dept');
   const ctEdd =document.getElementById('ct-edd');  if(ctEdd)  ctEdd.innerHTML ='<span></span>'+T('ct_edd');
@@ -928,10 +944,12 @@ let employees = [], salaryRecords = [];
 
 // ══ renderAll：統一刷新所有 tab（缺此定義 cloud pull callback 會崩潰）══
 function renderAll() {
-  try { renderMaster(); }   catch(e) { console.warn('renderMaster:', e); }
-  try { renderPregnant(); } catch(e) { console.warn('renderPregnant:', e); }
-  try { renderMaternity(); }catch(e) { console.warn('renderMaternity:', e); }
-  try { renderSalary(); }   catch(e) { console.warn('renderSalary:', e); }
+  try { renderMaster(); }    catch(e) { console.warn('renderMaster:', e); }
+  try { renderPregnant(); }  catch(e) { console.warn('renderPregnant:', e); }
+  try { renderMaternity(); } catch(e) { console.warn('renderMaternity:', e); }
+  try { renderSalary(); }    catch(e) { console.warn('renderSalary:', e); }
+  if(activeTab==='nursing')  { try { renderNursing(); } catch(e) { console.warn('renderNursing:', e); } }
+  try { renderCompare(); }   catch(e) { console.warn('renderCompare:', e); }
 }
 
 // ══ renderAnalytics：填充首頁 Analytics Row（部門/EDD/月度趨勢）══
@@ -1635,7 +1653,7 @@ function renderMaternity(){
 
   document.getElementById('mk-total').textContent=rows.length;
   const matEmpList=(DB.employees||[]).filter(e=>e.status==='maternity'||e.status==='pregnant');
-  const sewMatCount=countSewMaternity(matEmpList);
+  const sewMatCount=countSewMaternity(rows);
   const sewMatEl=document.getElementById('mk-sew');
   const sewMatWrap=document.getElementById('mk-sew-wrap');
   if(sewMatEl){sewMatEl.textContent=sewMatCount.sew+'🔵 / '+sewMatCount.nonSew+'⚪';}
@@ -2672,6 +2690,114 @@ window.addEventListener('DOMContentLoaded', async ()=>{
   initTab('master');  // set default tab without re-rendering
   restoreTab();       // ensure correct tab is visible after all async
 });
+
+
+// ══ MATERNITY vs ATTENDANCE COMPARE ══════════════════════
+const ATT_KEY = 'vrt_attendance_compare_v1';
+let attData = {}; // {dept: {maternity:0, pregnant:0}}
+
+function loadAttendanceData(){
+  try{attData=JSON.parse(localStorage.getItem(ATT_KEY)||'{}');}catch(e){attData={};}
+}
+
+async function importAttendanceCompare(input){
+  const file=input.files[0];if(!file)return;input.value='';
+  const log=document.getElementById('cmpLog');if(log)log.textContent='📂 解析出勤記錄…';
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(new Uint8Array(buf),{type:'array'});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+    attData={};
+    let found=0;
+    rows.forEach(row=>{
+      // Accept various column name patterns
+      const dept=String(row['部門']||row['Dept']||row['DEPT']||row['dept']||row['Department']||'').trim();
+      const mat=Number(row['產假']||row['Maternity']||row['MATERNITY']||row['maternity']||0);
+      const preg=Number(row['懷孕']||row['Pregnant']||row['PREGNANT']||row['pregnant']||0);
+      if(dept){
+        // Normalize dept name - strip after /
+        const dNorm=dept.replace(/[/／].*/,'').trim();
+        if(!attData[dNorm])attData[dNorm]={maternity:0,pregnant:0};
+        attData[dNorm].maternity+=mat;
+        attData[dNorm].pregnant+=preg;
+        found++;
+      }
+    });
+    localStorage.setItem(ATT_KEY,JSON.stringify(attData));
+    if(log)log.textContent=`✅ 匯入 ${found} 部門記錄`;
+    renderCompare();
+  }catch(e){if(log)log.textContent='❌ '+e.message;console.error(e);}
+}
+
+function clearAttendanceData(){
+  if(!confirm('清除出勤比對資料？'))return;
+  attData={};localStorage.removeItem(ATT_KEY);renderCompare();
+}
+
+function renderCompare(){
+  loadAttendanceData();
+  // Build portal data by dept
+  const portMat={}, portPreg={};
+  employees.filter(e=>e.status==='maternity'||e.status==='returned').forEach(e=>{
+    const d=(e.dept||'—').replace(/[/／].*/,'').trim();
+    portMat[d]=(portMat[d]||0)+1;
+  });
+  employees.filter(e=>e.status==='pregnant').forEach(e=>{
+    const d=(e.dept||'—').replace(/[/／].*/,'').trim();
+    portPreg[d]=(portPreg[d]||0)+1;
+  });
+
+  const allDepts=[...new Set([...Object.keys(portMat),...Object.keys(portPreg),...Object.keys(attData)])].sort();
+
+  // KPI totals
+  const pMatTot=Object.values(portMat).reduce((a,b)=>a+b,0);
+  const pPregTot=Object.values(portPreg).reduce((a,b)=>a+b,0);
+  const aMatTot=Object.values(attData).reduce((s,v)=>s+(v.maternity||0),0);
+  const aPregTot=Object.values(attData).reduce((s,v)=>s+(v.pregnant||0),0);
+  const matDiff=pMatTot-aMatTot, pregDiff=pPregTot-aPregTot;
+
+  const kpiEl=document.getElementById('cmp-kpi');
+  if(kpiEl)kpiEl.innerHTML=[
+    {l:'Portal 產假',v:pMatTot,c:'#0f766e'},
+    {l:'出勤 Maternity',v:aMatTot,c:'#0369a1'},
+    {l:'差異 Diff',v:(matDiff>0?'+':'')+matDiff,c:matDiff===0?'#059669':'#dc2626'},
+    {l:'Portal 懷孕',v:pPregTot,c:'#c75b7a'},
+    {l:'出勤 Pregnant',v:aPregTot,c:'#b8860b'},
+    {l:'差異 Diff',v:(pregDiff>0?'+':'')+pregDiff,c:pregDiff===0?'#059669':'#dc2626'},
+  ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c};font-size:18px">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
+
+  // Table
+  const tbody=document.getElementById('cmpTbody');
+  if(!tbody)return;
+  if(!allDepts.length){
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;padding:16px;color:#6b7a9e">匯入出勤記錄後自動比對 / Import attendance file to compare</td></tr>';
+    return;
+  }
+  const tdS='padding:6px 8px;border-bottom:1px solid #e2e6f0;text-align:center';
+  tbody.innerHTML=allDepts.map(dept=>{
+    const pm=portMat[dept]||0, pp=portPreg[dept]||0;
+    const am=attData[dept]?.maternity||0, ap=attData[dept]?.pregnant||0;
+    const dm=pm-am, dp=pp-ap;
+    const mCls=dm===0?'color:#059669':dm>0?'color:#d97706':'color:#dc2626';
+    const pCls=dp===0?'color:#059669':dp>0?'color:#d97706':'color:#dc2626';
+    return `<tr>
+      <td style="${tdS};text-align:left;font-weight:600">${escapeHtml?escapeHtml(dept):dept}</td>
+      <td style="${tdS}">${pm}</td>
+      <td style="${tdS}">${am}</td>
+      <td style="${tdS};font-weight:700;${mCls}">${dm>0?'+':''}${dm}</td>
+      <td style="${tdS}">${pp}</td>
+      <td style="${tdS}">${ap}</td>
+      <td style="${tdS};font-weight:700;${pCls}">${dp>0?'+':''}${dp}</td>
+    </tr>`;
+  }).join('')+`<tr style="background:#f0f4fa;font-weight:700">
+    <td style="${tdS};text-align:left">TOTAL</td>
+    <td style="${tdS}">${pMatTot}</td><td style="${tdS}">${aMatTot}</td>
+    <td style="${tdS};${matDiff===0?'color:#059669':'color:#dc2626'}">${matDiff>0?'+':''}${matDiff}</td>
+    <td style="${tdS}">${pPregTot}</td><td style="${tdS}">${aPregTot}</td>
+    <td style="${tdS};${pregDiff===0?'color:#059669':'color:#dc2626'}">${pregDiff>0?'+':''}${pregDiff}</td>
+  </tr>`;
+}
 
 // ══════════════════════════════════════════════════════════
 // NURSING FEE MODULE  (Patch: importNursingFeeExcel)
