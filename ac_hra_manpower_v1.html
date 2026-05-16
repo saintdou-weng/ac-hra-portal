@@ -1173,8 +1173,13 @@ function delReq(id){if(!confirm('刪除此需求？'))return;REQS=REQS.filter(x=
 function clearReqs(){if(!confirm('清除全部需求？'))return;REQS=[];saveReqs();renderReq();toast('已清除','info');}
 function clearReqsNow(){
   REQS=[];saveReqs();
-  renderReq();populatePeriodLabel();
-  toast('✅ 人力需求已清除，請重新匯入 VRT 檔案','info');
+  const si=document.getElementById('reqSrch');if(si)si.value='';
+  const df=document.getElementById('reqDeptF');if(df)df.value='';
+  const sf=document.getElementById('reqStatusF');if(sf)sf.value='';
+  reqState.mode='all';
+  document.querySelectorAll('.rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r==='all'));
+  renderReq();reqUpdateLabel();
+  toast('✅ 已清除，請匯入 VRT 檔案','info');
 }
 function clearRecruit(){if(!confirm('清除全部招募記錄？'))return;RECRUIT=[];saveRecruit();renderRecruit();toast('已清除','info');}
 
@@ -1322,12 +1327,14 @@ async function importReqXlsx(evt){
     }
 
     saveReqs();
-    // Auto-jump to imported period
-    if(REQS.length>0&&reqState.mode!=='all'){
-      const firstDate=REQS.map(r=>r.date).filter(Boolean).sort()[0]||'';
-      if(firstDate){reqJumpTo(pKey(firstDate,reqState));}
-      else renderReq();
-    }else renderReq();
+    // Reset ALL filters so new data is visible
+    const si=document.getElementById('reqSrch');if(si)si.value='';
+    const df=document.getElementById('reqDeptF');if(df)df.value='';
+    const sf=document.getElementById('reqStatusF');if(sf)sf.value='';
+    // Switch to 全部 mode so all imported records show
+    reqState.mode='all';
+    document.querySelectorAll('.rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r==='all'));
+    renderReq();
     reqUpdateLabel();
     const deptList=[...new Set(REQS.map(r=>r.dept))].join(' / ');
     const msg='✅ VRT 匯入完成\n'+
