@@ -184,6 +184,7 @@ textarea.fi{resize:vertical;min-height:52px}
     <div class="hdr-sub">AC HRA · VRT · SIHANOUKVILLE</div>
   </div>
   <div class="hdr-right">
+  <button class="hbtn" onclick="document.getElementById('tgModal').style.display='flex'" title="Telegram">📱 TG</button>
     <button class="hbtn" onclick="window.print()">🖨 <span data-zh="列印" data-en="Print" data-km="បោះពុម្ព">列印</span></button>
     <div class="lang-sw">
       <button class="lb on" onclick="setLang('zh')">中</button>
@@ -210,6 +211,7 @@ textarea.fi{resize:vertical;min-height:52px}
   <button class="on" data-tab="req" onclick="goTab(this)">📋 <span data-zh="人力需求" data-en="Requisition" data-km="តម្រូវការ">人力需求</span></button>
   <button data-tab="recruit" onclick="goTab(this)">📊 <span data-zh="招募報告" data-en="Recruit Report" data-km="របាយការណ៍ជ្រើសរើស">招募報告</span></button>
   <button data-tab="analytics" onclick="goTab(this)">📈 <span data-zh="分析" data-en="Analytics" data-km="វិភាគ">分析</span></button>
+  <button data-tab="compare" onclick="goTab(this)">🔀 <span data-zh="比對分析" data-en="Compare" data-km="ប្រៀបធៀប">比對分析</span></button>
   <button data-tab="settings" onclick="goTab(this)">⚙️ <span data-zh="設定" data-en="Settings" data-km="ការកំណត់">設定</span></button>
 </nav>
 
@@ -219,17 +221,21 @@ textarea.fi{resize:vertical;min-height:52px}
 <div class="page on" id="page-req">
   <div class="rnav">
     <div class="rtabs">
-      <button class="on" data-r="day" onclick="setRange('day',this)" data-zh="日" data-en="Day" data-km="ថ្ងៃ">日</button>
-      <button data-r="week" onclick="setRange('week',this)" data-zh="週" data-en="Week" data-km="សប្ដាហ៍">週</button>
-      <button data-r="month" onclick="setRange('month',this)" data-zh="月" data-en="Month" data-km="ខែ">月</button>
-      <button data-r="year" onclick="setRange('year',this)" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</button>
+      <button data-r="all"  onclick="setRange('all',this)"  class="">全部</button>
+      <button data-r="day"  onclick="setRange('day',this)"  data-zh="日" data-en="Day">日</button>
+      <button data-r="week" onclick="setRange('week',this)" data-zh="週" data-en="Week">週</button>
+      <button data-r="month" onclick="setRange('month',this)" data-zh="月" data-en="Month" class="on">月</button>
+      <button data-r="year" onclick="setRange('year',this)" data-zh="年" data-en="Year">年</button>
     </div>
     <button class="arr" onclick="moveRange(-1)">◀</button>
-    <div class="period-lbl" id="periodLbl">—</div>
+    <select id="reqPeriodSel" class="fsel" style="min-width:110px;font-family:monospace;font-size:11px"
+      onchange="reqJumpTo(this.value)"></select>
     <button class="arr" onclick="moveRange(1)">▶</button>
     <button class="arr" onclick="moveRange(0)" title="今天">●</button>
+    <div class="period-lbl" id="periodLbl" style="min-width:80px">全部</div>
   </div>
   <div class="kpi-strip" id="reqKpis"></div>
+  <div class="kpi-strip" id="reqSewKpi" style="margin-top:-4px"></div>
   <div class="toolbar">
     <input class="sbox" id="reqSrch" placeholder="🔍 搜尋…" oninput="renderReq()">
     <select class="fsel" id="reqDeptF" onchange="renderReq()"><option value="">—</option></select>
@@ -256,6 +262,19 @@ textarea.fi{resize:vertical;min-height:52px}
 
 <!-- ══ RECRUIT REPORT ══ -->
 <div class="page" id="page-recruit">
+  <div class="rnav" id="rcNav">
+    <div class="rtabs rc-rtabs">
+      <button class="on" data-r="all"   onclick="rcSetMode('all',this)"   data-zh="全部" data-en="All">全部</button>
+      <button         data-r="day"   onclick="rcSetMode('day',this)"   data-zh="日" data-en="Day">日</button>
+      <button         data-r="week"  onclick="rcSetMode('week',this)"  data-zh="週" data-en="Week">週</button>
+      <button         data-r="month" onclick="rcSetMode('month',this)" data-zh="月" data-en="Month" class="">月</button>
+      <button         data-r="year"  onclick="rcSetMode('year',this)"  data-zh="年" data-en="Year">年</button>
+    </div>
+    <button class="arr" onclick="rcNav(-1)">◀</button>
+    <div class="period-lbl" id="rcPeriodLbl">全部</div>
+    <button class="arr" onclick="rcNav(1)">▶</button>
+    <button class="arr" onclick="rcToday()" title="今天">●</button>
+  </div>
   <div class="toolbar">
     <input class="sbox" id="rcSrch" placeholder="🔍 Search name / ID…" data-zh="搜尋姓名/工號…" data-en="Search name / ID…" data-km="ស្វែងរក…" oninput="renderRecruit()">
     <select class="fsel" id="rcDeptF" onchange="renderRecruit()"><option value="" data-zh="全部部門" data-en="All Dept">全部部門</option></select>
@@ -353,8 +372,77 @@ textarea.fi{resize:vertical;min-height:52px}
   </div>
 </div>
 
+<!-- ══ COMPARE ══ -->
+<div class="page" id="page-compare">
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-hd" style="display:flex;justify-content:space-between;align-items:center">
+      <span>🔀 招募 vs 入離職 比對 Recruit vs Onboarding Compare</span>
+      <button class="btn btn-p btn-sm" onclick="renderCompare()">🔄 重整</button>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">
+      💡 自動讀取 onboarding 模組的 localStorage（<b>ac_hra_joins</b>）。需在同一瀏覽器開啟過 onboarding 模組。
+    </div>
+    <div class="kpi-strip" id="cmpKpis" style="margin-bottom:10px"></div>
+  </div>
+
+  <!-- A: Recruit Join vs Onboard Join -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-hd">A. 入職人數比對 Join Count Compare</div>
+    <div class="tw"><table>
+      <thead><tr>
+        <th>部門 Dept</th>
+        <th style="text-align:center">招募入職 Recruit Join</th>
+        <th style="text-align:center">Onboarding 入職</th>
+        <th style="text-align:center">差異 Diff</th>
+      </tr></thead>
+      <tbody id="cmpJoinTbody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- B: Sewing Compare -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-hd">B. 車縫人員比對 Sewing Compare</div>
+    <div class="tw"><table>
+      <thead><tr>
+        <th>部門/線別 Dept</th>
+        <th style="text-align:center">招募 Sewing</th>
+        <th style="text-align:center">Onboarding Sewing</th>
+        <th style="text-align:center">差異 Diff</th>
+      </tr></thead>
+      <tbody id="cmpSewTbody"></tbody>
+    </table></div>
+  </div>
+
+  <!-- C: Missing in Onboarding -->
+  <div class="panel">
+    <div class="panel-hd">C. 招募已入職但 Onboarding 缺漏 Missing Onboard</div>
+    <div class="tw"><table>
+      <thead><tr>
+        <th>#</th><th>日期</th><th>姓名</th><th>工號</th><th>部門</th><th>入職日</th>
+      </tr></thead>
+      <tbody id="cmpMissTbody"></tbody>
+    </table></div>
+  </div>
+</div>
+
 <!-- ══ SETTINGS ══ -->
 <div class="page" id="page-settings">
+  <!-- TG Settings -->
+  <div class="panel" style="margin-bottom:12px">
+    <div class="panel-hd">📱 Telegram 設定</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div><label style="font-size:11px;color:var(--muted);font-weight:600">Bot Token</label>
+        <input class="fi" id="tgTokIn" placeholder="例：8752977449:AAH…" style="width:100%;margin-top:4px"></div>
+      <div><label style="font-size:11px;color:var(--muted);font-weight:600">Chat ID（群組加 -）</label>
+        <input class="fi" id="tgChatIn" placeholder="例：-5233667043" style="width:100%;margin-top:4px"></div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-p btn-sm" onclick="saveTgSet()">💾 儲存</button>
+      <button class="btn btn-g btn-sm" onclick="testTgSet()">📤 測試</button>
+      <span id="tgSetStat" style="font-size:11px;color:var(--muted)"></span>
+    </div>
+  </div>
+
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
     <div class="panel">
       <div class="panel-hd" data-zh="部門清單" data-en="Department List" data-km="បញ្ជីផ្នែក">部門清單</div>
@@ -448,8 +536,93 @@ const K_POS     = 'ac_hra_manpower_pos';
 let REQS    = [];
 let RECRUIT = [];
 let LANG    = localStorage.getItem('ac_hra_lang')||'zh';
-let RANGE   = 'month';
-let PIVOT   = new Date();
+// ── Per-page independent date states (spec: no shared global pivot) ──
+const reqState     = { mode:'month', pivot:new Date() };
+const recruitState = { mode:'all',   pivot:new Date() };
+const anaState     = { mode:'month', pivot:new Date() };
+
+// ── Shared date utility: local date string (avoids UTC+7 shift) ──
+function _lds(d){var y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return y+'-'+m+'-'+dd;}
+
+// ── Shared: period key for a date string given a state ──
+function pKey(dateStr, st){
+  if(!dateStr)return'';
+  const d=String(dateStr).slice(0,10);
+  if(st.mode==='all')return'ALL';
+  if(st.mode==='day')return d;
+  if(st.mode==='week'){const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return dt.getFullYear()+'-W'+String(w).padStart(2,'0');}
+  if(st.mode==='month')return d.slice(0,7);
+  return d.slice(0,4);
+}
+function pInRange(dateStr, st){
+  if(st.mode==='all'||!dateStr)return true;
+  return pKey(dateStr,st)===pKey(_lds(st.pivot),st);
+}
+function pLabel(st){
+  const d=st.pivot;
+  if(st.mode==='all')return'全部 All';
+  if(st.mode==='day')return _lds(d);
+  if(st.mode==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);return _lds(s)+' ~ '+_lds(e);}
+  if(st.mode==='month')return d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+  return d.getFullYear()+'年';
+}
+function pNav(st,dir){
+  if(dir===0){st.pivot=new Date();return;}
+  const d=new Date(st.pivot);
+  if(st.mode==='day')  d.setDate(d.getDate()+dir);
+  else if(st.mode==='week')  d.setDate(d.getDate()+dir*7);
+  else if(st.mode==='month') d.setMonth(d.getMonth()+dir);
+  else if(st.mode==='year')  d.setFullYear(d.getFullYear()+dir);
+  st.pivot=d;
+}
+
+// ── Req page date wrappers ──
+function setRange(m,btn){
+  reqState.mode=m;
+  document.querySelectorAll('.rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
+  if(m==='all'){const el=document.getElementById('periodLbl');if(el)el.textContent='全部';}
+  populatePeriodLabel();renderReq();
+}
+function moveRange(dir){pNav(reqState,dir);populatePeriodLabel();renderReq();}
+function reqJumpTo(val){
+  if(!val||reqState.mode==='all')return;
+  const y=+val.slice(0,4),mo=reqState.mode==='month'?+val.slice(5,7)-1:0;
+  const d=reqState.mode==='day'?+val.slice(8,10):1;
+  reqState.pivot=new Date(y,mo,d||1);
+  populatePeriodLabel();renderReq();
+}
+function populatePeriodLabel(){const el=document.getElementById('periodLbl');if(el)el.textContent=pLabel(reqState);}
+function inRange(dateStr){return pInRange(dateStr,reqState);}
+
+// ── Recruit page date wrappers ──
+function rcSetMode(m,btn){
+  recruitState.mode=m;
+  document.querySelectorAll('.rc-rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r===m));
+  rcUpdateLabel();renderRecruit();
+}
+function rcNav(dir){pNav(recruitState,dir);rcUpdateLabel();renderRecruit();}
+function rcToday(){recruitState.pivot=new Date();rcUpdateLabel();renderRecruit();}
+function rcUpdateLabel(){const el=document.getElementById('rcPeriodLbl');if(el)el.textContent=pLabel(recruitState);}
+
+// ── Sewing detection (unified, from ac_hra_onboarding_v2) ──
+function normalizeGroup(s){
+  const n=String(s||'').trim().toUpperCase().replace(/[\s\u3000\/\uFF0F]+/g,'');
+  if(!n)return'';let m;
+  if(m=n.match(/^(?:LINE|L)0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^[AB]0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^0*(\d{1,2})$/)){const i=+m[1];if(i>=1&&i<=30)return'LINE'+i;}
+  if(/^(QC|品管|QUALITY)/.test(n))return'QC';
+  if(/^PACK/.test(n))return'PACK';
+  if(/^(CUT|裁剪)/.test(n))return'CUT';
+  if(/^(ADMIN|行政)/.test(n))return'ADMIN';
+  if(/^(WH|WAREHOUSE|倉)/.test(n))return'WH';
+  if(/^FINISH/.test(n))return'FINISH';
+  if(/^SAMPLE/.test(n))return'SAMPLE';
+  return n;
+}
+function isNormSewing(normName){return /^LINE\d+$/.test(normName||'');}
+function isSewingRecord(r){const raw=String(r.dept||r.position||r.section||'').replace(/[/\uFF0F].*/,'');return isNormSewing(normalizeGroup(raw));}
 let _editReqId = null;
 let _charts = {};
 let GAS_URL = '';
@@ -539,7 +712,8 @@ function goTab(btn){
   if(tab==='req')      {populatePeriodLabel();renderReq();}
   if(tab==='recruit')  renderRecruit();
   if(tab==='analytics'){renderAnalytics();}
-  if(tab==='settings') loadSettings();
+  if(tab==='compare')  renderCompare();
+  if(tab==='settings') {loadSettings();loadTgSet();}
 }
 
 // ── Range nav ──
@@ -549,37 +723,26 @@ function setRange(r,btn){
   btn.classList.add('on');
   populatePeriodLabel();renderReq();
 }
-function moveRange(dir){
-  const d=new Date(PIVOT);
-  if(dir===0){PIVOT=new Date();}
-  else if(RANGE==='day')  {d.setDate(d.getDate()+dir);PIVOT=d;}
-  else if(RANGE==='week') {d.setDate(d.getDate()+dir*7);PIVOT=d;}
-  else if(RANGE==='month'){d.setMonth(d.getMonth()+dir);PIVOT=d;}
-  else if(RANGE==='year') {d.setFullYear(d.getFullYear()+dir);PIVOT=d;}
-  populatePeriodLabel();renderReq();
-}
-function getRangeDates(){
-  const d=new Date(PIVOT);d.setHours(0,0,0,0);
-  let start,end;
-  if(RANGE==='day'){start=new Date(d);end=new Date(d);end.setDate(end.getDate()+1);}
-  else if(RANGE==='week'){const dow=d.getDay()||7;start=new Date(d);start.setDate(d.getDate()-dow+1);end=new Date(start);end.setDate(start.getDate()+7);}
-  else if(RANGE==='month'){start=new Date(d.getFullYear(),d.getMonth(),1);end=new Date(d.getFullYear(),d.getMonth()+1,1);}
-  else{start=new Date(d.getFullYear(),0,1);end=new Date(d.getFullYear()+1,0,1);}
-  return{start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10)};
-}
+function moveRange(dir){pNav(reqState,dir);populatePeriodLabel();renderReq();}
+function getRangeDates(){return{};}// replaced by pInRange(dateStr,reqState)
 function inRange(dateStr){const{start,end}=getRangeDates();return(!dateStr)||(dateStr>=start&&dateStr<end);}
 function populatePeriodLabel(){
-  const d=new Date(PIVOT);
-  let lbl='';
-  if(RANGE==='day')  lbl=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-  else if(RANGE==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);lbl=`${s.getMonth()+1}/${s.getDate()} – ${e.getMonth()+1}/${e.getDate()}`;}
-  else if(RANGE==='month')lbl=`${d.getFullYear()}年${d.getMonth()+1}月`;
-  else lbl=`${d.getFullYear()}年`;
-  document.getElementById('periodLbl').textContent=lbl;
+  const el=document.getElementById('periodLbl');
+  if(el)el.textContent=pLabel(reqState);
+  // Also populate dropdown
+  const sel=document.getElementById('reqPeriodSel');
+  if(!sel)return;
+  const allDates=REQS.map(r=>r.date).filter(Boolean);
+  const keys=[...new Set(allDates.map(d=>pKey(d,reqState)))].filter(k=>k&&k!=='ALL').sort().reverse();
+  const cur=pKey(_lds(reqState.pivot),reqState);
+  if(reqState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
+  sel.disabled=false;
+  sel.innerHTML=keys.length?keys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
 }
 
 // ── RENDER REQ ──
 function renderReq(){
+  try{
   const q   =(document.getElementById('reqSrch')?.value||'').toLowerCase();
   const deptF=document.getElementById('reqDeptF')?.value||'';
   const statF=document.getElementById('reqStatusF')?.value||'';
@@ -664,17 +827,25 @@ function renderReq(){
     </tr>`;
   }).join(''):`<tr><td colspan="13" style="text-align:center;padding:20px;color:var(--muted)">${t('no_data')}</td></tr>`;
 
+  // Sewing KPI
+  const sewReqs=rows.filter(r=>isSewingRecord(r));
+  const nonSewReqs=rows.length-sewReqs.length;
+  const sewKpiEl=document.getElementById('reqSewKpi');
+  if(sewKpiEl)sewKpiEl.innerHTML=`<div class="kpi"><div class="kpi-v">${sewReqs.length}🔵 / ${nonSewReqs}⚪</div><div class="kpi-l">車縫/非車縫</div></div>`;
   populateDeptFilter('reqDeptF', REQS.map(r=>r.dept));
+  }catch(e){console.error('renderReq:',e);}
 }
 
 // ── RENDER RECRUIT ──
 function renderRecruit(){
+  try{
   const q    =(document.getElementById('rcSrch')?.value||'').toLowerCase();
   const deptF= document.getElementById('rcDeptF')?.value||'';
   const moF  = document.getElementById('rcMonthF')?.value||'';
   const resF = document.getElementById('rcResultF')?.value||'';
 
   let rows=RECRUIT.filter(r=>
+    pInRange(r.joinDate||r.date||'', recruitState)&&
     (!q||(r.name||'').toLowerCase().includes(q)||(r.empId||'').toLowerCase().includes(q))&&
     (!deptF||r.dept===deptF)&&
     (!moF||(r.date||'').startsWith(moF))&&
@@ -717,12 +888,20 @@ function renderRecruit(){
     </tr>`
   ).join(''):`<tr><td colspan="11" style="text-align:center;padding:20px;color:var(--muted)">${t('no_data')}</td></tr>`;
 
+  // Sewing KPI
+  const sewRec=rows.filter(r=>r.result==='join'&&isSewingRecord(r)).length;
+  const nonSewRec=rows.filter(r=>r.result==='join').length-sewRec;
+  const rcSewEl=document.getElementById('rcSumCards');
+  if(rcSewEl){rcSewEl.innerHTML+=`<div class="rsum-card"><div class="rsum-v" style="font-size:13px">${sewRec}🔵/${nonSewRec}⚪</div><div class="rsum-l">車縫/非車縫</div></div>`;}
+  rcUpdateLabel();
   populateDeptFilter('rcDeptF', RECRUIT.map(r=>r.dept));
   populateMonthFilter('rcMonthF', RECRUIT.map(r=>r.date));
+  }catch(e){console.error('renderRecruit:',e);}
 }
 
 // ── RENDER ANALYTICS ──
 function renderAnalytics(){
+  try{
   const mode=document.getElementById('anaMode').value||'month';
   const deptF=document.getElementById('anaDept')?.value||'';
   const allReqs=deptF?REQS.filter(r=>r.dept===deptF):REQS;
@@ -790,10 +969,123 @@ function renderAnalytics(){
     </tr>`;
   }).join('')||`<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--muted)">—</td></tr>`;
 
+  // Sewing KPI
+  const sewAna=allRec.filter(r=>r.result==='join'&&isSewingRecord(r)).length;
+  const nonSewAna=allRec.filter(r=>r.result==='join').length-sewAna;
+  const anaKpisEl=document.getElementById('anaKpis');
+  if(anaKpisEl)anaKpisEl.innerHTML+=`<div class="kpi"><div class="kpi-v" style="font-size:13px">${sewAna}🔵/${nonSewAna}⚪</div><div class="kpi-l">車縫/非車縫</div></div>`;
   populateDeptFilter('anaDept',[...REQS.map(r=>r.dept),...RECRUIT.map(r=>r.dept)]);
+  }catch(e){console.error('renderAnalytics:',e);}
 }
+
+// ── RENDER COMPARE: Recruit vs Onboarding ──────────────────
+function renderCompare(){
+  try{
+    // Read onboarding data from localStorage
+    let obJoins=[];
+    try{
+      const raw=localStorage.getItem('ac_hra_joins');
+      if(raw)obJoins=JSON.parse(raw)||[];
+    }catch(e){}
+
+    const rcJoined=RECRUIT.filter(r=>r.result==='join');
+
+    // Build dept maps
+    const rcDeptMap={}, obDeptMap={};
+    rcJoined.forEach(r=>{
+      const d=(r.dept||'—').replace(/[/／].*/,'').trim();
+      rcDeptMap[d]=(rcDeptMap[d]||0)+1;
+    });
+    obJoins.forEach(r=>{
+      const d=String(r.dept||r.section||'—').replace(/[/／].*/,'').trim();
+      obDeptMap[d]=(obDeptMap[d]||0)+1;
+    });
+
+    const allDepts=[...new Set([...Object.keys(rcDeptMap),...Object.keys(obDeptMap)])].sort();
+
+    // Sewing maps
+    const rcSewMap={}, obSewMap={};
+    rcJoined.filter(r=>isSewingRecord(r)).forEach(r=>{
+      const d=String(normalizeGroup(r.dept||''));
+      rcSewMap[d]=(rcSewMap[d]||0)+1;
+    });
+    obJoins.filter(r=>isNormSewing(normalizeGroup(r.dept||r.section||''))).forEach(r=>{
+      const d=String(normalizeGroup(r.dept||r.section||''));
+      obSewMap[d]=(obSewMap[d]||0)+1;
+    });
+    const allSewDepts=[...new Set([...Object.keys(rcSewMap),...Object.keys(obSewMap)])].sort((a,b)=>{
+      const na=+a.replace('LINE',''),nb=+b.replace('LINE','');return na-nb;
+    });
+
+    // KPIs
+    const rcTotal=rcJoined.length, obTotal=obJoins.length;
+    const rcSewTotal=Object.values(rcSewMap).reduce((a,b)=>a+b,0);
+    const obSewTotal=Object.values(obSewMap).reduce((a,b)=>a+b,0);
+    const diffJoin=rcTotal-obTotal;
+    const kpiEl=document.getElementById('cmpKpis');
+    if(kpiEl)kpiEl.innerHTML=[
+      {l:'招募入職',v:rcTotal,c:'var(--sky)'},
+      {l:'Onboarding 入職',v:obTotal,c:'var(--ok)'},
+      {l:'差異 Diff',v:(diffJoin>0?'+':'')+diffJoin,c:diffJoin===0?'var(--ok)':'var(--danger)'},
+      {l:'招募 Sewing🔵',v:rcSewTotal,c:'var(--sky)'},
+      {l:'Onboarding Sewing🔵',v:obSewTotal,c:'var(--ok)'},
+    ].map(k=>`<div class="kpi"><div class="kpi-v" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join('');
+
+    // A: Join count table
+    const tdS='padding:6px 10px;border-bottom:1px solid #e2e6f0';
+    const joinTbody=document.getElementById('cmpJoinTbody');
+    if(joinTbody)joinTbody.innerHTML=allDepts.map(d=>{
+      const rc=rcDeptMap[d]||0, ob=obDeptMap[d]||0, diff=rc-ob;
+      const cls=diff===0?'color:var(--ok)':diff>0?'color:var(--warn)':'color:var(--danger)';
+      return `<tr><td style="${tdS};font-weight:600">${d}</td>
+        <td style="${tdS};text-align:center">${rc||'—'}</td>
+        <td style="${tdS};text-align:center">${ob||'—'}</td>
+        <td style="${tdS};text-align:center;font-weight:700;${cls}">${diff===0?'✓':(diff>0?'+':'')+diff}</td></tr>`;
+    }).join('')+`<tr style="background:#f0f4fa;font-weight:700">
+      <td style="${tdS}">TOTAL</td>
+      <td style="${tdS};text-align:center">${rcTotal}</td>
+      <td style="${tdS};text-align:center">${obTotal}</td>
+      <td style="${tdS};text-align:center;${diffJoin===0?'color:var(--ok)':'color:var(--danger)'}">${diffJoin===0?'✓':(diffJoin>0?'+':'')+diffJoin}</td>
+    </tr>` || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">無資料</td></tr>';
+
+    // B: Sewing compare table
+    const sewTbody=document.getElementById('cmpSewTbody');
+    if(sewTbody)sewTbody.innerHTML=allSewDepts.map(d=>{
+      const rc=rcSewMap[d]||0, ob=obSewMap[d]||0, diff=rc-ob;
+      const cls=diff===0?'color:var(--ok)':diff>0?'color:var(--warn)':'color:var(--danger)';
+      return `<tr><td style="${tdS};font-weight:600">${d}</td>
+        <td style="${tdS};text-align:center">${rc||'—'}</td>
+        <td style="${tdS};text-align:center">${ob||'—'}</td>
+        <td style="${tdS};text-align:center;font-weight:700;${cls}">${diff===0?'✓':(diff>0?'+':'')+diff}</td></tr>`;
+    }).join('')||'<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--muted)">無車縫資料</td></tr>';
+
+    // C: Missing in onboarding
+    const obIds=new Set(obJoins.map(r=>String(r.empId||r.idNo||'').trim()).filter(Boolean));
+    const missing=rcJoined.filter(r=>r.empId&&!obIds.has(String(r.empId).trim()));
+    const missTbody=document.getElementById('cmpMissTbody');
+    if(missTbody)missTbody.innerHTML=missing.length?missing.map((r,i)=>
+      `<tr><td style="${tdS}">${i+1}</td>
+        <td style="${tdS}" class="mono">${r.date||'—'}</td>
+        <td style="${tdS};font-weight:600">${r.name||'—'}</td>
+        <td style="${tdS}" class="mono">${r.empId||'—'}</td>
+        <td style="${tdS}">${r.dept||'—'}</td>
+        <td style="${tdS}" class="mono">${r.joinDate||'—'}</td></tr>`
+    ).join(''):'<tr><td colspan="6" style="text-align:center;padding:16px;color:var(--muted)">✅ 全員均已在 Onboarding 記錄</td></tr>';
+
+    if(!obJoins.length){
+      document.getElementById('cmpKpis').innerHTML='<div style="padding:12px;color:var(--muted);font-size:12px">⚠ 未找到 Onboarding 資料（localStorage: ac_hra_joins）。請先在同一瀏覽器開啟 ac_hra_onboarding_v2.html 並匯入資料。</div>';
+    }
+  }catch(e){console.error('renderCompare:',e);}
+}
+
 function chartOpts(){return{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:40}}}};}
-function mkChart(id,cfg){if(_charts[id])try{_charts[id].destroy();}catch(e){}const el=document.getElementById(id);if(!el)return;_charts[id]=new Chart(el,cfg);}
+function mkChart(id,cfg){
+  try{if(_charts[id])_charts[id].destroy();}catch(e){}
+  try{
+    const el=document.getElementById(id);if(!el)return;
+    _charts[id]=new Chart(el,cfg);
+  }catch(e){console.warn('Chart error:',id,e.message);}
+}
 
 // ── MODAL: Requisition ──
 function openReqModal(id){
@@ -873,10 +1165,12 @@ function normalizeHeader(raw){
 function nhCI(hdr,key){return hdr.findIndex(h=>normalizeHeader(h)===key);}
 
 async function importReqXlsx(evt){
-  const f=evt.target.files[0];if(!f)return;evt.target.value='';
+  const f=evt?.target?.files?.[0];if(!f)return;
+  try{evt.target.value='';}catch(e){}
+  toast('📂 正在解析…','info');
   const buf=await f.arrayBuffer();
   const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
-  let added=0;
+  let added=0,skipped=0;
   for(const sn of wb.SheetNames){
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true});
     if(rows.length<2)continue;
@@ -904,7 +1198,12 @@ async function importReqXlsx(evt){
     const cRemark=ci('remark')<0?ci('備注'):ci('remark');
     for(let i=1;i<rows.length;i++){
       const row=rows[i];
-      const title=String(row[cTitle]||'').trim();if(!title)continue;
+      const title=String(row[cTitle]||'').trim();if(!title){skipped++;continue;}
+      // Skip obvious header repeats
+      if(/^(title|job|position|dept|部門|標題)$/i.test(title)){skipped++;continue;}
+      // Skip if duplicate (same title+dept+date)
+      const dedupKey=title+'|'+(String(row[cDept]||'').trim())+'|'+(parseDate(row[cDate]));
+      if(REQS.some(r=>r.title===title&&r.dept===String(row[cDept]||'').trim()&&r.date===parseDate(row[cDate]))){skipped++;continue;}
       REQS.push({id:uid(),title,dept:String(row[cDept]||'').trim(),position:String(row[cPos]||'').trim(),
         required:parseInt(row[cReq])||1,filled:parseInt(row[cFill])||0,
         date:parseDate(row[cDate]),deadline:parseDate(row[cDL]),
@@ -913,7 +1212,9 @@ async function importReqXlsx(evt){
       added++;
     }
   }
-  saveReqs();renderReq();toast(`✅ 人力需求匯入：新增 ${added} 筆 (${wb.SheetNames.join(', ')})`,'ok');
+  saveReqs();renderReq();
+  const dupSkip=REQS.length>0?0:0; // dedup handled above
+  toast(`✅ 需求匯入完成：新增 ${added} 筆 | 跳過 ${skipped||0}`,'ok');
 }
 
 async function importRecruitXlsx(evt){
@@ -1089,8 +1390,8 @@ async function cloudPush(){
     const all={action:'push',tool:'manpower',reqs:REQS,recruit:RECRUIT,recordCount:REQS.length+RECRUIT.length,updatedAt:new Date().toISOString()};
     const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(all)});
     const d=await r.json();
-    if(d.ok){document.getElementById('cloudDot').className='cloud-dot ok';document.getElementById('cloudLbl').textContent='已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});toast('✅ 推送成功','ok');}
-    else toast('❌ 推送失敗','err');
+    if(d.ok){document.getElementById('cloudDot').className='cloud-dot ok';document.getElementById('cloudLbl').textContent='☁ 已同步 '+new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});toast('☁ Upload success','ok');renderAll();}
+    else toast('⚠ Upload failed','err');
   }catch(e){toast('❌ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='☁ Push';}
 }
@@ -1102,7 +1403,7 @@ async function cloudPull(){
     const d=await r.json();
     if(!d.ok||!d.data||d.data.data===null){toast('☁️ 雲端尚無資料','info');return;}
     const pay=d.data.data||d.data;
-    if(pay.reqs){REQS=pay.reqs;RECRUIT=pay.recruit||[];saveReqs();saveRecruit();renderAll();toast(`✅ 拉取完成 (需求${REQS.length}·招募${RECRUIT.length})`,'ok');}
+    if(pay.reqs){REQS=pay.reqs;RECRUIT=pay.recruit||[];saveReqs();saveRecruit();renderAll();toast(`☁ Download complete (需求${REQS.length}·招募${RECRUIT.length})`,'ok');}
     else toast('❌ 格式錯誤','err');
   }catch(e){toast('❌ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='⬇ Pull';}
@@ -1113,6 +1414,83 @@ function openModal(id){document.getElementById(id).classList.add('open');}
 function closeModal(id){document.getElementById(id).classList.remove('open');}
 document.querySelectorAll('.mbg').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('open');});
 
+
+// ── TG Settings ─────────────────────────────────────────────────────
+function loadTgSet(){
+  const tok=localStorage.getItem('vrt_tg_token')||'';
+  const chat=localStorage.getItem('vrt_tg_chat')||'';
+  const ti=document.getElementById('tgTokIn'),ci=document.getElementById('tgChatIn');
+  if(ti)ti.value=tok; if(ci)ci.value=chat;
+}
+function saveTgSet(){
+  const tok=(document.getElementById('tgTokIn')?.value||'').trim();
+  const chat=(document.getElementById('tgChatIn')?.value||'').trim();
+  if(!tok||!chat){document.getElementById('tgSetStat').textContent='⚠ 請填入 Token 和 Chat ID';return;}
+  localStorage.setItem('vrt_tg_token',tok);localStorage.setItem('vrt_tg_chat',chat);
+  document.getElementById('tgSetStat').textContent='✅ 已儲存';
+  setTimeout(()=>{const el=document.getElementById('tgSetStat');if(el)el.textContent='';},3000);
+}
+async function testTgSet(){
+  const tok=(document.getElementById('tgTokIn')?.value||localStorage.getItem('vrt_tg_token')||'').trim();
+  const chat=(document.getElementById('tgChatIn')?.value||localStorage.getItem('vrt_tg_chat')||'').trim();
+  const st=document.getElementById('tgSetStat');
+  if(!tok||!chat){if(st)st.textContent='⚠ 先填入並儲存';return;}
+  if(st)st.textContent='📤 發送中…';
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${tok}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chat,text:'✅ VRT Manpower TG 連線測試成功！',parse_mode:'HTML'})});
+    const d=await r.json();
+    if(st)st.textContent=d.ok?'✅ 成功':'❌ '+d.description;
+  }catch(e){if(st)st.textContent='❌ '+e.message;}
+  setTimeout(()=>{const el=document.getElementById('tgSetStat');if(el)el.textContent='';},5000);
+}
+
+// ── TG Popup & Send ─────────────────────────────────────────
+async function executeTgSend(period){
+  document.getElementById('tgModal').style.display='none';
+  const token=localStorage.getItem('vrt_tg_token')||'';
+  const chatId=localStorage.getItem('vrt_tg_chat')||'';
+  if(!token||!chatId){toast('請在設定填入 TG Token 和 Chat ID','err');return;}
+  const today=new Date().toISOString().slice(0,10);
+  const periodLabel={all:'全部',day:today,week:'本週',month:today.slice(0,7),year:today.slice(0,4)}[period]||period;
+
+  function inP(d){
+    if(period==='all'||!d)return true;
+    if(period==='day')return d===today;
+    if(period==='month')return d.startsWith(today.slice(0,7));
+    if(period==='year')return d.startsWith(today.slice(0,4));
+    return true;
+  }
+  const rcP=RECRUIT.filter(r=>inP(r.joinDate||r.date));
+  const rcJoin=rcP.filter(r=>r.result==='join');
+  const rcSew=rcJoin.filter(r=>isSewingRecord(r));
+  const reqsP=REQS.filter(r=>inP(r.date));
+  const totalReq=reqsP.reduce((s,r)=>s+(+r.required||0),0);
+  const totalFil=reqsP.reduce((s,r)=>s+(+r.filled||0),0);
+  const urgent=reqsP.filter(r=>r.priority==='urgent'||r.status==='urgent').length;
+
+  let msg=`🏭 <b>VRT Manpower Summary</b>\n📅 Period: ${periodLabel}\n\n`;
+  msg+=`📋 <b>Requisition</b>\nTotal Req: <b>${reqsP.length}</b> | Required: <b>${totalReq}</b> | Filled: <b>${totalFil}</b> | Gap: <b>${totalReq-totalFil}</b>\n`;
+  if(urgent)msg+=`🔴 Urgent: <b>${urgent}</b>\n`;
+  msg+=`\n👥 <b>Recruit</b>\nTotal: <b>${rcP.length}</b> | Joined: <b>${rcJoin.length}</b> | Sewing🔵: <b>${rcSew.length}</b>\n`;
+
+  // Top dept
+  const deptMap={};rcJoin.forEach(r=>{const d=r.dept||'—';deptMap[d]=(deptMap[d]||0)+1;});
+  const topDepts=Object.entries(deptMap).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  if(topDepts.length){msg+=`\nTop Joining Dept:\n`;topDepts.forEach(([d,n])=>{msg+=`  ${d}: ${n}人\n`;});}
+
+  try{
+    const r=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({chat_id:chatId,text:msg,parse_mode:'HTML'})
+    });
+    const d=await r.json();
+    if(d.ok)toast('📱 Telegram 已推送','ok');
+    else toast('❌ TG Error: '+d.description,'err');
+  }catch(e){toast('❌ TG 失敗: '+e.message,'err');}
+}
+
 // ── Toast ──
 function toast(msg,type){
   const el=document.createElement('div');el.className='toast '+(type||'info');el.textContent=msg;
@@ -1120,12 +1498,20 @@ function toast(msg,type){
 }
 
 // ── Render ALL ──
-function renderAll(){renderReq();renderRecruit();if(document.getElementById('page-analytics').classList.contains('on'))renderAnalytics();}
+function renderAll(){
+  try{renderReq();}catch(e){console.warn('renderReq:',e);}
+  try{renderRecruit();}catch(e){console.warn('renderRecruit:',e);}
+  if(document.getElementById('page-analytics')?.classList.contains('on'))
+    try{renderAnalytics();}catch(e){console.warn('renderAnalytics:',e);}
+  if(document.getElementById('page-compare')?.classList.contains('on'))
+    try{renderCompare();}catch(e){console.warn('renderCompare:',e);}
+}
 
 // ── INIT ──
 (function(){
   loadData();
   populatePeriodLabel();
+  rcUpdateLabel();
   renderReq();
   renderRecruit();
   // Apply language
@@ -1135,5 +1521,20 @@ function renderAll(){renderReq();renderRecruit();if(document.getElementById('pag
   if(GAS_URL){document.getElementById('cloudDot').className='cloud-dot ok';document.getElementById('cloudLbl').textContent='GAS 已設定';}
 })();
 </script>
+
+<!-- TG Period Popup -->
+<div id="tgModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:24px 28px;min-width:280px;box-shadow:0 8px 32px rgba(0,0,0,.25)">
+    <div style="font-weight:700;font-size:15px;color:#0f1c33;margin-bottom:16px">📱 選擇推送期間</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <button onclick="executeTgSend('day')"   style="padding:10px;border:1px solid #cce0f5;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f6ff">📅 今日</button>
+      <button onclick="executeTgSend('week')"  style="padding:10px;border:1px solid #cce0f5;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f6ff">📅 本週</button>
+      <button onclick="executeTgSend('month')" style="padding:10px;border:1px solid #cce0f5;border-radius:8px;font-size:13px;cursor:pointer;background:#1a7abf;color:#fff;font-weight:700">📅 本月</button>
+      <button onclick="executeTgSend('year')"  style="padding:10px;border:1px solid #cce0f5;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f6ff">📅 本年</button>
+      <button onclick="executeTgSend('all')"   style="padding:10px;border:1px solid #cce0f5;border-radius:8px;font-size:13px;cursor:pointer;background:#f0f6ff;grid-column:1/-1">📊 全部</button>
+    </div>
+    <button onclick="document.getElementById('tgModal').style.display='none'" style="width:100%;padding:8px;border:1px solid #cce0f5;border-radius:6px;cursor:pointer;background:#f7f9fc;font-size:12px">✕ 取消</button>
+  </div>
+</div>
 </body>
 </html>
