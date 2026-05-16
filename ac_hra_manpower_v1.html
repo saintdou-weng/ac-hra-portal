@@ -574,7 +574,19 @@ function reqJumpTo(val){
   reqState.pivot=new Date(y,mo,d||1);
   populatePeriodLabel();renderReq();
 }
-function populatePeriodLabel(){const el=document.getElementById('periodLbl');if(el)el.textContent=pLabel(reqState);}
+function populatePeriodLabel(){
+  // Always include current pivot period in dropdown (so ◀▶ navigation is visible)
+  const sel=document.getElementById('reqPeriodSel');
+  if(!sel)return;
+  const allDates=REQS.map(r=>r.date).filter(Boolean);
+  const dataKeys=[...new Set(allDates.map(d=>pKey(d,reqState)))].filter(k=>k&&k!=='ALL');
+  const cur=(reqState.mode==='all')?'ALL':pKey(_lds(reqState.pivot),reqState);
+  if(reqState.mode==='all'){sel.innerHTML='<option>— 全部 All —</option>';sel.disabled=true;return;}
+  sel.disabled=false;
+  // Include current pivot period even if no data
+  const allKeys=[...new Set([...dataKeys,cur])].sort().reverse();
+  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+}
 function inRange(dateStr){return pInRange(dateStr,reqState);}
 
 // ── Analytics page date wrappers ──
@@ -593,11 +605,12 @@ function anaToday(){anaState.pivot=new Date();anaUpdateLabel();renderAnalytics()
 function anaUpdateLabel(){
   const sel=document.getElementById('anaPeriodSel');if(!sel)return;
   const allDates=[...REQS.map(r=>r.date),...RECRUIT.map(r=>r.joinDate||r.date)].filter(Boolean);
-  const keys=[...new Set(allDates.map(d=>pKey(d,anaState)))].filter(k=>k&&k!=='ALL').sort().reverse();
-  const cur=pKey(_lds(anaState.pivot),anaState);
+  const dataKeys=[...new Set(allDates.map(d=>pKey(d,anaState)))].filter(k=>k&&k!=='ALL');
+  const cur=(anaState.mode==='all')?'ALL':pKey(_lds(anaState.pivot),anaState);
   if(anaState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
   sel.disabled=false;
-  sel.innerHTML=keys.length?keys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+  const allKeys=[...new Set([...dataKeys,cur])].sort().reverse();
+  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
 }
 function anaJumpTo(val){
   if(!val||anaState.mode==='all')return;
@@ -624,11 +637,12 @@ function rcUpdateLabel(){
   const sel=document.getElementById('rcPeriodSel');
   if(!sel)return;
   const allDates=RECRUIT.map(r=>r.joinDate||r.date).filter(Boolean);
-  const keys=[...new Set(allDates.map(d=>pKey(d,recruitState)))].filter(k=>k&&k!=='ALL').sort().reverse();
-  const cur=pKey(_lds(recruitState.pivot),recruitState);
+  const dataKeys=[...new Set(allDates.map(d=>pKey(d,recruitState)))].filter(k=>k&&k!=='ALL');
+  const cur=(recruitState.mode==='all')?'ALL':pKey(_lds(recruitState.pivot),recruitState);
   if(recruitState.mode==='all'){sel.innerHTML='<option>— 全部 —</option>';sel.disabled=true;return;}
   sel.disabled=false;
-  sel.innerHTML=keys.length?keys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
+  const allKeys=[...new Set([...dataKeys,cur])].sort().reverse();
+  sel.innerHTML=allKeys.length?allKeys.map(k=>`<option value="${k}"${k===cur?' selected':''}>${k}</option>`).join(''):'<option>—</option>';
 }
 function rcJumpTo(val){
   if(!val||recruitState.mode==='all')return;
@@ -1211,78 +1225,111 @@ function normalizeHeader(raw){
 function nhCI(hdr,key){return hdr.findIndex(h=>normalizeHeader(h)===key);}
 
 
-// ── Import Requisition from VRT Manpower Report ──────────────────────
+
+// ── Import Requisition from VRT Manpower Report (direct cell access) ──
 async function importReqXlsx(evt){
   const f=evt?.target?.files?.[0];if(!f)return;
   try{evt.target.value='';}catch(e){}
+
+  if(REQS.length>0&&!confirm('清除現有 '+REQS.length+' 筆需求，匯入新資料？')){return;}
+
   toast('📂 解析 VRT Manpower Report…','info');
   try{
     const buf=await f.arrayBuffer();
-    const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true,raw:false});
+    const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:false,raw:true});
 
-    // ── Find VRT sheet (with/without trailing space) ──
+    // Find VRT sheet (with or without trailing space)
     const vrtSn=wb.SheetNames.find(s=>s.trim().toUpperCase()==='VRT')||wb.SheetNames[0];
     const ws=wb.Sheets[vrtSn];
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:false});
 
-    // Find header row: contains "Position" AND "no."
-    let hdrRow=-1;
-    for(let ri=0;ri<Math.min(10,rows.length);ri++){
-      const rs=rows[ri].map(v=>String(v||'')).join('|');
-      if(/position/i.test(rs)&&/no\./i.test(rs)){hdrRow=ri;break;}
+    // Helper: safely read cell value
+    const cv=(r,c)=>{
+      const ref=XLSX.utils.encode_cell({r,c});
+      const cell=ws[ref];
+      if(!cell)return'';
+      // Handle merged cells (value only in master cell)
+      return cell.v!==undefined?String(cell.v):'';
+    };
+
+    // Extract period date from row 4 col C (e.g., "1/Jan/26-30/Apr/26")
+    // → extract end date → "2026-04-30"
+    const periodStr=cv(3,2); // row index 3 = Excel row 4, col index 2 = col C
+    let reportDate=td(); // default to today
+    const mMatch=periodStr.match(/(\d+)\/([A-Za-z]+)\/(\d{2,4})/g);
+    if(mMatch&&mMatch.length){
+      const last=mMatch[mMatch.length-1]; // e.g. "30/Apr/26"
+      const mp=last.match(/(\d+)\/([A-Za-z]+)\/(\d{2,4})/);
+      if(mp){
+        const months={Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',
+                      Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+        const yr=+mp[3]<100?2000+(+mp[3]):+mp[3];
+        const mo=months[mp[2].charAt(0).toUpperCase()+mp[2].slice(1).toLowerCase()]||'01';
+        const dy=String(+mp[1]).padStart(2,'0');
+        reportDate=yr+'-'+mo+'-'+dy;
+      }
     }
-    if(hdrRow<0){toast('⚠ 找不到 VRT 表格 header (no./Position)','err');return;}
 
-    // Column indices (0-based): B=1, C=2, D=3, E=4
-    // Data starts at hdrRow+2 (skip sub-header with 非熟手/熟手)
-    const dataStart=hdrRow+2;
+    // Find data start: look for first row where col D (Position) has meaningful text
+    // AND col B has a number OR col C has a dept name
+    // Known structure: header at Excel row 5 (index 4), sub-header row 6, data from row 7 (index 6)
+    let dataStartR=6; // default: Excel row 7 = index 6
+    for(let r=3;r<10;r++){
+      const posH=cv(r,3).trim().toLowerCase();
+      const noH=cv(r,1).trim().toLowerCase();
+      if(posH==='position'&&(noH==='no.'||noH==='no')){
+        dataStartR=r+2; // skip header + sub-header
+        break;
+      }
+    }
 
+    REQS=[];
     let added=0,skipped=0,lastDept='';
-    // Use hdrIdx for dedup comparison
-    const existingKeys=new Set(REQS.map(r=>(r.position+'|'+r.dept).toLowerCase()));
+    const usedKeys=new Set();
 
-    for(let i=dataStart;i<rows.length;i++){
-      const row=rows[i];
-      const noVal  =String(row[1]||'').trim();
-      const deptVal=String(row[2]||'').trim();
-      const posVal =String(row[3]||'').trim();
-      const reqVal =parseInt(String(row[4]||'0').replace(/[^0-9]/g,''))||0;
+    // Read from dataStartR until 10 consecutive empty position rows
+    let emptyCount=0;
+    for(let r=dataStartR;r<dataStartR+60;r++){
+      const noV  =cv(r,1).trim(); // col B
+      const deptV=cv(r,2).trim(); // col C (merged → carry forward)
+      const posV =cv(r,3).trim(); // col D = Position
+      const reqV =cv(r,4).trim(); // col E = Required
 
-      // Carry forward merged dept
-      if(deptVal&&!/^\d+$/.test(deptVal)&&deptVal!=='Total')lastDept=deptVal;
+      // Carry forward merged dept cell
+      if(deptV&&!/^\d+$/.test(deptV)&&deptV.toLowerCase()!=='total')lastDept=deptV;
 
-      // Skip empty/summary/total rows
-      if(!posVal){skipped++;continue;}
-      if(/^(total|subtotal|grand total)$/i.test(posVal)){skipped++;continue;}
-      if(/^(total|subtotal)$/i.test(noVal)){skipped++;continue;}
-      // Skip summary stats rows (入職人數, 總人數, 離職, etc.)
-      if(/入職|總人數|離職|Number of employees|Resignation|Total number/i.test(posVal)){skipped++;continue;}
-      // Skip if no required and no dept (orphan rows)
-      if(!reqVal&&!lastDept&&!noVal){skipped++;continue;}
+      if(!posV){emptyCount++;if(emptyCount>=5)break;continue;}
+      emptyCount=0;
+
+      // Skip header/summary/total rows
+      if(/^(total|subtotal|grand total|position|from|no\.|no,|dept\.|required)$/i.test(posV)){skipped++;continue;}
+      if(/入職|總人數|離職|Number of employees|Resignation|Total number|Summary/i.test(posV)){skipped++;continue;}
+      if(noV.toLowerCase()==='total'||posV.toLowerCase()==='total'){skipped++;continue;}
 
       const dept=lastDept||'—';
-      const key=(posVal+'|'+dept).toLowerCase();
-      if(existingKeys.has(key)){skipped++;continue;}
-      existingKeys.add(key);
+      const key=(posV+'|'+dept).toLowerCase();
+      if(usedKeys.has(key)){skipped++;continue;}
+      usedKeys.add(key);
 
-      const title=posVal;
+      const required=parseInt(reqV)||0;
+      const isSew=isSewingRecord({position:posV,dept,section:''});
+
       REQS.push({
-        id:uid(), title,
-        dept, position:posVal,
-        required:reqVal, filled:0,
-        date:td(), deadline:'',
-        priority:'normal',
-        status:reqVal>0?'open':'closed',
-        remark:`VRT Report: ${vrtSn.trim()}`
+        id:uid(), title:posV, dept, position:posV,
+        required, filled:0,
+        date:reportDate,  // use report period date
+        deadline:'',
+        priority:isSew?'normal':'normal',
+        status:required>0?'open':'closed',
+        remark:'VRT '+vrtSn.trim()+' '+reportDate
       });
       added++;
     }
 
-    saveReqs();renderReq();
-    toast(`✅ VRT 匯入：${added} 需求 | 跳過 ${skipped}筆`,'ok');
+    saveReqs();renderReq();populatePeriodLabel();
+    toast('✅ VRT 匯入：'+added+' 需求 (dept: '+[...new Set(REQS.map(r=>r.dept))].join('/')+')'
+         +'\n跳過: '+skipped+' | 報告日期: '+reportDate,'ok');
   }catch(e){console.error('importReqXlsx:',e);toast('❌ 匯入失敗: '+e.message,'err');}
 }
-
 
 async function importRecruitXlsx(evt){
   const f=evt.target?.files?.[0]||evt;if(!f||!f.name)return;
