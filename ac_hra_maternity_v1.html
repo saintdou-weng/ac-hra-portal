@@ -1784,15 +1784,18 @@ function renderMaternity(){
 function setSalPage(p){salPage=p;renderSalary();}
 function updateSalKPI(){
   try{
-    const recs=JSON.parse(localStorage.getItem('vrt_salary_records')||'[]');
+    const recs=salaryRecords||[];  // use in-memory array (correct)
     const total=recs.length;
-    const amount=recs.reduce((s,r)=>s+(+r.amount||+r.salary||0),0);
-    const sew=recs.filter(r=>isSewingRecord(r)).length;
+    // salary fields: netPay (primary), basicSalary, amount, salary
+    const amount=recs.reduce((s,r)=>s+(+r.netPay||+r.basicSalary||+r.amount||+r.salary||0),0);
+    const matEmps=employees.filter(e=>['maternity','returned'].includes(e.status));
+    const sewMat=matEmps.filter(e=>isSewingRecord(e)).length;
+    const nonSewMat=matEmps.length-sewMat;
     const el=id=>document.getElementById(id);
     if(el('sk-total'))el('sk-total').textContent=total;
     if(el('sk-amount'))el('sk-amount').textContent='$'+(amount||0).toFixed(0);
-    if(el('sk-sew'))el('sk-sew').textContent=sew+'🔵/'+(total-sew)+'⬜';
-  }catch(e){}
+    if(el('sk-sew'))el('sk-sew').textContent=sewMat+'🔵/'+(nonSewMat)+'⚪';
+  }catch(e){console.warn('updateSalKPI:',e);}
 }
 function renderSalary(){
   const q=(document.getElementById('salSrch')?.value||'').toLowerCase();
