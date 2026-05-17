@@ -328,7 +328,7 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 const RAW={
   att:     'vrt_att_v5_db',
   joins:   'ac_hra_joins',
-  resigns: 'ac_hra_resigns',
+  resigns: 'ac_hra_resigns',   // also try ac_hra_resigned below
   mat:     'vrt_maternity_v1',   // confirmed from console scan
   conts:   'vrt_dashConts',
   probs:   'vrt_dashProbs',
@@ -496,8 +496,11 @@ function renderUnified(skipPbar){
     const st=STATES['pbar-uni'];
     // Load raw data
     const attRaw=_arr(RAW.att)||[];
-    const joins=_arr(RAW.joins)||[];
-    const resigns=_arr(RAW.resigns)||[];
+    const joins=_arr(RAW.joins)||_arr('ac_hra_join')||[];
+    // onboarding module may use 'ac_hra_resigned' or 'ac_hra_resigns'
+    const resigns=_arr(RAW.resigns)||_arr('ac_hra_resigned')||_arr('ac_hra_resign')||[];
+    console.log('[renderAC] joins:',joins.length,'resigns:',resigns.length,
+      'keys tried:',RAW.joins,'ac_hra_resigned');
     const contsRaw=_arr(RAW.conts)||[];
     const probsRaw=_arr(RAW.probs)||[];
     // Try multiple possible maternity storage keys
@@ -695,8 +698,8 @@ function renderAS(skipPbar){
 function renderAC(skipPbar){
   try{
     const st=STATES['pbar-ac'];
-    const joins=_arr(RAW.joins)||[];
-    const resigns=_arr(RAW.resigns)||[];
+    const joins=_arr(RAW.joins)||_arr('ac_hra_join')||[];
+    const resigns=_arr(RAW.resigns)||_arr('ac_hra_resigned')||_arr('ac_hra_resign')||[];
     const allDates=[...joins.map(r=>r.joinDate||r.date),...resigns.map(r=>r.resignDate||r.date)];
     st.periods=buildPeriods(allDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-ac');

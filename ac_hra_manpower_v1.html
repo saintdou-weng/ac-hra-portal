@@ -1590,26 +1590,44 @@ async function cloudPull(){
   if(!GAS_URL){toast('請先設定 GAS URL','err');return;}
   const btn=document.getElementById('btnPull');btn.disabled=true;btn.innerHTML='<span class="spinning">⏳</span>';
   try{
-    const r=await fetch(GAS_URL+'?action=pull&tool=manpower&meta=1',{method:'GET',redirect:'follow'});
-    const d=await r.json();
-    if(!d.ok||!d.data||d.data.data===null){toast('☁️ 雲端尚無資料','info');return;}
-    const pay=d.data.data||d.data;
-    // GAS may return: {reqs,recruit} direct OR {records:[{reqs,recruit}]} OR {summary:{reqs,recruit}}
-    const inner=pay.reqs?pay:
-                pay.records?.[0]?.reqs?pay.records[0]:
-                pay.summary?.reqs?pay.summary:
-                pay.data?.reqs?pay.data:null;
-    const reqs=inner?.reqs||inner?.REQS||null;
+    const r=await fetch(GAS_URL+'?action=pull&tool=manpower',{method:'GET',redirect:'follow'});
+    const txt=await r.text();
+    let d;
+    try{d=JSON.parse(txt);}catch(e){toast('❌ GAS 回傳非 JSON: '+txt.slice(0,80),'err');return;}
+    console.log('[manpower cloudPull] raw response:', JSON.stringify(d).slice(0,400));
+    if(!d.ok){toast('⚠ GAS 回傳 ok=false: '+(d.error||d.message||'unknown'),'err');return;}
+
+    // Traverse all known GAS response structures to find reqs array
+    const _walk=obj=>{
+      if(!obj||typeof obj!=='object')return null;
+      if(Array.isArray(obj.reqs))return obj;   // direct: {reqs:[...]}
+      if(Array.isArray(obj.records)){
+        // records is array of push payloads: [{reqs:[...],recruit:[...]}]
+        if(obj.records[0]?.reqs)return obj.records[0];
+        // or records IS the reqs array directly
+        if(obj.records[0]?.required!==undefined)return{reqs:obj.records,recruit:[]};
+      }
+      if(obj.data)return _walk(obj.data);       // nested: {data:{reqs:[...]}}
+      if(obj.summary?.reqs)return obj.summary;
+      return null;
+    };
+    const inner=_walk(d)||_walk(d.data)||null;
+    const reqs=inner?.reqs||null;
     const recruit=inner?.recruit||inner?.RECRUIT||[];
-    if(reqs&&Array.isArray(reqs)){
+    if(reqs&&Array.isArray(reqs)&&reqs.length>0){
       REQS=reqs;RECRUIT=recruit;
-      saveReqs();saveRecruit();renderAll();
+      saveReqs();saveRecruit();
+      // Reset filters, switch to 全部 mode
+      const si=document.getElementById('reqSrch');if(si)si.value='';
+      const df=document.getElementById('reqDeptF');if(df)df.value='';
+      reqState.mode='all';
+      document.querySelectorAll('.rtabs button').forEach(b=>b.classList.toggle('on',b.dataset.r==='all'));
+      renderAll();reqUpdateLabel();
       toast(`☁ Download complete：需求 ${REQS.length} 筆，招募 ${RECRUIT.length} 筆`,'ok');
     }else{
-      // Last resort: try to read from records array directly
-      const allRecs=pay.records||[];
-      console.warn('cloudPull payload (no reqs found):',pay,'records:',allRecs.length);
-      toast(`❌ 格式不符：GAS 返回 ${JSON.stringify(Object.keys(pay))} — 請先 Push 資料後再 Pull`,'err');
+      console.warn('[cloudPull] Could not find reqs. Full response:',d);
+      const keys=d.data?Object.keys(d.data):Object.keys(d);
+      toast(`❌ 找不到需求資料。GAS 回傳欄位：${keys.join(',')} — 請查 Console 確認格式`,'err');
     }
   }catch(e){toast('❌ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='⬇ Pull';}
