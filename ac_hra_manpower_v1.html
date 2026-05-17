@@ -1598,20 +1598,32 @@ async function cloudPull(){
     if(!d.ok){toast('⚠ GAS 回傳 ok=false: '+(d.error||d.message||'unknown'),'err');return;}
 
     // Traverse all known GAS response structures to find reqs array
+    // Walk any GAS response structure to find reqs array
     const _walk=obj=>{
-      if(!obj||typeof obj!=='object')return null;
-      if(Array.isArray(obj.reqs))return obj;   // direct: {reqs:[...]}
-      if(Array.isArray(obj.records)){
-        // records is array of push payloads: [{reqs:[...],recruit:[...]}]
-        if(obj.records[0]?.reqs)return obj.records[0];
-        // or records IS the reqs array directly
-        if(obj.records[0]?.required!==undefined)return{reqs:obj.records,recruit:[]};
+      if(!obj)return null;
+      // obj itself is an array (d.data = [...])
+      if(Array.isArray(obj)&&obj.length>0){
+        if(obj[0]?.reqs)return obj[0];           // [{reqs:[...],recruit:[...]}]
+        if(obj[0]?.required!==undefined||obj[0]?.title||obj[0]?.position)
+          return{reqs:obj,recruit:[]};           // obj IS the reqs array
       }
-      if(obj.data)return _walk(obj.data);       // nested: {data:{reqs:[...]}}
+      if(typeof obj!=='object')return null;
+      if(Array.isArray(obj.reqs))return obj;     // {reqs:[...]}
+      if(Array.isArray(obj.records)){
+        if(obj.records[0]?.reqs)return obj.records[0];
+        if(obj.records[0]?.required!==undefined||obj.records[0]?.title)
+          return{reqs:obj.records,recruit:[]};
+      }
+      // Handle chunked response (chunked:true means multiple chunks)
+      if(obj.chunked&&Array.isArray(obj.chunks)){
+        const combined=obj.chunks.flatMap(ch=>ch.reqs||ch||[]);
+        if(combined.length)return{reqs:combined,recruit:obj.recruit||[]};
+      }
+      if(obj.data!==undefined)return _walk(obj.data);
       if(obj.summary?.reqs)return obj.summary;
       return null;
     };
-    const inner=_walk(d)||_walk(d.data)||null;
+    const inner=_walk(d)||null;
     const reqs=inner?.reqs||null;
     const recruit=inner?.recruit||inner?.RECRUIT||[];
     if(reqs&&Array.isArray(reqs)&&reqs.length>0){
