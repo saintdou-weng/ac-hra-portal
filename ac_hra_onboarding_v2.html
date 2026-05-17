@@ -1012,7 +1012,13 @@ async function cloudPush(){
   const el=document.getElementById('cloud-status');
   if(el)el.textContent='☁⬆ 上傳中…';
   try{
-    const payload=JSON.stringify({action:'push',tool:'onboarding',data:{joins:JOINS,resigns:RESIGNS}});
+    const payload=JSON.stringify({
+      action:'push', tool:'onboarding',
+      joins:JOINS, resigns:RESIGNS,          // top-level (GAS reads these)
+      data:{joins:JOINS, resigns:RESIGNS},   // nested (backward compat)
+      recordCount: JOINS.length+RESIGNS.length,
+      updatedAt: new Date().toISOString()
+    });
     const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
     const d=await r.json();
     if(el)el.textContent=d.ok?'✅ 已上傳':'❌ 上傳失敗';
@@ -1026,16 +1032,26 @@ async function cloudPull(){
   if(el)el.textContent='☁⬇ 下載中…';
   try{
     const r=await fetch(`${url}?action=pull&tool=onboarding`,{redirect:'follow'});
-    const d=await r.json();
-    if(d&&d.data){
-      const p=typeof d.data==='string'?JSON.parse(d.data):d.data;
-      if(p.joins){JOINS=p.joins;localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}
-      if(p.resigns){RESIGNS=p.resigns;localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}
+    const txt=await r.text();let d;
+    try{d=JSON.parse(txt);}catch(e2){toast('❌ GAS 回傳非 JSON','err');return;}
+    console.log('[onboarding cloudPull]',JSON.stringify(d).slice(0,300));
+    // GAS response: {ok:true, data:{tool, chunked:false, data:{joins:[], resigns:[]}}}
+    const _dd = d?.data?.data || d?.data || {};
+    const _p  = typeof _dd==='string'?JSON.parse(_dd):_dd;
+    const _joins   = _p.joins   || _p.records?.filter(r=>r.joinDate)  || [];
+    const _resigns = _p.resigns || _p.records?.filter(r=>r.resignDate) || [];
+    if(_joins.length||_resigns.length){
+      if(_joins.length)  {JOINS=_joins;   localStorage.setItem(K_JOINS,   JSON.stringify(JOINS));}
+      if(_resigns.length){RESIGNS=_resigns;localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}
       renderAll();
       const now=new Date().toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'});
-      if(el)el.textContent=`✅ 已更新 ${now}`;
-      toast('⬇ Data Updated','ok');
-    }else{if(el)el.textContent='☁ 雲端無資料';toast('雲端尚無資料','warn');}
+      if(el)el.textContent=`✅ 已更新 ${now} (入職${_joins.length} 離職${_resigns.length})`;
+      toast(`⬇ 入職 ${_joins.length} 筆，離職 ${_resigns.length} 筆`,'ok');
+    }else{
+      console.warn('[cloudPull] no joins/resigns in response. keys:',Object.keys(_p));
+      if(el)el.textContent='☁ 雲端無資料';
+      toast('雲端尚無資料 — 請先 Push 再 Pull','warn');
+    }
   }catch(e){if(el)el.textContent='❌ '+e.message;toast('❌ '+e.message,'err');}
 }
 
