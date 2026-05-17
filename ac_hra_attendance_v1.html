@@ -2520,20 +2520,30 @@ async function renderSewCmp() {
     }
 
 
-    // ── Export to COMPLETE module ──
+    // ── Export to COMPLETE module (schema: generatedAt, mode, period, kpis, rows) ──
     try{
+      const _matchPct = attTotal>0?(sewTotal/attTotal*100).toFixed(1)+'%':'—';
       localStorage.setItem('ac_complete_att_sewcmp', JSON.stringify({
-        period, mode:SC_MODE,
-        attTotal, sewTotal, diff,
-        match: attTotal>0?(sewTotal/attTotal*100).toFixed(1)+'%':'—',
+        generatedAt: new Date().toISOString(),
+        mode: SC_MODE,
+        period,
+        kpis: {attTotal, sewTotal, diff, match:_matchPct},
+        attTotal, sewTotal, diff, match:_matchPct,
+        rows: allLines.map(lid=>({
+          lid,
+          att: attLineHC[lid]||0,
+          sew: sewLineW[lid]||0,
+          diff: (attLineHC[lid]||0)-(sewLineW[lid]||0),
+          pcs: sewMap[lid]?.pcs||0,
+          attHC: attLineHC[lid]||0,
+          sewHC: sewLineW[lid]||0
+        })),
         lines: allLines.map(lid=>({
           lid, att:attLineHC[lid]||0, sew:sewLineW[lid]||0,
-          diff:(attLineHC[lid]||0)-(sewLineW[lid]||0),
-          pcs:sewMap[lid]?.pcs||0
-        })),
-        updatedAt: new Date().toISOString()
+          diff:(attLineHC[lid]||0)-(sewLineW[lid]||0), pcs:sewMap[lid]?.pcs||0
+        }))
       }));
-    }catch(e){}
+    }catch(e){console.warn('COMPLETE export:',e);}
 
   } catch(err) {
     const el=document.getElementById('sc-status');
