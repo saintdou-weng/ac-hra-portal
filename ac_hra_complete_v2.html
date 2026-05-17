@@ -398,48 +398,100 @@ function loadManpowerLS(){
 
 async function reloadAll(){cpLog('🔄 讀取 IDB…');loadAttLS();loadSewLS();loadMatLS();loadOnboardLS();loadManpowerLS();const attIDB=await readIDB(IDB_CFG.att);if(attIDB.length>COMPLETE_DB.attendance.length){COMPLETE_DB.attendance=attIDB;cpLog(`考勤 IDB: ${attIDB.length} 筆`,'ok');}const sewIDB=await readIDB(IDB_CFG.sew);if(sewIDB.length>COMPLETE_DB.sewing.length){COMPLETE_DB.sewing=sewIDB;cpLog(`車縫 IDB: ${sewIDB.length} 筆`,'ok');}const contIDB=await readIDB(IDB_CFG.cont);let contLS=[];try{contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]');}catch(e){}COMPLETE_DB.contract=contIDB.length?contIDB:contLS;const probIDB=await readIDB(IDB_CFG.prob);let probLS=[];try{probLS=JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]');}catch(e){}COMPLETE_DB.probation=probIDB.length?probIDB:probLS;rebuildNorm();renderAll();updateSrcKpi();}
 
-async function doLoad(){const hraUrl=localStorage.getItem(LS.HRA_GAS)||'';const prodUrl=localStorage.getItem(LS.PROD_GAS)||'';setST('☁ 讀取中…');await reloadAll();if(hraUrl){for(const tool of['attendance','contract','maternity']){try{const data=await pullTool(hraUrl,tool);if(data.length){if(tool==='attendance')COMPLETE_DB.attendance=data;if(tool==='contract')COMPLETE_DB.contract=data;if(tool==='maternity')COMPLETE_DB.maternity=(data.employees||data).filter(e=>e.status);cpLog(`${tool}: ${data.length} 筆 ✓`,'ok');}}catch(e){cpLog(`${tool}: ${e.message}`);}}}if(prodUrl){try{const data=await pullTool(prodUrl,'sewing');if(data.length){COMPLETE_DB.sewing=data;cpLog(`車縫: ${data.length} 筆 ✓`,'ok');}}catch(e){cpLog(`車縫: ${e.message}`);}}rebuildNorm();renderAll();updateSrcKpi();setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');toast('✅ 資料讀取完成');}
+async function doLoad(){
+  const hraUrl=localStorage.getItem(LS.HRA_GAS)||'';
+  const prodUrl=localStorage.getItem(LS.PROD_GAS)||'';
+  setST('☁ 讀取中…');
+  try{
+    await reloadAll();
+    if(hraUrl){
+      for(const tool of['attendance','contract','maternity']){
+        try{
+          const data=await pullTool(hraUrl,tool);
+          if(data.length){
+            if(tool==='attendance')COMPLETE_DB.attendance=data;
+            if(tool==='contract')COMPLETE_DB.contract=data;
+            if(tool==='maternity')COMPLETE_DB.maternity=(data.employees||data).filter(e=>e.status);
+            cpLog(`${tool}: ${data.length} 筆 ✓`,'ok');
+          }
+        }catch(e){cpLog(`${tool}: ${e.message}`);}
+      }
+    }
+    if(prodUrl){
+      try{
+        const data=await pullTool(prodUrl,'sewing');
+        if(data.length){COMPLETE_DB.sewing=data;cpLog(`車縫: ${data.length} 筆 ✓`,'ok');}
+      }catch(e){cpLog(`車縫: ${e.message}`);}
+    }
+    console.log('att raw',COMPLETE_DB.attendance.slice(0,3));
+    console.log('sew raw',COMPLETE_DB.sewing.slice(0,3));
+    console.log('mat raw',COMPLETE_DB.maternity.slice(0,3));
+    rebuildNorm();renderAll();updateSrcKpi();
+    setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');
+    toast('✅ 資料讀取完成');
+  }catch(e){
+    console.error('doLoad:',e);toast('❌ '+e.message);setST('');
+  }finally{
+    if(document.getElementById('syncTip')?.textContent.includes('讀取中'))setST('');
+  }
+}
+
+
 async function pullTool(gasUrl,tool){const mr=await fetch(`${gasUrl}?action=pull&tool=${tool}&meta=1`,{method:'GET',redirect:'follow'});const md=await mr.json();if(!md.ok||!md.data)return[];if(md.data.chunked){const tot=md.data.meta?.totalChunks||1;let all=[];for(let i=0;i<tot;i++){for(let t=0;t<3;t++){try{const cr=await fetch(`${gasUrl}?action=pull&tool=${tool}&chunk=${i}`,{method:'GET',redirect:'follow'});const cd=await cr.json();if(cd.ok){all=all.concat(cd.data.records||[]);break;}}catch(e){if(t===2)throw e;await new Promise(r=>setTimeout(r,2000));}}}return all;}const pay=md.data.data||md.data;if(pay.records)return pay.records;return[];}
 async function doSave(){const url=localStorage.getItem(LS.HRA_GAS)||'';if(!url){toast('請先設定 HRA GAS URL');return;}setST('☁ 推送…');try{const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'complete_push',tool:'complete',attDb:COMPLETE_DB.attendance,ts:new Date().toISOString()})});if(r.ok){toast('✅ 推送成功');setST('✓ 已推送','ok');}else toast('❌ 推送失敗：'+r.status);}catch(e){toast('❌ '+e.message);setST('');}}
 
 // ── REBUILD NORM ──
-function rebuildNorm(){_normCache.clear();_unmatchedHard.clear();_unmatchedHist.clear();_attNorm=[];_sewNorm=[];_joinNorm=[];_matByLine=new Map();
-for(const r of COMPLETE_DB.attendance){
-  if(!r.date)continue;
-  // Use SAME sewing detection as attendance module
-  if(!isSewingLineAtt(r))continue; // skip non-sewing for _attNorm (sewing compare)
-  const rawFull=String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||r.lineNo||'').trim();
-  const raw=rawFull.replace(/[/\uFF0F].*/,'').trim();
-  if(!raw)continue;
-  const lineId=normSCLine(raw);
-  if(!isSCLine(lineId)){_unmatchedHard.add(raw);continue;}
-  const hc=(+r.m||0)+(+r.f||0)||+r.ttl||+r.hc||+r.att||0;
-  _attNorm.push({date:String(r.date).slice(0,10),lineId,lineRaw:rawFull,
-    hc,att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
-    matLeave:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0});
-}
-// Also build _attAll for non-sewing tabs (join/resign/maternity by any dept)
-window._attAll=COMPLETE_DB.attendance.filter(r=>r.date).map(r=>({
-  date:String(r.date).slice(0,10),
-  line:String(r.line||r.sect||r.group||r.lineNo||'').trim(),
-  hc:(+r.m||0)+(+r.f||0)||+r.ttl||+r.hc||0,
-  join:+r.join||0, resign:+r.resign||0, ml:+r.ml||0
-}));
-for(const r of COMPLETE_DB.sewing){const rawLine=r.lineNo||r.group||r.section||'';if(!rawLine||!r.date)continue;const lineId=normalizeLineName(rawLine);if(!lineId)continue;_sewNorm.push({date:String(r.date).slice(0,10),lineId,lineRaw:rawLine,workers:+r.workers||0,pieces:+r.pieces||0,eff:+r.efficiency||+r.eff||0});}
-for(const r of COMPLETE_DB.onboarding||[]){const rawLine=r.dept||r.section||r.lineNo||'';const lineId=normalizeLineName(rawLine)||normalizeDept(rawLine);if(r.joinDate||r.entryDate)_joinNorm.push({date:(r.joinDate||r.entryDate||'').slice(0,10),lineId,type:'join',name:r.name||''});if(r.resignDate||r.leaveDate)_joinNorm.push({date:(r.resignDate||r.leaveDate||'').slice(0,10),lineId,type:'resign',name:r.name||''});}
-for(const r of COMPLETE_DB.contract||[]){const lineId=normalizeLineName(r.section||r.dept||'')||normalizeDept(r.dept||'');if(r.entryDate)_joinNorm.push({date:String(r.entryDate).slice(0,10),lineId,type:'join',name:r.name||''});}
-for(const e of COMPLETE_DB.maternity||[]){
-  // Use section (LINE17, QC A) or dept directly — same as maternity module
-  const rawDept=(e.dept||e.section||'').replace(/[/\uFF0F].*/,'').trim();
-  if(!rawDept)continue;
-  const lineId=normSCLine(rawDept);
-  const key=isSCLine(lineId)?lineId:rawDept.toUpperCase().slice(0,12)||'—';
-  if(!_matByLine.has(key))_matByLine.set(key,{preg:0,mat:0,ret:0});
-  const v=_matByLine.get(key);
-  if(e.status==='pregnant')v.preg++;else if(e.status==='maternity')v.mat++;else if(e.status==='returned')v.ret++;
-}
-const total=_unmatchedHard.size+_unmatchedHist.size;const umEl=document.getElementById('um-cnt');if(umEl){umEl.textContent=total;umEl.style.display=total?'':'none';}
-rebuildPeriods();}
+function rebuildNorm(){
+  _normCache.clear();_unmatchedHard.clear();_unmatchedHist.clear();
+  _attNorm=[];_sewNorm=[];_joinNorm=[];_matByLine=new Map();
+
+  console.log('rebuildNorm: att='+COMPLETE_DB.attendance.length+' sew='+COMPLETE_DB.sewing.length);
+  if(COMPLETE_DB.attendance[0])console.log('sample att row',JSON.stringify(COMPLETE_DB.attendance[0]).slice(0,200));
+
+  // _attAll: ALL attendance records, field-mapped EXACTLY as attendance module uses them
+  // Field names: r.line, r.sect (NOT r.section or r.lineNo)
+  window._attAll=(COMPLETE_DB.attendance||[]).filter(r=>r.date&&!r.isGrand).map(r=>({
+    date:String(r.date).slice(0,10),
+    line:String(r.line||'').trim(),
+    sect:String(r.sect||'').trim(),
+    group:String(r.group||'').trim(),
+    m:+r.m||0, f:+r.f||0,
+    hc:(+r.m||0)+(+r.f||0)||+r.ttl||+r.hc||0,
+    att:+r.att||0, join:+r.join||0, resign:+r.resign||0, ml:+r.ml||0,
+    isSubtotal:!!r.isSubtotal, isGrand:!!r.isGrand
+  }));
+  console.log('_attAll='+window._attAll.length);
+  if(!window._attAll.length&&COMPLETE_DB.attendance.length>0){
+    setTimeout(()=>alert('資料已下載，但 normalization 過濾後為 0。\n請檢查 line parsing 是否與原模組一致。\n\nRaw: '+JSON.stringify(COMPLETE_DB.attendance[0]).slice(0,300)),100);
+  }
+
+  // _sewNorm: sewing data from IDB
+  for(const r of COMPLETE_DB.sewing||[]){
+    const raw=String(r.lineNo||r.line||'').trim();if(!raw||!r.date)continue;
+    const lid=normSCLine(raw);if(!isSCLine(lid))continue;
+    _sewNorm.push({date:String(r.date).slice(0,10),lineId:lid,lineRaw:raw,
+      workers:+r.workers||0,pieces:+r.pieces||0,eff:+r.efficiency||+r.eff||0});
+  }
+
+  // _joinNorm: onboarding join/resign events
+  for(const r of COMPLETE_DB.onboarding||[]){
+    const dept=String(r.dept||r.section||r.lineNo||'').trim();
+    if(r.joinDate||r.entryDate)_joinNorm.push({date:(r.joinDate||r.entryDate||'').slice(0,10),lineId:dept,type:'join',name:r.name||''});
+    if(r.resignDate||r.leaveDate)_joinNorm.push({date:(r.resignDate||r.leaveDate||'').slice(0,10),lineId:dept,type:'resign',name:r.name||''});
+  }
+
+  // _matByLine: maternity by dept (raw dept name, no LINE_XX invention)
+  for(const e of COMPLETE_DB.maternity||[]){
+    const dept=(e.dept||e.section||'').replace(/[/／].*/,'').trim();if(!dept)continue;
+    const key=normSCLine(dept);const mk=isSCLine(key)?key:dept.toUpperCase().slice(0,15);
+    if(!_matByLine.has(mk))_matByLine.set(mk,{preg:0,mat:0,ret:0});
+    const v=_matByLine.get(mk);
+    if(e.status==='pregnant')v.preg++;else if(e.status==='maternity')v.mat++;else if(e.status==='returned')v.ret++;
+  }
+
+  const total=_unmatchedHard.size+_unmatchedHist.size;
+  const umEl=document.getElementById('um-cnt');if(umEl){umEl.textContent=total;umEl.style.display=total?'':'none';}
+  rebuildPeriods();}
 
 // ── AGGREGATION ──
 function getAttStats(lineId,dates){const recs=lineId?_attNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_attNorm.filter(r=>dates.has(r.date));if(!recs.length)return{hc:0,att:0,join:0,resign:0,ml:0,matLeave:0,days:0};const byDate=new Map();for(const r of recs){if(!byDate.has(r.date))byDate.set(r.date,{hc:0,att:0,join:0,resign:0,ml:0});const v=byDate.get(r.date);v.hc+=r.hc;v.att+=r.att;v.join+=r.join;v.resign+=r.resign;v.ml+=r.ml;}const days=byDate.size;const vals=[...byDate.values()];return{hc:Math.round(vals.reduce((s,v)=>s+v.hc,0)/days),att:Math.round(vals.reduce((s,v)=>s+v.att,0)/days),join:vals.reduce((s,v)=>s+v.join,0),resign:vals.reduce((s,v)=>s+v.resign,0),ml:vals.reduce((s,v)=>s+(v.ml||0),0),matLeave:vals.reduce((s,v)=>s+(v.matLeave||v.ml||0),0),days};}
@@ -541,96 +593,113 @@ function renderUnified(){try{
   document.getElementById('unified-tbody').innerHTML=tbody||'<tr><td colspan="10" style="color:var(--gray);text-align:center;padding:20px">無資料 — 請先讀取或匯入考勤</td></tr>';}catch(e){console.error('renderUnified:',e);}}
 
 // ── RENDER AS: Sewing lines ONLY ──
-function renderAS(){try{
+function renderAS(){
+  try{
   document.getElementById('pbar-as').innerHTML=pbarHtml('as');
-  const lf=getLF('as');
-  const P=PS.as, key=curKey('as');
-  
-  // ── Same logic as attendance module renderSewCmp ──
-  // Period check: use attendance module's approach
-  function inPeriod(d){
-    if(!d)return false;
-    const ds=String(d).slice(0,10);
+  const P=PS.as,key=curKey('as'),lf=getLF('as');
+
+  // ── Migrate EXACT isSewingLine from attendance module (not rebuilt) ──
+  const _isSewAtt=r=>{
+    if(!r||r.isSubtotal||r.isGrand)return false;
+    const line=(r.line||'').trim();
+    const sect=(r.sect||'');
+    const ttl=(r.m||0)+(r.f||0);
+    if(ttl<1)return false;
+    const lineLo=line.toLowerCase(),sectLo=sect.toLowerCase();
+    if(/cutting|裁剪|qc\b|品管|quality.control|packing|包裝|成品|finishing|warehouse|倉庫|mechanic|機修|sample|樣品|marker|馬克|supervisor|組長|班長|line.leader|team.leader|leader|inspector|檢驗|pc\b|生管|ie\b|admin|行政|hr\b|ga\b|electrician|工務|others|其它|其他|cutter/i.test(lineLo))return false;
+    if(/cutting|裁剪|qc\b|packing|包裝|warehouse|倉庫|mechanic|機修|sample|樣品|marker|品管/i.test(sectLo))return false;
+    if(/garment\s+(line\s*)?[a-z]?\d+/i.test(lineLo))return true;
+    if(/^apron\s+[a-z]\d+/i.test(lineLo))return true;
+    if(/^(成衣|圍裙)\s*\d+\s*組/.test(line))return true;
+    if(/^line\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
+    if(/^l\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
+    if(/sewing|garment|apron|車縫|成衣|圍裙/i.test(sectLo)&&/\d/.test(line))return true;
+    return false;
+  };
+
+  const inP=d=>{
+    if(!d)return false;const ds=String(d).slice(0,10);
     if(P.m==='day')return ds===key;
     if(P.m==='month')return ds.slice(0,7)===key;
     if(P.m==='year')return ds.slice(0,4)===key;
     return true;
-  }
-  
-  // Build attMap: use SAME logic as attendance renderSewCmp
+  };
+
+  // attMap — exact same logic as attendance renderSewCmp
   const attMap={};
-  (COMPLETE_DB.attendance||[]).forEach(r=>{
-    if(!inPeriod(r.date)||r.isSubtotal||r.isGrand)return;
-    const rawFull=String(r.line||r.sect||r.group||r.lineNo||'').trim();
-    const raw=rawFull.replace(/[/\uFF0F].*/,'').trim();
-    if(!raw)return;
-    if(!isSewingLineAtt(r))return;
+  (window._attAll||[]).forEach(r=>{
+    if(!inP(r.date)||r.isSubtotal||r.isGrand)return;
+    if(!_isSewAtt(r))return;
+    const rawFull=r.line;
+    const raw=rawFull.replace(/[/／].*/,'').trim();if(!raw)return;
     let lid=normSCLine(raw);
     if(!isSCLine(lid)){const digits=raw.replace(/[^\d]/g,'');if(digits){const num=+digits.slice(-2);if(num>=1&&num<=MAX_SEWING_LINE)lid='LINE'+num;}}
     if(!isSCLine(lid))return;
     if(lf&&lid!==lf)return;
-    if(!attMap[lid])attMap[lid]={hcSum:0,days:new Set(),join:0,resign:0};
-    const mf=(+r.m||0)+(+r.f||0);
-    attMap[lid].hcSum+=mf>0?mf:(+r.att||0);
-    attMap[lid].days.add(String(r.date).slice(0,10));
+    if(!attMap[lid])attMap[lid]={hcSum:0,days:new Set()};
+    const mf=r.m+r.f;
+    attMap[lid].hcSum+=mf>0?mf:(r.att||0);
+    attMap[lid].days.add(r.date);
   });
-  
-  // Build sewMap
+
+  // sewMap — same as attendance renderSewCmp
   const sewMap={};
-  (COMPLETE_DB.sewing||[]).forEach(r=>{
-    if(!inPeriod(r.date))return;
-    const lid=normSCLine(String(r.lineNo||r.line||'').trim());
-    if(!isSCLine(lid))return;
-    if(lf&&lid!==lf)return;
-    if(!sewMap[lid])sewMap[lid]={wSum:0,days:new Set(),pcs:0,effSum:0,effCnt:0};
-    const w=+r.workers||0;
-    if(w>0){sewMap[lid].wSum+=w;sewMap[lid].days.add(String(r.date).slice(0,10));}
-    sewMap[lid].pcs+=(+r.pieces||0);
-    if(r.efficiency||r.eff){sewMap[lid].effSum+=(+r.efficiency||+r.eff||0);sewMap[lid].effCnt++;}
+  _sewNorm.filter(r=>inP(r.date)&&(!lf||r.lineId===lf)).forEach(r=>{
+    if(!sewMap[r.lineId])sewMap[r.lineId]={wSum:0,days:new Set(),pcs:0};
+    if(r.workers>0){sewMap[r.lineId].wSum+=r.workers;sewMap[r.lineId].days.add(r.date);}
+    sewMap[r.lineId].pcs+=r.pieces;
   });
-  
-  // Compute averages
-  const attHC={},sewW={};
-  Object.entries(attMap).forEach(([lid,v])=>attHC[lid]=Math.round(v.hcSum/(v.days.size||1)));
-  Object.entries(sewMap).forEach(([lid,v])=>sewW[lid]=Math.round(v.wSum/(v.days.size||1)));
-  
-  // Totals
-  const attTotal=Object.values(attHC).reduce((s,v)=>s+v,0);
-  const sewTotal=Object.values(sewW).reduce((s,v)=>s+v,0);
+
+  // Averages
+  const attLineHC={},sewLineW={};
+  Object.entries(attMap).forEach(([lid,v])=>attLineHC[lid]=Math.round(v.hcSum/(v.days.size||1)));
+  Object.entries(sewMap).forEach(([lid,v])=>sewLineW[lid]=Math.round(v.wSum/(v.days.size||1)));
+
+  const attTotal=Object.values(attLineHC).reduce((s,v)=>s+v,0);
+  const sewTotal=Object.values(sewLineW).reduce((s,v)=>s+v,0);
   const diff=attTotal-sewTotal;
   const match=attTotal>0?(sewTotal/attTotal*100).toFixed(1)+'%':'—';
-  
+
+  console.log('[renderAS] key='+key+' att='+attTotal+' sew='+sewTotal+' attLines='+Object.keys(attLineHC)+' attRaws=',window._attAll.slice(0,2));
+
   document.getElementById('kpi-as').innerHTML=[
     {l:'考勤車工(均)',v:attTotal||'—',c:'nv'},
     {l:'車縫系統(均)',v:sewTotal||'—',c:'tl'},
     {l:'差異',v:(diff>=0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<10?'gd':'rd'},
     {l:'差%',v:match,c:'pu'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-  
-  // Lines sorted numerically (same as attendance)
-  const lines=[...new Set([...Object.keys(attHC),...Object.keys(sewW)])].filter(isSCLine)
-    .sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''));
-  
-  const html=`<div class="utable"><table><thead><tr>
-    <th>LINE</th><th class="center">考勤車工(均)</th><th class="center">車縫系統(均)</th>
-    <th class="center">差異</th><th class="center">差%</th><th class="center">效率%</th>
-  </tr></thead><tbody>${
-    lines.map(lid=>{
-      const a=attHC[lid]||0,s=sewW[lid]||0;
-      const df=a-s,pct=s?(df/s*100).toFixed(1)+'%':'—';
-      const sv=sewMap[lid]||{};
-      const eff=sv.effCnt?(sv.effSum/sv.effCnt).toFixed(1):'—';
-      const dcl=df===0?'gn':Math.abs(df)<5?'gd':'rd';
-      return`<tr><td><b>${displayLine(lid)}</b></td>
-        <td class="center">${a||'—'}</td><td class="center">${s||'—'}</td>
-        <td class="center dc ${dcl}">${a&&s?(df>=0?'+':'')+df:'—'}</td>
-        <td class="center">${pct}</td><td class="center">${eff}</td></tr>`;
-    }).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無 Sewing Line 資料 — 請先讀取或匯入考勤/車縫</td></tr>'
-  }</tbody></table></div>`;
-  document.getElementById('as-content').innerHTML=html;
-}catch(e){console.error('renderAS:',e);}}
 
-// ── RENDER AC: Attendance vs HR Dual comparison ──
+  // Lines: attendance master
+  const allLines=[...new Set([...Object.keys(attLineHC),...Object.keys(sewLineW)])].filter(isSCLine)
+    .sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''));
+
+  const rowsHtml=allLines.map(lid=>{
+    const aHC=attLineHC[lid]||0,sHC=sewLineW[lid]||0;
+    const d2=aHC-sHC,m2=aHC>0?(sHC/aHC*100).toFixed(1)+'%':'—';
+    const pcs=sewMap[lid]?.pcs||0;
+    const dcol=d2===0?'color:#1a6e5c':Math.abs(d2)<3?'color:#f59e0b':'color:#ef4444';
+    return`<tr><td style="font-weight:700">${lid}</td>
+      <td style="text-align:right;font-weight:600">${aHC||'—'}</td>
+      <td style="text-align:right;color:#0ea5e9;font-weight:600">${sHC||'—'}</td>
+      <td style="text-align:right;font-weight:700;${dcol}">${(aHC&&sHC)?(d2>=0?'+':'')+d2:'—'}</td>
+      <td style="text-align:right">${(aHC&&sHC&&sHC>0)?m2:'—'}</td>
+      <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('as-content').innerHTML=`<div class="utable">
+    <table><thead><tr style="background:#1a6e5c;color:#fff">
+      <th>LINE</th><th style="text-align:right">出勤HC<br>Att HC</th>
+      <th style="text-align:right">車縫HC<br>Sewing</th>
+      <th style="text-align:right">差異<br>Diff</th>
+      <th style="text-align:right">匹配%</th>
+      <th style="text-align:right">產量</th>
+    </tr></thead>
+    <tbody>${rowsHtml||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa">無資料 — 請先讀取考勤/車縫</td></tr>'}</tbody>
+  </table></div>`;
+  }catch(e){console.error('renderAS:',e);}
+}
+
 function renderAC(){try{
   document.getElementById('pbar-ac').innerHTML=pbarHtml('ac');
   const P=PS.ac, key=curKey('ac'), lf=getLF('ac');
