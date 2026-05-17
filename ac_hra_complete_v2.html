@@ -135,22 +135,18 @@ th:first-child,td:first-child{text-align:left}
 <div class="container">
 
 <div class="pnav">
-  <button class="on">月</button>
-  <button>週</button>
-  <button>日</button>
-  <button>年</button>
+  <button class="pbtn on" data-mode="month">月</button>
+  <button class="pbtn" data-mode="week">週</button>
+  <button class="pbtn" data-mode="day">日</button>
+  <button class="pbtn" data-mode="year">年</button>
 
-  <button>◀</button>
+  <button id="prevBtn">◀</button>
 
-  <select id="periodSelect">
-    <option>2026-05</option>
-    <option>2026-04</option>
-    <option>2026-03</option>
-  </select>
+  <select id="periodSelect"></select>
 
-  <button>▶</button>
+  <button id="nextBtn">▶</button>
 
-  <div class="pnav-label" id="periodLabel">2026年5月</div>
+  <div class="pnav-label" id="periodLabel"></div>
 </div>
 
 <!-- UNIFIED -->
@@ -283,18 +279,33 @@ th:first-child,td:first-child{text-align:left}
 </div>
 
 <script>
-const demoLines=[
-  {line:'LINE1',att:29,sew:25,diff:4,join:2,resign:1,mat:0,ml:1,cont:0,prob:1},
-  {line:'LINE2',att:31,sew:28,diff:3,join:3,resign:0,mat:1,ml:1,cont:0,prob:2},
-  {line:'LINE3',att:27,sew:26,diff:1,join:1,resign:2,mat:0,ml:0,cont:1,prob:0},
-  {line:'LINE4',att:35,sew:33,diff:2,join:4,resign:1,mat:1,ml:2,cont:0,prob:1},
-  {line:'LINE5',att:32,sew:29,diff:3,join:2,resign:1,mat:0,ml:1,cont:1,prob:0},
-];
+const PERIODS=['2026-03','2026-04','2026-05'];
+
+const DATA={
+  '2026-03':[
+    {line:'LINE1',att:22,sew:20,diff:2,join:1,resign:0,mat:0,ml:0,cont:0,prob:1},
+    {line:'LINE2',att:24,sew:21,diff:3,join:1,resign:1,mat:0,ml:1,cont:0,prob:0}
+  ],
+  '2026-04':[
+    {line:'LINE1',att:29,sew:25,diff:4,join:2,resign:1,mat:0,ml:1,cont:0,prob:1},
+    {line:'LINE2',att:31,sew:28,diff:3,join:3,resign:0,mat:1,ml:1,cont:0,prob:2},
+    {line:'LINE3',att:27,sew:26,diff:1,join:1,resign:2,mat:0,ml:0,cont:1,prob:0}
+  ],
+  '2026-05':[
+    {line:'LINE1',att:35,sew:31,diff:4,join:4,resign:1,mat:1,ml:2,cont:0,prob:1},
+    {line:'LINE2',att:36,sew:34,diff:2,join:2,resign:0,mat:0,ml:1,cont:1,prob:1},
+    {line:'LINE3',att:38,sew:35,diff:3,join:5,resign:2,mat:1,ml:2,cont:0,prob:2}
+  ]
+};
+
+let CURRENT='2026-05';
 
 function renderUnified(){
+  const rows=DATA[CURRENT]||[];
+
   const tb=document.getElementById('unifiedBody');
 
-  tb.innerHTML=demoLines.map(r=>`
+  tb.innerHTML=rows.map(r=>`
   <tr>
     <td><b>${r.line}</b></td>
     <td>${r.att}</td>
@@ -308,6 +319,51 @@ function renderUnified(){
     <td>${r.prob}</td>
   </tr>
   `).join('');
+
+  const att=rows.reduce((a,b)=>a+b.att,0);
+  const sew=rows.reduce((a,b)=>a+b.sew,0);
+
+  document.getElementById('attHC').innerText=att;
+  document.getElementById('sewHC').innerText=sew;
+
+  document.getElementById('periodLabel').innerText=
+    CURRENT.replace('-','年')+'月';
+}
+
+function buildPeriods(){
+  const sel=document.getElementById('periodSelect');
+
+  sel.innerHTML=PERIODS.map(p=>
+    `<option value="${p}">${p}</option>`
+  ).join('');
+
+  sel.value=CURRENT;
+}
+
+function changePeriod(v){
+  CURRENT=v;
+  document.getElementById('periodSelect').value=v;
+  buildPeriods();
+renderUnified();
+
+document.getElementById('periodSelect').onchange=e=>{
+  changePeriod(e.target.value);
+};
+
+document.getElementById('prevBtn').onclick=()=>movePeriod(-1);
+document.getElementById('nextBtn').onclick=()=>movePeriod(1);
+
+renderUnified();
+}
+
+function movePeriod(dir){
+  const idx=PERIODS.indexOf(CURRENT);
+  let n=idx+dir;
+
+  if(n<0)n=0;
+  if(n>=PERIODS.length)n=PERIODS.length-1;
+
+  changePeriod(PERIODS[n]);
 }
 
 function switchTab(id,el){
@@ -327,10 +383,12 @@ document.getElementById('langBtn').onclick=function(){
 
   if(LANG.zh){
     this.innerText='EN';
-    document.title='AC HRA COMPLETE v5';
+    document.querySelectorAll('.tab')[0].innerText='整合總表';
+    document.querySelectorAll('.tab')[1].innerText='出勤×車縫';
   }else{
     this.innerText='中';
-    document.title='AC HRA COMPLETE v5 English';
+    document.querySelectorAll('.tab')[0].innerText='Unified';
+    document.querySelectorAll('.tab')[1].innerText='Attendance × Sewing';
   }
 }
 
