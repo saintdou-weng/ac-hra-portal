@@ -195,7 +195,7 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
       <th class="center">差異 Diff</th>
       <th class="center">新進 Join</th>
       <th class="center">離職 Resign</th>
-      <th class="center">孕婦 Preg</th>
+      
       <th class="center">產假 Mat</th>
       <th class="center">合約 Cont</th>
       <th class="center">試用 Prob</th>
@@ -312,6 +312,76 @@ function toast(msg,dur=3000){const el=document.getElementById('toast');el.textCo
 function setST(msg,cls=''){const el=document.getElementById('syncTip');if(!el)return;el.textContent=msg;el.style.color=cls==='ok'?'#1a6e5c':cls==='err'?'#ef4444':'';}
 function cpLog(msg){const el=document.getElementById('cplog');if(!el)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+msg;el.prepend(d);}
 
+
+// ══ PERIOD NAV for each pane ════════════════════════════════════════
+// Each pane has independent state (no shared global pivot)
+const asState  = {mode:'day',   pivot:new Date()};
+const acState  = {mode:'month', pivot:new Date()};
+const amState  = {mode:'month', pivot:new Date()};
+const uniState = {mode:'month', pivot:new Date()};
+
+function renderPeriodBar(barId, st, onRefresh){
+  const el=document.getElementById(barId);if(!el)return;
+  const modes=['all','day','week','month','year'];
+  const labels={'all':'全部','day':'日','week':'週','month':'月','year':'年'};
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#fff;border-radius:8px;border:1px solid #e2e6f0">
+    ${modes.map(m=>`<button data-m="${m}" onclick="__pNav('${barId}','${m}',null,${JSON.stringify(onRefresh.name||'renderAS')})" 
+      style="padding:4px 10px;border-radius:6px;border:1px solid #cce;cursor:pointer;font-size:12px;${st.mode===m?'background:#1e3a8a;color:#fff':'background:#fff'}">${labels[m]}</button>`).join('')}
+    <button onclick="__pNavDir('${barId}',-1)" style="padding:4px 8px;border-radius:6px;border:1px solid #cce;cursor:pointer">◀</button>
+    <select id="${barId}-sel" onchange="__pJump('${barId}',this.value)" style="font-family:monospace;font-size:11px;min-width:100px;border:1px solid #cce;border-radius:6px;padding:3px"></select>
+    <button onclick="__pNavDir('${barId}',1)" style="padding:4px 8px;border-radius:6px;border:1px solid #cce;cursor:pointer">▶</button>
+    <button onclick="__pToday('${barId}')" style="padding:4px 8px;border-radius:6px;border:1px solid #cce;cursor:pointer">●</button>
+    <span id="${barId}-lbl" style="font-size:12px;font-weight:700;color:#1e3a8a;margin-left:4px">${pLabel(st)}</span>
+  </div>`;
+}
+
+// State helpers
+const _pBarMap={
+  'pbar-as':{st:()=>asState,fn:'renderAS'},
+  'pbar-ac':{st:()=>acState,fn:'renderAC'},
+  'pbar-am':{st:()=>amState,fn:'renderAM'},
+  'pbar-uni':{st:()=>uniState,fn:'renderUnified'}
+};
+function __pNav(barId,mode,pivot,fn){
+  const m=_pBarMap[barId];if(!m)return;
+  m.st().mode=mode;if(pivot)m.st().pivot=new Date(pivot);
+  renderPeriodBar(barId,m.st(),{name:fn});
+  window[fn]&&window[fn]();
+}
+function __pNavDir(barId,dir){
+  const m=_pBarMap[barId];if(!m)return;
+  const st=m.st();const d=new Date(st.pivot);
+  if(st.mode==='day')d.setDate(d.getDate()+dir);
+  else if(st.mode==='week')d.setDate(d.getDate()+dir*7);
+  else if(st.mode==='month')d.setMonth(d.getMonth()+dir);
+  else if(st.mode==='year')d.setFullYear(d.getFullYear()+dir);
+  st.pivot=d;
+  renderPeriodBar(barId,st,{name:m.fn});
+  window[m.fn]&&window[m.fn]();
+}
+function __pToday(barId){
+  const m=_pBarMap[barId];if(!m)return;
+  m.st().pivot=new Date();
+  renderPeriodBar(barId,m.st(),{name:m.fn});
+  window[m.fn]&&window[m.fn]();
+}
+function __pJump(barId,val){
+  const m=_pBarMap[barId];if(!m||!val)return;
+  const st=m.st();const y=+val.slice(0,4);
+  const mo=st.mode==='month'?+val.slice(5,7)-1:0;
+  st.pivot=new Date(y,mo,1);
+  renderPeriodBar(barId,st,{name:m.fn});
+  window[m.fn]&&window[m.fn]();
+}
+function pLabel(st){
+  const d=st.pivot;
+  if(st.mode==='all')return'全部';
+  if(st.mode==='day')return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(st.mode==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);return(s.getMonth()+1)+'/'+s.getDate()+'~'+(e.getMonth()+1)+'/'+e.getDate();}
+  if(st.mode==='month')return d.getFullYear()+'年'+(d.getMonth()+1)+'月';
+  return d.getFullYear()+'年';
+}
+
 // ══ TAB NAVIGATION ════════════════════════════════════════════
 function switchTab(t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
@@ -335,19 +405,21 @@ document.addEventListener('DOMContentLoaded',()=>{
 // ══ 出勤×車縫 — reads attendance export ════════════════════════
 function renderAS(){
   try{
+    renderPeriodBar('pbar-as',asState,{name:'renderAS'});
     const d=readCmp(CK.attSew);
-    const pbar=document.getElementById('pbar-as');
-    if(pbar)pbar.innerHTML='';
     const kEl=document.getElementById('kpi-as');
     const cEl=document.getElementById('as-content');
     if(!d){
       if(kEl)kEl.innerHTML=kpi('—','考勤車工(均)')+kpi('—','車縫系統(均)')+kpi('—','差異')+kpi('—','差%');
-      if(cEl)cEl.innerHTML=`<div class="utable"><table><tbody>${nodata(6,'尚無資料 — 請在出勤模組開啟「出勤×車縫」分頁以產生比對結果')}</tbody></table></div>`;
+      if(cEl)cEl.innerHTML=`<div style="text-align:center;padding:30px;color:#6b7a9e;background:#f8faff;border-radius:8px;margin:10px 0">`+
+        `<div style="font-size:24px;margin-bottom:12px">📊</div>`+
+        `<div style="font-weight:600;margin-bottom:6px">尚未產生出勤×車縫分析</div>`+
+        `<div style="font-size:12px">請先進入 Attendance 頁面 → 出勤×車縫 → 選期間後系統自動儲存結果</div></div>`;
       return;
     }
     if(kEl)kEl.innerHTML=[
       kpi(d.attTotal??'—','考勤車工(均)','nv'),
-      kpi(d.sewTotal??'—','車縫系統(均)','tl'),
+      kpi(d.sewTotal>0?d.sewTotal:(d.sewTotal===0?'⚠ 無車縫資料':'—'),'車縫系統(均)','tl'),
       kpi((d.diff>=0?'+':'')+d.diff,'差異',d.diff===0?'gn':Math.abs(d.diff)<10?'gd':'rd'),
       kpi(d.match??'—','差%','pu'),
     ].join('');
@@ -371,13 +443,17 @@ function renderAS(){
 // ══ 出勤×入離職 — reads onboarding export ══════════════════════
 function renderAC(){
   try{
+    renderPeriodBar('pbar-ac',acState,{name:'renderAC'});
     const d=readCmp(CK.onboard);
     const kEl=document.getElementById('kpi-ac');
     const cEl=document.getElementById('ac-content');
     if(!d){
       if(kEl)kEl.innerHTML=kpi('—','出勤 新進')+kpi('—','HR 新進')+kpi('—','差異')+kpi('—','出勤 離職')+kpi('—','HR 離職')+kpi('—','差異');
       if(kEl)kEl.style.gridTemplateColumns='repeat(3,1fr)';
-      if(cEl)cEl.innerHTML=`<div class="utable"><table><tbody>${nodata(5,'尚無資料 — 請在入離職模組開啟「比較分析」分頁以產生比對結果')}</tbody></table></div>`;
+      if(cEl)cEl.innerHTML=`<div style="text-align:center;padding:30px;color:#6b7a9e;background:#f8faff;border-radius:8px;margin:10px 0">`+
+        `<div style="font-size:24px;margin-bottom:12px">👥</div>`+
+        `<div style="font-weight:600;margin-bottom:6px">尚無 Onboarding 比對結果</div>`+
+        `<div style="font-size:12px">請先進入入離職模組 → 比較分析分頁，系統會自動儲存結果</div></div>`;
       return;
     }
     if(kEl){
@@ -404,6 +480,7 @@ function renderAC(){
 // ══ 出勤×孕假 — reads maternity export ════════════════════════
 function renderAM(){
   try{
+    renderPeriodBar('pbar-am',amState,{name:'renderAM'});
     const d=readCmp(CK.matcmp);
     const kEl=document.getElementById('kpi-am');
     const cEl=document.getElementById('am-content');
@@ -413,24 +490,22 @@ function renderAM(){
       return;
     }
     if(kEl)kEl.innerHTML=[
-      kpi(d.portalPreg??'—','孕婦','pu'),
-      kpi(d.portalMat??'—','產假中','rd'),
-      kpi(d.attML??d.attMl??'—','考勤 ML假','gd'),
-      kpi(d.diff!=null?((d.diff>=0?'+':'')+d.diff):'—','差異',d.diff===0?'gn':'rd'),
+      kpi(d.portalMat??'—','Portal 產假','rd'),
+      kpi(d.attML??d.attMl??'—','出勤 ML假','gd'),
+      kpi(d.diff!=null?((d.diff>=0?'+':'')+d.diff):'—','差異 (Portal-ML)',d.diff===0?'gn':'rd'),
       kpi(d.sewMat??'—','車縫產假🔵','tl'),
     ].join('');
     const byLine=d.byLine||[];
     const rows=byLine.map(r=>`<tr>
       <td><b>${r.dept||r.line||'—'}</b></td>
-      <td style="text-align:center">${r.preg??r.portal??'—'}</td>
-      <td style="text-align:center">${r.mat??'—'}</td>
+      <td style="text-align:center">${r.portal??r.mat??'—'}</td>
       <td style="text-align:center">${r.attML??r.attMl??'—'}</td>
       <td style="text-align:center">${diffBadge(r.diff??0)}</td>
     </tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">Portal 產假: ${d.portalMat??'—'} · 出勤 ML: ${d.attML??'—'} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
-    <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
-      <th>部門/LINE</th><th style="text-align:center">🤰孕婦</th><th style="text-align:center">🍼產假</th><th style="text-align:center">ML假</th><th style="text-align:center">差異</th>
-    </tr></thead><tbody>${rows||nodata(5)}</tbody></table></div>`;
+    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">Portal 產假: ${d.portalMat??'—'} · 出勤 ML: ${d.attML??d.attMl??'—'} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>`+
+      `<div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">`+
+      `<th>部門/LINE</th><th style="text-align:center">🍼Portal 產假</th><th style="text-align:center">出勤 ML假</th><th style="text-align:center">差異</th>`+
+      `</tr></thead><tbody>${rows||nodata(4)}</tbody></table></div>`;
   }catch(e){console.error('renderAM:',e);}
 }
 
@@ -475,17 +550,22 @@ function renderRecruit(){
 // ══ 整合總表 — aggregates all exports ══════════════════════════
 function renderUnified(){
   try{
+    renderPeriodBar('pbar-uni',uniState,{name:'renderUnified'});
     const as=readCmp(CK.attSew);
     const ac=readCmp(CK.onboard);
     const am=readCmp(CK.matcmp);
     const rc=readCmp(CK.recruit);
     const bc=document.getElementById('big-cards');
     if(bc)bc.innerHTML=[
-      {l:'出勤車縫HC',v:as?.attTotal??'—',s:as?.sewTotal!=null?'車縫: '+as.sewTotal:'',c:'tl'},
-      {l:'車縫匹配率',v:as?.match??'—',s:as?.diff!=null?'差異: '+(as.diff>=0?'+':'')+as.diff:'',c:'gn'},
-      {l:'孕婦/產假',v:(am?.portalPreg??'—')+' / '+(am?.portalMat??'—'),s:am?.sewMat!=null?'車縫: '+am.sewMat:'',c:'pu'},
-      {l:'合約/試用',v:'—',s:'',c:'gd'},
-    ].map(k=>`<div class="bigcard ${k.c}"><div class="bc-l">${k.l}</div><div class="bc-v">${k.v}</div><div class="bc-s">${k.s}</div></div>`).join('');
+      {l:'出勤車縫HC',v:as?.attTotal??'—',sub:as?.sewTotal!=null?'車縫系統: '+as.sewTotal:'',c:'tl'},
+      {l:'車縫匹配率',v:as?.match??'—',sub:as?.diff!=null?'差異: '+(as.diff>=0?'+':'')+as.diff:'未知',c:'gn'},
+      {l:'產假/ML假',v:(am?.portalMat??'—')+' / '+(am?.attML??am?.attMl??'—'),sub:am?.diff!=null?'差: '+(am.diff>=0?'+':'')+am.diff:'',c:'pu'},
+      {l:'合約/試用',v:'—',sub:'',c:'gd'},
+    ].map(k=>`<div class="bigcard ${k.c}">`+
+      `<div style="font-size:11px;font-weight:600;color:inherit;opacity:.7;margin-bottom:4px">${k.l}</div>`+
+      `<div style="font-size:28px;font-weight:700;line-height:1">${k.v}</div>`+
+      `<div style="font-size:11px;margin-top:4px;opacity:.8">${k.sub}</div></div>`
+    ).join('');
 
     // Unified summary table
     const tbody=document.getElementById('unified-tbody');
@@ -503,9 +583,8 @@ function renderUnified(){
         <td style="text-align:center;color:${att?.diff===0?'#1a6e5c':'#ef4444'}">${att?.diff!=null?(att.diff>=0?'+':'')+att.diff:'—'}</td>
         <td style="text-align:center">${'—'}</td>
         <td style="text-align:center">${'—'}</td>
-        <td style="text-align:center">${matL?.preg??'—'}</td>
         <td style="text-align:center">${matL?.mat??'—'}</td>
-        <td style="text-align:center">${matL?.attML??'—'}</td>
+        <td style="text-align:center">${matL?.attML??matL?.attMl??'—'}</td>
         <td style="text-align:center">${matL?.diff!=null?(matL.diff>=0?'+':'')+matL.diff:'—'}</td>
       </tr>`;
     }).join('');
