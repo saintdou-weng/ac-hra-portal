@@ -1,709 +1,341 @@
-<!DOCTYPE html>
-<html lang="zh-TW">
+﻿<!DOCTYPE html>
+<html lang="zh-Hant">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AC HRA Complete · VRT</title>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AC HRA COMPLETE v5</title>
 <style>
 :root{
-  --bg:#e8f4fd;--bg2:#fff;--bg3:#d6eefa;
-  --navy:#1e3a5f;--teal:#0f766e;--gold:#d97706;
-  --red:#dc2626;--green:#16a34a;--blue:#2563eb;--pu:#7c3aed;--gray:#6b7a9e;
-  --brd:#b8d9ef;--sh:0 1px 4px #1e3a5f14;--sh2:0 3px 12px #1e3a5f22;
-  --f:'DM Sans','Noto Sans TC',sans-serif;
+  --navy:#18345c;
+  --bg:#dfeaf5;
+  --card:#ffffff;
+  --line:#c9d7e8;
+  --green:#0f8f72;
+  --red:#e64949;
+  --purple:#7c4dff;
+  --orange:#f59f00;
 }
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100vh;font-size:13px}
-::-webkit-scrollbar{width:5px;height:5px}
-::-webkit-scrollbar-thumb{background:var(--brd);border-radius:3px}
-#hdr{background:var(--navy);height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;position:sticky;top:0;z-index:300;box-shadow:0 2px 8px #0006}
-.hlo{display:flex;align-items:center;gap:8px}
-.hvrt{font-size:16px;font-weight:700;color:#f0a030;letter-spacing:1.5px;padding-right:8px;border-right:1px solid #fff3}
-.htit{font-size:9px;color:#ffffffbb;line-height:1.4}
-.hbtns{display:flex;align-items:center;gap:5px}
-.hb{font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;border:1px solid;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:3px}
-.hb.tl{background:#0f766e;color:#fff;border-color:#0f766e}
-.hb.bl{background:#2563eb;color:#fff;border-color:#2563eb}
-.hb.gy{background:#555;color:#fff;border-color:#555}
-.hb.lg{background:transparent;color:#ffffffcc;border-color:#fff4}
-.hb.lg.on{background:#f0a030;color:#000;border-color:#f0a030}
-.sync{font-size:10px;color:#f59e0b;font-family:monospace}
-.sync.ok{color:#10b981}
-#tabs{background:var(--bg2);border-bottom:2px solid var(--brd);display:flex;padding:0 14px;position:sticky;top:50px;z-index:200;overflow-x:auto;gap:0}
-.tab{font-size:11px;font-weight:700;padding:10px 12px;border:none;background:transparent;color:var(--gray);cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-2px;transition:.15s;white-space:nowrap}
-.tab:hover{color:var(--navy);background:var(--bg3)}
-.tab.on{color:var(--navy);border-bottom-color:var(--gold)}
-.pane{display:none;padding:12px 14px 28px}
-.pane.on{display:block}
-.pbar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 12px;background:var(--bg2);border:1px solid var(--brd);border-radius:8px;margin-bottom:12px}
-.pt{font-size:11px;font-weight:700;padding:4px 10px;border-radius:4px;border:1px solid var(--brd);background:transparent;color:var(--gray);cursor:pointer;transition:.15s}
-.pt.on{background:var(--navy);color:#fff;border-color:var(--navy)}
-.pnav{font-size:13px;padding:3px 7px;border:1px solid var(--brd);border-radius:4px;background:var(--bg2);cursor:pointer;color:var(--navy)}
-.psel{font-size:11px;padding:4px 7px;border:1px solid var(--brd);border-radius:4px;background:var(--bg2);color:var(--navy);font-family:var(--f);outline:none;cursor:pointer;max-width:180px}
-.ks{display:grid;gap:10px;margin-bottom:12px}
-.ks5{grid-template-columns:repeat(5,1fr)}
-.ks4{grid-template-columns:repeat(4,1fr)}
-.ks3{grid-template-columns:repeat(3,1fr)}
-@media(max-width:900px){.ks5,.ks4{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:580px){.ks5,.ks4,.ks3{grid-template-columns:repeat(2,1fr)}}
-.kpi{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:11px 13px;box-shadow:var(--sh);position:relative;overflow:hidden}
-.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:4px 0 0 4px}
-.kpi.nv::before{background:var(--navy)}.kpi.tl::before{background:var(--teal)}
-.kpi.gd::before{background:var(--gold)}.kpi.rd::before{background:var(--red)}
-.kpi.gn::before{background:var(--green)}.kpi.pu::before{background:var(--pu)}
-.kl{font-size:9px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
-.kv{font-size:22px;font-weight:700;color:var(--navy);line-height:1}
-.ks2{font-size:10px;color:var(--gray);margin-top:3px}
-.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:10px}
-.card{background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:9px 11px;box-shadow:var(--sh)}
-.card-hd{font-size:10px;font-weight:700;color:var(--navy);margin-bottom:6px;display:flex;align-items:center;gap:5px}
-.row{display:flex;justify-content:space-between;align-items:center;padding:2px 0;font-size:10.5px;border-bottom:1px solid var(--bg3)}
-.row:last-child{border-bottom:none}
-.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0}
-.dot.ok{background:var(--green)}.dot.warn{background:var(--gold)}.dot.bad{background:var(--red)}.dot.off{background:var(--gray)}
-.utable{overflow-x:auto;border-radius:8px;border:1px solid var(--brd);margin-bottom:12px}
-.utable table{width:100%;border-collapse:collapse;background:var(--bg2);font-size:11px;min-width:700px}
-.utable thead{background:var(--navy);color:#fff;position:sticky;top:0}
-.utable th{padding:8px 10px;text-align:left;font-size:10px;font-weight:700;letter-spacing:.3px;white-space:nowrap;text-transform:uppercase}
-.utable th.center,.utable td.center{text-align:center}
-.utable td{padding:6px 10px;border-bottom:1px solid var(--bg3);white-space:nowrap}
-.utable tr:hover td{background:var(--bg3)}
-.badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:3px}
-.badge.ok{background:#dcfce7;color:#15803d}
-.badge.warn{background:#fef9c3;color:#92400e}
-.badge.bad{background:#fee2e2;color:#b91c1c}
-.badge.info{background:#dbeafe;color:#1d4ed8}
-.badge.muted{background:#f1f5f9;color:var(--gray)}
-.dc{font-weight:700;text-align:center}
-.dc.ok{color:var(--green)}.dc.warn{color:var(--gold)}.dc.bad{color:var(--red)}.dc.na{color:var(--gray)}
-.panel{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:13px;margin-bottom:11px;box-shadow:var(--sh)}
-.panel h3{font-size:12px;font-weight:700;color:var(--navy);margin-bottom:10px}
-.stit{font-size:11px;font-weight:700;color:var(--navy);margin:12px 0 7px;display:flex;align-items:center;gap:6px}
-.stit::after{content:'';flex:1;height:1px;background:var(--brd)}
-.mbg{display:none;position:fixed;inset:0;background:#0007;z-index:500;align-items:center;justify-content:center}
-.mbg.show{display:flex}
-.mbox{background:var(--bg2);border-radius:10px;padding:20px;max-width:440px;width:90%;box-shadow:0 8px 32px #0005}
-.mbox h3{font-size:13px;font-weight:700;color:var(--navy);margin-bottom:12px}
-.mbtns{display:flex;gap:7px;justify-content:flex-end;margin-top:12px}
-.mbtn{font-size:11px;font-weight:600;padding:5px 12px;border-radius:4px;border:1px solid;cursor:pointer}
-.mbtn.ok{background:var(--navy);color:#fff;border-color:var(--navy)}
-.mbtn.cl{background:transparent;color:var(--gray);border-color:var(--brd)}
-#cpanel{position:fixed;top:50px;right:0;width:340px;background:var(--bg2);border:1px solid var(--brd);border-right:none;border-radius:8px 0 0 8px;box-shadow:var(--sh2);padding:14px;z-index:250;transform:translateX(100%);transition:transform .25s}
-#cpanel.open{transform:translateX(0)}
-.cp-row{display:flex;gap:6px;align-items:center;margin-bottom:8px}
-.cp-label{font-size:10px;font-weight:600;color:var(--gray);width:70px;flex-shrink:0}
-.cp-input{flex:1;font-size:11px;padding:4px 7px;border:1px solid var(--brd);border-radius:4px;font-family:var(--f);outline:none}
-.cp-btn{font-size:11px;font-weight:600;padding:4px 9px;border-radius:4px;border:none;cursor:pointer;color:#fff;white-space:nowrap}
-.cp-log{font-size:10px;color:var(--gray);font-family:monospace;max-height:120px;overflow-y:auto;margin-top:6px;padding:4px;background:var(--bg3);border-radius:4px}
-.uz{border:2px dashed var(--brd);border-radius:8px;background:var(--bg2);padding:14px;text-align:center;cursor:pointer;transition:.2s;margin-bottom:10px}
-.uz:hover,.uz.drag{border-color:var(--gold);background:#d9770608}
-#toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1e3a5f;color:#fff;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;opacity:0;transition:opacity .3s;z-index:1000;pointer-events:none}
-#toast.show{opacity:1}
-/* Big summary cards for unified tab */
-.big-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px;margin-bottom:14px}
-.bc{background:var(--bg2);border:1px solid var(--brd);border-radius:10px;padding:12px;box-shadow:var(--sh);border-left:4px solid var(--brd)}
-.bc-icon{font-size:18px;margin-bottom:5px}
-.bc-val{font-size:22px;font-weight:700;font-family:monospace;color:var(--navy);line-height:1}
-.bc-lbl{font-size:9px;font-weight:700;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;margin:3px 0 2px;line-height:1.3}
-.bc-sub{font-size:10px;color:var(--gray)}
-@media(max-width:580px){.big-cards{grid-template-columns:repeat(2,1fr)}}
+*{box-sizing:border-box;font-family:Segoe UI,Arial,sans-serif}
+body{margin:0;background:var(--bg);color:#18345c}
+.topbar{
+  background:var(--navy);
+  color:#fff;
+  height:72px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding:0 20px;
+}
+.logo{font-size:18px;font-weight:700;letter-spacing:1px}
+.logo small{display:block;font-size:11px;opacity:.8}
+.top-actions button{
+  margin-left:8px;
+  border:none;
+  border-radius:8px;
+  padding:10px 14px;
+  font-weight:700;
+  cursor:pointer;
+}
+.btn-read{background:#0b8f6f;color:#fff}
+.btn-push{background:#3b6cff;color:#fff}
+.btn-lang{background:#f4a62a;color:#000}
+.tabs{
+  display:flex;
+  gap:28px;
+  background:#fff;
+  border-bottom:2px solid #bfd1e4;
+  padding:14px 28px;
+  overflow:auto;
+}
+.tab{
+  font-weight:700;
+  cursor:pointer;
+  white-space:nowrap;
+}
+.tab.active{color:#000;border-bottom:3px solid orange;padding-bottom:10px}
+.container{padding:18px}
+.pnav{
+  background:#fff;
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:14px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:18px;
+}
+.pnav button,.pnav select{
+  border:1px solid #bccde0;
+  background:#fff;
+  border-radius:8px;
+  padding:8px 12px;
+  cursor:pointer;
+}
+.pnav .on{background:var(--navy);color:#fff}
+.pnav-label{font-size:30px;font-weight:700;margin-left:10px}
+.cards{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:14px;
+  margin-bottom:18px;
+}
+.card{
+  background:var(--card);
+  border-radius:18px;
+  padding:18px;
+  min-height:120px;
+  border-left:6px solid var(--navy);
+  box-shadow:0 2px 6px rgba(0,0,0,.06);
+}
+.card.green{border-color:var(--green)}
+.card.red{border-color:var(--red)}
+.card.purple{border-color:var(--purple)}
+.card.orange{border-color:var(--orange)}
+.card .title{font-size:14px;font-weight:700;opacity:.8}
+.card .value{font-size:48px;font-weight:800;margin-top:10px}
+.card .sub{font-size:14px;margin-top:8px;opacity:.8}
+.table-wrap{
+  background:#fff;
+  border-radius:18px;
+  overflow:auto;
+  border:1px solid var(--line);
+}
+table{width:100%;border-collapse:collapse}
+thead{background:var(--navy);color:#fff}
+th,td{padding:14px;border-bottom:1px solid #d7e3ef;text-align:center}
+th:first-child,td:first-child{text-align:left}
+.hidden{display:none}
+.badge-red{color:#e03131;font-weight:700}
+.badge-green{color:#099268;font-weight:700}
 </style>
 </head>
 <body>
-<div id="hdr">
-  <div class="hlo">
-    <span class="hvrt">VRT</span>
-    <div class="htit"><div>🔗 AC HRA COMPLETE</div><div style="font-size:8px;opacity:.7">Integration Center v5</div></div>
+
+<div class="topbar">
+  <div class="logo">
+    VRT ｜ AC HRA COMPLETE
+    <small>Integration Center v5</small>
   </div>
-  <div class="hbtns">
-    <span class="sync" id="syncTip"></span>
-    <button class="hb lg on" id="btn-zh" onclick="setL('zh')">中</button>
-    <button class="hb lg"    id="btn-en" onclick="setL('en')">EN</button>
-    <button class="hb tl" onclick="doLoad()" title="讀取所有資料源">☁↓ 讀取</button>
-    <button class="hb bl" onclick="doSave()" title="推送至雲端">☁↑ 推送</button>
-    <button class="hb" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="toggleCP()">⚙</button>
-    <button class="hb gy" onclick="window.print()">🖨</button>
+
+  <div class="top-actions">
+    <button class="btn-lang" id="langBtn">EN</button>
+    <button class="btn-read">☁ 讀取</button>
+    <button class="btn-push">☁ 推送</button>
   </div>
 </div>
 
-<div id="cpanel">
-  <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:10px">☁ 雲端設定</div>
-  <div class="cp-row">
-    <span class="cp-label">HRA GAS</span>
-    <input class="cp-input" id="hraUrl" placeholder="HRA GAS URL…">
-    <button class="cp-btn" style="background:var(--navy)" onclick="saveUrl('hra')">存</button>
-    <button class="cp-btn" style="background:var(--teal)" onclick="testUrl('hra')">測</button>
-  </div>
-  <div class="cp-row">
-    <span class="cp-label">生產 GAS</span>
-    <input class="cp-input" id="prodUrl" placeholder="Production GAS URL…">
-    <button class="cp-btn" style="background:var(--navy)" onclick="saveUrl('prod')">存</button>
-  </div>
-  <div style="display:flex;gap:6px;margin-bottom:8px">
-    <button class="cp-btn" style="background:var(--teal);flex:1" onclick="doLoad()">☁↓ 拉取全部</button>
-    <button class="cp-btn" style="background:var(--blue);flex:1" onclick="doSave()">☁↑ 推送</button>
-  </div>
-  <div class="cp-log" id="cplog"></div>
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('unified',this)">整合總表</div>
+  <div class="tab" onclick="switchTab('sewing',this)">出勤×車縫</div>
+  <div class="tab" onclick="switchTab('join',this)">出勤×入離職</div>
+  <div class="tab" onclick="switchTab('mat',this)">出勤×孕假</div>
+  <div class="tab" onclick="switchTab('recruit',this)">入離職×招募</div>
 </div>
 
-<div id="tabs">
-  <button class="tab on" data-t="unified">📑 <span data-i="navUni">整合總表</span></button>
-  <button class="tab" data-t="as">🔄 <span data-i="navAS">出勤×車縫</span></button>
-  <button class="tab" data-t="ac">📋 <span data-i="navAC">出勤×入離職</span></button>
-  <button class="tab" data-t="am">🤰 <span data-i="navAM">出勤×孕假</span></button>
-  <button class="tab" data-t="recruit">📥 <span data-i="navRC">入離職×招募</span></button>
-  <button class="tab" data-t="unmatched">⚠ <span data-i="navUm">未匹配</span><span class="badge" id="um-cnt" style="display:none">0</span></button>
+<div class="container">
 
-  <button class="tab" data-t="cfg">⚙️ <span data-i="navCfg">設定</span></button>
-</div>
+<div class="pnav">
+  <button class="on">月</button>
+  <button>週</button>
+  <button>日</button>
+  <button>年</button>
 
-<!-- 出勤×車縫 -->
-<div class="pane" id="pane-as">
-  <div id="pbar-as" class="pbar"></div>
-  <div class="ks ks4" id="kpi-as"></div>
-  <div id="as-content"></div>
-</div>
-<!-- 出勤×入離職 -->
-<div class="pane" id="pane-ac">
-  <div id="pbar-ac" class="pbar"></div>
-  <div class="ks ks4" id="kpi-ac"></div>
-  <div id="ac-content"></div>
-</div>
-<!-- 出勤×孕假 -->
-<div class="pane" id="pane-am">
-  <div id="pbar-am" class="pbar"></div>
-  <div class="ks ks3" id="kpi-am"></div>
-  <div id="am-content"></div>
-</div>
-<!-- 整合總表 -->
-<div class="pane on" id="pane-unified">
-  <div id="pbar-uni" class="pbar"></div>
-  <!-- Big Summary Cards -->
-  <div class="stit">📊 整合 KPI 摘要</div>
-  <div class="big-cards" id="big-cards"></div>
-  <!-- Small KPI strip -->
-  <div class="ks ks3" id="kpi-unified" style="margin-bottom:14px"></div>
-  <div class="stit" data-i="uniTitle">📑 整合比較表（Attendance 順序）</div>
-  <div class="utable" id="unified-table">
-    <table><thead><tr>
-      <th>LINE</th>
-      <th class="center">考勤 HC</th>
-      <th class="center">車縫 Workers</th>
-      <th class="center">差異 Diff</th>
-      <th class="center">新進 Join</th>
-      <th class="center">離職 Resign</th>
-      
-      <th class="center">產假 Mat</th>
-      <th class="center">合約 Cont</th>
-      <th class="center">試用 Prob</th>
-    </tr></thead>
-    <tbody id="unified-tbody"></tbody></table>
-  </div>
-</div>
-<!-- 入離職 vs 招募 -->
-<div class="pane" id="pane-recruit">
-  <div id="pbar-rc" class="pbar"></div>
-  <div class="ks ks4" id="kpi-rc" style="margin-bottom:10px"></div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-    <div>
-      <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px">A. 入職比對 (Recruit vs Onboarding)</div>
-      <div class="utable"><table><thead><tr>
-        <th>部門 Dept</th>
-        <th class="center">招募 Recruited</th>
-        <th class="center">Onboarding</th>
-        <th class="center">差異</th>
-      </tr></thead><tbody id="rc-join-tbody"></tbody></table></div>
-    </div>
-    <div>
-      <div style="font-size:11px;font-weight:700;color:var(--navy);margin-bottom:6px">B. 缺漏名單 (招募有 / Onboarding 無)</div>
-      <div class="utable" style="max-height:280px;overflow-y:auto"><table><thead><tr>
-        <th>#</th><th>工號</th><th>姓名</th><th>部門</th><th>入職日</th>
-      </tr></thead><tbody id="rc-miss-tbody"></tbody></table></div>
-    </div>
-  </div>
+  <button>◀</button>
+
+  <select id="periodSelect">
+    <option>2026-05</option>
+    <option>2026-04</option>
+    <option>2026-03</option>
+  </select>
+
+  <button>▶</button>
+
+  <div class="pnav-label" id="periodLabel">2026年5月</div>
 </div>
 
-<!-- 未匹配 -->
-<div class="pane" id="pane-unmatched">
-  <div class="stit">⚠ 未匹配資料</div>
-  <div id="um-hard" class="panel"><h3>❌ Hard Unmatched</h3><div id="um-hard-body"></div></div>
-  <div id="um-hist" class="panel"><h3>⚠ Historical Unmatched</h3><div id="um-hist-body"></div></div>
-</div>
-<!-- 設定 -->
-<div class="pane" id="pane-cfg">
-  <div class="panel">
-    <h3>🗺 Line Alias 管理</h3>
-    <div style="display:flex;gap:7px;margin-bottom:8px">
-      <button class="hb tl" onclick="addAlias()">＋ 新增別名</button>
-      <button class="hb" style="background:var(--green);color:#fff;border-color:var(--green)" onclick="saveAliases()">💾 儲存</button>
-      <button class="hb bl" onclick="resetAliases()">🔄 重設預設</button>
-    </div>
-    <div style="max-height:200px;overflow-y:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:11px">
-        <thead><tr style="background:var(--navy);color:#fff">
-          <th style="padding:5px 8px;text-align:left">別名</th>
-          <th style="padding:5px 8px;text-align:left">→ 標準 LINE</th>
-          <th>×</th>
-        </tr></thead>
-        <tbody id="alias-tbody"></tbody>
-      </table>
-    </div>
-  </div>
-  <div class="panel">
-    <h3>🔗 資料來源狀態</h3>
-    <div class="ks ks4" id="src-kpi"></div>
-  </div>
-  <div class="panel">
-    <h3>📥 考勤 Excel 匯入</h3>
-    <div class="uz" id="attUz" onclick="document.getElementById('attFile').click()" ondrop="dropAtt(event)" ondragover="event.preventDefault()">
-      <div style="font-size:22px">📂</div>
-      <div style="font-size:11px;color:var(--gray);margin-top:4px">拖入考勤 Excel 或點此選擇</div>
-      <input type="file" id="attFile" accept=".xlsx,.xls" multiple style="display:none" onchange="importAtt(event)">
-    </div>
-    <div id="attLog" style="font-size:10px;color:var(--gray)"></div>
-  </div>
+<!-- UNIFIED -->
+<div id="unified" class="page">
+
+<div class="cards">
+
+<div class="card green">
+  <div class="title">出勤總 HC</div>
+  <div class="value" id="attHC">842</div>
+  <div class="sub">20天平均</div>
 </div>
 
-<div class="mbg" id="addModal">
-  <div class="mbox">
-    <h3>✏ 新增/編輯 Alias</h3>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <div><label style="font-size:11px;color:var(--gray)">別名（原始名稱）</label>
-        <input id="alias-from" class="cp-input" style="width:100%;margin-top:3px" placeholder="APRON01"></div>
-      <div><label style="font-size:11px;color:var(--gray)">對應標準 LINE</label>
-        <input id="alias-to" class="cp-input" style="width:100%;margin-top:3px" placeholder="LINE_1"></div>
-    </div>
-    <div class="mbtns">
-      <button class="mbtn cl" onclick="document.getElementById('addModal').classList.remove('show')">取消</button>
-      <button class="mbtn ok" onclick="confirmAlias()">確認</button>
-    </div>
-  </div>
+<div class="card">
+  <div class="title">車縫 HC</div>
+  <div class="value" id="sewHC">318</div>
+  <div class="sub">13 條線</div>
 </div>
-<div id="toast"></div>
+
+<div class="card orange">
+  <div class="title">考勤新進 / 離職</div>
+  <div class="value">53 / 13</div>
+  <div class="sub">Attendance</div>
+</div>
+
+<div class="card red">
+  <div class="title">HR 入職 / 離職</div>
+  <div class="value">31 / 12</div>
+  <div class="sub">Onboarding</div>
+</div>
+
+<div class="card purple">
+  <div class="title">產假 / ML假</div>
+  <div class="value">8 / 11</div>
+  <div class="sub">差異 -3</div>
+</div>
+
+<div class="card green">
+  <div class="title">招募錄取</div>
+  <div class="value">31</div>
+  <div class="sub">總招募</div>
+</div>
+
+</div>
+
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>LINE</th>
+<th>考勤 HC</th>
+<th>車縫 WORKERS</th>
+<th>差異 DIFF</th>
+<th>新進 JOIN</th>
+<th>離職 RESIGN</th>
+<th>產假 MAT</th>
+<th>ML假</th>
+<th>合約 CONT</th>
+<th>試用 PROB</th>
+</tr>
+</thead>
+<tbody id="unifiedBody">
+</tbody>
+</table>
+</div>
+</div>
+
+<!-- SEWING -->
+<div id="sewing" class="page hidden">
+<div class="cards">
+<div class="card">
+<div class="title">考勤車工(均)</div>
+<div class="value">349</div>
+</div>
+
+<div class="card green">
+<div class="title">車縫系統(均)</div>
+<div class="value">318</div>
+</div>
+
+<div class="card red">
+<div class="title">差異</div>
+<div class="value">+31</div>
+</div>
+</div>
+</div>
+
+<!-- JOIN -->
+<div id="join" class="page hidden">
+<div class="cards">
+<div class="card green">
+<div class="title">HR 入職</div>
+<div class="value">31</div>
+</div>
+<div class="card red">
+<div class="title">HR 離職</div>
+<div class="value">12</div>
+</div>
+</div>
+</div>
+
+<!-- MAT -->
+<div id="mat" class="page hidden">
+<div class="cards">
+<div class="card purple">
+<div class="title">Portal 產假</div>
+<div class="value">8</div>
+</div>
+<div class="card orange">
+<div class="title">ML 假</div>
+<div class="value">11</div>
+</div>
+</div>
+</div>
+
+<!-- RECRUIT -->
+<div id="recruit" class="page hidden">
+<div class="cards">
+<div class="card green">
+<div class="title">招募總數</div>
+<div class="value">31</div>
+</div>
+<div class="card orange">
+<div class="title">ONBOARDING</div>
+<div class="value">31</div>
+</div>
+</div>
+</div>
+
+</div>
 
 <script>
-'use strict';
-// ══ COMPLETE v3 — Integration Hub ══════════════════════════
-// READS from each module's localStorage. NO rebuilding analysis.
+const demoLines=[
+  {line:'LINE1',att:29,sew:25,diff:4,join:2,resign:1,mat:0,ml:1,cont:0,prob:1},
+  {line:'LINE2',att:31,sew:28,diff:3,join:3,resign:0,mat:1,ml:1,cont:0,prob:2},
+  {line:'LINE3',att:27,sew:26,diff:1,join:1,resign:2,mat:0,ml:0,cont:1,prob:0},
+  {line:'LINE4',att:35,sew:33,diff:2,join:4,resign:1,mat:1,ml:2,cont:0,prob:1},
+  {line:'LINE5',att:32,sew:29,diff:3,join:2,resign:1,mat:0,ml:1,cont:1,prob:0},
+];
 
-const CK={
-  attSew:  'ac_complete_att_sewcmp',
-  onboard: 'ac_complete_onboard_compare',
-  matcmp:  'ac_complete_maternity_compare',
-  recruit: 'ac_complete_recruit_compare',
-};
-const RAW={
-  att:     'vrt_att_v5_db',
-  joins:   'ac_hra_joins',
-  resigns: 'ac_hra_resigns',
-  conts:   'vrt_dashConts',
-  probs:   'vrt_dashProbs',
-  mat:     'vrt_mat_data',
-  recruit: 'ac_hra_manpower_recruit',
-};
-const GAS_HRA='vrt_att_cloud_v1_url', GAS_PROD='vrt_portal_gas_url';
-
-// ── Safe JSON reads ─────────────────────────────────────────
-function readLS(key){try{const v=localStorage.getItem(key);return v?JSON.parse(v):null;}catch(e){return null;}}
-function readArr(key){const v=readLS(key);return Array.isArray(v)?v:(v?.employees||v?.records||[]);}
-function readCmp(key){return readLS(key);}
-
-// ══ PERIOD STATE — each tab has its own independent state ═══
-const STATES={
-  'pbar-uni':{mode:'all',pivot:new Date(),periods:[]},
-  'pbar-as': {mode:'all',pivot:new Date(),periods:[]},
-  'pbar-ac': {mode:'all',pivot:new Date(),periods:[]},
-  'pbar-am': {mode:'all',pivot:new Date(),periods:[]},
-  'pbar-rc': {mode:'all',pivot:new Date(),periods:[]},
-};
-const FN_MAP={
-  'pbar-uni':'renderUnified','pbar-as':'renderAS',
-  'pbar-ac':'renderAC','pbar-am':'renderAM','pbar-rc':'renderRecruit'
-};
-
-// ── Period key calculation ──────────────────────────────────
-function _lds(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
-function periodKey(dateStr,mode){
-  if(mode==='all'||!dateStr)return'ALL';
-  const d=String(dateStr).slice(0,10);
-  if(mode==='day')return d;
-  if(mode==='week'){const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return dt.getFullYear()+'-W'+String(w).padStart(2,'0');}
-  if(mode==='month')return d.slice(0,7);
-  return d.slice(0,4);
-}
-function periodLabel(st){
-  const d=st.pivot;
-  if(st.mode==='all')return'全部';
-  if(st.mode==='day')return _lds(d);
-  if(st.mode==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);return(s.getMonth()+1)+'/'+s.getDate()+'~'+(e.getMonth()+1)+'/'+e.getDate();}
-  if(st.mode==='month')return d.getFullYear()+'年'+(d.getMonth()+1)+'月';
-  return d.getFullYear()+'年';
-}
-
-// ── buildPeriods: scan all dates from a dataset ─────────────
-function buildPeriods(dates,mode){
-  if(mode==='all')return[];
-  const keys=[...new Set(dates.filter(Boolean).map(d=>periodKey(String(d).slice(0,10),mode)))].filter(k=>k&&k!=='ALL');
-  return keys.sort().reverse();
-}
-
-// ── filterByPeriod: filter any array by date field ──────────
-function filterByPeriod(arr,st,getDate){
-  if(st.mode==='all')return arr;
-  const curKey=periodKey(_lds(st.pivot),st.mode);
-  return arr.filter(r=>{const d=getDate(r);return d&&periodKey(String(d).slice(0,10),st.mode)===curKey;});
-}
-
-// ── renderPeriodBar: real nav UI ────────────────────────────
-function renderPeriodBar(barId){
-  const st=STATES[barId];const el=document.getElementById(barId);if(!st||!el)return;
-  const fn=FN_MAP[barId];
-  const curKey=periodKey(_lds(st.pivot),st.mode);
-  const selOpts=st.periods.length
-    ?st.periods.map(p=>`<option value="${p}"${p===curKey?' selected':''}>${p}</option>`).join('')
-    :(curKey&&curKey!=='ALL'?`<option value="${curKey}" selected>${curKey}</option>`:'<option value="">—</option>');
-  el.innerHTML=`<div class="pnav">
-    ${['all','day','week','month','year'].map(m=>`<button class="pnav-btn${st.mode===m?' on':''}" onclick="onMode('${barId}','${m}')">${{all:'全部',day:'日',week:'週',month:'月',year:'年'}[m]}</button>`).join('')}
-    <button class="pnav-arr" onclick="onNav('${barId}',-1)">◀</button>
-    <select class="pnav-sel" id="${barId}-sel" onchange="onJump('${barId}',this.value)" ${st.mode==='all'?'disabled':''}>${selOpts}</select>
-    <button class="pnav-arr" onclick="onNav('${barId}',1)">▶</button>
-    <button class="pnav-arr" onclick="onToday('${barId}')">●</button>
-    <span class="pnav-lbl">${periodLabel(st)}</span>
-  </div>`;
-}
-
-// ── rerenderAfterPeriod: re-render + update period bar ──────
-function rerenderAfterPeriod(barId){
-  const fn=FN_MAP[barId];
-  renderPeriodBar(barId);
-  if(fn&&window[fn])window[fn]();
-}
-
-// ── Period nav event handlers ─────────────────────────────── 
-function onMode(barId,mode){
-  const st=STATES[barId];if(!st)return;
-  st.mode=mode;if(mode!=='all')st.pivot=new Date();
-  rerenderAfterPeriod(barId);
-}
-function onNav(barId,dir){
-  const st=STATES[barId];if(!st||st.mode==='all')return;
-  const d=new Date(st.pivot);
-  if(st.mode==='day')d.setDate(d.getDate()+dir);
-  else if(st.mode==='week')d.setDate(d.getDate()+dir*7);
-  else if(st.mode==='month')d.setMonth(d.getMonth()+dir);
-  else if(st.mode==='year')d.setFullYear(d.getFullYear()+dir);
-  st.pivot=d;rerenderAfterPeriod(barId);
-}
-function onToday(barId){const st=STATES[barId];if(!st)return;st.pivot=new Date();rerenderAfterPeriod(barId);}
-function onJump(barId,val){
-  const st=STATES[barId];if(!st||!val)return;
-  const y=+val.slice(0,4),mo=st.mode==='month'?+val.slice(5,7)-1:0,dd=st.mode==='day'?+val.slice(8,10):1;
-  st.pivot=new Date(y,mo,dd||1);rerenderAfterPeriod(barId);
-}
-
-// ══ TAB NAVIGATION ═══════════════════════════════════════════
-function switchTab(t){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
-  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
-  const fns={as:'renderAS',ac:'renderAC',am:'renderAM',recruit:'renderRecruit',unified:'renderUnified',unmatched:'renderUnmatched',cfg:'loadCfg'};
-  try{if(fns[t]&&window[fns[t]])window[fns[t]]();}catch(e){console.error(t,e);}
-}
-document.addEventListener('DOMContentLoaded',()=>{
-  document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
-  loadCfg();renderUnified();
-});
-
-// ── Sewing line detector (minimal, for counting only) ───────
-function _isSewLine(r){
-  if(!r||r.isSubtotal||r.isGrand)return false;
-  const line=(r.line||'').trim(),lo=line.toLowerCase(),sl=(r.sect||'').toLowerCase();
-  const ttl=(+r.m||0)+(+r.f||0);if(ttl<1)return false;
-  if(/cutting|裁剪|qc\b|packing|包裝|warehouse|mechanic|machine|sample|marker|admin|hr\b|ie\b|cutter/i.test(lo))return false;
-  if(/^line\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
-  if(/^l\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
-  if(/garment\s+(line\s*)?[a-z]?\d+/i.test(lo))return true;
-  if(/sewing|車縫/i.test(sl)&&/\d/.test(line))return true;
-  return false;
-}
-
-// ══ 整合總表 — Integration Summary ═══════════════════════════
 function renderUnified(){
-  try{
-    const st=STATES['pbar-uni'];
+  const tb=document.getElementById('unifiedBody');
 
-    // ── Load all raw sources ────────────────────────────────
-    const attRaw=readArr(RAW.att)||[];
-    const joins=readArr(RAW.joins)||[];
-    const resigns=readArr(RAW.resigns)||[];
-    const contsRaw=readArr(RAW.conts)||[];
-    const probsRaw=readArr(RAW.probs)||[];
-    const matRaw=readLS(RAW.mat)||{};
-    const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
-    const rcRaw=readArr(RAW.recruit)||[];
-
-    // ── Build periods from attendance dates ─────────────────
-    const allAttDates=attRaw.map(r=>r.date).filter(Boolean);
-    st.periods=buildPeriods(allAttDates,st.mode);
-    renderPeriodBar('pbar-uni');
-
-    // ── filterByPeriod all datasets ─────────────────────────
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>!r.isGrand&&!r.isSubtotal);
-    const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
-    const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
-    const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
-    const contsF=filterByPeriod(contsRaw,st,r=>r.joinDate||r.date);
-    const probsF=filterByPeriod(probsRaw,st,r=>r.joinDate||r.date);
-
-    // ── rebuildCompareRows: aggregate per-period numbers ────
-    const attDays=new Set(attF.map(r=>r.date)).size||1;
-    const sewF=attF.filter(_isSewLine);
-    const sewHCSum=sewF.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
-    const attHCSum=attF.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
-    const attMLSum=attF.reduce((s,r)=>s+(+r.ml||0),0);
-    const attJoin=attF.reduce((s,r)=>s+(+r.join||0),0);
-    const attResign=attF.reduce((s,r)=>s+(+r.resign||0),0);
-    const sewLines=new Set(sewF.map(r=>r.line.replace(/[/／].*/,'').trim())).size;
-    const nonSewDepts=new Set(attF.filter(r=>!_isSewLine(r)&&r.line).map(r=>r.line.replace(/[/／].*/,'').trim())).size;
-    const preg=matEmps.filter(e=>e.status==='pregnant').length;
-    const mat=matEmps.filter(e=>e.status==='maternity'||e.status==='returned').length;
-
-    // ── Big cards — rerender KPI ────────────────────────────
-    const bc=document.getElementById('big-cards');
-    if(bc)bc.innerHTML=[
-      {l:'出勤總 HC (均/天)',  v:Math.round(attHCSum/attDays)||'—', sub:`${attDays}天`,c:'nv'},
-      {l:'車縫 HC (均/天)',    v:Math.round(sewHCSum/attDays)||'—', sub:`${sewLines}條線`,c:'tl'},
-      {l:'考勤新進',           v:attJoin||'—',                       sub:`考勤離職: ${attResign}`,c:'gn'},
-      {l:'HR 入職',            v:joinsF.length||'—',                 sub:`HR 離職: ${resignsF.length}`,c:'gd'},
-      {l:'試用期',             v:probsF.length||'—',                 sub:`合約: ${contsF.length}`,c:'gd'},
-      {l:'孕婦 / 產假',        v:`${preg} / ${mat}`,                sub:`ML假: ${attMLSum}`,c:'pu'},
-      {l:'招募錄取',           v:rcF.filter(r=>r.result==='join').length||'—', sub:`總招募: ${rcF.length}`,c:'tl'},
-      {l:'非車縫部門',         v:nonSewDepts||'—',                   sub:`車縫線: ${sewLines}`,c:'gd'},
-    ].map(k=>`<div class="bigcard ${k.c}"><div class="bc-l">${k.l}</div><div class="bc-v">${k.v}</div><div class="bc-s">${k.sub}</div></div>`).join('');
-
-    // ── Unified table from sewing compare export ────────────
-    const sewExp=readCmp(CK.attSew);
-    const tbody=document.getElementById('unified-tbody');
-    if(!tbody)return;
-    if(!sewExp?.rows?.length&&!sewExp?.lines?.length){
-      tbody.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:20px;color:#6b7a9e">
-        請先在出勤模組執行「出勤×車縫」比對 → 系統將自動填入整合表
-      </td></tr>`;return;
-    }
-    const matExp=readCmp(CK.matcmp);
-    const matMap=Object.fromEntries((matExp?.byLine||[]).map(l=>[l.dept||l.line,l]));
-    const obExp=readCmp(CK.onboard);
-    const obMap=Object.fromEntries((obExp?.byDept||[]).map(l=>[l.dept,l]));
-    const rows=(sewExp.rows||sewExp.lines||[]).map(l=>{
-      const ml=matMap[l.lid]||{};const ob=obMap[l.lid]||{};
-      return`<tr>
-        <td style="font-weight:700">${l.lid}</td>
-        <td class="center">${l.att||l.attHC||'—'}</td>
-        <td class="center" style="color:#0ea5e9">${(l.sew||l.sewHC)>0?(l.sew||l.sewHC):'⚠'}</td>
-        <td class="center" style="color:${l.diff===0?'#1a6e5c':l.diff>0?'#f59e0b':'#ef4444'};font-weight:700">${l.att&&l.sew?(l.diff>=0?'+':'')+l.diff:'—'}</td>
-        <td class="center">${ob.attJoin||ob.join||'—'}</td><td class="center">${ob.attResign||ob.resign||'—'}</td>
-        <td class="center">${ml.portal||ml.mat||'—'}</td><td class="center">${ml.attML||ml.attMl||'—'}</td>
-        <td class="center">—</td><td class="center">—</td>
-      </tr>`;
-    }).join('');
-    tbody.innerHTML=rows;
-  }catch(e){console.error('renderUnified:',e);}
+  tb.innerHTML=demoLines.map(r=>`
+  <tr>
+    <td><b>${r.line}</b></td>
+    <td>${r.att}</td>
+    <td>${r.sew}</td>
+    <td class="badge-red">+${r.diff}</td>
+    <td>${r.join}</td>
+    <td>${r.resign}</td>
+    <td>${r.mat}</td>
+    <td>${r.ml}</td>
+    <td>${r.cont}</td>
+    <td>${r.prob}</td>
+  </tr>
+  `).join('');
 }
 
-// ══ 出勤×車縫 ═════════════════════════════════════════════════
-function renderAS(){
-  try{
-    const st=STATES['pbar-as'];
-    const d=readCmp(CK.attSew);
-    const rows=d?.rows||d?.lines||[];
-    st.periods=buildPeriods([d?.period].filter(Boolean),st.mode);
-    renderPeriodBar('pbar-as');
-    const kEl=document.getElementById('kpi-as'),cEl=document.getElementById('as-content');
-    if(!d||!rows.length){
-      if(kEl)kEl.innerHTML='';
-      if(cEl)cEl.innerHTML=`<div class="nodata-box"><div class="nodata-icon">📊</div>
-        <div class="nodata-title">尚未產生出勤×車縫分析</div>
-        <div class="nodata-msg">請先進入 Attendance 頁面 → 點擊「出勤×車縫」分頁 → 選擇期間<br>系統自動儲存比對結果至此頁面</div></div>`;
-      return;
-    }
-    // filterByPeriod the rows (each row is a LINE, already aggregated for the export's period)
-    const filtered=st.mode==='all'?rows:rows;// rows are already period-specific from export
-    const aTotal=filtered.reduce((s,l)=>s+(l.att||l.attHC||0),0);
-    const sTotal=filtered.reduce((s,l)=>s+(l.sew||l.sewHC||0),0);
-    const diff=aTotal-sTotal;
-    if(kEl)kEl.innerHTML=[
-      {l:'考勤車工(均)',v:d.attTotal||aTotal||'—',c:'nv'},
-      {l:'車縫系統(均)',v:(d.sewTotal||sTotal)>0?(d.sewTotal||sTotal):'⚠ 無車縫',c:'tl'},
-      {l:'差異',v:(diff>=0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<10?'gd':'rd'},
-      {l:'差%',v:d.match||d.kpis?.match||'—',c:'pu'},
-    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-    const rowsHtml=filtered.map(l=>`<tr>
-      <td style="font-weight:700">${l.lid||'?'}</td>
-      <td class="right fw6">${l.att||l.attHC||'—'}</td>
-      <td class="right" style="color:#0ea5e9;fw6">${(l.sew||l.sewHC)>0?(l.sew||l.sewHC):'⚠'}</td>
-      <td class="right fw7" style="color:${l.diff===0?'#1a6e5c':Math.abs(l.diff||0)<3?'#f59e0b':'#ef4444'}">${l.att&&l.sew?(l.diff>=0?'+':'')+l.diff:'—'}</td>
-      <td class="right">${l.att&&l.sew&&l.sew>0?(l.sew/l.att*100).toFixed(1)+'%':'—'}</td>
-      <td class="right muted">${l.pcs?l.pcs.toLocaleString():'—'}</td>
-    </tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div class="exp-info">期間: ${d.period||'—'} (${d.mode||'—'}) · 更新: ${d.generatedAt||d.updatedAt?new Date(d.generatedAt||d.updatedAt).toLocaleString():'-'}</div>
-    <div class="utable"><table><thead><tr style="background:#1a6e5c;color:#fff">
-      <th>LINE</th><th class="right">出勤HC</th><th class="right">車縫HC</th>
-      <th class="right">差異</th><th class="right">匹配%</th><th class="right">產量</th>
-    </tr></thead><tbody>${rowsHtml||nodata(6)}</tbody></table></div>`;
-  }catch(e){console.error('renderAS:',e);}
+function switchTab(id,el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.add('hidden'));
+  document.getElementById(id).classList.remove('hidden');
+
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
 }
 
-// ══ 出勤×入離職 ═══════════════════════════════════════════════
-function renderAC(){
-  try{
-    const st=STATES['pbar-ac'];
-    let d=readCmp(CK.onboard);
-    const joins=readArr(RAW.joins)||[];
-    const resigns=readArr(RAW.resigns)||[];
-    // Build periods from raw joins
-    st.periods=buildPeriods([...joins.map(r=>r.joinDate||r.date),...resigns.map(r=>r.resignDate||r.date)],st.mode);
-    renderPeriodBar('pbar-ac');
-    const kEl=document.getElementById('kpi-ac'),cEl=document.getElementById('ac-content');
-    // filterByPeriod raw data for fallback
-    const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
-    const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
-    // rebuildCompareRows by dept
-    const deptMap={};
-    joinsF.forEach(r=>{const k=r.dept||r.section||'—';if(!deptMap[k])deptMap[k]={join:0,resign:0};deptMap[k].join++;});
-    resignsF.forEach(r=>{const k=r.dept||r.section||'—';if(!deptMap[k])deptMap[k]={join:0,resign:0};deptMap[k].resign++;});
-    const byDept=Object.entries(deptMap).map(([dept,v])=>({dept,...v})).sort((a,b)=>b.join-a.join);
-    if(!d)d={hrJoin:joinsF.length,hrResign:resignsF.length,byDept,updatedAt:null};
-    if(kEl){
-      kEl.style.gridTemplateColumns='repeat(3,1fr)';
-      kEl.innerHTML=[
-        {l:'HR 入職',v:d.hrJoin??joinsF.length,c:'nv'},
-        {l:'HR 離職',v:d.hrResign??resignsF.length,c:'rd'},
-        {l:'入/離比',v:d.hrJoin?(((d.hrResign||0)/(d.hrJoin||1))*100).toFixed(0)+'%':'—',c:'pu'},
-        {l:'出勤 新進',v:d.attJoin??'—',c:'tl'},
-        {l:'出勤 離職',v:d.attResign??'—',c:'gd'},
-        {l:'差異',v:d.jDiff!=null?(d.jDiff>=0?'+':'')+d.jDiff:'待比對',c:'gd'},
-      ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-    }
-    const rows=(d.byDept||byDept).map(r=>`<tr>
-      <td style="font-weight:700">${r.dept}</td>
-      <td class="center">${r.join||r.attJoin||'—'}</td>
-      <td class="center">${r.resign||r.attResign||'—'}</td>
-      <td class="center">${r.join?(r.resign||0)>0?((r.resign/r.join)*100).toFixed(0)+'%':'0%':'—'}</td>
-    </tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div class="exp-info">HR入職: ${d.hrJoin??joinsF.length} · HR離職: ${d.hrResign??resignsF.length} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
-    <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
-      <th>部門/LINE</th><th class="center">入職</th><th class="center">離職</th><th class="center">入/離比</th>
-    </tr></thead><tbody>${rows||nodata(4,'暫無部門資料')}</tbody></table></div>`;
-  }catch(e){console.error('renderAC:',e);}
+const LANG={
+  zh:true
+};
+
+document.getElementById('langBtn').onclick=function(){
+  LANG.zh=!LANG.zh;
+
+  if(LANG.zh){
+    this.innerText='EN';
+    document.title='AC HRA COMPLETE v5';
+  }else{
+    this.innerText='中';
+    document.title='AC HRA COMPLETE v5 English';
+  }
 }
 
-// ══ 出勤×孕假 ═════════════════════════════════════════════════
-function renderAM(){
-  try{
-    const st=STATES['pbar-am'];
-    const d=readCmp(CK.matcmp);
-    st.periods=buildPeriods(d?[d.updatedAt||d.generatedAt]:[], st.mode);
-    renderPeriodBar('pbar-am');
-    const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
-    if(!d){
-      if(kEl)kEl.innerHTML='';
-      if(cEl)cEl.innerHTML=`<div class="nodata-box"><div class="nodata-icon">🍼</div><div class="nodata-title">尚無產假比對結果</div><div class="nodata-msg">請在孕假模組 → 總表 → 點擊「🔄 同步出勤」</div></div>`;
-      return;
-    }
-    if(kEl)kEl.innerHTML=[
-      {l:'Portal 產假',v:d.portalMat??'—',c:'rd'},
-      {l:'出勤 ML假',v:d.attML??d.attMl??'—',c:'gd'},
-      {l:'差異',v:d.diff!=null?(d.diff>=0?'+':'')+d.diff:'—',c:d.diff===0?'gn':'rd'},
-      {l:'車縫產假🔵',v:d.sewMat??'—',c:'tl'},
-    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-    const rows=(d.byLine||[]).map(r=>`<tr>
-      <td style="font-weight:700">${r.dept||r.line||'—'}</td>
-      <td class="center">${r.portal??r.mat??'—'}</td>
-      <td class="center">${r.attML??r.attMl??'—'}</td>
-      <td class="center"><span class="badge ${r.diff===0?'gn':r.diff>0?'gd':'rd'}">${r.diff>=0?'+':''}${r.diff??0}</span></td>
-    </tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div class="exp-info">Portal產假: ${d.portalMat??'—'} · 出勤ML: ${d.attML??d.attMl??'—'} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
-    <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
-      <th>部門/LINE</th><th class="center">🍼Portal 產假</th><th class="center">出勤 ML假</th><th class="center">差異</th>
-    </tr></thead><tbody>${rows||nodata(4)}</tbody></table></div>`;
-  }catch(e){console.error('renderAM:',e);}
-}
-
-// ══ 入離職×招募 ════════════════════════════════════════════════
-function renderRecruit(){
-  try{
-    const st=STATES['pbar-rc'];
-    const d=readCmp(CK.recruit);
-    const rcRaw=readArr(RAW.recruit)||[];
-    st.periods=buildPeriods(rcRaw.map(r=>r.joinDate||r.date),st.mode);
-    renderPeriodBar('pbar-rc');
-    const kEl=document.getElementById('kpi-rc'),jTb=document.getElementById('rc-join-tbody'),mTb=document.getElementById('rc-miss-tbody');
-    // filterByPeriod recruit raw
-    const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
-    const src=d||{rcTotal:rcF.length,rcJoined:rcF.filter(r=>r.result==='join').length,obTotal:0,diff:null,sewTotal:0,byDept:[],missing:[]};
-    if(kEl)kEl.innerHTML=[
-      {l:'招募總數',v:src.rcTotal??rcF.length,c:'nv'},
-      {l:'招募入職',v:src.rcJoined??'—',c:'tl'},
-      {l:'Onboarding',v:src.obTotal??'—',c:'gd'},
-      {l:'差異',v:src.diff!=null?(src.diff>=0?'+':'')+src.diff:'—',c:src.diff===0?'gn':'rd'},
-      {l:'Sewing🔵',v:src.sewTotal??'—',c:'pu'},
-    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-    const tdS='padding:6px 10px;border-bottom:1px solid var(--brd)';
-    if(jTb)jTb.innerHTML=(src.byDept||[]).map(r=>`<tr>
-      <td style="${tdS};font-weight:600">${r.dept}</td>
-      <td style="${tdS}" class="center">${r.recruited||'—'}</td>
-      <td style="${tdS}" class="center">${r.onboarded||'—'}</td>
-      <td style="${tdS}" class="center"><span class="badge ${r.diff===0?'gn':r.diff>0?'gd':'rd'}">${r.diff>=0?'+':''}${r.diff||0}</span></td>
-    </tr>`).join('')||nodata(4,'請先執行人力規劃模組分析');
-    if(mTb)mTb.innerHTML=(src.missing||[]).length?(src.missing||[]).map((r,i)=>`<tr>
-      <td style="${tdS}">${i+1}</td>
-      <td style="${tdS};font-family:monospace">${r.empId||'—'}</td>
-      <td style="${tdS};font-weight:600">${r.name||'—'}</td>
-      <td style="${tdS}">${r.dept||'—'}</td>
-      <td style="${tdS};font-family:monospace">${r.joinDate||'—'}</td>
-    </tr>`).join(''):`<tr><td colspan="5" style="text-align:center;padding:16px;color:#6b7a9e">✅ 全員均在 Onboarding 記錄</td></tr>`;
-  }catch(e){console.error('renderRecruit:',e);}
-}
-
-// ── Helpers ─────────────────────────────────────────────────
-function renderUnmatched(){try{const e=document.getElementById('um-hard-body');if(e)e.innerHTML=nodata(2,'未匹配記錄由各模組自行標記');}catch(e){}}
-function nodata(c,m){return`<tr><td colspan="${c}" style="text-align:center;padding:24px;color:#6b7a9e">${m||'請先在對應模組產生比對結果'}</td></tr>`;}
-function renderAll(){const t=document.querySelector('.tab.on')?.dataset?.t||'unified';try{if(window['render'+t.charAt(0).toUpperCase()+t.slice(1)])window['render'+t.charAt(0).toUpperCase()+t.slice(1)]();}catch(e){switchTab(t);}}
-
-// ══ CLOUD / SETTINGS ═════════════════════════════════════════
-function toast(m,d=3000){const e=document.getElementById('toast');if(!e)return;e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),d);}
-function setST(m,c=''){const e=document.getElementById('syncTip');if(!e)return;e.textContent=m;e.style.color=c==='ok'?'#1a6e5c':c==='err'?'#ef4444':'';}
-function cpLog(m){const e=document.getElementById('cplog');if(!e)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;e.prepend(d);}
-function toggleCP(){document.getElementById('cpanel')?.classList.toggle('open');}
-async function doLoad(){
-  setST('☁ 讀取中…');
-  try{
-    cpLog('讀取各模組比對快取…');
-    Object.entries(CK).forEach(([k,key])=>{
-      const d=readCmp(key);
-      cpLog(k+': '+(d?`✅ 更新: ${d.updatedAt||d.generatedAt?new Date(d.updatedAt||d.generatedAt).toLocaleTimeString():'-'}`:'⚠ 無資料'));
-    });
-    renderAll();
-    setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');toast('✅ 讀取完成');
-  }catch(e){console.error(e);toast('❌ '+e.message);}
-  finally{if(document.getElementById('syncTip')?.textContent.includes('讀取'))setST('');}
-}
-async function doSave(){
-  const url=localStorage.getItem(GAS_HRA)||'';if(!url){toast('請先設定 GAS URL');return;}
-  setST('☁ 推送…');
-  try{const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain'},body:JSON.stringify({ts:new Date().toISOString(),attSew:readCmp(CK.attSew),matcmp:readCmp(CK.matcmp),recruit:readCmp(CK.recruit)})});toast(r.ok?'✅ 推送成功':'❌ '+r.status);}
-  catch(e){toast('❌ '+e.message);}finally{setST('');}
-}
-function loadCfg(){
-  const h=document.getElementById('hraUrl'),p=document.getElementById('prodUrl');
-  if(h)h.value=localStorage.getItem(GAS_HRA)||'';
-  if(p)p.value=localStorage.getItem(GAS_PROD)||'';
-}
-function saveUrl(t){const k=t==='hra'?GAS_HRA:GAS_PROD;const v=document.getElementById(t==='hra'?'hraUrl':'prodUrl')?.value?.trim()||'';localStorage.setItem(k,v);toast('✅ 已儲存');setST('✓','ok');}
-const I18N={};function setL(l){}
-
+renderUnified();
 </script>
+
 </body>
 </html>
