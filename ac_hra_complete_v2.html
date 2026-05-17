@@ -500,7 +500,8 @@ function renderUnified(skipPbar){
     const resigns=_arr(RAW.resigns)||[];
     const contsRaw=_arr(RAW.conts)||[];
     const probsRaw=_arr(RAW.probs)||[];
-    const matRaw=_ls(RAW.mat)||{};
+    // Try multiple possible maternity storage keys
+    const matRaw=_ls(RAW.mat)||_ls('vrt_maternity_data')||_ls('ac_hra_maternity')||_ls('vrt_mat_v1')||{};
     const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
     const rcRaw=_arr(RAW.recruit)||[];
 
@@ -511,7 +512,14 @@ function renderUnified(skipPbar){
     console.log('[uni] attRaw:',attRaw.length,'periods:',st.periods.slice(0,5),'mode:',st.mode);
 
     // filterByPeriod all datasets
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
+    // Dedup by date+line (avoid double counting if section totals exist)
+    const _seen=new Set();
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>{
+      if(!_isLeafRecord(r))return false;
+      const key=String(r.date).slice(0,10)+'|'+(r.line||'').trim();
+      if(_seen.has(key))return false;
+      _seen.add(key);return true;
+    });
     const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
     const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
     const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
@@ -604,7 +612,13 @@ function renderAS(skipPbar){
     if(!skipPbar)renderPeriodBar('pbar-as');
 
     // filterByPeriod + rebuild sewing lines
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
+    const _seenAS=new Set();
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>{
+      if(!_isLeafRecord(r))return false;
+      const key=String(r.date).slice(0,10)+'|'+(r.line||'').trim();
+      if(_seenAS.has(key))return false;
+      _seenAS.add(key);return true;
+    });
     const sewF=attF.filter(_isSewLine);
 
     // rebuildCompareRows by line
@@ -712,6 +726,12 @@ function renderAM(skipPbar){
     st.periods=buildPeriods(attRaw.map(r=>r.date).filter(Boolean),st.mode);
     if(!skipPbar)renderPeriodBar('pbar-am');
     console.log('[renderAM] matEmps:',matEmps.length,'sample:',matEmps[0]);
+    if(!matEmps.length){
+      // Scan all localStorage for maternity keys
+      const matKeys=Object.keys(localStorage).filter(k=>/mat|孕|pregnant|産/i.test(k));
+      console.log('[renderAM] All mat-related localStorage keys:',matKeys);
+      matKeys.forEach(k=>console.log(' ',k,':',String(localStorage.getItem(k)).slice(0,100)));
+    }
 
     // Portal maternity counts — check multiple status formats
     const _isMaternity=e=>['maternity','maternity_leave','on_leave','産假','請假'].includes((e.status||'').toLowerCase())
@@ -722,7 +742,13 @@ function renderAM(skipPbar){
     const portalMat=matEmps.filter(e=>_isMaternity(e)||_isReturned(e)).length;
 
     // Attendance ML leave by line (filtered by period)
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
+    const _seenAM=new Set();
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>{
+      if(!_isLeafRecord(r))return false;
+      const key=String(r.date).slice(0,10)+'|'+(r.line||'').trim();
+      if(_seenAM.has(key))return false;
+      _seenAM.add(key);return true;
+    });
     const attML=attF.reduce((s,r)=>s+(+r.ml||0),0);
 
     // rebuildCompareRows by dept/line
@@ -736,7 +762,7 @@ function renderAM(skipPbar){
       return[d,(_isMaternity(e)||_isReturned(e))?1:0];
     }).reduce((acc,[k,v])=>{acc.set(k,(acc.get(k)||0)+v);return acc;},new Map()));
     const allDepts=new Set([...Object.keys(lineML),...Object.keys(matByDept)]);
-    const byLine=[...allDepts].map(dept=>({dept,portal:matByDept.get(dept)||0,attML:lineML[dept]||0,diff:(matByDept.get(dept)||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
+    const byLine=[...allDepts].map(dept=>({dept,portal:matByDept[dept]||0,attML:lineML[dept]||0,diff:(matByDept.get(dept)||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
 
     const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
     if(kEl)kEl.innerHTML=[
