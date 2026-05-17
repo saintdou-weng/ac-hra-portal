@@ -463,13 +463,10 @@ function diffBadge(d){const s=d>=0?'+':'';const cls=d===0?'gn':Math.abs(d)<=3?'g
 function _isLeafRecord(r){
   if(!r||r.isSubtotal||r.isGrand)return false;
   const lo=(r.line||'').toLowerCase().trim();
-  // Skip known section total labels
-  if(/^(total|grand|sub\s*total|all\s*total|sum|合計|總計)/i.test(lo))return false;
-  // Skip empty line names (usually section headers)
+  // Skip known summary row labels
+  if(/^(total|grand\s*total|sub\s*total|all\s*total|sum|合計|總計|grand)/i.test(lo))return false;
+  // Skip rows with no line name
   if(!lo)return false;
-  // Skip if HC suspiciously large for a single line (>150 = likely section total)
-  const hc=(+r.m||0)+(+r.f||0);
-  if(hc>150)return false;
   return true;
 }
 // ── Sewing line detector (attendance records) ─────────────
@@ -511,6 +508,7 @@ function renderUnified(skipPbar){
     const attDates=attRaw.map(r=>r.date).filter(Boolean);
     st.periods=buildPeriods(attDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-uni');
+    console.log('[uni] attRaw:',attRaw.length,'periods:',st.periods.slice(0,5),'mode:',st.mode);
 
     // filterByPeriod all datasets
     const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
@@ -708,13 +706,20 @@ function renderAM(skipPbar){
   try{
     const st=STATES['pbar-am'];
     const matRaw=_ls(RAW.mat)||{};
-    const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
+    // vrt_mat_data can be: {employees:[...]}, [...], or {records:[...]}
+    const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||matRaw.records||[]);
     const attRaw=_arr(RAW.att)||[];
     st.periods=buildPeriods(attRaw.map(r=>r.date).filter(Boolean),st.mode);
     if(!skipPbar)renderPeriodBar('pbar-am');
+    console.log('[renderAM] matEmps:',matEmps.length,'sample:',matEmps[0]);
 
-    // Portal maternity counts (no period filter - they're current status)
-    const portalMat=matEmps.filter(e=>e.status==='maternity'||e.status==='returned').length;
+    // Portal maternity counts — check multiple status formats
+    const _isMaternity=e=>['maternity','maternity_leave','on_leave','産假','請假'].includes((e.status||'').toLowerCase())
+      ||(e.maternityStart&&!e.maternityEnd)
+      ||e.onMaternityLeave===true;
+    const _isReturned=e=>['returned','復工','return'].includes((e.status||'').toLowerCase())
+      ||(e.maternityEnd&&new Date(e.maternityEnd)<=new Date());
+    const portalMat=matEmps.filter(e=>_isMaternity(e)||_isReturned(e)).length;
 
     // Attendance ML leave by line (filtered by period)
     const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
@@ -728,16 +733,16 @@ function renderAM(skipPbar){
     });
     const matByDept=Object.fromEntries(matEmps.filter(e=>e.dept||e.section).map(e=>{
       const d=(e.dept||e.section||'').replace(/[/／].*/,'').trim();
-      return[d,(e.status==='maternity'||e.status==='returned')?1:0];
+      return[d,(_isMaternity(e)||_isReturned(e))?1:0];
     }).reduce((acc,[k,v])=>{acc.set(k,(acc.get(k)||0)+v);return acc;},new Map()));
     const allDepts=new Set([...Object.keys(lineML),...Object.keys(matByDept)]);
     const byLine=[...allDepts].map(dept=>({dept,portal:matByDept.get(dept)||0,attML:lineML[dept]||0,diff:(matByDept.get(dept)||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
 
     const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
     if(kEl)kEl.innerHTML=[
-      {l:'Portal 產假',v:portalMat,c:'rd'},
+      {l:'Portal 產假 (系統)',v:matEmps.length>0?portalMat:'⚠ 無資料',c:'rd'},
       {l:'出勤 ML假(期間)',v:attML,c:'gd'},
-      {l:'差異',v:(portalMat-attML>=0?'+':'')+(portalMat-attML),c:portalMat===attML?'gn':'rd'},
+      {l:'差異 (Portal-ML)',v:matEmps.length>0?(portalMat-attML>=0?'+':'')+(portalMat-attML):'—',c:portalMat===attML?'gn':'rd'},
     ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
     if(cEl)cEl.innerHTML=`<div class="exp-info">Portal 產假: ${portalMat} · 出勤ML: ${attML} · 期間: ${periodLabel(st)}</div>
     <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
