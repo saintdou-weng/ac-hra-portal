@@ -509,17 +509,31 @@ function renderUnified(skipPbar){
     const attDates=attRaw.map(r=>r.date).filter(Boolean);
     st.periods=buildPeriods(attDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-uni');
-    console.log('[uni] attRaw:',attRaw.length,'periods:',st.periods.slice(0,5),'mode:',st.mode);
+    const _minPeriod=st.periods.length?st.periods[st.periods.length-1]:'';
+    const _maxPeriod=st.periods.length?st.periods[0]:'';
+    if(st.periods.length<12&&st.mode==='month'){
+      const note=document.getElementById('pbar-uni-note');
+      if(note)note.textContent=`歷史資料: ${_minPeriod} ~ ${_maxPeriod} (${st.periods.length}個月)`;
+    }
+    console.log('[uni] attRaw:',attRaw.length,'periods:',st.periods,'mode:',st.mode);
 
     // filterByPeriod all datasets
-    // Dedup by date+line (avoid double counting if section totals exist)
+    // Total HC: prefer isGrand rows (factory total per day), else dedup leaf lines
+    const attRawF=filterByPeriod(attRaw,st,r=>r.date);
+    const grandRows=attRawF.filter(r=>r.isGrand||(r.line||'').toUpperCase()==='GRAND TOTAL');
     const _seen=new Set();
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>{
+    const attLeaf=attRawF.filter(r=>{
       if(!_isLeafRecord(r))return false;
       const key=String(r.date).slice(0,10)+'|'+(r.line||'').trim();
       if(_seen.has(key))return false;
       _seen.add(key);return true;
     });
+    // For grand total: if isGrand rows exist, use them; else sum sewing+known depts only
+    const attF=attLeaf; // used for sewing, join/resign counts
+    // For HC totals: use grand rows if available
+    const useGrand=grandRows.length>0;
+    const grandByDay={};
+    if(useGrand)grandRows.forEach(r=>{const d=String(r.date).slice(0,10);grandByDay[d]=Math.max(grandByDay[d]||0,(+r.m||0)+(+r.f||0));});
     const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
     const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
     const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
@@ -527,10 +541,13 @@ function renderUnified(skipPbar){
     const contF=filterByPeriod(contsRaw,st,r=>r.joinDate||r.date);
 
     // rebuildCompareRows
-    const attDays=new Set(attF.map(r=>r.date)).size||1;
-    const sewF=attF.filter(_isSewLine);
+    const attDays=new Set(attLeaf.map(r=>String(r.date).slice(0,10))).size||1;
+    const sewF=attLeaf.filter(_isSewLine);
     const sewHCSum=sewF.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
-    const attHCSum=attF.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
+    // Total HC: grand rows if available, else sewing only (to avoid section double-count)
+    const grandDays=Object.keys(grandByDay).length||attDays;
+    const grandHCSum=useGrand?Object.values(grandByDay).reduce((s,v)=>s+v,0):sewHCSum;
+    const attHCSum=useGrand?grandHCSum:sewHCSum; // if no grand rows, show only sewing (honest)
     const attMLSum=attF.reduce((s,r)=>s+(+r.ml||0),0);
     const attJoin=attF.reduce((s,r)=>s+(+r.join||0),0);
     const attResign=attF.reduce((s,r)=>s+(+r.resign||0),0);
@@ -541,7 +558,9 @@ function renderUnified(skipPbar){
 
     // renderBigCards — correct CSS classes: bc, bc-lbl, bc-val, bc-sub
     const bc=document.getElementById('big-cards');
-    if(bc)bc.innerHTML=[
+    if(bc)// debug
+    bc&&setTimeout(()=>console.log('[uni HC] grand='+useGrand+' GrandHC='+Math.round((useGrand?grandHCSum:sewHCSum)/(useGrand?grandDays:attDays))+' sewHC='+Math.round(sewHCSum/attDays)),0);
+    bc&&(bc.innerHTML=[
       {l:'出勤總 HC (均/天)',v:Math.round(attHCSum/attDays)||'—',sub:attDays+'天記錄',c:'nv'},
       {l:'車縫 HC (均/天)',  v:Math.round(sewHCSum/attDays)||'—',sub:sewLines+'條線',c:'tl'},
       {l:'考勤 新進',        v:attJoin||0,sub:'考勤離職: '+attResign,c:'gn'},
@@ -550,7 +569,7 @@ function renderUnified(skipPbar){
       {l:'Portal產假 / ML假(均/天)',v:`${maternity} / ${attDays>0?Math.round(attMLSum/attDays):0}`,sub:'孕婦: '+pregnant,c:'pu'},
       {l:'招募錄取',         v:rcF.filter(r=>r.result==='join').length,sub:'總招募: '+rcF.length,c:'tl'},
       {l:'非車縫部門',       v:nonSewDepts,sub:'車縫線: '+sewLines,c:'gd'},
-    ].map(k=>`<div class="bc ${k.c}"><div class="bc-lbl">${k.l}</div><div class="bc-val">${k.v}</div><div class="bc-sub">${k.sub}</div></div>`).join('');
+    ].map(k=>`<div class="bc ${k.c}"><div class="bc-lbl">${k.l}</div><div class="bc-val">${k.v}</div><div class="bc-sub">${k.sub}</div></div>`).join(''));
 
     // renderUnifiedTable — from sewing compare export (if exists) for IDB sewing data
     const sewExp=_ls(CK_SEW);
@@ -744,7 +763,10 @@ function renderAM(skipPbar){
       if(_seenAM.has(key))return false;
       _seenAM.add(key);return true;
     });
-    const attML=attF.reduce((s,r)=>s+(+r.ml||0),0);
+    // attML: average people on ML per day (sum/days), not total person-days
+    const mlDays=new Set(attF.filter(r=>+r.ml>0).map(r=>r.date)).size||1;
+    const attMLRaw=attF.reduce((s,r)=>s+(+r.ml||0),0);
+    const attML=Math.round(attMLRaw/attDays); // avg on ML per day
 
     // rebuildCompareRows by dept/line
     const lineML={};
