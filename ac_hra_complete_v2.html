@@ -406,8 +406,7 @@ function renderPeriodBar(barId){
   }<button class="pnav-arr" onclick="_onNav('${barId}',-1)">◀</button
   ><select class="pnav-sel" id="${barId}-sel" onchange="_onJump('${barId}',this.value)" ${st.mode==='all'?'disabled':''}>${selOpts}</select
   ><button class="pnav-arr" onclick="_onNav('${barId}',1)">▶</button
-  ><button class="pnav-arr" onclick="_onToday('${barId}')">●</button
-  ><span class="pnav-lbl">${periodLabel(st)}</span></div>`;
+  ><button class="pnav-arr" onclick="_onToday('${barId}')" title="今天/Today">●</button></div>`;
 }
 
 // ── rerenderAfterPeriod: update nav then call render fn ───
@@ -460,6 +459,19 @@ function cpLog(m){const e=document.getElementById('cplog');if(!e)return;const d=
 function nodata(c,m){return`<tr><td colspan="${c}" style="text-align:center;padding:24px;color:#6b7a9e">${m||'請先匯入資料'}</td></tr>`;}
 function diffBadge(d){const s=d>=0?'+':'';const cls=d===0?'gn':Math.abs(d)<=3?'gd':'rd';return`<span class="badge ${cls}">${s}${d}</span>`;}
 
+// ── Skip section-level summary rows (avoid double-counting) ─
+function _isLeafRecord(r){
+  if(!r||r.isSubtotal||r.isGrand)return false;
+  const lo=(r.line||'').toLowerCase().trim();
+  // Skip known section total labels
+  if(/^(total|grand|sub\s*total|all\s*total|sum|合計|總計)/i.test(lo))return false;
+  // Skip empty line names (usually section headers)
+  if(!lo)return false;
+  // Skip if HC suspiciously large for a single line (>150 = likely section total)
+  const hc=(+r.m||0)+(+r.f||0);
+  if(hc>150)return false;
+  return true;
+}
 // ── Sewing line detector (attendance records) ─────────────
 function _normLine(s){
   const n=String(s||'').replace(/[/／].*/,'').trim();
@@ -501,7 +513,7 @@ function renderUnified(skipPbar){
     if(!skipPbar)renderPeriodBar('pbar-uni');
 
     // filterByPeriod all datasets
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>!r.isGrand&&!r.isSubtotal);
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
     const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
     const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
     const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
@@ -594,7 +606,7 @@ function renderAS(skipPbar){
     if(!skipPbar)renderPeriodBar('pbar-as');
 
     // filterByPeriod + rebuild sewing lines
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>!r.isGrand&&!r.isSubtotal);
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
     const sewF=attF.filter(_isSewLine);
 
     // rebuildCompareRows by line
@@ -705,7 +717,7 @@ function renderAM(skipPbar){
     const portalMat=matEmps.filter(e=>e.status==='maternity'||e.status==='returned').length;
 
     // Attendance ML leave by line (filtered by period)
-    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>!r.isGrand&&!r.isSubtotal);
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>_isLeafRecord(r));
     const attML=attF.reduce((s,r)=>s+(+r.ml||0),0);
 
     // rebuildCompareRows by dept/line
@@ -718,7 +730,7 @@ function renderAM(skipPbar){
       const d=(e.dept||e.section||'').replace(/[/／].*/,'').trim();
       return[d,(e.status==='maternity'||e.status==='returned')?1:0];
     }).reduce((acc,[k,v])=>{acc.set(k,(acc.get(k)||0)+v);return acc;},new Map()));
-    const allDepts=new Set([...Object.keys(lineML),...matByDept.keys()]);
+    const allDepts=new Set([...Object.keys(lineML),...Object.keys(matByDept)]);
     const byLine=[...allDepts].map(dept=>({dept,portal:matByDept.get(dept)||0,attML:lineML[dept]||0,diff:(matByDept.get(dept)||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
 
     const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
