@@ -329,7 +329,7 @@ const RAW={
   att:     'vrt_att_v5_db',
   joins:   'ac_hra_joins',
   resigns: 'ac_hra_resigns',
-  mat:     'vrt_mat_data',
+  mat:     'vrt_maternity_v1',   // confirmed from console scan
   conts:   'vrt_dashConts',
   probs:   'vrt_dashProbs',
   recruit: 'ac_hra_manpower_recruit',
@@ -501,7 +501,7 @@ function renderUnified(skipPbar){
     const contsRaw=_arr(RAW.conts)||[];
     const probsRaw=_arr(RAW.probs)||[];
     // Try multiple possible maternity storage keys
-    const matRaw=_ls(RAW.mat)||_ls('vrt_maternity_data')||_ls('ac_hra_maternity')||_ls('vrt_mat_v1')||{};
+    const matRaw=_ls(RAW.mat)||{};   // vrt_maternity_v1
     const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
     const rcRaw=_arr(RAW.recruit)||[];
 
@@ -547,7 +547,7 @@ function renderUnified(skipPbar){
       {l:'考勤 新進',        v:attJoin||0,sub:'考勤離職: '+attResign,c:'gn'},
       {l:'HR 入職',          v:joinsF.length,sub:'HR離職: '+resignsF.length,c:'gd'},
       {l:'試用期',           v:probF.length,sub:'合約: '+contF.length,c:'gd'},
-      {l:'產假 / ML假',      v:`${maternity} / ${attMLSum}`,sub:'孕婦: '+pregnant,c:'pu'},
+      {l:'Portal產假 / ML假(均/天)',v:`${maternity} / ${attDays>0?Math.round(attMLSum/attDays):0}`,sub:'孕婦: '+pregnant,c:'pu'},
       {l:'招募錄取',         v:rcF.filter(r=>r.result==='join').length,sub:'總招募: '+rcF.length,c:'tl'},
       {l:'非車縫部門',       v:nonSewDepts,sub:'車縫線: '+sewLines,c:'gd'},
     ].map(k=>`<div class="bc ${k.c}"><div class="bc-lbl">${k.l}</div><div class="bc-val">${k.v}</div><div class="bc-sub">${k.sub}</div></div>`).join('');
@@ -596,7 +596,7 @@ function renderUnified(skipPbar){
         <td class="center">${v.join||'—'}</td>
         <td class="center">${v.resign||'—'}</td>
         <td class="center">${ml?.portal??'—'}</td>
-        <td class="center">${v.ml||'—'}</td>
+        <td class="center">${v.days.size>0?Math.round(v.ml/v.days.size):v.ml||'—'}</td>
       </tr>`;
     }).join('');
   }catch(e){console.error('renderUnified:',e);}
@@ -726,12 +726,7 @@ function renderAM(skipPbar){
     st.periods=buildPeriods(attRaw.map(r=>r.date).filter(Boolean),st.mode);
     if(!skipPbar)renderPeriodBar('pbar-am');
     console.log('[renderAM] matEmps:',matEmps.length,'sample:',matEmps[0]);
-    if(!matEmps.length){
-      // Scan all localStorage for maternity keys
-      const matKeys=Object.keys(localStorage).filter(k=>/mat|孕|pregnant|産/i.test(k));
-      console.log('[renderAM] All mat-related localStorage keys:',matKeys);
-      matKeys.forEach(k=>console.log(' ',k,':',String(localStorage.getItem(k)).slice(0,100)));
-    }
+    if(!matEmps.length)console.warn('[renderAM] vrt_maternity_v1 is empty');
 
     // Portal maternity counts — check multiple status formats
     const _isMaternity=e=>['maternity','maternity_leave','on_leave','産假','請假'].includes((e.status||'').toLowerCase())
@@ -762,7 +757,7 @@ function renderAM(skipPbar){
       return[d,(_isMaternity(e)||_isReturned(e))?1:0];
     }).reduce((acc,[k,v])=>{acc.set(k,(acc.get(k)||0)+v);return acc;},new Map()));
     const allDepts=new Set([...Object.keys(lineML),...Object.keys(matByDept)]);
-    const byLine=[...allDepts].map(dept=>({dept,portal:matByDept[dept]||0,attML:lineML[dept]||0,diff:(matByDept.get(dept)||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
+    const byLine=[...allDepts].map(dept=>({dept,portal:matByDept[dept]||0,attML:lineML[dept]||0,diff:(matByDept[dept]||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
 
     const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
     if(kEl)kEl.innerHTML=[
