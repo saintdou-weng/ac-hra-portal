@@ -1590,12 +1590,27 @@ async function cloudPull(){
   if(!GAS_URL){toast('請先設定 GAS URL','err');return;}
   const btn=document.getElementById('btnPull');btn.disabled=true;btn.innerHTML='<span class="spinning">⏳</span>';
   try{
-    const r=await fetch(GAS_URL+'?action=pull&tool=manpower',{method:'GET',redirect:'follow'});
-    const txt=await r.text();
-    let d;
-    try{d=JSON.parse(txt);}catch(e){toast('❌ GAS 回傳非 JSON: '+txt.slice(0,80),'err');return;}
-    console.log('[manpower cloudPull] raw response:', JSON.stringify(d).slice(0,400));
-    if(!d.ok){toast('⚠ GAS 回傳 ok=false: '+(d.error||d.message||'unknown'),'err');return;}
+    // Try GET first, then POST as fallback
+    let d=null;
+    const _fetch=async(method,body)=>{
+      const opts={method,redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'}};
+      if(body)opts.body=body;
+      const url=method==='GET'?GAS_URL+'?action=pull&tool=manpower&limit=200':GAS_URL;
+      const r=await fetch(url,opts);
+      return JSON.parse(await r.text());
+    };
+    try{d=await _fetch('GET');}catch(e){d=null;}
+    // If GET returns empty records, try POST pull
+    const _isEmpty=dd=>{
+      const rec=dd?.data?.data?.records||dd?.data?.records||dd?.records||[];
+      return Array.isArray(rec)&&rec.length===0;
+    };
+    if(!d?.ok||_isEmpty(d)){
+      console.log('[cloudPull] GET returned empty, trying POST pull...');
+      try{d=await _fetch('POST',JSON.stringify({action:'pull',tool:'manpower',limit:200}));}catch(e){}
+    }
+    console.log('[manpower cloudPull] response:', JSON.stringify(d).slice(0,500));
+    if(!d?.ok){toast('⚠ GAS 回傳失敗: '+(d?.error||'unknown'),'err');return;}
 
     // Traverse all known GAS response structures to find reqs array
     // Walk any GAS response structure to find reqs array
@@ -1638,8 +1653,10 @@ async function cloudPull(){
       toast(`☁ Download complete：需求 ${REQS.length} 筆，招募 ${RECRUIT.length} 筆`,'ok');
     }else{
       console.warn('[cloudPull] Could not find reqs. Full response:',d);
-      const keys=d.data?Object.keys(d.data):Object.keys(d);
-      toast(`❌ 找不到需求資料。GAS 回傳欄位：${keys.join(',')} — 請查 Console 確認格式`,'err');
+      const keys=Object.keys(d?.data?.data||d?.data||d);
+      console.warn('[cloudPull] GAS 回傳 recordCount:',d?.data?.data?.recordCount,'但 records 是空陣列');
+      console.warn('[cloudPull] 需要修正 GAS doGet() 讓 pull 時回傳 reqs 陣列');
+      toast(`❌ GAS 已有 ${d?.data?.data?.recordCount||0} 筆資料但回傳 records:[] — GAS pull handler 需更新，請查 Console`,'err');
     }
   }catch(e){toast('❌ '+e.message,'err');}
   finally{btn.disabled=false;btn.innerHTML='⬇ Pull';}
