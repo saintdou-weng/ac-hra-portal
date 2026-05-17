@@ -286,623 +286,302 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 
 <script>
 'use strict';
-const LS={HRA_GAS:'vrt_att_cloud_v1_url',PROD_GAS:'vrt_portal_gas_url',ATT:'vrt_complete_att',ALIAS:'localStorage.lineAliasMap'};
-const IDB_CFG={att:[{db:'AC_HRA_Attendance',store:'records'}],sew:[{db:'SewingCloudProd',store:'cloud_records'}],cont:[{db:'vrt_contract_db',store:'dashConts'},{db:'ContractDB',store:'dashConts'}],prob:[{db:'vrt_contract_db',store:'dashProbs'},{db:'ContractDB',store:'dashProbs'}]};
 
-window.COMPLETE_DB={attendance:[],sewing:[],onboarding:[],maternity:[],contract:[],probation:[],compareResults:[],mappings:{},manpowerReqs:[],manpowerRecruit:[]};
-let _attNorm=[],_sewNorm=[],_joinNorm=[],_matByLine=new Map();
-const _unmatchedHard=new Set(),_unmatchedHist=new Set();
-const HIST_LINES=new Set(['LINE_19','LINE_20','LINE_21','LINE_22','LINE_23','LINE_24']);
-
-// ── MAX SEWING LINE ──
-const MAX_SEWING_LINE=30;
-
-// ── DEFAULT ALIASES ──
-const DEFAULT_ALIASES={
-  'A1':'LINE_1','A2':'LINE_2','A3':'LINE_3','A4':'LINE_4','A5':'LINE_5',
-  'A6':'LINE_6','A7':'LINE_7','A8':'LINE_8','A9':'LINE_9','A10':'LINE_10',
-  'A11':'LINE_11','A12':'LINE_12','A13':'LINE_13','A14':'LINE_14','A15':'LINE_15',
-  'A16':'LINE_16','A17':'LINE_17','A18':'LINE_18','A19':'LINE_19','A20':'LINE_20',
-  'A21':'LINE_21','A22':'LINE_22','A23':'LINE_23','A24':'LINE_24','A25':'LINE_25',
-  'A26':'LINE_26','A27':'LINE_27','A28':'LINE_28',
-  'B21':'LINE_21','B22':'LINE_22','B23':'LINE_23','B24':'LINE_24',
-  'B25':'LINE_25','B26':'LINE_26','B27':'LINE_27',
-  'L1':'LINE_1','L2':'LINE_2','L3':'LINE_3','L4':'LINE_4','L5':'LINE_5',
-  'L6':'LINE_6','L7':'LINE_7','L8':'LINE_8','L9':'LINE_9','L10':'LINE_10',
-  'L11':'LINE_11','L12':'LINE_12','L13':'LINE_13','L14':'LINE_14','L15':'LINE_15',
-  'L16':'LINE_16','L17':'LINE_17','L18':'LINE_18','L19':'LINE_19','L20':'LINE_20',
-  'L21':'LINE_21','L22':'LINE_22','L23':'LINE_23','L24':'LINE_24',
-  'L25':'LINE_25','L26':'LINE_26','L27':'LINE_27',
-  'APRON1':'LINE_1','APRON01':'LINE_1','APRON2':'LINE_2','APRON02':'LINE_2','APRON3':'LINE_3',
-  'GARMENT1':'LINE_1','GARMENT2':'LINE_2','GARMENT3':'LINE_3',
+// ══ STORAGE KEYS — each source module writes here ══════════════
+const CK = {
+  attSew:  'ac_complete_att_sewcmp',       // attendance renderSewCmp
+  onboard: 'ac_complete_onboard_compare',  // onboarding compare tab
+  matcmp:  'ac_complete_maternity_compare',// maternity renderCompare
+  recruit: 'ac_complete_recruit_compare',  // manpower renderCompare
 };
 
-// ── BLOCKED non-sewing → LINE mapping ──
-const NON_SEW_BLOCKED=/^(PACK|PRESS|QC|CUT|ADMIN|WH|WARE|MAINT|SECU|HRA|ACCT|SHIP|IT|MARKER|FINISH|SAMPLE|OFFICE|GAS|MECHANIC|ME|CLEAN|COOK|DRIVER|NURSE|ENV)/i;
+// ══ GAS / SETTINGS ════════════════════════════════════════════
+const LS_HRA_GAS='vrt_att_cloud_v1_url';
+const LS_PROD_GAS='vrt_portal_gas_url';
 
-window.LINE_ALIAS={};
-function loadAliases(){try{window.LINE_ALIAS=JSON.parse(localStorage.getItem(LS.ALIAS)||'{}');}catch(e){}if(!Object.keys(window.LINE_ALIAS).length)window.LINE_ALIAS={...DEFAULT_ALIASES};}
-function saveAliases(){const rows=document.querySelectorAll('#alias-tbody tr');const m={};rows.forEach(tr=>{const f=tr.querySelector('.af')?.value?.trim().toUpperCase(),t2=tr.querySelector('.at2')?.value?.trim().toUpperCase();if(f&&t2)m[f]=t2;});window.LINE_ALIAS=m;localStorage.setItem(LS.ALIAS,JSON.stringify(m));rebuildNorm();renderAll();toast('✅ Alias 已儲存');}
-function resetAliases(){if(!confirm('重設預設 Alias？'))return;window.LINE_ALIAS={...DEFAULT_ALIASES};localStorage.setItem(LS.ALIAS,JSON.stringify(window.LINE_ALIAS));renderAliasTable();rebuildNorm();renderAll();toast('✅ 已重設');}
-function addAlias(){document.getElementById('alias-from').value='';document.getElementById('alias-to').value='';document.getElementById('addModal').classList.add('show');}
-function confirmAlias(){const f=document.getElementById('alias-from').value.trim().toUpperCase(),t2=document.getElementById('alias-to').value.trim().toUpperCase();if(!f||!t2){toast('請填寫別名和對應');return;}window.LINE_ALIAS[f]=t2;renderAliasTable();document.getElementById('addModal').classList.remove('show');}
-function renderAliasTable(){const entries=Object.entries(window.LINE_ALIAS).filter(([,v])=>v.startsWith('LINE_')).sort((a,b)=>a[0].localeCompare(b[0]));document.getElementById('alias-tbody').innerHTML=entries.map(([from,to])=>`<tr><td><input class="af cp-input" value="${from}" style="width:100%"></td><td><input class="at2 cp-input" value="${to}" style="width:100%"></td><td><button onclick="delete window.LINE_ALIAS['${from}'];renderAliasTable()" style="background:var(--red);color:#fff;border:none;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:10px">×</button></td></tr>`).join('');}
+// ── Read compare result from localStorage ─────────────────────
+function readCmp(key){try{const v=localStorage.getItem(key);return v?JSON.parse(v):null;}catch(e){return null;}}
 
-// ── NORMALIZATION: exact copy from attendance module (ac_hra_attendance_v1) ──
-// normSCLine: same as attendance module — produces LINE1, LINE2 etc (no underscore)
-function normSCLine(s){
-  const n=String(s||'').replace(/[\s_-]+/g,'').toUpperCase();
-  let m;
-  if(m=n.match(/^(?:LINE|L)0*(\d{1,2})$/))return'LINE'+m[1];
-  if(m=n.match(/^[AB]0*(\d{1,2})$/))return'LINE'+m[1];
-  if(m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/))return'LINE'+m[1];
-  // Bare digit 1-30 (attendance stores sewing lines as "12" not "LINE12")
-  if(m=n.match(/^0*(\d{1,2})$/)){const num=+m[1];if(num>=1&&num<=MAX_SEWING_LINE)return'LINE'+num;}
-  return n;
+// ── diff badge ─────────────────────────────────────────────────
+function diffBadge(d){const s=d>=0?'+':'';const cls=d===0?'ok':Math.abs(d)<=3?'warn':'bad';return`<span class="badge ${cls}">${s}${d}</span>`;}
+function kpi(v,l,c){return`<div class="kpi ${c||'nv'}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;}
+function nodata(cols,msg){return`<tr><td colspan="${cols}" style="text-align:center;padding:20px;color:#888">${msg||'尚無資料 — 請先在各模組產生比對結果'}</td></tr>`;}
+
+// ── Toast ──────────────────────────────────────────────────────
+function toast(msg,dur=3000){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),dur);}
+function setST(msg,cls=''){const el=document.getElementById('syncTip');if(!el)return;el.textContent=msg;el.style.color=cls==='ok'?'#1a6e5c':cls==='err'?'#ef4444':'';}
+function cpLog(msg){const el=document.getElementById('cplog');if(!el)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+msg;el.prepend(d);}
+
+// ══ TAB NAVIGATION ════════════════════════════════════════════
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
+  try{
+    if(t==='as')        renderAS();
+    else if(t==='ac')   renderAC();
+    else if(t==='am')   renderAM();
+    else if(t==='recruit') renderRecruit();
+    else if(t==='unified') renderUnified();
+    else if(t==='unmatched') renderUnmatched();
+    else if(t==='cfg')  {loadCfg();}
+  }catch(e){console.error('switchTab '+t+':',e);}
 }
-// isSCLine: exact from attendance — LINE1-LINE30 only
-function isSCLine(lineId){
-  return/^LINE(\d{1,2})$/.test(lineId)&&+lineId.replace('LINE','')>=1&&+lineId.replace('LINE','')<=MAX_SEWING_LINE;
-}
-// isSewingLineAtt: exact from attendance isSewingLineByName
-function isSewingLineAtt(r){
-  if(!r||r.isSubtotal||r.isGrand)return false;
-  const raw=String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||r.lineNo||'').trim();
-  if(!raw)return false;
-  const n=raw.replace(/[\s_\-]+/g,'').toUpperCase();
-  if(/^(QC|QUALITY|PACK|PACKING|CUT|CUTTING|ADMIN|WH|WAREHOUSE|FINISH|FINISHING|SAMPLE|MECHANIC|PRESS|PRESSING|MARKER|INSPECT)/.test(n))return false;
-  if(isSCLine(normSCLine(raw)))return true;
-  if(/sewing|stitching|縫|車縫/i.test(raw)&&/\d/.test(raw))return true;
-  return false;
-}
-// normalizeLineName: kept as alias for backward compat (non-sewing dept)
-function normalizeLineName(raw){return normSCLine(raw)||null;}
-// isSewingLine: alias using new logic
-function isSewingLine(lineId){return isSCLine(lineId||'');}
-function displayLine(lineId){if(!lineId)return'?';if(/^LINE\d+$/.test(lineId))return'LINE '+lineId.slice(4);return lineId;}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
+  loadCfg();
+  renderUnified();
+});
 
-function displayLine(lineId){if(!lineId)return'?';if(lineId.startsWith('LINE_'))return'LINE '+lineId.slice(5);return lineId;}
-function normalizeDept(raw){const s=String(raw||'').toUpperCase().replace(/[^A-Z]/g,'');if(/PRODUCT|GARMENT|SEW/.test(s))return'Production';if(/QC|QUALITY/.test(s))return'QC';if(/CUT/.test(s))return'Cutting';if(/PACK/.test(s))return'Packing';if(/MAINT/.test(s))return'Maintenance';if(/ADMIN|OFFICE/.test(s))return'Admin';if(/WH|WARE/.test(s))return'Warehouse';return raw?.trim()||'(other)';}
-
-// ── IDB READER ──
-async function readIDB(cfgList){for(const{db,store}of cfgList){try{const result=await new Promise(res=>{const req=indexedDB.open(db);req.onerror=()=>res([]);req.onsuccess=e=>{const d=e.target.result;if(!d.objectStoreNames.contains(store)){d.close();res([]);return;}const all=[];const cursor=d.transaction(store,'readonly').objectStore(store).openCursor();cursor.onsuccess=ev=>{if(ev.target.result){all.push(ev.target.result.value);ev.target.result.continue();}else{d.close();res(all);}};cursor.onerror=()=>{d.close();res([]);};}});if(result.length>0)return result;}catch(e){}}return[];}
-
-// ── DATA LOADERS ──
-function loadAttLS(){
-  // Try module key first (vrt_att_v5_db from attendance module), fallback to cache
-  for(const key of['vrt_att_v5_db',LS.ATT,'vrt_complete_att']){
-    try{const d=JSON.parse(localStorage.getItem(key)||'[]');if(d.length){COMPLETE_DB.attendance=d;return;}}catch(e){}
-  }
-  COMPLETE_DB.attendance=[];
-}
-function loadSewLS(){try{const raw=JSON.parse(localStorage.getItem('sewing_prod_v1')||'[]');COMPLETE_DB.sewing=raw.filter(r=>r.date&&r.lineNo);}catch(e){COMPLETE_DB.sewing=[];}}
-function loadMatLS(){
-  for(const key of['vrt_mat_data','vrt_maternity_v1']){
-    try{
-      const raw=JSON.parse(localStorage.getItem(key)||'{}');
-      const emps=raw.employees||raw||[];
-      if(Array.isArray(emps)&&emps.length){
-        COMPLETE_DB.maternity=emps.filter(e=>e.status);return;
-      }
-    }catch(e){}
-  }
-  COMPLETE_DB.maternity=[];
-}
-function loadOnboardLS(){for(const key of['vrt_onboard_v1','vrt_onboarding','ac_hra_joins']){try{const raw=JSON.parse(localStorage.getItem(key)||'[]');if(raw.length){COMPLETE_DB.onboarding=raw;return;}}catch(e){}}try{const j=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]');const r=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]');if(j.length||r.length){COMPLETE_DB.onboarding=[...j.map(x=>({...x,type:'join'})),...r.map(x=>({...x,type:'resign'}))];}}catch(e){}}
-
-// ── Manpower loader (reads from manpower module localStorage) ──
-function loadManpowerLS(){
-  try{COMPLETE_DB.manpowerReqs=JSON.parse(localStorage.getItem('ac_hra_manpower_reqs')||'[]');}catch(e){COMPLETE_DB.manpowerReqs=[];}
-  try{COMPLETE_DB.manpowerRecruit=JSON.parse(localStorage.getItem('ac_hra_manpower_recruit')||'[]');}catch(e){COMPLETE_DB.manpowerRecruit=[];}
+// ══ 出勤×車縫 — reads attendance export ════════════════════════
+function renderAS(){
+  try{
+    const d=readCmp(CK.attSew);
+    const pbar=document.getElementById('pbar-as');
+    if(pbar)pbar.innerHTML='';
+    const kEl=document.getElementById('kpi-as');
+    const cEl=document.getElementById('as-content');
+    if(!d){
+      if(kEl)kEl.innerHTML=kpi('—','考勤車工(均)')+kpi('—','車縫系統(均)')+kpi('—','差異')+kpi('—','差%');
+      if(cEl)cEl.innerHTML=`<div class="utable"><table><tbody>${nodata(6,'尚無資料 — 請在出勤模組開啟「出勤×車縫」分頁以產生比對結果')}</tbody></table></div>`;
+      return;
+    }
+    if(kEl)kEl.innerHTML=[
+      kpi(d.attTotal??'—','考勤車工(均)','nv'),
+      kpi(d.sewTotal??'—','車縫系統(均)','tl'),
+      kpi((d.diff>=0?'+':'')+d.diff,'差異',d.diff===0?'gn':Math.abs(d.diff)<10?'gd':'rd'),
+      kpi(d.match??'—','差%','pu'),
+    ].join('');
+    const lines=d.lines||[];
+    const rows=lines.map(l=>`<tr>
+      <td style="font-weight:700">${l.lid}</td>
+      <td style="text-align:right;font-weight:600">${l.att||'—'}</td>
+      <td style="text-align:right;color:#0ea5e9;font-weight:600">${l.sew||'—'}</td>
+      <td style="text-align:right;font-weight:700;color:${l.diff===0?'#1a6e5c':Math.abs(l.diff)<3?'#f59e0b':'#ef4444'}">${(l.att&&l.sew)?(l.diff>=0?'+':'')+l.diff:'—'}</td>
+      <td style="text-align:right">${l.att&&l.sew&&l.sew>0?(l.sew/l.att*100).toFixed(1)+'%':'—'}</td>
+      <td style="text-align:right;color:#6b7a9e">${l.pcs?l.pcs.toLocaleString():'—'}</td>
+    </tr>`).join('');
+    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">期間: ${d.period||'—'} (${d.mode||'—'}) · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
+    <div class="utable"><table><thead><tr style="background:#1a6e5c;color:#fff">
+      <th>LINE</th><th style="text-align:right">出勤HC</th><th style="text-align:right">車縫HC</th>
+      <th style="text-align:right">差異</th><th style="text-align:right">匹配%</th><th style="text-align:right">產量</th>
+    </tr></thead><tbody>${rows||nodata(6)}</tbody></table></div>`;
+  }catch(e){console.error('renderAS:',e);}
 }
 
-async function reloadAll(){cpLog('🔄 讀取 IDB…');loadAttLS();loadSewLS();loadMatLS();loadOnboardLS();loadManpowerLS();const attIDB=await readIDB(IDB_CFG.att);if(attIDB.length>COMPLETE_DB.attendance.length){COMPLETE_DB.attendance=attIDB;cpLog(`考勤 IDB: ${attIDB.length} 筆`,'ok');}const sewIDB=await readIDB(IDB_CFG.sew);if(sewIDB.length>COMPLETE_DB.sewing.length){COMPLETE_DB.sewing=sewIDB;cpLog(`車縫 IDB: ${sewIDB.length} 筆`,'ok');}const contIDB=await readIDB(IDB_CFG.cont);let contLS=[];try{contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]');}catch(e){}COMPLETE_DB.contract=contIDB.length?contIDB:contLS;const probIDB=await readIDB(IDB_CFG.prob);let probLS=[];try{probLS=JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]');}catch(e){}COMPLETE_DB.probation=probIDB.length?probIDB:probLS;rebuildNorm();renderAll();updateSrcKpi();}
+// ══ 出勤×入離職 — reads onboarding export ══════════════════════
+function renderAC(){
+  try{
+    const d=readCmp(CK.onboard);
+    const kEl=document.getElementById('kpi-ac');
+    const cEl=document.getElementById('ac-content');
+    if(!d){
+      if(kEl)kEl.innerHTML=kpi('—','出勤 新進')+kpi('—','HR 新進')+kpi('—','差異')+kpi('—','出勤 離職')+kpi('—','HR 離職')+kpi('—','差異');
+      if(kEl)kEl.style.gridTemplateColumns='repeat(3,1fr)';
+      if(cEl)cEl.innerHTML=`<div class="utable"><table><tbody>${nodata(5,'尚無資料 — 請在入離職模組開啟「比較分析」分頁以產生比對結果')}</tbody></table></div>`;
+      return;
+    }
+    if(kEl){
+      kEl.style.gridTemplateColumns='repeat(3,1fr)';
+      kEl.innerHTML=[
+        kpi(d.attJoin??'—','出勤 新進','nv'),kpi(d.hrJoin??'—','HR 新進','tl'),
+        kpi(d.jDiff!=null?((d.jDiff>=0?'+':'')+d.jDiff):'—','新進差異',d.jDiff===0?'gn':Math.abs(d.jDiff||0)<=3?'gd':'rd'),
+        kpi(d.attResign??'—','出勤 離職','rd'),kpi(d.hrResign??'—','HR 離職','gd'),
+        kpi(d.rDiff!=null?((d.rDiff>=0?'+':'')+d.rDiff):'—','離職差異','pu'),
+      ].join('');
+    }
+    const byDept=d.byDept||[];
+    const rows=byDept.map(r=>`<tr><td><b>${r.dept}</b></td>
+      <td style="text-align:center">${r.attJoin??r.join??'—'}</td>
+      <td style="text-align:center">${r.attResign??r.resign??'—'}</td>
+      <td style="text-align:center">${r.ratio??'—'}</td></tr>`).join('');
+    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
+    <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
+      <th>部門/LINE</th><th style="text-align:center">考勤 新進</th><th style="text-align:center">考勤 離職</th><th style="text-align:center">入/離比</th>
+    </tr></thead><tbody>${rows||nodata(4)}</tbody></table></div>`;
+  }catch(e){console.error('renderAC:',e);}
+}
+
+// ══ 出勤×孕假 — reads maternity export ════════════════════════
+function renderAM(){
+  try{
+    const d=readCmp(CK.matcmp);
+    const kEl=document.getElementById('kpi-am');
+    const cEl=document.getElementById('am-content');
+    if(!d){
+      if(kEl)kEl.innerHTML=kpi('—','孕婦')+kpi('—','產假中')+kpi('—','考勤 ML假');
+      if(cEl)cEl.innerHTML=`<div class="utable"><table><tbody>${nodata(7,'尚無資料 — 請在孕假模組開啟「總表」分頁以產生比對結果')}</tbody></table></div>`;
+      return;
+    }
+    if(kEl)kEl.innerHTML=[
+      kpi(d.portalPreg??'—','孕婦','pu'),
+      kpi(d.portalMat??'—','產假中','rd'),
+      kpi(d.attML??d.attMl??'—','考勤 ML假','gd'),
+      kpi(d.diff!=null?((d.diff>=0?'+':'')+d.diff):'—','差異',d.diff===0?'gn':'rd'),
+      kpi(d.sewMat??'—','車縫產假🔵','tl'),
+    ].join('');
+    const byLine=d.byLine||[];
+    const rows=byLine.map(r=>`<tr>
+      <td><b>${r.dept||r.line||'—'}</b></td>
+      <td style="text-align:center">${r.preg??r.portal??'—'}</td>
+      <td style="text-align:center">${r.mat??'—'}</td>
+      <td style="text-align:center">${r.attML??r.attMl??'—'}</td>
+      <td style="text-align:center">${diffBadge(r.diff??0)}</td>
+    </tr>`).join('');
+    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">Portal 產假: ${d.portalMat??'—'} · 出勤 ML: ${d.attML??'—'} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
+    <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
+      <th>部門/LINE</th><th style="text-align:center">🤰孕婦</th><th style="text-align:center">🍼產假</th><th style="text-align:center">ML假</th><th style="text-align:center">差異</th>
+    </tr></thead><tbody>${rows||nodata(5)}</tbody></table></div>`;
+  }catch(e){console.error('renderAM:',e);}
+}
+
+// ══ 入離職×招募 — reads manpower export ════════════════════════
+function renderRecruit(){
+  try{
+    const d=readCmp(CK.recruit);
+    const kEl=document.getElementById('kpi-rc');
+    const joinTb=document.getElementById('rc-join-tbody');
+    const missTb=document.getElementById('rc-miss-tbody');
+    if(!d){
+      if(kEl)kEl.innerHTML=kpi('—','招募總數')+kpi('—','Onboarding')+kpi('—','差異')+kpi('—','Sewing🔵');
+      if(joinTb)joinTb.innerHTML=nodata(4,'尚無資料 — 請在人力規劃模組開啟「分析」分頁以產生比對結果');
+      return;
+    }
+    if(kEl)kEl.innerHTML=[
+      kpi(d.rcTotal??'—','招募總數','nv'),
+      kpi(d.rcJoined??'—','招募入職','tl'),
+      kpi(d.obTotal??'—','Onboarding 入職','gd'),
+      kpi(d.diff!=null?((d.diff>=0?'+':'')+d.diff):'—','差異',d.diff===0?'gn':'rd'),
+      kpi(d.sewTotal??'—','Sewing🔵','pu'),
+    ].join('');
+    const tdS='padding:6px 10px;border-bottom:1px solid var(--brd)';
+    const byDept=d.byDept||[];
+    if(joinTb)joinTb.innerHTML=byDept.map(r=>`<tr>
+      <td style="${tdS};font-weight:600">${r.dept}</td>
+      <td style="${tdS};text-align:center">${r.recruited||'—'}</td>
+      <td style="${tdS};text-align:center">${r.onboarded||'—'}</td>
+      <td style="${tdS};text-align:center">${diffBadge(r.diff||0)}</td>
+    </tr>`).join('')||nodata(4);
+    const missing=d.missing||[];
+    if(missTb)missTb.innerHTML=missing.length?missing.map((r,i)=>`<tr>
+      <td style="${tdS}">${i+1}</td>
+      <td style="${tdS};font-family:monospace">${r.empId||'—'}</td>
+      <td style="${tdS};font-weight:600">${r.name||'—'}</td>
+      <td style="${tdS}">${r.dept||'—'}</td>
+      <td style="${tdS};font-family:monospace">${r.joinDate||'—'}</td>
+    </tr>`).join(''):`<tr><td colspan="5" style="text-align:center;padding:16px;color:#6b7a9e">✅ 全員均在 Onboarding 記錄</td></tr>`;
+  }catch(e){console.error('renderRecruit:',e);}
+}
+
+// ══ 整合總表 — aggregates all exports ══════════════════════════
+function renderUnified(){
+  try{
+    const as=readCmp(CK.attSew);
+    const ac=readCmp(CK.onboard);
+    const am=readCmp(CK.matcmp);
+    const rc=readCmp(CK.recruit);
+    const bc=document.getElementById('big-cards');
+    if(bc)bc.innerHTML=[
+      {l:'出勤車縫HC',v:as?.attTotal??'—',s:as?.sewTotal!=null?'車縫: '+as.sewTotal:'',c:'tl'},
+      {l:'車縫匹配率',v:as?.match??'—',s:as?.diff!=null?'差異: '+(as.diff>=0?'+':'')+as.diff:'',c:'gn'},
+      {l:'孕婦/產假',v:(am?.portalPreg??'—')+' / '+(am?.portalMat??'—'),s:am?.sewMat!=null?'車縫: '+am.sewMat:'',c:'pu'},
+      {l:'合約/試用',v:'—',s:'',c:'gd'},
+    ].map(k=>`<div class="bigcard ${k.c}"><div class="bc-l">${k.l}</div><div class="bc-v">${k.v}</div><div class="bc-s">${k.s}</div></div>`).join('');
+
+    // Unified summary table
+    const tbody=document.getElementById('unified-tbody');
+    if(!tbody)return;
+    // Collect all depts from all sources
+    const depts=new Set([...(as?.lines||[]).map(l=>l.lid),...(am?.byLine||[]).map(l=>l.dept||l.line)]);
+    if(!depts.size){tbody.innerHTML=nodata(10,'各模組請先開啟並更新比對分頁');return;}
+    const rows=[...depts].sort().map(dept=>{
+      const att=as?.lines?.find(l=>l.lid===dept);
+      const matL=am?.byLine?.find(l=>(l.dept||l.line)===dept);
+      return`<tr>
+        <td style="font-weight:700">${dept}</td>
+        <td style="text-align:center">${att?.att??'—'}</td>
+        <td style="text-align:center;color:#0ea5e9">${att?.sew??'—'}</td>
+        <td style="text-align:center;color:${att?.diff===0?'#1a6e5c':'#ef4444'}">${att?.diff!=null?(att.diff>=0?'+':'')+att.diff:'—'}</td>
+        <td style="text-align:center">${'—'}</td>
+        <td style="text-align:center">${'—'}</td>
+        <td style="text-align:center">${matL?.preg??'—'}</td>
+        <td style="text-align:center">${matL?.mat??'—'}</td>
+        <td style="text-align:center">${matL?.attML??'—'}</td>
+        <td style="text-align:center">${matL?.diff!=null?(matL.diff>=0?'+':'')+matL.diff:'—'}</td>
+      </tr>`;
+    }).join('');
+    tbody.innerHTML=rows;
+  }catch(e){console.error('renderUnified:',e);}
+}
+
+// ══ 未匹配 ═════════════════════════════════════════════════════
+function renderUnmatched(){
+  try{
+    const hb=document.getElementById('um-hard-body');
+    const hib=document.getElementById('um-hist-body');
+    if(hb)hb.innerHTML='<span style="color:#888;font-size:11px">未匹配資訊由各模組自行標記</span>';
+    if(hib)hib.innerHTML='';
+  }catch(e){}
+}
+
+function renderAll(){
+  const t=document.querySelector('.tab.on')?.dataset?.t||'unified';
+  try{switchTab(t);}catch(e){console.error(e);}
+}
+
+// ══ CLOUD SYNC ═════════════════════════════════════════════════
+function toggleCP(){document.getElementById('cpanel').classList.toggle('open');}
+function setSyncST(msg,cls){setST(msg,cls);}
 
 async function doLoad(){
-  const hraUrl=localStorage.getItem(LS.HRA_GAS)||'';
-  const prodUrl=localStorage.getItem(LS.PROD_GAS)||'';
+  const hraUrl=localStorage.getItem(LS_HRA_GAS)||'';
   setST('☁ 讀取中…');
   try{
-    await reloadAll();
-    if(hraUrl){
-      for(const tool of['attendance','contract','maternity']){
-        try{
-          const data=await pullTool(hraUrl,tool);
-          if(data.length){
-            if(tool==='attendance')COMPLETE_DB.attendance=data;
-            if(tool==='contract')COMPLETE_DB.contract=data;
-            if(tool==='maternity')COMPLETE_DB.maternity=(data.employees||data).filter(e=>e.status);
-            cpLog(`${tool}: ${data.length} 筆 ✓`,'ok');
-          }
-        }catch(e){cpLog(`${tool}: ${e.message}`);}
-      }
-    }
-    if(prodUrl){
-      try{
-        const data=await pullTool(prodUrl,'sewing');
-        if(data.length){COMPLETE_DB.sewing=data;cpLog(`車縫: ${data.length} 筆 ✓`,'ok');}
-      }catch(e){cpLog(`車縫: ${e.message}`);}
-    }
-    console.log('att raw',COMPLETE_DB.attendance.slice(0,3));
-    console.log('sew raw',COMPLETE_DB.sewing.slice(0,3));
-    console.log('mat raw',COMPLETE_DB.maternity.slice(0,3));
-    rebuildNorm();renderAll();updateSrcKpi();
+    cpLog('📋 讀取各模組 localStorage 比對結果…');
+    const keys=Object.keys(CK);
+    keys.forEach(k=>{
+      const d=readCmp(CK[k]);
+      cpLog(k+': '+(d?'✅ '+(d.updatedAt?new Date(d.updatedAt).toLocaleTimeString():'-'):'⚠ 無資料'));
+    });
+    renderAll();
     setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');
-    toast('✅ 資料讀取完成');
+    toast('✅ 比對結果已讀取');
   }catch(e){
-    console.error('doLoad:',e);toast('❌ '+e.message);setST('');
+    console.error('doLoad:',e);toast('❌ '+e.message);
   }finally{
     if(document.getElementById('syncTip')?.textContent.includes('讀取中'))setST('');
   }
 }
 
-
-async function pullTool(gasUrl,tool){const mr=await fetch(`${gasUrl}?action=pull&tool=${tool}&meta=1`,{method:'GET',redirect:'follow'});const md=await mr.json();if(!md.ok||!md.data)return[];if(md.data.chunked){const tot=md.data.meta?.totalChunks||1;let all=[];for(let i=0;i<tot;i++){for(let t=0;t<3;t++){try{const cr=await fetch(`${gasUrl}?action=pull&tool=${tool}&chunk=${i}`,{method:'GET',redirect:'follow'});const cd=await cr.json();if(cd.ok){all=all.concat(cd.data.records||[]);break;}}catch(e){if(t===2)throw e;await new Promise(r=>setTimeout(r,2000));}}}return all;}const pay=md.data.data||md.data;if(pay.records)return pay.records;return[];}
-async function doSave(){const url=localStorage.getItem(LS.HRA_GAS)||'';if(!url){toast('請先設定 HRA GAS URL');return;}setST('☁ 推送…');try{const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'complete_push',tool:'complete',attDb:COMPLETE_DB.attendance,ts:new Date().toISOString()})});if(r.ok){toast('✅ 推送成功');setST('✓ 已推送','ok');}else toast('❌ 推送失敗：'+r.status);}catch(e){toast('❌ '+e.message);setST('');}}
-
-// ── REBUILD NORM ──
-function rebuildNorm(){
-  _normCache.clear();_unmatchedHard.clear();_unmatchedHist.clear();
-  _attNorm=[];_sewNorm=[];_joinNorm=[];_matByLine=new Map();
-
-  console.log('rebuildNorm: att='+COMPLETE_DB.attendance.length+' sew='+COMPLETE_DB.sewing.length);
-  if(COMPLETE_DB.attendance[0])console.log('sample att row',JSON.stringify(COMPLETE_DB.attendance[0]).slice(0,200));
-
-  // _attAll: ALL attendance records, field-mapped EXACTLY as attendance module uses them
-  // Field names: r.line, r.sect (NOT r.section or r.lineNo)
-  window._attAll=(COMPLETE_DB.attendance||[]).filter(r=>r.date&&!r.isGrand).map(r=>({
-    date:String(r.date).slice(0,10),
-    line:String(r.line||'').trim(),
-    sect:String(r.sect||'').trim(),
-    group:String(r.group||'').trim(),
-    m:+r.m||0, f:+r.f||0,
-    hc:(+r.m||0)+(+r.f||0)||+r.ttl||+r.hc||0,
-    att:+r.att||0, join:+r.join||0, resign:+r.resign||0, ml:+r.ml||0,
-    isSubtotal:!!r.isSubtotal, isGrand:!!r.isGrand
-  }));
-  console.log('_attAll='+window._attAll.length);
-  if(!window._attAll.length&&COMPLETE_DB.attendance.length>0){
-    setTimeout(()=>alert('資料已下載，但 normalization 過濾後為 0。\n請檢查 line parsing 是否與原模組一致。\n\nRaw: '+JSON.stringify(COMPLETE_DB.attendance[0]).slice(0,300)),100);
-  }
-
-  // _sewNorm: sewing data from IDB
-  for(const r of COMPLETE_DB.sewing||[]){
-    const raw=String(r.lineNo||r.line||'').trim();if(!raw||!r.date)continue;
-    const lid=normSCLine(raw);if(!isSCLine(lid))continue;
-    _sewNorm.push({date:String(r.date).slice(0,10),lineId:lid,lineRaw:raw,
-      workers:+r.workers||0,pieces:+r.pieces||0,eff:+r.efficiency||+r.eff||0});
-  }
-
-  // _joinNorm: onboarding join/resign events
-  for(const r of COMPLETE_DB.onboarding||[]){
-    const dept=String(r.dept||r.section||r.lineNo||'').trim();
-    if(r.joinDate||r.entryDate)_joinNorm.push({date:(r.joinDate||r.entryDate||'').slice(0,10),lineId:dept,type:'join',name:r.name||''});
-    if(r.resignDate||r.leaveDate)_joinNorm.push({date:(r.resignDate||r.leaveDate||'').slice(0,10),lineId:dept,type:'resign',name:r.name||''});
-  }
-
-  // _matByLine: maternity by dept (raw dept name, no LINE_XX invention)
-  for(const e of COMPLETE_DB.maternity||[]){
-    const dept=(e.dept||e.section||'').replace(/[/／].*/,'').trim();if(!dept)continue;
-    const key=normSCLine(dept);const mk=isSCLine(key)?key:dept.toUpperCase().slice(0,15);
-    if(!_matByLine.has(mk))_matByLine.set(mk,{preg:0,mat:0,ret:0});
-    const v=_matByLine.get(mk);
-    if(e.status==='pregnant')v.preg++;else if(e.status==='maternity')v.mat++;else if(e.status==='returned')v.ret++;
-  }
-
-  const total=_unmatchedHard.size+_unmatchedHist.size;
-  const umEl=document.getElementById('um-cnt');if(umEl){umEl.textContent=total;umEl.style.display=total?'':'none';}
-  rebuildPeriods();}
-
-// ── AGGREGATION ──
-function getAttStats(lineId,dates){const recs=lineId?_attNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_attNorm.filter(r=>dates.has(r.date));if(!recs.length)return{hc:0,att:0,join:0,resign:0,ml:0,matLeave:0,days:0};const byDate=new Map();for(const r of recs){if(!byDate.has(r.date))byDate.set(r.date,{hc:0,att:0,join:0,resign:0,ml:0});const v=byDate.get(r.date);v.hc+=r.hc;v.att+=r.att;v.join+=r.join;v.resign+=r.resign;v.ml+=r.ml;}const days=byDate.size;const vals=[...byDate.values()];return{hc:Math.round(vals.reduce((s,v)=>s+v.hc,0)/days),att:Math.round(vals.reduce((s,v)=>s+v.att,0)/days),join:vals.reduce((s,v)=>s+v.join,0),resign:vals.reduce((s,v)=>s+v.resign,0),ml:vals.reduce((s,v)=>s+(v.ml||0),0),matLeave:vals.reduce((s,v)=>s+(v.matLeave||v.ml||0),0),days};}
-function getSewStats(lineId,dates){const recs=lineId?_sewNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_sewNorm.filter(r=>dates.has(r.date));if(!recs.length)return{workers:0,pieces:0,eff:0,days:0};const byDate=new Map();for(const r of recs){if(!byDate.has(r.date))byDate.set(r.date,{workers:0,pieces:0,eff:0,cnt:0});const v=byDate.get(r.date);v.workers+=r.workers;v.pieces+=r.pieces;v.eff+=r.eff;v.cnt++;}const days=byDate.size;const vals=[...byDate.values()];return{workers:Math.round(vals.reduce((s,v)=>s+v.workers,0)/days),pieces:vals.reduce((s,v)=>s+v.pieces,0),eff:vals.length?(vals.reduce((s,v)=>s+v.eff,0)/vals.length).toFixed(1):0,days};}
-function getJoinStats(lineId,dates){const recs=lineId?_joinNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_joinNorm.filter(r=>dates.has(r.date));return{join:recs.filter(r=>r.type==='join').length,resign:recs.filter(r=>r.type==='resign').length};}
-function getMatStats(key){if(key)return _matByLine.get(key)||_matByLine.get(normSCLine(key))||{preg:0,mat:0,ret:0};let preg=0,mat=0,ret=0;_matByLine.forEach(v=>{preg+=v.preg;mat+=v.mat;ret+=v.ret;});return{preg,mat,ret};}
-function dc(diff,base){if(!base||base===0)return'na';const a=Math.abs(diff);return a<=1?'ok':a<=3?'warn':'bad';}
-function diffBadge(d){const s=d>=0?'+':'';const cls=d===0?'ok':Math.abs(d)<=3?'warn':'bad';return`<span class="badge ${cls}">${s}${d}</span>`;}
-
-// ── PERIOD SYSTEM ──
-const PS={as:{m:'day',idx:0,list:[]},ac:{m:'month',idx:0,list:[]},am:{m:'month',idx:0,list:[]},uni:{m:'month',idx:0,list:[]},recruit:{m:'month',idx:0,list:[]}};
-function pKey(date,mode){const d=String(date||'').slice(0,10);if(!d||d==='?')return null;if(mode==='day')return d;if(mode==='month')return d.slice(0,7);if(mode==='year')return d.slice(0,4);if(mode==='week'){const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return`${dt.getFullYear()}-W${String(w).padStart(2,'0')}`;}return d.slice(0,7);}
-function rebuildPeriods(){const allDates=[...new Set([..._attNorm.map(r=>r.date),..._sewNorm.map(r=>r.date),..._joinNorm.map(r=>r.date)].filter(Boolean))];for(const[pk,P]of Object.entries(PS)){const keys=[...new Set(allDates.map(d=>pKey(d,P.m)).filter(Boolean))].sort();P.list=keys;if(P.idx<0||P.idx>=keys.length)P.idx=Math.max(0,keys.length-1);}}
-function getDates(pk){const P=PS[pk],key=P.list[P.idx];if(!key)return new Set();return new Set([..._attNorm.map(r=>r.date),..._sewNorm.map(r=>r.date)].filter(d=>pKey(d,P.m)===key));}
-function curKey(pk){const P=PS[pk];return P.list[Math.max(0,Math.min(P.idx,P.list.length-1))]||null;}
-function pLabel(key,mode){if(!key)return'—';if(mode==='week'){const[y,w]=key.split('-W');return`${y} W${parseInt(w)}`;}if(mode==='month'){const[y,m]=key.split('-');const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(m)-1]||m;return`${y} ${mn}`;}return key;}
-function setPM(pk,m){PS[pk].m=m;rebuildPeriods();renderPk(pk);}
-function navP(pk,d){const P=PS[pk];P.idx=Math.max(0,Math.min(P.idx+d,P.list.length-1));renderPk(pk);}
-function jumpP(pk,key){const P=PS[pk],i=P.list.indexOf(key);if(i>=0){P.idx=i;renderPk(pk);}}
-function renderPk(pk){if(pk==='as')renderAS();else if(pk==='ac')renderAC();else if(pk==='am')renderAM();else if(pk==='uni')renderUnified();else if(pk==='recruit')renderRecruit();}
-
-// ── getAttLines: Attendance is MASTER ──
-function getAttLines(){const seen=new Set();const result=[];for(const r of _attNorm){if(!r.lineId||seen.has(r.lineId))continue;seen.add(r.lineId);result.push(r.lineId);}return result.sort((a,b)=>{const ma=a.match(/^LINE_(\d+)$/),mb=b.match(/^LINE_(\d+)$/);if(ma&&mb)return parseInt(ma[1])-parseInt(mb[1]);if(ma)return-1;if(mb)return 1;return 0;});}
-function getSewAttLines(){return getAttLines().filter(isSewingLine);}
-function getAllLines(){return[...new Set([..._attNorm.map(r=>r.lineId),..._sewNorm.map(r=>r.lineId)].filter(Boolean))].sort((a,b)=>{const na=parseInt(a.slice(5)||0),nb=parseInt(b.slice(5)||0);return na-nb||a.localeCompare(b);});}
-
-let VIEW='table';
-function pbarHtml(pk,extraSel=''){const P=PS[pk],cur=curKey(pk);const modes=['day','week','month','year'];const mLabels=[t('pDay'),t('pWeek'),t('pMonth'),t('pYear')];const opts=P.list.map(k=>`<option value="${k}"${k===cur?' selected':''}>${pLabel(k,P.m)}</option>`).join('');const lines=getAttLines();return`<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">${modes.map((m,i)=>`<button class="pt${P.m===m?' on':''}" onclick="setPM('${pk}','${m}')">${mLabels[i]}</button>`).join('')}<button class="pnav" onclick="navP('${pk}',-1)">◀</button><select class="psel" style="min-width:100px" onchange="jumpP('${pk}',this.value)">${opts||'<option>—</option>'}</select><button class="pnav" onclick="navP('${pk}',1)">▶</button><select class="psel" id="lf-${pk}" onchange="renderPk('${pk}')"><option value="">— LINE —</option>${lines.map(l=>`<option value="${l}">${displayLine(l)}</option>`).join('')}</select>${extraSel}<button class="hb" style="background:${VIEW==='card'?'var(--navy)':'transparent'};color:${VIEW==='card'?'#fff':'var(--gray)'};border-color:var(--brd);font-size:10px" onclick="VIEW=VIEW==='card'?'table':'card';renderAll()">${VIEW==='card'?'🃏':'📋'} ${t(VIEW==='card'?'card':'table')}</button></div>`;}
-function getLF(pk){return document.getElementById('lf-'+pk)?.value||'';}
-
-// ── RENDER UNIFIED BIG CARDS ──
-function renderUnifiedBigCards(dates){
-  const el=document.getElementById('big-cards');if(!el)return;
-  const allLines=getAttLines();
-  const sewLines=allLines.filter(isSewingLine);
-  const nonSewLines=allLines.filter(l=>!isSewingLine(l));
-  const aAll=getAttStats('',dates);
-  const sewA=sewLines.reduce((s,l)=>{const v=getAttStats(l,dates);return{hc:s.hc+v.hc,att:s.att+v.att,join:s.join+v.join,resign:s.resign+v.resign};},{hc:0,att:0,join:0,resign:0});
-  const sewS=sewLines.reduce((s,l)=>{const v=getSewStats(l,dates);return{workers:s.workers+v.workers,pieces:s.pieces+v.pieces};},{workers:0,pieces:0});
-  const sewDiff=sewA.hc-sewS.workers;
-  const matAll=getMatStats('');
-  const contTotal=COMPLETE_DB.contract?.length||0;
-  const probTotal=COMPLETE_DB.probation?.length||0;
-  const attRate=aAll.hc>0?(aAll.att/aAll.hc*100).toFixed(1)+'%':'—';
-  const CARDS=[
-    {icon:'👥',lbl:'考勤在職\nHeadcount',val:aAll.hc||'—',sub:`出勤 ${aAll.att} · 率 ${attRate}`,border:'var(--navy)'},
-    {icon:'🧵',lbl:'車縫在職\nSewing HC',val:sewA.hc||'—',sub:`系統 ${sewS.workers} · 差 ${sewDiff>=0?'+':''}${sewDiff}`,border:Math.abs(sewDiff)<=3?'var(--green)':'var(--red)'},
-    {icon:'🟢',lbl:'新進/離職\nJoin/Resign',val:`+${aAll.join}`,sub:`離職 -${aAll.resign}`,border:'#10b981'},
-    {icon:'🤰',lbl:'孕婦/產假\nPreg/Mat',val:(matAll.preg+matAll.mat)||'—',sub:`🤰${matAll.preg} 🍼${matAll.mat} ✅${matAll.ret}`,border:'#ec4899'},
-    {icon:'📋',lbl:'合約/試用\nContract',val:contTotal||'—',sub:`試用期 ${probTotal}`,border:'var(--blue)'},
-    {icon:'📊',lbl:'車縫線數\nSewing Lines',val:sewLines.length,sub:`非車縫 ${nonSewLines.length} 組`,border:'var(--pu)'},
-  ];
-  el.innerHTML=CARDS.map(c=>`<div class="bc" style="border-left-color:${c.border}">
-    <div class="bc-icon">${c.icon}</div>
-    <div class="bc-val">${c.val}</div>
-    <div class="bc-lbl" style="white-space:pre-line">${c.lbl}</div>
-    <div class="bc-sub">${c.sub}</div>
-  </div>`).join('');}
-
-// ── RENDER UNIFIED ──
-function renderUnified(){try{
-  document.getElementById('pbar-uni').innerHTML=pbarHtml('uni');
-  const dates=getDates('uni'),lf=getLF('uni');
-  const lines=getAttLines().filter(l=>!lf||l===lf);
-  // Big summary cards
-  renderUnifiedBigCards(dates);
-  // Small KPI
-  const aAll=getAttStats(lf,dates);const sAll=getSewStats(lf,dates);const mAll=getMatStats(lf);
-  const diff=aAll.hc-sAll.workers;const diffCls=dc(diff,aAll.hc);
-  document.getElementById('kpi-unified').innerHTML=[
-    {l:'考勤在職(均)',v:aAll.hc||'—',s:`${aAll.days}天`,c:'nv'},
-    {l:'車縫工人(均)',v:sAll.workers||'—',s:`${sAll.days}天`,c:'tl'},
-    {l:'考勤-車縫差',v:aAll.hc&&sAll.workers?(diff>=0?'+':'')+diff:'—',s:diffCls==='ok'?'✓ 吻合':diffCls==='warn'?'⚠ 略差':'✗ 差異',c:diffCls==='ok'?'gn':diffCls==='warn'?'gd':'rd'},
-    {l:'孕婦/產假',v:(mAll.preg+mAll.mat)||'—',s:`🤰${mAll.preg} 🍼${mAll.mat}`,c:'pu'},
-    {l:'合約/試用',v:COMPLETE_DB.contract?.length?`${COMPLETE_DB.contract.length}/${COMPLETE_DB.probation?.length||0}`:'—',s:'',c:'gd'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');
-  // Table — Attendance order
-  const contByLine=new Map(),probByLine=new Map();
-  (COMPLETE_DB.contract||[]).forEach(r=>{const lid=normalizeLineName(r.section||'')||normalizeLineName(r.dept||'');if(!lid)return;contByLine.set(lid,(contByLine.get(lid)||0)+1);});
-  (COMPLETE_DB.probation||[]).forEach(r=>{const lid=normalizeLineName(r.section||r.dept||'')||'?';probByLine.set(lid,(probByLine.get(lid)||0)+1);});
-  const tbody=lines.map(line=>{
-    const a=getAttStats(line,dates),m=getMatStats(line);
-    const sewW=isSewingLine(line)?getSewStats(line,dates).workers:null;
-    const df=(a.hc&&sewW!=null)?a.hc-sewW:null;
-    const dcl=df!=null?dc(df,a.hc):'na';
-    return`<tr>
-      <td><b>${displayLine(line)}</b>${isSewingLine(line)?'':' <span style="font-size:9px;color:var(--gray)">[非車縫]</span>'}</td>
-      <td class="center">${a.hc||'—'}</td>
-      <td class="center">${sewW!=null?sewW:'—'}</td>
-      <td class="center dc ${dcl}">${df!=null?(df>=0?'+':'')+df:'—'}</td>
-      <td class="center">${a.join||'—'}</td>
-      <td class="center">${a.resign||'—'}</td>
-      <td class="center">${m.preg||'—'}</td>
-      <td class="center">${m.mat||'—'}</td>
-      <td class="center">${contByLine.get(line)||'—'}</td>
-      <td class="center">${probByLine.get(line)||'—'}</td>
-    </tr>`;
-  }).join('');
-  document.getElementById('unified-tbody').innerHTML=tbody||'<tr><td colspan="10" style="color:var(--gray);text-align:center;padding:20px">無資料 — 請先讀取或匯入考勤</td></tr>';}catch(e){console.error('renderUnified:',e);}}
-
-// ── RENDER AS: Sewing lines ONLY ──
-function renderAS(){
+async function doSave(){
+  const url=localStorage.getItem(LS_HRA_GAS)||'';
+  if(!url){toast('請先設定 HRA GAS URL');return;}
+  setST('☁ 推送…');
   try{
-  document.getElementById('pbar-as').innerHTML=pbarHtml('as');
-  const P=PS.as,key=curKey('as'),lf=getLF('as');
-
-  // ── Migrate EXACT isSewingLine from attendance module (not rebuilt) ──
-  const _isSewAtt=r=>{
-    if(!r||r.isSubtotal||r.isGrand)return false;
-    const line=(r.line||'').trim();
-    const sect=(r.sect||'');
-    const ttl=(r.m||0)+(r.f||0);
-    if(ttl<1)return false;
-    const lineLo=line.toLowerCase(),sectLo=sect.toLowerCase();
-    if(/cutting|裁剪|qc\b|品管|quality.control|packing|包裝|成品|finishing|warehouse|倉庫|mechanic|機修|sample|樣品|marker|馬克|supervisor|組長|班長|line.leader|team.leader|leader|inspector|檢驗|pc\b|生管|ie\b|admin|行政|hr\b|ga\b|electrician|工務|others|其它|其他|cutter/i.test(lineLo))return false;
-    if(/cutting|裁剪|qc\b|packing|包裝|warehouse|倉庫|mechanic|機修|sample|樣品|marker|品管/i.test(sectLo))return false;
-    if(/garment\s+(line\s*)?[a-z]?\d+/i.test(lineLo))return true;
-    if(/^apron\s+[a-z]\d+/i.test(lineLo))return true;
-    if(/^(成衣|圍裙)\s*\d+\s*組/.test(line))return true;
-    if(/^line\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
-    if(/^l\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
-    if(/sewing|garment|apron|車縫|成衣|圍裙/i.test(sectLo)&&/\d/.test(line))return true;
-    return false;
-  };
-
-  const inP=d=>{
-    if(!d)return false;const ds=String(d).slice(0,10);
-    if(P.m==='day')return ds===key;
-    if(P.m==='month')return ds.slice(0,7)===key;
-    if(P.m==='year')return ds.slice(0,4)===key;
-    return true;
-  };
-
-  // attMap — exact same logic as attendance renderSewCmp
-  const attMap={};
-  (window._attAll||[]).forEach(r=>{
-    if(!inP(r.date)||r.isSubtotal||r.isGrand)return;
-    if(!_isSewAtt(r))return;
-    const rawFull=r.line;
-    const raw=rawFull.replace(/[/／].*/,'').trim();if(!raw)return;
-    let lid=normSCLine(raw);
-    if(!isSCLine(lid)){const digits=raw.replace(/[^\d]/g,'');if(digits){const num=+digits.slice(-2);if(num>=1&&num<=MAX_SEWING_LINE)lid='LINE'+num;}}
-    if(!isSCLine(lid))return;
-    if(lf&&lid!==lf)return;
-    if(!attMap[lid])attMap[lid]={hcSum:0,days:new Set()};
-    const mf=r.m+r.f;
-    attMap[lid].hcSum+=mf>0?mf:(r.att||0);
-    attMap[lid].days.add(r.date);
-  });
-
-  // sewMap — same as attendance renderSewCmp
-  const sewMap={};
-  _sewNorm.filter(r=>inP(r.date)&&(!lf||r.lineId===lf)).forEach(r=>{
-    if(!sewMap[r.lineId])sewMap[r.lineId]={wSum:0,days:new Set(),pcs:0};
-    if(r.workers>0){sewMap[r.lineId].wSum+=r.workers;sewMap[r.lineId].days.add(r.date);}
-    sewMap[r.lineId].pcs+=r.pieces;
-  });
-
-  // Averages
-  const attLineHC={},sewLineW={};
-  Object.entries(attMap).forEach(([lid,v])=>attLineHC[lid]=Math.round(v.hcSum/(v.days.size||1)));
-  Object.entries(sewMap).forEach(([lid,v])=>sewLineW[lid]=Math.round(v.wSum/(v.days.size||1)));
-
-  const attTotal=Object.values(attLineHC).reduce((s,v)=>s+v,0);
-  const sewTotal=Object.values(sewLineW).reduce((s,v)=>s+v,0);
-  const diff=attTotal-sewTotal;
-  const match=attTotal>0?(sewTotal/attTotal*100).toFixed(1)+'%':'—';
-
-  console.log('[renderAS] key='+key+' att='+attTotal+' sew='+sewTotal+' attLines='+Object.keys(attLineHC)+' attRaws=',window._attAll.slice(0,2));
-
-  document.getElementById('kpi-as').innerHTML=[
-    {l:'考勤車工(均)',v:attTotal||'—',c:'nv'},
-    {l:'車縫系統(均)',v:sewTotal||'—',c:'tl'},
-    {l:'差異',v:(diff>=0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<10?'gd':'rd'},
-    {l:'差%',v:match,c:'pu'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-
-  // Lines: attendance master
-  const allLines=[...new Set([...Object.keys(attLineHC),...Object.keys(sewLineW)])].filter(isSCLine)
-    .sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''));
-
-  const rowsHtml=allLines.map(lid=>{
-    const aHC=attLineHC[lid]||0,sHC=sewLineW[lid]||0;
-    const d2=aHC-sHC,m2=aHC>0?(sHC/aHC*100).toFixed(1)+'%':'—';
-    const pcs=sewMap[lid]?.pcs||0;
-    const dcol=d2===0?'color:#1a6e5c':Math.abs(d2)<3?'color:#f59e0b':'color:#ef4444';
-    return`<tr><td style="font-weight:700">${lid}</td>
-      <td style="text-align:right;font-weight:600">${aHC||'—'}</td>
-      <td style="text-align:right;color:#0ea5e9;font-weight:600">${sHC||'—'}</td>
-      <td style="text-align:right;font-weight:700;${dcol}">${(aHC&&sHC)?(d2>=0?'+':'')+d2:'—'}</td>
-      <td style="text-align:right">${(aHC&&sHC&&sHC>0)?m2:'—'}</td>
-      <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
-    </tr>`;
-  }).join('');
-
-  document.getElementById('as-content').innerHTML=`<div class="utable">
-    <table><thead><tr style="background:#1a6e5c;color:#fff">
-      <th>LINE</th><th style="text-align:right">出勤HC<br>Att HC</th>
-      <th style="text-align:right">車縫HC<br>Sewing</th>
-      <th style="text-align:right">差異<br>Diff</th>
-      <th style="text-align:right">匹配%</th>
-      <th style="text-align:right">產量</th>
-    </tr></thead>
-    <tbody>${rowsHtml||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#aaa">無資料 — 請先讀取考勤/車縫</td></tr>'}</tbody>
-  </table></div>`;
-  }catch(e){console.error('renderAS:',e);}
+    const payload={action:'complete_push',tool:'complete',ts:new Date().toISOString(),
+      attSew:readCmp(CK.attSew),matcmp:readCmp(CK.matcmp),recruit:readCmp(CK.recruit)};
+    const r=await fetch(url,{method:'POST',redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    if(r.ok){toast('✅ 推送成功');setST('✓','ok');}else toast('❌ 推送失敗：'+r.status);
+  }catch(e){toast('❌ '+e.message);}finally{setST('');}
 }
 
-function renderAC(){try{
-  document.getElementById('pbar-ac').innerHTML=pbarHtml('ac');
-  const P=PS.ac, key=curKey('ac'), lf=getLF('ac');
-  function inP(d){if(!d)return false;const ds=String(d).slice(0,10);if(P.m==='day')return ds===key;if(P.m==='month')return ds.slice(0,7)===key;if(P.m==='year')return ds.slice(0,4)===key;return true;}
-  
-  // Attendance join/resign (from _attAll which includes ALL depts, not just sewing)
-  const attAll=window._attAll||[];
-  let attJoin=0,attResign=0;
-  const attDeptMap={};
-  attAll.filter(r=>inP(r.date)&&(!lf||normSCLine(r.line.replace(/[/\uFF0F].*/,''))===lf)).forEach(r=>{
-    attJoin+=r.join;attResign+=r.resign;
-    const dept=r.line.replace(/[/\uFF0F].*/,'').trim()||'?';
-    if(!attDeptMap[dept])attDeptMap[dept]={join:0,resign:0,hc:0,cnt:0};
-    attDeptMap[dept].join+=r.join;attDeptMap[dept].resign+=r.resign;attDeptMap[dept].hc+=r.hc;attDeptMap[dept].cnt++;
-  });
-  
-  // HR side: onboarding joins/resigns
-  const hrJoins=(COMPLETE_DB.onboarding||[]).filter(r=>(r.type==='join'||r.joinDate)&&inP(r.joinDate||r.date));
-  const hrResigns=(COMPLETE_DB.onboarding||[]).filter(r=>(r.type==='resign'||r.resignDate)&&inP(r.resignDate||r.date));
-  const hrJoin=hrJoins.length, hrResign=hrResigns.length;
-  const jDiff=attJoin-hrJoin, rDiff=attResign-hrResign;
-  
-  document.getElementById('kpi-ac').innerHTML=[
-    {l:'出勤 新進',v:attJoin,c:'nv'},{l:'HR 新進',v:hrJoin||'—',c:'tl'},
-    {l:'新進差異',v:(jDiff>=0?'+':'')+jDiff,c:jDiff===0?'gn':Math.abs(jDiff)<=3?'gd':'rd'},
-    {l:'出勤 離職',v:attResign,c:'rd'},{l:'HR 離職',v:hrResign||'—',c:'gd'},
-    {l:'離職差異',v:(rDiff>=0?'+':'')+rDiff,c:'pu'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-  document.getElementById('kpi-ac').style.gridTemplateColumns='repeat(3,1fr)';
-  
-  const depts=Object.keys(attDeptMap).sort();
-  const html=`<div class="utable"><table><thead><tr>
-    <th>部門/LINE</th><th class="center">均在職</th><th class="center">考勤 新進</th>
-    <th class="center">考勤 離職</th><th class="center">入/離比</th>
-  </tr></thead><tbody>${
-    depts.map(dept=>{const v=attDeptMap[dept];const avgHC=v.cnt?Math.round(v.hc/v.cnt):0;const rat=v.join>0?(v.resign/v.join*100).toFixed(1)+'%':'—';
-      return`<tr><td><b>${dept}</b></td><td class="center">${avgHC}</td><td class="center">${v.join}</td><td class="center">${v.resign}</td><td class="center">${rat}</td></tr>`;}).join('')||'<tr><td colspan="5" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'
-  }</tbody></table></div>`;
-  document.getElementById('ac-content').innerHTML=html;
-}catch(e){console.error('renderAC:',e);}}
-
-// ── RENDER AM ──
-function renderAM(){try{
-  document.getElementById('pbar-am').innerHTML=pbarHtml('am');
-  const dates=getDates('am'),lf=getLF('am');
-  const a=getAttStats(lf,dates),mAll=getMatStats(lf);
-  document.getElementById('kpi-am').innerHTML=[
-    {l:'孕婦',v:mAll.preg||'—',c:'pu'},
-    {l:'產假中',v:mAll.mat||'—',c:'rd'},
-    {l:'考勤 ML假',v:a.matLeave||a.ml||'—',c:'gd'},
-  ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-  const lines=[...new Set([...(window._attAll||[]).map(r=>r.line.replace(/[/\uFF0F].*/,'').trim()),
-    ..._matByLine.keys()])].filter(Boolean).sort();
-  const html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">均在職</th><th class="center">🤰孕婦</th><th class="center">🍼產假</th><th class="center">✅復工</th><th class="center">ML假</th><th class="center">差異</th></tr></thead><tbody>
-  ${lines.map(line=>{const a2=getAttStats(line,dates),m=getMatStats(line);if(!a2.hc&&!m.preg&&!m.mat)return'';const diff2=a2.ml-(m.preg+m.mat);return`<tr><td><b>${displayLine(line)}</b></td><td class="center">${a2.hc||'—'}</td><td class="center">${m.preg}</td><td class="center">${m.mat}</td><td class="center">${m.ret}</td><td class="center">${a2.ml}</td><td class="center dc ${dc(diff2,m.preg+m.mat||1)}">${diffBadge(diff2)}</td></tr>`;}).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
-  document.getElementById('am-content').innerHTML=html;}catch(e){console.error('renderAM:',e);}}
-
-
-// ── RENDER RECRUIT: Onboarding vs Manpower Recruit ──────────────────
-function renderRecruit(){
-  try{
-    document.getElementById('pbar-rc').innerHTML=pbarHtml('recruit')||'';
-    loadManpowerLS(); // ensure fresh data
-    
-    const reqs=COMPLETE_DB.manpowerReqs||[];
-    const recruit=COMPLETE_DB.manpowerRecruit||[];
-    const obJoins=COMPLETE_DB.onboarding.filter(r=>r.type==='join'||(r.joinDate&&!r.resignDate));
-    
-    const rcJoined=recruit.filter(r=>r.result==='join');
-    
-    // Build dept maps
-    const rcMap={}, obMap={};
-    rcJoined.forEach(r=>{
-      const d=(r.dept||r.section||'—').split(/[\/／]/)[0].trim();
-      rcMap[d]=(rcMap[d]||0)+1;
-    });
-    obJoins.forEach(r=>{
-      const d=(r.dept||r.section||'—').split(/[\/／]/)[0].trim();
-      obMap[d]=(obMap[d]||0)+1;
-    });
-    
-    const allDepts=[...new Set([...Object.keys(rcMap),...Object.keys(obMap)])].sort();
-    const rcTotal=rcJoined.length, obTotal=obJoins.length;
-    const diff=rcTotal-obTotal;
-    const sewCount=rcJoined.filter(r=>{
-      const raw=String(r.section||r.dept||r.position||'');
-      return /sewing|^l\d+$|^line\s*\d+/i.test(raw)||/^LINE_?\d+$/.test(normalizeLineName(raw)||'');
-    }).length;
-    const convRate=rcTotal>0?Math.round(rcTotal/Math.max(reqs.reduce((s,r)=>s+(+r.required||0),0)||1,1)*100):0;
-    
-    // KPIs
-    document.getElementById('kpi-rc').innerHTML=[
-      {l:'招募總數',v:rcTotal,c:'nv'},
-      {l:'Onboarding 入職',v:obTotal,c:'tl'},
-      {l:'差異 Diff',v:(diff>0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<=5?'gd':'rd'},
-      {l:'Sewing 招募🔵',v:sewCount,c:'pu'},
-    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-    
-    // Table A: Join compare by dept
-    const tdS='padding:5px 8px;border-bottom:1px solid var(--brd)';
-    const joinTb=document.getElementById('rc-join-tbody');
-    if(joinTb)joinTb.innerHTML=allDepts.map(d=>{
-      const rc=rcMap[d]||0, ob=obMap[d]||0, dif=rc-ob;
-      const dCls=dif===0?'gn':dif>0?'gd':'rd';
-      return`<tr><td style="${tdS};font-weight:600">${d}</td>
-        <td class="center" style="${tdS}">${rc||'—'}</td>
-        <td class="center" style="${tdS}">${ob||'—'}</td>
-        <td class="center" style="${tdS}"><span class="badge ${dCls}">${dif===0?'✓':(dif>0?'+':'')+dif}</span></td></tr>`;
-    }).join('')+`<tr style="background:var(--bg3);font-weight:700">
-      <td style="${tdS}">TOTAL</td>
-      <td class="center" style="${tdS}">${rcTotal}</td>
-      <td class="center" style="${tdS}">${obTotal}</td>
-      <td class="center" style="${tdS}"><span class="badge ${diff===0?'gn':'rd'}">${diff===0?'✓':(diff>0?'+':'')+diff}</span></td>
-    </tr>` || '<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--gray)">無招募資料</td></tr>';
-    
-    // Table B: Missing in onboarding
-    const obIds=new Set(obJoins.map(r=>String(r.empId||r.idNo||'').trim()).filter(Boolean));
-    const missing=rcJoined.filter(r=>r.empId&&!obIds.has(String(r.empId).trim()));
-    const missTb=document.getElementById('rc-miss-tbody');
-    if(missTb)missTb.innerHTML=missing.length?missing.map((r,i)=>
-      `<tr><td style="${tdS}">${i+1}</td>
-        <td style="${tdS};font-family:monospace">${r.empId||'—'}</td>
-        <td style="${tdS};font-weight:600">${r.name||'—'}</td>
-        <td style="${tdS}">${r.dept||'—'}</td>
-        <td style="${tdS};font-family:monospace">${r.joinDate||r.date||'—'}</td></tr>`
-    ).join(''):'<tr><td colspan="5" style="text-align:center;padding:16px;color:var(--gray)">✅ 全員均已在 Onboarding 記錄</td></tr>';
-    
-  }catch(e){console.error('renderRecruit:',e);}
+// ══ SETTINGS / ALIASES ════════════════════════════════════════
+function loadCfg(){
+  const hraEl=document.getElementById('hraUrl');
+  const prodEl=document.getElementById('prodUrl');
+  if(hraEl)hraEl.value=localStorage.getItem(LS_HRA_GAS)||'';
+  if(prodEl)prodEl.value=localStorage.getItem(LS_PROD_GAS)||'';
+}
+function saveUrl(type){
+  const v=document.getElementById(type==='hra'?'hraUrl':'prodUrl')?.value?.trim()||'';
+  localStorage.setItem(type==='hra'?LS_HRA_GAS:LS_PROD_GAS,v);
+  toast('✅ URL 已儲存');setST('✓','ok');
 }
 
-// ── UNMATCHED ──
-function renderUnmatched(){const hb=document.getElementById('um-hard-body'),hib=document.getElementById('um-hist-body');if(hb)hb.innerHTML=_unmatchedHard.size?[..._unmatchedHard].map(s=>`<span class="badge bad" style="margin:2px">${s}</span>`).join(''):'<span style="color:var(--gray);font-size:11px">無</span>';if(hib)hib.innerHTML=_unmatchedHist.size?[..._unmatchedHist].map(s=>`<span class="badge warn" style="margin:2px">⚠ ${s}</span>`).join(''):'<span style="color:var(--gray);font-size:11px">無</span>';}
-
-// ── SRC KPI ──
-function updateSrcKpi(){const el=document.getElementById('src-kpi');if(!el)return;el.innerHTML=[{l:'考勤(原始)',v:COMPLETE_DB.attendance.length,s:'→ 正規化: '+_attNorm.length,c:'nv'},{l:'車縫',v:COMPLETE_DB.sewing.length,s:'→ 正規化: '+_sewNorm.length,c:'tl'},{l:'合約/試用',v:(COMPLETE_DB.contract?.length||0)+'/'+(COMPLETE_DB.probation?.length||0),s:'Contract+Prob',c:'gd'},{l:'孕假',v:COMPLETE_DB.maternity.length,s:'→ 已匹配: '+_matByLine.size,c:'pu'}].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div><div class="ks2">${k.s}</div></div>`).join('');}
-
-// ── ATT IMPORT ──
-function dropAtt(ev){ev.preventDefault();document.getElementById('attUz').classList.remove('drag');importAtt({target:{files:ev.dataTransfer.files}});}
-async function importAtt(evt){const files=[...evt.target.files];if(!files.length)return;let added=0;document.getElementById('attLog').textContent='解析中…';for(const f of files){try{const buf=await f.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});const recs=parseAttWb(wb);mergeAtt(recs);added+=recs.length;}catch(e){cpLog('匯入失敗: '+e.message);}}saveAttLS();rebuildNorm();renderAll();updateSrcKpi();const msg=`✅ 匯入 ${added} 筆`;document.getElementById('attLog').textContent=msg;toast(msg);evt.target.value='';}
-function parseAttWb(wb){const ym={};wb.SheetNames.forEach(sn=>{const m=guessYM(wb.Sheets[sn]);if(m)ym[m]=(ym[m]||0)+1;});let consensusYM=null,maxV=0;Object.entries(ym).forEach(([k,v])=>{if(v>maxV&&+k.slice(0,4)>=2020){consensusYM=k;maxV=v;}});const recs=[];wb.SheetNames.forEach(sn=>{if(!/^\d+$/.test(sn.trim()))return;const day=parseInt(sn.trim(),10);if(day<1||day>31)return;let ym2=guessYM(wb.Sheets[sn]);if(ym2&&consensusYM&&ym2!==consensusYM)ym2=consensusYM;if(!ym2)ym2=consensusYM;if(!ym2)return;const dateStr=`${ym2}-${String(day).padStart(2,'0')}`;if(isNaN(new Date(dateStr)))return;XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:true}).forEach(row=>{for(let c=0;c<Math.min(row.length,12);c++){const cell=String(row[c]||'').trim();if(!cell||!/[A-Za-z].*\d|^\d.*[A-Za-z]/i.test(cell))continue;if(/grand|total|ttl|sum|all|avg/i.test(cell))continue;const nexts=row.slice(c+1,c+10).map(v=>parseFloat(v)||0);const hc=nexts[0]||0;if(hc<1||hc>2000)continue;recs.push({id:`a_${dateStr}_${cell}_${Math.random().toString(36).slice(2,5)}`,date:dateStr,lineNo:cell,m:0,f:0,ttl:hc,att:nexts[1]||hc,join:nexts[2]||0,resign:nexts[3]||0,ml:nexts[4]||0,al:0,pl:0,sl:0,np:0});break;}});});return recs;}
-function guessYM(ws){for(let r=0;r<6;r++)for(let c=0;c<30;c++){const a=XLSX.utils.encode_cell({r,c}),cell=ws[a];if(!cell)continue;if(!/^date:?$/i.test(String(cell.v||'').trim()))continue;const nc=ws[XLSX.utils.encode_cell({r,c:c+1})];if(!nc)continue;let d=null;if(nc.v instanceof Date)d=nc.v;else if(typeof nc.v==='number'&&nc.v>40000)d=new Date(Math.round((nc.v-25568)*86400000));if(d&&!isNaN(d)&&d.getFullYear()>=2020)return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}return null;}
-function mergeAtt(recs){const ex=new Set(COMPLETE_DB.attendance.map(r=>r.date+'_'+(r.lineNo||r.group||'')));recs.forEach(r=>{if(!ex.has(r.date+'_'+r.lineNo))COMPLETE_DB.attendance.push(r);});}
-function saveAttLS(){try{localStorage.setItem(LS.ATT,JSON.stringify(COMPLETE_DB.attendance));}catch(e){}}
-
-// ── EXPORT ──
-function exportJS(){const b=new Blob([JSON.stringify({attDb:COMPLETE_DB.attendance,aliases:window.LINE_ALIAS,ver:5},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='VRT_Complete_'+new Date().toISOString().slice(0,10)+'.json';a.click();toast('✅ 已匯出');}
-function restoreJS(evt){const f=evt.target.files[0];if(!f)return;const rdr=new FileReader();rdr.onload=e=>{try{const d=JSON.parse(e.target.result);if(d.attDb){COMPLETE_DB.attendance=d.attDb;saveAttLS();}if(d.aliases){window.LINE_ALIAS=d.aliases;localStorage.setItem(LS.ALIAS,JSON.stringify(d.aliases));}rebuildNorm();renderAll();toast('✅ 還原完成');}catch(ex){toast('❌ '+ex.message);}};rdr.readAsText(f);evt.target.value='';}
-function clearAtt(){if(!confirm(`確定清除 ${COMPLETE_DB.attendance.length} 筆考勤？`))return;COMPLETE_DB.attendance=[];saveAttLS();rebuildNorm();renderAll();toast('✅ 已清除');}
-
-// ── GAS ──
-function saveUrl(t2){const v=document.getElementById(t2==='hra'?'hraUrl':'prodUrl').value.trim();if(v){localStorage.setItem(t2==='hra'?LS.HRA_GAS:LS.PROD_GAS,v);toast('✅ '+t2+' GAS URL 已儲存');}}
-async function testUrl(t2){const v=localStorage.getItem(t2==='hra'?LS.HRA_GAS:LS.PROD_GAS)||'';if(!v){toast('未設定 URL');return;}try{const r=await fetch(v+'?action=heartbeat',{method:'GET',redirect:'follow'});const d=await r.json();toast('✅ 連線正常: '+JSON.stringify(d).slice(0,40));}catch(e){toast('❌ '+e.message);}}
-function toggleCP(){document.getElementById('cpanel').classList.toggle('open');}
-function setST(msg,cls){const el=document.getElementById('syncTip');el.textContent=msg;el.className='sync'+(cls?' '+cls:'');}
-function cpLog(msg,cls){const el=document.getElementById('cplog');const d=document.createElement('div');d.textContent='['+new Date().toLocaleTimeString()+']: '+msg;if(cls==='ok')d.style.color='#16a34a';el.appendChild(d);el.scrollTop=el.scrollHeight;}
-
-// ── i18n ──
-const I18N={zh:{navAS:'出勤×車縫',navAC:'出勤×入離職',navAM:'出勤×孕假',navUni:'整合總表',navUm:'未匹配',navCfg:'設定',pDay:'日',pWeek:'週',pMonth:'月',pYear:'年',card:'卡片',table:'表格'},en:{navAS:'Att×Sewing',navAC:'Att×Onboard',navAM:'Att×Maternity',navUni:'Unified Table',navUm:'Unmatched',navCfg:'Settings',pDay:'Day',pWeek:'Week',pMonth:'Month',pYear:'Year',card:'Card',table:'Table'}};
+// i18n (minimal)
+const I18N={zh:{},en:{}};
 let LANG='zh';
-const t=k=>I18N[LANG][k]||I18N.zh[k]||k;
-function setL(l){LANG=l;document.getElementById('btn-zh').classList.toggle('on',l==='zh');document.getElementById('btn-en').classList.toggle('on',l==='en');document.querySelectorAll('[data-i]').forEach(el=>{const k=el.dataset.i;if(I18N[l][k])el.textContent=I18N[l][k];});renderAll();}
-
-// ── TABS ──
-function switchTab(t2){
-  document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t2));
-  document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t2));
-  try{
-    if(t2==='as')renderAS();
-    else if(t2==='ac')renderAC();
-    else if(t2==='am')renderAM();
-    else if(t2==='unified')renderUnified();
-    else if(t2==='recruit')renderRecruit();
-    else if(t2==='cfg'){renderAliasTable();updateSrcKpi();}
-    else if(t2==='unmatched')renderUnmatched();
-  }catch(e){console.error('switchTab '+t2+':',e);}
-}
-document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
-
-function renderAll(){
-  // Re-render current active pane without resetting navigation
-  const activePk=document.querySelector('.tab.on')?.dataset?.t||'unified';
-  if(activePk==='recruit'){try{renderRecruit();}catch(e){console.error(e);}}
-  else if(activePk==='cfg'){loadAliases();}
-  else{try{renderPk(activePk);}catch(e){console.error(e);}}
-  try{renderUnmatched();}catch(e){}
-  updateSrcKpi();
-}
-function toast(msg){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),3200);}
-
-// ── INIT ──
-(async()=>{
-  loadAliases();
-  loadAttLS();loadSewLS();loadMatLS();loadOnboardLS();
-  const attIDB=await readIDB(IDB_CFG.att);if(attIDB.length>COMPLETE_DB.attendance.length)COMPLETE_DB.attendance=attIDB;
-  const sewIDB=await readIDB(IDB_CFG.sew);if(sewIDB.length>COMPLETE_DB.sewing.length)COMPLETE_DB.sewing=sewIDB;
-  const contIDB=await readIDB(IDB_CFG.cont);let contLS=[];try{contLS=JSON.parse(localStorage.getItem('vrt_dashConts')||'[]');}catch(e){}COMPLETE_DB.contract=contIDB.length?contIDB:contLS;
-  const probIDB=await readIDB(IDB_CFG.prob);let probLS=[];try{probLS=JSON.parse(localStorage.getItem('vrt_dashProbs')||'[]');}catch(e){}COMPLETE_DB.probation=probIDB.length?probIDB:probLS;
-  const hu=localStorage.getItem(LS.HRA_GAS)||'';const pu=localStorage.getItem(LS.PROD_GAS)||'';
-  if(document.getElementById('hraUrl'))document.getElementById('hraUrl').value=hu;
-  if(document.getElementById('prodUrl'))document.getElementById('prodUrl').value=pu;
-  rebuildNorm();renderAll();updateSrcKpi();
-  if(hu||pu)setTimeout(()=>doLoad().catch(()=>{}),1500);
-})();
+function setL(l){LANG=l;document.getElementById('btn-zh')?.classList.toggle('on',l==='zh');document.getElementById('btn-en')?.classList.toggle('on',l==='en');}
 </script>
 </body>
 </html>
