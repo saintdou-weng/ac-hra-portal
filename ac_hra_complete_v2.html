@@ -286,258 +286,378 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 
 <script>
 'use strict';
+// ══ COMPLETE v3 — Integration Hub ══════════════════════════
+// READS from each module's localStorage. NO rebuilding analysis.
 
-// ══ STORAGE KEYS — each source module writes here ══════════════
-const CK = {
-  attSew:  'ac_complete_att_sewcmp',       // attendance renderSewCmp
-  onboard: 'ac_complete_onboard_compare',  // onboarding compare tab
-  matcmp:  'ac_complete_maternity_compare',// maternity renderCompare
-  recruit: 'ac_complete_recruit_compare',  // manpower renderCompare
+const CK={
+  attSew:  'ac_complete_att_sewcmp',
+  onboard: 'ac_complete_onboard_compare',
+  matcmp:  'ac_complete_maternity_compare',
+  recruit: 'ac_complete_recruit_compare',
+};
+const RAW={
+  att:     'vrt_att_v5_db',
+  joins:   'ac_hra_joins',
+  resigns: 'ac_hra_resigns',
+  conts:   'vrt_dashConts',
+  probs:   'vrt_dashProbs',
+  mat:     'vrt_mat_data',
+  recruit: 'ac_hra_manpower_recruit',
+};
+const GAS_HRA='vrt_att_cloud_v1_url', GAS_PROD='vrt_portal_gas_url';
+
+// ── Safe JSON reads ─────────────────────────────────────────
+function readLS(key){try{const v=localStorage.getItem(key);return v?JSON.parse(v):null;}catch(e){return null;}}
+function readArr(key){const v=readLS(key);return Array.isArray(v)?v:(v?.employees||v?.records||[]);}
+function readCmp(key){return readLS(key);}
+
+// ══ PERIOD STATE — each tab has its own independent state ═══
+const STATES={
+  'pbar-uni':{mode:'all',pivot:new Date(),periods:[]},
+  'pbar-as': {mode:'all',pivot:new Date(),periods:[]},
+  'pbar-ac': {mode:'all',pivot:new Date(),periods:[]},
+  'pbar-am': {mode:'all',pivot:new Date(),periods:[]},
+  'pbar-rc': {mode:'all',pivot:new Date(),periods:[]},
+};
+const FN_MAP={
+  'pbar-uni':'renderUnified','pbar-as':'renderAS',
+  'pbar-ac':'renderAC','pbar-am':'renderAM','pbar-rc':'renderRecruit'
 };
 
-// ══ GAS / SETTINGS ════════════════════════════════════════════
-const LS_HRA_GAS='vrt_att_cloud_v1_url';
-const LS_PROD_GAS='vrt_portal_gas_url';
-
-// ── Read compare result from localStorage ─────────────────────
-function readCmp(key){try{const v=localStorage.getItem(key);return v?JSON.parse(v):null;}catch(e){return null;}}
-
-// ── diff badge ─────────────────────────────────────────────────
-function diffBadge(d){const s=d>=0?'+':'';const cls=d===0?'ok':Math.abs(d)<=3?'warn':'bad';return`<span class="badge ${cls}">${s}${d}</span>`;}
-function kpi(v,l,c){return`<div class="kpi ${c||'nv'}"><div class="kl">${l}</div><div class="kv">${v}</div></div>`;}
-function nodata(cols,msg){return`<tr><td colspan="${cols}" style="text-align:center;padding:20px;color:#888">${msg||'尚無資料 — 請先在各模組產生比對結果'}</td></tr>`;}
-
-// ── Toast ──────────────────────────────────────────────────────
-function toast(msg,dur=3000){const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>el.classList.remove('show'),dur);}
-function setST(msg,cls=''){const el=document.getElementById('syncTip');if(!el)return;el.textContent=msg;el.style.color=cls==='ok'?'#1a6e5c':cls==='err'?'#ef4444':'';}
-function cpLog(msg){const el=document.getElementById('cplog');if(!el)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+msg;el.prepend(d);}
-
-
-// ══ PERIOD NAV for each pane ════════════════════════════════════════
-// Each pane has independent state (no shared global pivot)
-const asState  = {mode:'day',   pivot:new Date()};
-const acState  = {mode:'month', pivot:new Date()};
-const amState  = {mode:'month', pivot:new Date()};
-const uniState = {mode:'month', pivot:new Date()};
-
-function renderPeriodBar(barId, st, onRefresh){
-  const el=document.getElementById(barId);if(!el)return;
-  const modes=['all','day','week','month','year'];
-  const labels={'all':'全部','day':'日','week':'週','month':'月','year':'年'};
-  el.innerHTML=`<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:8px 12px;background:#fff;border-radius:8px;border:1px solid #e2e6f0">
-    ${modes.map(m=>`<button data-m="${m}" onclick="__pNav('${barId}','${m}',null,${JSON.stringify(onRefresh.name||'renderAS')})" 
-      style="padding:4px 10px;border-radius:6px;border:1px solid #cce;cursor:pointer;font-size:12px;${st.mode===m?'background:#1e3a8a;color:#fff':'background:#fff'}">${labels[m]}</button>`).join('')}
-    <button onclick="__pNavDir('${barId}',-1)" style="padding:4px 8px;border-radius:6px;border:1px solid #cce;cursor:pointer">◀</button>
-    <select id="${barId}-sel" onchange="__pJump('${barId}',this.value)" style="font-family:monospace;font-size:11px;min-width:100px;border:1px solid #cce;border-radius:6px;padding:3px"></select>
-    <button onclick="__pNavDir('${barId}',1)" style="padding:4px 8px;border-radius:6px;border:1px solid #cce;cursor:pointer">▶</button>
-    <button onclick="__pToday('${barId}')" style="padding:4px 8px;border-radius:6px;border:1px solid #cce;cursor:pointer">●</button>
-    <span id="${barId}-lbl" style="font-size:12px;font-weight:700;color:#1e3a8a;margin-left:4px">${pLabel(st)}</span>
-  </div>`;
+// ── Period key calculation ──────────────────────────────────
+function _lds(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function periodKey(dateStr,mode){
+  if(mode==='all'||!dateStr)return'ALL';
+  const d=String(dateStr).slice(0,10);
+  if(mode==='day')return d;
+  if(mode==='week'){const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return dt.getFullYear()+'-W'+String(w).padStart(2,'0');}
+  if(mode==='month')return d.slice(0,7);
+  return d.slice(0,4);
 }
-
-// State helpers
-const _pBarMap={
-  'pbar-as':{st:()=>asState,fn:'renderAS'},
-  'pbar-ac':{st:()=>acState,fn:'renderAC'},
-  'pbar-am':{st:()=>amState,fn:'renderAM'},
-  'pbar-uni':{st:()=>uniState,fn:'renderUnified'}
-};
-function __pNav(barId,mode,pivot,fn){
-  const m=_pBarMap[barId];if(!m)return;
-  m.st().mode=mode;if(pivot)m.st().pivot=new Date(pivot);
-  renderPeriodBar(barId,m.st(),{name:fn});
-  window[fn]&&window[fn]();
-}
-function __pNavDir(barId,dir){
-  const m=_pBarMap[barId];if(!m)return;
-  const st=m.st();const d=new Date(st.pivot);
-  if(st.mode==='day')d.setDate(d.getDate()+dir);
-  else if(st.mode==='week')d.setDate(d.getDate()+dir*7);
-  else if(st.mode==='month')d.setMonth(d.getMonth()+dir);
-  else if(st.mode==='year')d.setFullYear(d.getFullYear()+dir);
-  st.pivot=d;
-  renderPeriodBar(barId,st,{name:m.fn});
-  window[m.fn]&&window[m.fn]();
-}
-function __pToday(barId){
-  const m=_pBarMap[barId];if(!m)return;
-  m.st().pivot=new Date();
-  renderPeriodBar(barId,m.st(),{name:m.fn});
-  window[m.fn]&&window[m.fn]();
-}
-function __pJump(barId,val){
-  const m=_pBarMap[barId];if(!m||!val)return;
-  const st=m.st();const y=+val.slice(0,4);
-  const mo=st.mode==='month'?+val.slice(5,7)-1:0;
-  st.pivot=new Date(y,mo,1);
-  renderPeriodBar(barId,st,{name:m.fn});
-  window[m.fn]&&window[m.fn]();
-}
-function pLabel(st){
+function periodLabel(st){
   const d=st.pivot;
   if(st.mode==='all')return'全部';
-  if(st.mode==='day')return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  if(st.mode==='day')return _lds(d);
   if(st.mode==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);return(s.getMonth()+1)+'/'+s.getDate()+'~'+(e.getMonth()+1)+'/'+e.getDate();}
   if(st.mode==='month')return d.getFullYear()+'年'+(d.getMonth()+1)+'月';
   return d.getFullYear()+'年';
 }
 
-// ══ TAB NAVIGATION ════════════════════════════════════════════
+// ── buildPeriods: scan all dates from a dataset ─────────────
+function buildPeriods(dates,mode){
+  if(mode==='all')return[];
+  const keys=[...new Set(dates.filter(Boolean).map(d=>periodKey(String(d).slice(0,10),mode)))].filter(k=>k&&k!=='ALL');
+  return keys.sort().reverse();
+}
+
+// ── filterByPeriod: filter any array by date field ──────────
+function filterByPeriod(arr,st,getDate){
+  if(st.mode==='all')return arr;
+  const curKey=periodKey(_lds(st.pivot),st.mode);
+  return arr.filter(r=>{const d=getDate(r);return d&&periodKey(String(d).slice(0,10),st.mode)===curKey;});
+}
+
+// ── renderPeriodBar: real nav UI ────────────────────────────
+function renderPeriodBar(barId){
+  const st=STATES[barId];const el=document.getElementById(barId);if(!st||!el)return;
+  const fn=FN_MAP[barId];
+  const curKey=periodKey(_lds(st.pivot),st.mode);
+  const selOpts=st.periods.length
+    ?st.periods.map(p=>`<option value="${p}"${p===curKey?' selected':''}>${p}</option>`).join('')
+    :(curKey&&curKey!=='ALL'?`<option value="${curKey}" selected>${curKey}</option>`:'<option value="">—</option>');
+  el.innerHTML=`<div class="pnav">
+    ${['all','day','week','month','year'].map(m=>`<button class="pnav-btn${st.mode===m?' on':''}" onclick="onMode('${barId}','${m}')">${{all:'全部',day:'日',week:'週',month:'月',year:'年'}[m]}</button>`).join('')}
+    <button class="pnav-arr" onclick="onNav('${barId}',-1)">◀</button>
+    <select class="pnav-sel" id="${barId}-sel" onchange="onJump('${barId}',this.value)" ${st.mode==='all'?'disabled':''}>${selOpts}</select>
+    <button class="pnav-arr" onclick="onNav('${barId}',1)">▶</button>
+    <button class="pnav-arr" onclick="onToday('${barId}')">●</button>
+    <span class="pnav-lbl">${periodLabel(st)}</span>
+  </div>`;
+}
+
+// ── rerenderAfterPeriod: re-render + update period bar ──────
+function rerenderAfterPeriod(barId){
+  const fn=FN_MAP[barId];
+  renderPeriodBar(barId);
+  if(fn&&window[fn])window[fn]();
+}
+
+// ── Period nav event handlers ─────────────────────────────── 
+function onMode(barId,mode){
+  const st=STATES[barId];if(!st)return;
+  st.mode=mode;if(mode!=='all')st.pivot=new Date();
+  rerenderAfterPeriod(barId);
+}
+function onNav(barId,dir){
+  const st=STATES[barId];if(!st||st.mode==='all')return;
+  const d=new Date(st.pivot);
+  if(st.mode==='day')d.setDate(d.getDate()+dir);
+  else if(st.mode==='week')d.setDate(d.getDate()+dir*7);
+  else if(st.mode==='month')d.setMonth(d.getMonth()+dir);
+  else if(st.mode==='year')d.setFullYear(d.getFullYear()+dir);
+  st.pivot=d;rerenderAfterPeriod(barId);
+}
+function onToday(barId){const st=STATES[barId];if(!st)return;st.pivot=new Date();rerenderAfterPeriod(barId);}
+function onJump(barId,val){
+  const st=STATES[barId];if(!st||!val)return;
+  const y=+val.slice(0,4),mo=st.mode==='month'?+val.slice(5,7)-1:0,dd=st.mode==='day'?+val.slice(8,10):1;
+  st.pivot=new Date(y,mo,dd||1);rerenderAfterPeriod(barId);
+}
+
+// ══ TAB NAVIGATION ═══════════════════════════════════════════
 function switchTab(t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
-  try{
-    if(t==='as')        renderAS();
-    else if(t==='ac')   renderAC();
-    else if(t==='am')   renderAM();
-    else if(t==='recruit') renderRecruit();
-    else if(t==='unified') renderUnified();
-    else if(t==='unmatched') renderUnmatched();
-    else if(t==='cfg')  {loadCfg();}
-  }catch(e){console.error('switchTab '+t+':',e);}
+  const fns={as:'renderAS',ac:'renderAC',am:'renderAM',recruit:'renderRecruit',unified:'renderUnified',unmatched:'renderUnmatched',cfg:'loadCfg'};
+  try{if(fns[t]&&window[fns[t]])window[fns[t]]();}catch(e){console.error(t,e);}
 }
 document.addEventListener('DOMContentLoaded',()=>{
   document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
-  loadCfg();
-  renderUnified();
+  loadCfg();renderUnified();
 });
 
-// ══ 出勤×車縫 — reads attendance export ════════════════════════
+// ── Sewing line detector (minimal, for counting only) ───────
+function _isSewLine(r){
+  if(!r||r.isSubtotal||r.isGrand)return false;
+  const line=(r.line||'').trim(),lo=line.toLowerCase(),sl=(r.sect||'').toLowerCase();
+  const ttl=(+r.m||0)+(+r.f||0);if(ttl<1)return false;
+  if(/cutting|裁剪|qc\b|packing|包裝|warehouse|mechanic|machine|sample|marker|admin|hr\b|ie\b|cutter/i.test(lo))return false;
+  if(/^line\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
+  if(/^l\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim()))return true;
+  if(/garment\s+(line\s*)?[a-z]?\d+/i.test(lo))return true;
+  if(/sewing|車縫/i.test(sl)&&/\d/.test(line))return true;
+  return false;
+}
+
+// ══ 整合總表 — Integration Summary ═══════════════════════════
+function renderUnified(){
+  try{
+    const st=STATES['pbar-uni'];
+
+    // ── Load all raw sources ────────────────────────────────
+    const attRaw=readArr(RAW.att)||[];
+    const joins=readArr(RAW.joins)||[];
+    const resigns=readArr(RAW.resigns)||[];
+    const contsRaw=readArr(RAW.conts)||[];
+    const probsRaw=readArr(RAW.probs)||[];
+    const matRaw=readLS(RAW.mat)||{};
+    const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
+    const rcRaw=readArr(RAW.recruit)||[];
+
+    // ── Build periods from attendance dates ─────────────────
+    const allAttDates=attRaw.map(r=>r.date).filter(Boolean);
+    st.periods=buildPeriods(allAttDates,st.mode);
+    renderPeriodBar('pbar-uni');
+
+    // ── filterByPeriod all datasets ─────────────────────────
+    const attF=filterByPeriod(attRaw,st,r=>r.date).filter(r=>!r.isGrand&&!r.isSubtotal);
+    const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
+    const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
+    const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
+    const contsF=filterByPeriod(contsRaw,st,r=>r.joinDate||r.date);
+    const probsF=filterByPeriod(probsRaw,st,r=>r.joinDate||r.date);
+
+    // ── rebuildCompareRows: aggregate per-period numbers ────
+    const attDays=new Set(attF.map(r=>r.date)).size||1;
+    const sewF=attF.filter(_isSewLine);
+    const sewHCSum=sewF.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
+    const attHCSum=attF.reduce((s,r)=>s+(+r.m||0)+(+r.f||0),0);
+    const attMLSum=attF.reduce((s,r)=>s+(+r.ml||0),0);
+    const attJoin=attF.reduce((s,r)=>s+(+r.join||0),0);
+    const attResign=attF.reduce((s,r)=>s+(+r.resign||0),0);
+    const sewLines=new Set(sewF.map(r=>r.line.replace(/[/／].*/,'').trim())).size;
+    const nonSewDepts=new Set(attF.filter(r=>!_isSewLine(r)&&r.line).map(r=>r.line.replace(/[/／].*/,'').trim())).size;
+    const preg=matEmps.filter(e=>e.status==='pregnant').length;
+    const mat=matEmps.filter(e=>e.status==='maternity'||e.status==='returned').length;
+
+    // ── Big cards — rerender KPI ────────────────────────────
+    const bc=document.getElementById('big-cards');
+    if(bc)bc.innerHTML=[
+      {l:'出勤總 HC (均/天)',  v:Math.round(attHCSum/attDays)||'—', sub:`${attDays}天`,c:'nv'},
+      {l:'車縫 HC (均/天)',    v:Math.round(sewHCSum/attDays)||'—', sub:`${sewLines}條線`,c:'tl'},
+      {l:'考勤新進',           v:attJoin||'—',                       sub:`考勤離職: ${attResign}`,c:'gn'},
+      {l:'HR 入職',            v:joinsF.length||'—',                 sub:`HR 離職: ${resignsF.length}`,c:'gd'},
+      {l:'試用期',             v:probsF.length||'—',                 sub:`合約: ${contsF.length}`,c:'gd'},
+      {l:'孕婦 / 產假',        v:`${preg} / ${mat}`,                sub:`ML假: ${attMLSum}`,c:'pu'},
+      {l:'招募錄取',           v:rcF.filter(r=>r.result==='join').length||'—', sub:`總招募: ${rcF.length}`,c:'tl'},
+      {l:'非車縫部門',         v:nonSewDepts||'—',                   sub:`車縫線: ${sewLines}`,c:'gd'},
+    ].map(k=>`<div class="bigcard ${k.c}"><div class="bc-l">${k.l}</div><div class="bc-v">${k.v}</div><div class="bc-s">${k.sub}</div></div>`).join('');
+
+    // ── Unified table from sewing compare export ────────────
+    const sewExp=readCmp(CK.attSew);
+    const tbody=document.getElementById('unified-tbody');
+    if(!tbody)return;
+    if(!sewExp?.rows?.length&&!sewExp?.lines?.length){
+      tbody.innerHTML=`<tr><td colspan="10" style="text-align:center;padding:20px;color:#6b7a9e">
+        請先在出勤模組執行「出勤×車縫」比對 → 系統將自動填入整合表
+      </td></tr>`;return;
+    }
+    const matExp=readCmp(CK.matcmp);
+    const matMap=Object.fromEntries((matExp?.byLine||[]).map(l=>[l.dept||l.line,l]));
+    const obExp=readCmp(CK.onboard);
+    const obMap=Object.fromEntries((obExp?.byDept||[]).map(l=>[l.dept,l]));
+    const rows=(sewExp.rows||sewExp.lines||[]).map(l=>{
+      const ml=matMap[l.lid]||{};const ob=obMap[l.lid]||{};
+      return`<tr>
+        <td style="font-weight:700">${l.lid}</td>
+        <td class="center">${l.att||l.attHC||'—'}</td>
+        <td class="center" style="color:#0ea5e9">${(l.sew||l.sewHC)>0?(l.sew||l.sewHC):'⚠'}</td>
+        <td class="center" style="color:${l.diff===0?'#1a6e5c':l.diff>0?'#f59e0b':'#ef4444'};font-weight:700">${l.att&&l.sew?(l.diff>=0?'+':'')+l.diff:'—'}</td>
+        <td class="center">${ob.attJoin||ob.join||'—'}</td><td class="center">${ob.attResign||ob.resign||'—'}</td>
+        <td class="center">${ml.portal||ml.mat||'—'}</td><td class="center">${ml.attML||ml.attMl||'—'}</td>
+        <td class="center">—</td><td class="center">—</td>
+      </tr>`;
+    }).join('');
+    tbody.innerHTML=rows;
+  }catch(e){console.error('renderUnified:',e);}
+}
+
+// ══ 出勤×車縫 ═════════════════════════════════════════════════
 function renderAS(){
   try{
-    renderPeriodBar('pbar-as',asState,{name:'renderAS'});
+    const st=STATES['pbar-as'];
     const d=readCmp(CK.attSew);
-    const kEl=document.getElementById('kpi-as');
-    const cEl=document.getElementById('as-content');
-    if(!d){
-      if(kEl)kEl.innerHTML=kpi('—','考勤車工(均)')+kpi('—','車縫系統(均)')+kpi('—','差異')+kpi('—','差%');
-      if(cEl)cEl.innerHTML=`<div style="text-align:center;padding:30px;color:#6b7a9e;background:#f8faff;border-radius:8px;margin:10px 0">`+
-        `<div style="font-size:24px;margin-bottom:12px">📊</div>`+
-        `<div style="font-weight:600;margin-bottom:6px">尚未產生出勤×車縫分析</div>`+
-        `<div style="font-size:12px">請先進入 Attendance 頁面 → 出勤×車縫 → 選期間後系統自動儲存結果</div></div>`;
+    const rows=d?.rows||d?.lines||[];
+    st.periods=buildPeriods([d?.period].filter(Boolean),st.mode);
+    renderPeriodBar('pbar-as');
+    const kEl=document.getElementById('kpi-as'),cEl=document.getElementById('as-content');
+    if(!d||!rows.length){
+      if(kEl)kEl.innerHTML='';
+      if(cEl)cEl.innerHTML=`<div class="nodata-box"><div class="nodata-icon">📊</div>
+        <div class="nodata-title">尚未產生出勤×車縫分析</div>
+        <div class="nodata-msg">請先進入 Attendance 頁面 → 點擊「出勤×車縫」分頁 → 選擇期間<br>系統自動儲存比對結果至此頁面</div></div>`;
       return;
     }
+    // filterByPeriod the rows (each row is a LINE, already aggregated for the export's period)
+    const filtered=st.mode==='all'?rows:rows;// rows are already period-specific from export
+    const aTotal=filtered.reduce((s,l)=>s+(l.att||l.attHC||0),0);
+    const sTotal=filtered.reduce((s,l)=>s+(l.sew||l.sewHC||0),0);
+    const diff=aTotal-sTotal;
     if(kEl)kEl.innerHTML=[
-      kpi(d.attTotal??'—','考勤車工(均)','nv'),
-      kpi(d.sewTotal>0?d.sewTotal:(d.sewTotal===0?'⚠ 無車縫資料':'—'),'車縫系統(均)','tl'),
-      kpi((d.diff>=0?'+':'')+d.diff,'差異',d.diff===0?'gn':Math.abs(d.diff)<10?'gd':'rd'),
-      kpi(d.match??'—','差%','pu'),
-    ].join('');
-    const lines=d.lines||[];
-    const rows=lines.map(l=>`<tr>
-      <td style="font-weight:700">${l.lid}</td>
-      <td style="text-align:right;font-weight:600">${l.att||'—'}</td>
-      <td style="text-align:right;color:#0ea5e9;font-weight:600">${l.sew||'—'}</td>
-      <td style="text-align:right;font-weight:700;color:${l.diff===0?'#1a6e5c':Math.abs(l.diff)<3?'#f59e0b':'#ef4444'}">${(l.att&&l.sew)?(l.diff>=0?'+':'')+l.diff:'—'}</td>
-      <td style="text-align:right">${l.att&&l.sew&&l.sew>0?(l.sew/l.att*100).toFixed(1)+'%':'—'}</td>
-      <td style="text-align:right;color:#6b7a9e">${l.pcs?l.pcs.toLocaleString():'—'}</td>
+      {l:'考勤車工(均)',v:d.attTotal||aTotal||'—',c:'nv'},
+      {l:'車縫系統(均)',v:(d.sewTotal||sTotal)>0?(d.sewTotal||sTotal):'⚠ 無車縫',c:'tl'},
+      {l:'差異',v:(diff>=0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<10?'gd':'rd'},
+      {l:'差%',v:d.match||d.kpis?.match||'—',c:'pu'},
+    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
+    const rowsHtml=filtered.map(l=>`<tr>
+      <td style="font-weight:700">${l.lid||'?'}</td>
+      <td class="right fw6">${l.att||l.attHC||'—'}</td>
+      <td class="right" style="color:#0ea5e9;fw6">${(l.sew||l.sewHC)>0?(l.sew||l.sewHC):'⚠'}</td>
+      <td class="right fw7" style="color:${l.diff===0?'#1a6e5c':Math.abs(l.diff||0)<3?'#f59e0b':'#ef4444'}">${l.att&&l.sew?(l.diff>=0?'+':'')+l.diff:'—'}</td>
+      <td class="right">${l.att&&l.sew&&l.sew>0?(l.sew/l.att*100).toFixed(1)+'%':'—'}</td>
+      <td class="right muted">${l.pcs?l.pcs.toLocaleString():'—'}</td>
     </tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">期間: ${d.period||'—'} (${d.mode||'—'}) · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
+    if(cEl)cEl.innerHTML=`<div class="exp-info">期間: ${d.period||'—'} (${d.mode||'—'}) · 更新: ${d.generatedAt||d.updatedAt?new Date(d.generatedAt||d.updatedAt).toLocaleString():'-'}</div>
     <div class="utable"><table><thead><tr style="background:#1a6e5c;color:#fff">
-      <th>LINE</th><th style="text-align:right">出勤HC</th><th style="text-align:right">車縫HC</th>
-      <th style="text-align:right">差異</th><th style="text-align:right">匹配%</th><th style="text-align:right">產量</th>
-    </tr></thead><tbody>${rows||nodata(6)}</tbody></table></div>`;
+      <th>LINE</th><th class="right">出勤HC</th><th class="right">車縫HC</th>
+      <th class="right">差異</th><th class="right">匹配%</th><th class="right">產量</th>
+    </tr></thead><tbody>${rowsHtml||nodata(6)}</tbody></table></div>`;
   }catch(e){console.error('renderAS:',e);}
 }
 
-// ══ 出勤×入離職 — reads onboarding export ══════════════════════
+// ══ 出勤×入離職 ═══════════════════════════════════════════════
 function renderAC(){
   try{
-    renderPeriodBar('pbar-ac',acState,{name:'renderAC'});
-    const d=readCmp(CK.onboard);
-    const kEl=document.getElementById('kpi-ac');
-    const cEl=document.getElementById('ac-content');
-    if(!d){
-      if(kEl)kEl.innerHTML=kpi('—','出勤 新進')+kpi('—','HR 新進')+kpi('—','差異')+kpi('—','出勤 離職')+kpi('—','HR 離職')+kpi('—','差異');
-      if(kEl)kEl.style.gridTemplateColumns='repeat(3,1fr)';
-      if(cEl)cEl.innerHTML=`<div style="text-align:center;padding:30px;color:#6b7a9e;background:#f8faff;border-radius:8px;margin:10px 0">`+
-        `<div style="font-size:24px;margin-bottom:12px">👥</div>`+
-        `<div style="font-weight:600;margin-bottom:6px">尚無 Onboarding 比對結果</div>`+
-        `<div style="font-size:12px">請先進入入離職模組 → 比較分析分頁，系統會自動儲存結果</div></div>`;
-      return;
-    }
+    const st=STATES['pbar-ac'];
+    let d=readCmp(CK.onboard);
+    const joins=readArr(RAW.joins)||[];
+    const resigns=readArr(RAW.resigns)||[];
+    // Build periods from raw joins
+    st.periods=buildPeriods([...joins.map(r=>r.joinDate||r.date),...resigns.map(r=>r.resignDate||r.date)],st.mode);
+    renderPeriodBar('pbar-ac');
+    const kEl=document.getElementById('kpi-ac'),cEl=document.getElementById('ac-content');
+    // filterByPeriod raw data for fallback
+    const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
+    const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
+    // rebuildCompareRows by dept
+    const deptMap={};
+    joinsF.forEach(r=>{const k=r.dept||r.section||'—';if(!deptMap[k])deptMap[k]={join:0,resign:0};deptMap[k].join++;});
+    resignsF.forEach(r=>{const k=r.dept||r.section||'—';if(!deptMap[k])deptMap[k]={join:0,resign:0};deptMap[k].resign++;});
+    const byDept=Object.entries(deptMap).map(([dept,v])=>({dept,...v})).sort((a,b)=>b.join-a.join);
+    if(!d)d={hrJoin:joinsF.length,hrResign:resignsF.length,byDept,updatedAt:null};
     if(kEl){
       kEl.style.gridTemplateColumns='repeat(3,1fr)';
       kEl.innerHTML=[
-        kpi(d.attJoin??'—','出勤 新進','nv'),kpi(d.hrJoin??'—','HR 新進','tl'),
-        kpi(d.jDiff!=null?((d.jDiff>=0?'+':'')+d.jDiff):'—','新進差異',d.jDiff===0?'gn':Math.abs(d.jDiff||0)<=3?'gd':'rd'),
-        kpi(d.attResign??'—','出勤 離職','rd'),kpi(d.hrResign??'—','HR 離職','gd'),
-        kpi(d.rDiff!=null?((d.rDiff>=0?'+':'')+d.rDiff):'—','離職差異','pu'),
-      ].join('');
+        {l:'HR 入職',v:d.hrJoin??joinsF.length,c:'nv'},
+        {l:'HR 離職',v:d.hrResign??resignsF.length,c:'rd'},
+        {l:'入/離比',v:d.hrJoin?(((d.hrResign||0)/(d.hrJoin||1))*100).toFixed(0)+'%':'—',c:'pu'},
+        {l:'出勤 新進',v:d.attJoin??'—',c:'tl'},
+        {l:'出勤 離職',v:d.attResign??'—',c:'gd'},
+        {l:'差異',v:d.jDiff!=null?(d.jDiff>=0?'+':'')+d.jDiff:'待比對',c:'gd'},
+      ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
     }
-    const byDept=d.byDept||[];
-    const rows=byDept.map(r=>`<tr><td><b>${r.dept}</b></td>
-      <td style="text-align:center">${r.attJoin??r.join??'—'}</td>
-      <td style="text-align:center">${r.attResign??r.resign??'—'}</td>
-      <td style="text-align:center">${r.ratio??'—'}</td></tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
+    const rows=(d.byDept||byDept).map(r=>`<tr>
+      <td style="font-weight:700">${r.dept}</td>
+      <td class="center">${r.join||r.attJoin||'—'}</td>
+      <td class="center">${r.resign||r.attResign||'—'}</td>
+      <td class="center">${r.join?(r.resign||0)>0?((r.resign/r.join)*100).toFixed(0)+'%':'0%':'—'}</td>
+    </tr>`).join('');
+    if(cEl)cEl.innerHTML=`<div class="exp-info">HR入職: ${d.hrJoin??joinsF.length} · HR離職: ${d.hrResign??resignsF.length} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
     <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
-      <th>部門/LINE</th><th style="text-align:center">考勤 新進</th><th style="text-align:center">考勤 離職</th><th style="text-align:center">入/離比</th>
-    </tr></thead><tbody>${rows||nodata(4)}</tbody></table></div>`;
+      <th>部門/LINE</th><th class="center">入職</th><th class="center">離職</th><th class="center">入/離比</th>
+    </tr></thead><tbody>${rows||nodata(4,'暫無部門資料')}</tbody></table></div>`;
   }catch(e){console.error('renderAC:',e);}
 }
 
-// ══ 出勤×孕假 — reads maternity export ════════════════════════
+// ══ 出勤×孕假 ═════════════════════════════════════════════════
 function renderAM(){
   try{
-    renderPeriodBar('pbar-am',amState,{name:'renderAM'});
+    const st=STATES['pbar-am'];
     const d=readCmp(CK.matcmp);
-    const kEl=document.getElementById('kpi-am');
-    const cEl=document.getElementById('am-content');
+    st.periods=buildPeriods(d?[d.updatedAt||d.generatedAt]:[], st.mode);
+    renderPeriodBar('pbar-am');
+    const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
     if(!d){
-      if(kEl)kEl.innerHTML=kpi('—','孕婦')+kpi('—','產假中')+kpi('—','考勤 ML假');
-      if(cEl)cEl.innerHTML=`<div class="utable"><table><tbody>${nodata(7,'尚無資料 — 請在孕假模組開啟「總表」分頁以產生比對結果')}</tbody></table></div>`;
+      if(kEl)kEl.innerHTML='';
+      if(cEl)cEl.innerHTML=`<div class="nodata-box"><div class="nodata-icon">🍼</div><div class="nodata-title">尚無產假比對結果</div><div class="nodata-msg">請在孕假模組 → 總表 → 點擊「🔄 同步出勤」</div></div>`;
       return;
     }
     if(kEl)kEl.innerHTML=[
-      kpi(d.portalMat??'—','Portal 產假','rd'),
-      kpi(d.attML??d.attMl??'—','出勤 ML假','gd'),
-      kpi(d.diff!=null?((d.diff>=0?'+':'')+d.diff):'—','差異 (Portal-ML)',d.diff===0?'gn':'rd'),
-      kpi(d.sewMat??'—','車縫產假🔵','tl'),
-    ].join('');
-    const byLine=d.byLine||[];
-    const rows=byLine.map(r=>`<tr>
-      <td><b>${r.dept||r.line||'—'}</b></td>
-      <td style="text-align:center">${r.portal??r.mat??'—'}</td>
-      <td style="text-align:center">${r.attML??r.attMl??'—'}</td>
-      <td style="text-align:center">${diffBadge(r.diff??0)}</td>
+      {l:'Portal 產假',v:d.portalMat??'—',c:'rd'},
+      {l:'出勤 ML假',v:d.attML??d.attMl??'—',c:'gd'},
+      {l:'差異',v:d.diff!=null?(d.diff>=0?'+':'')+d.diff:'—',c:d.diff===0?'gn':'rd'},
+      {l:'車縫產假🔵',v:d.sewMat??'—',c:'tl'},
+    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
+    const rows=(d.byLine||[]).map(r=>`<tr>
+      <td style="font-weight:700">${r.dept||r.line||'—'}</td>
+      <td class="center">${r.portal??r.mat??'—'}</td>
+      <td class="center">${r.attML??r.attMl??'—'}</td>
+      <td class="center"><span class="badge ${r.diff===0?'gn':r.diff>0?'gd':'rd'}">${r.diff>=0?'+':''}${r.diff??0}</span></td>
     </tr>`).join('');
-    if(cEl)cEl.innerHTML=`<div style="font-size:11px;color:#6b7a9e;margin-bottom:6px">Portal 產假: ${d.portalMat??'—'} · 出勤 ML: ${d.attML??d.attMl??'—'} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>`+
-      `<div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">`+
-      `<th>部門/LINE</th><th style="text-align:center">🍼Portal 產假</th><th style="text-align:center">出勤 ML假</th><th style="text-align:center">差異</th>`+
-      `</tr></thead><tbody>${rows||nodata(4)}</tbody></table></div>`;
+    if(cEl)cEl.innerHTML=`<div class="exp-info">Portal產假: ${d.portalMat??'—'} · 出勤ML: ${d.attML??d.attMl??'—'} · 更新: ${d.updatedAt?new Date(d.updatedAt).toLocaleString():'-'}</div>
+    <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
+      <th>部門/LINE</th><th class="center">🍼Portal 產假</th><th class="center">出勤 ML假</th><th class="center">差異</th>
+    </tr></thead><tbody>${rows||nodata(4)}</tbody></table></div>`;
   }catch(e){console.error('renderAM:',e);}
 }
 
-// ══ 入離職×招募 — reads manpower export ════════════════════════
+// ══ 入離職×招募 ════════════════════════════════════════════════
 function renderRecruit(){
   try{
+    const st=STATES['pbar-rc'];
     const d=readCmp(CK.recruit);
-    const kEl=document.getElementById('kpi-rc');
-    const joinTb=document.getElementById('rc-join-tbody');
-    const missTb=document.getElementById('rc-miss-tbody');
-    if(!d){
-      if(kEl)kEl.innerHTML=kpi('—','招募總數')+kpi('—','Onboarding')+kpi('—','差異')+kpi('—','Sewing🔵');
-      if(joinTb)joinTb.innerHTML=nodata(4,'尚無資料 — 請在人力規劃模組開啟「分析」分頁以產生比對結果');
-      return;
-    }
+    const rcRaw=readArr(RAW.recruit)||[];
+    st.periods=buildPeriods(rcRaw.map(r=>r.joinDate||r.date),st.mode);
+    renderPeriodBar('pbar-rc');
+    const kEl=document.getElementById('kpi-rc'),jTb=document.getElementById('rc-join-tbody'),mTb=document.getElementById('rc-miss-tbody');
+    // filterByPeriod recruit raw
+    const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
+    const src=d||{rcTotal:rcF.length,rcJoined:rcF.filter(r=>r.result==='join').length,obTotal:0,diff:null,sewTotal:0,byDept:[],missing:[]};
     if(kEl)kEl.innerHTML=[
-      kpi(d.rcTotal??'—','招募總數','nv'),
-      kpi(d.rcJoined??'—','招募入職','tl'),
-      kpi(d.obTotal??'—','Onboarding 入職','gd'),
-      kpi(d.diff!=null?((d.diff>=0?'+':'')+d.diff):'—','差異',d.diff===0?'gn':'rd'),
-      kpi(d.sewTotal??'—','Sewing🔵','pu'),
-    ].join('');
+      {l:'招募總數',v:src.rcTotal??rcF.length,c:'nv'},
+      {l:'招募入職',v:src.rcJoined??'—',c:'tl'},
+      {l:'Onboarding',v:src.obTotal??'—',c:'gd'},
+      {l:'差異',v:src.diff!=null?(src.diff>=0?'+':'')+src.diff:'—',c:src.diff===0?'gn':'rd'},
+      {l:'Sewing🔵',v:src.sewTotal??'—',c:'pu'},
+    ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
     const tdS='padding:6px 10px;border-bottom:1px solid var(--brd)';
-    const byDept=d.byDept||[];
-    if(joinTb)joinTb.innerHTML=byDept.map(r=>`<tr>
+    if(jTb)jTb.innerHTML=(src.byDept||[]).map(r=>`<tr>
       <td style="${tdS};font-weight:600">${r.dept}</td>
-      <td style="${tdS};text-align:center">${r.recruited||'—'}</td>
-      <td style="${tdS};text-align:center">${r.onboarded||'—'}</td>
-      <td style="${tdS};text-align:center">${diffBadge(r.diff||0)}</td>
-    </tr>`).join('')||nodata(4);
-    const missing=d.missing||[];
-    if(missTb)missTb.innerHTML=missing.length?missing.map((r,i)=>`<tr>
+      <td style="${tdS}" class="center">${r.recruited||'—'}</td>
+      <td style="${tdS}" class="center">${r.onboarded||'—'}</td>
+      <td style="${tdS}" class="center"><span class="badge ${r.diff===0?'gn':r.diff>0?'gd':'rd'}">${r.diff>=0?'+':''}${r.diff||0}</span></td>
+    </tr>`).join('')||nodata(4,'請先執行人力規劃模組分析');
+    if(mTb)mTb.innerHTML=(src.missing||[]).length?(src.missing||[]).map((r,i)=>`<tr>
       <td style="${tdS}">${i+1}</td>
       <td style="${tdS};font-family:monospace">${r.empId||'—'}</td>
       <td style="${tdS};font-weight:600">${r.name||'—'}</td>
@@ -547,120 +667,43 @@ function renderRecruit(){
   }catch(e){console.error('renderRecruit:',e);}
 }
 
-// ══ 整合總表 — aggregates all exports ══════════════════════════
-function renderUnified(){
-  try{
-    renderPeriodBar('pbar-uni',uniState,{name:'renderUnified'});
-    const as=readCmp(CK.attSew);
-    const ac=readCmp(CK.onboard);
-    const am=readCmp(CK.matcmp);
-    const rc=readCmp(CK.recruit);
-    const bc=document.getElementById('big-cards');
-    if(bc)bc.innerHTML=[
-      {l:'出勤車縫HC',v:as?.attTotal??'—',sub:as?.sewTotal!=null?'車縫系統: '+as.sewTotal:'',c:'tl'},
-      {l:'車縫匹配率',v:as?.match??'—',sub:as?.diff!=null?'差異: '+(as.diff>=0?'+':'')+as.diff:'未知',c:'gn'},
-      {l:'產假/ML假',v:(am?.portalMat??'—')+' / '+(am?.attML??am?.attMl??'—'),sub:am?.diff!=null?'差: '+(am.diff>=0?'+':'')+am.diff:'',c:'pu'},
-      {l:'合約/試用',v:'—',sub:'',c:'gd'},
-    ].map(k=>`<div class="bigcard ${k.c}">`+
-      `<div style="font-size:11px;font-weight:600;color:inherit;opacity:.7;margin-bottom:4px">${k.l}</div>`+
-      `<div style="font-size:28px;font-weight:700;line-height:1">${k.v}</div>`+
-      `<div style="font-size:11px;margin-top:4px;opacity:.8">${k.sub}</div></div>`
-    ).join('');
+// ── Helpers ─────────────────────────────────────────────────
+function renderUnmatched(){try{const e=document.getElementById('um-hard-body');if(e)e.innerHTML=nodata(2,'未匹配記錄由各模組自行標記');}catch(e){}}
+function nodata(c,m){return`<tr><td colspan="${c}" style="text-align:center;padding:24px;color:#6b7a9e">${m||'請先在對應模組產生比對結果'}</td></tr>`;}
+function renderAll(){const t=document.querySelector('.tab.on')?.dataset?.t||'unified';try{if(window['render'+t.charAt(0).toUpperCase()+t.slice(1)])window['render'+t.charAt(0).toUpperCase()+t.slice(1)]();}catch(e){switchTab(t);}}
 
-    // Unified summary table
-    const tbody=document.getElementById('unified-tbody');
-    if(!tbody)return;
-    // Collect all depts from all sources
-    const depts=new Set([...(as?.lines||[]).map(l=>l.lid),...(am?.byLine||[]).map(l=>l.dept||l.line)]);
-    if(!depts.size){tbody.innerHTML=nodata(10,'各模組請先開啟並更新比對分頁');return;}
-    const rows=[...depts].sort().map(dept=>{
-      const att=as?.lines?.find(l=>l.lid===dept);
-      const matL=am?.byLine?.find(l=>(l.dept||l.line)===dept);
-      return`<tr>
-        <td style="font-weight:700">${dept}</td>
-        <td style="text-align:center">${att?.att??'—'}</td>
-        <td style="text-align:center;color:#0ea5e9">${att?.sew??'—'}</td>
-        <td style="text-align:center;color:${att?.diff===0?'#1a6e5c':'#ef4444'}">${att?.diff!=null?(att.diff>=0?'+':'')+att.diff:'—'}</td>
-        <td style="text-align:center">${'—'}</td>
-        <td style="text-align:center">${'—'}</td>
-        <td style="text-align:center">${matL?.mat??'—'}</td>
-        <td style="text-align:center">${matL?.attML??matL?.attMl??'—'}</td>
-        <td style="text-align:center">${matL?.diff!=null?(matL.diff>=0?'+':'')+matL.diff:'—'}</td>
-      </tr>`;
-    }).join('');
-    tbody.innerHTML=rows;
-  }catch(e){console.error('renderUnified:',e);}
-}
-
-// ══ 未匹配 ═════════════════════════════════════════════════════
-function renderUnmatched(){
-  try{
-    const hb=document.getElementById('um-hard-body');
-    const hib=document.getElementById('um-hist-body');
-    if(hb)hb.innerHTML='<span style="color:#888;font-size:11px">未匹配資訊由各模組自行標記</span>';
-    if(hib)hib.innerHTML='';
-  }catch(e){}
-}
-
-function renderAll(){
-  const t=document.querySelector('.tab.on')?.dataset?.t||'unified';
-  try{switchTab(t);}catch(e){console.error(e);}
-}
-
-// ══ CLOUD SYNC ═════════════════════════════════════════════════
-function toggleCP(){document.getElementById('cpanel').classList.toggle('open');}
-function setSyncST(msg,cls){setST(msg,cls);}
-
+// ══ CLOUD / SETTINGS ═════════════════════════════════════════
+function toast(m,d=3000){const e=document.getElementById('toast');if(!e)return;e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),d);}
+function setST(m,c=''){const e=document.getElementById('syncTip');if(!e)return;e.textContent=m;e.style.color=c==='ok'?'#1a6e5c':c==='err'?'#ef4444':'';}
+function cpLog(m){const e=document.getElementById('cplog');if(!e)return;const d=document.createElement('div');d.textContent=new Date().toLocaleTimeString()+' '+m;e.prepend(d);}
+function toggleCP(){document.getElementById('cpanel')?.classList.toggle('open');}
 async function doLoad(){
-  const hraUrl=localStorage.getItem(LS_HRA_GAS)||'';
   setST('☁ 讀取中…');
   try{
-    cpLog('📋 讀取各模組 localStorage 比對結果…');
-    const keys=Object.keys(CK);
-    keys.forEach(k=>{
-      const d=readCmp(CK[k]);
-      cpLog(k+': '+(d?'✅ '+(d.updatedAt?new Date(d.updatedAt).toLocaleTimeString():'-'):'⚠ 無資料'));
+    cpLog('讀取各模組比對快取…');
+    Object.entries(CK).forEach(([k,key])=>{
+      const d=readCmp(key);
+      cpLog(k+': '+(d?`✅ 更新: ${d.updatedAt||d.generatedAt?new Date(d.updatedAt||d.generatedAt).toLocaleTimeString():'-'}`:'⚠ 無資料'));
     });
     renderAll();
-    setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');
-    toast('✅ 比對結果已讀取');
-  }catch(e){
-    console.error('doLoad:',e);toast('❌ '+e.message);
-  }finally{
-    if(document.getElementById('syncTip')?.textContent.includes('讀取中'))setST('');
-  }
+    setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');toast('✅ 讀取完成');
+  }catch(e){console.error(e);toast('❌ '+e.message);}
+  finally{if(document.getElementById('syncTip')?.textContent.includes('讀取'))setST('');}
 }
-
 async function doSave(){
-  const url=localStorage.getItem(LS_HRA_GAS)||'';
-  if(!url){toast('請先設定 HRA GAS URL');return;}
+  const url=localStorage.getItem(GAS_HRA)||'';if(!url){toast('請先設定 GAS URL');return;}
   setST('☁ 推送…');
-  try{
-    const payload={action:'complete_push',tool:'complete',ts:new Date().toISOString(),
-      attSew:readCmp(CK.attSew),matcmp:readCmp(CK.matcmp),recruit:readCmp(CK.recruit)};
-    const r=await fetch(url,{method:'POST',redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    if(r.ok){toast('✅ 推送成功');setST('✓','ok');}else toast('❌ 推送失敗：'+r.status);
-  }catch(e){toast('❌ '+e.message);}finally{setST('');}
+  try{const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain'},body:JSON.stringify({ts:new Date().toISOString(),attSew:readCmp(CK.attSew),matcmp:readCmp(CK.matcmp),recruit:readCmp(CK.recruit)})});toast(r.ok?'✅ 推送成功':'❌ '+r.status);}
+  catch(e){toast('❌ '+e.message);}finally{setST('');}
 }
-
-// ══ SETTINGS / ALIASES ════════════════════════════════════════
 function loadCfg(){
-  const hraEl=document.getElementById('hraUrl');
-  const prodEl=document.getElementById('prodUrl');
-  if(hraEl)hraEl.value=localStorage.getItem(LS_HRA_GAS)||'';
-  if(prodEl)prodEl.value=localStorage.getItem(LS_PROD_GAS)||'';
+  const h=document.getElementById('hraUrl'),p=document.getElementById('prodUrl');
+  if(h)h.value=localStorage.getItem(GAS_HRA)||'';
+  if(p)p.value=localStorage.getItem(GAS_PROD)||'';
 }
-function saveUrl(type){
-  const v=document.getElementById(type==='hra'?'hraUrl':'prodUrl')?.value?.trim()||'';
-  localStorage.setItem(type==='hra'?LS_HRA_GAS:LS_PROD_GAS,v);
-  toast('✅ URL 已儲存');setST('✓','ok');
-}
+function saveUrl(t){const k=t==='hra'?GAS_HRA:GAS_PROD;const v=document.getElementById(t==='hra'?'hraUrl':'prodUrl')?.value?.trim()||'';localStorage.setItem(k,v);toast('✅ 已儲存');setST('✓','ok');}
+const I18N={};function setL(l){}
 
-// i18n (minimal)
-const I18N={zh:{},en:{}};
-let LANG='zh';
-function setL(l){LANG=l;document.getElementById('btn-zh')?.classList.toggle('on',l==='zh');document.getElementById('btn-en')?.classList.toggle('on',l==='en');}
 </script>
 </body>
 </html>
