@@ -154,8 +154,9 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
   <button class="tab" data-t="as">🔄 <span data-i="navAS">出勤×車縫</span></button>
   <button class="tab" data-t="ac">📋 <span data-i="navAC">出勤×入離職</span></button>
   <button class="tab" data-t="am">🤰 <span data-i="navAM">出勤×孕假</span></button>
-  <button class="tab" data-t="unmatched">⚠ <span data-i="navUm">未匹配</span><span class="badge" id="um-cnt" style="display:none">0</span></button>
   <button class="tab" data-t="recruit">📥 <span data-i="navRC">入離職×招募</span></button>
+  <button class="tab" data-t="unmatched">⚠ <span data-i="navUm">未匹配</span><span class="badge" id="um-cnt" style="display:none">0</span></button>
+
   <button class="tab" data-t="cfg">⚙️ <span data-i="navCfg">設定</span></button>
 </div>
 
@@ -327,60 +328,38 @@ function addAlias(){document.getElementById('alias-from').value='';document.getE
 function confirmAlias(){const f=document.getElementById('alias-from').value.trim().toUpperCase(),t2=document.getElementById('alias-to').value.trim().toUpperCase();if(!f||!t2){toast('請填寫別名和對應');return;}window.LINE_ALIAS[f]=t2;renderAliasTable();document.getElementById('addModal').classList.remove('show');}
 function renderAliasTable(){const entries=Object.entries(window.LINE_ALIAS).filter(([,v])=>v.startsWith('LINE_')).sort((a,b)=>a[0].localeCompare(b[0]));document.getElementById('alias-tbody').innerHTML=entries.map(([from,to])=>`<tr><td><input class="af cp-input" value="${from}" style="width:100%"></td><td><input class="at2 cp-input" value="${to}" style="width:100%"></td><td><button onclick="delete window.LINE_ALIAS['${from}'];renderAliasTable()" style="background:var(--red);color:#fff;border:none;border-radius:3px;padding:2px 6px;cursor:pointer;font-size:10px">×</button></td></tr>`).join('');}
 
-// ── NAME NORMALIZATION ──
-const _normCache=new Map();
-function normalizeLineName(raw){if(!raw)return null;const key=String(raw).toUpperCase().trim();if(_normCache.has(key))return _normCache.get(key);const r=_doNorm(key);_normCache.set(key,r);return r;}
-
-function _doNorm(orig){
-  if(!orig)return null;
-  // ① alias table
-  if(window.LINE_ALIAS[orig])return window.LINE_ALIAS[orig];
-  const origTrim=orig.replace(/\s+/g,' ').trim();
-  if(window.LINE_ALIAS[origTrim])return window.LINE_ALIAS[origTrim];
-  // ② strip non-alphanumeric
-  const noSp=orig.replace(/[^A-Z0-9]/g,'');
-  // ③ skip grand/total rows
-  if(/^(GRAND|TOTAL|TTL|ALL|SUM|SUMMARY|HEADER|AVG|AVERAGE|SUBTOTAL)/.test(noSp))return null;
-  // ④ LINE + 1-2 digits
+// ── NORMALIZATION: exact copy from attendance module (ac_hra_attendance_v1) ──
+// normSCLine: same as attendance module — produces LINE1, LINE2 etc (no underscore)
+function normSCLine(s){
+  const n=String(s||'').replace(/[\s_-]+/g,'').toUpperCase();
   let m;
-  if(m=noSp.match(/^LINE0*(\d{1,2})$/)){const n=parseInt(m[1]);return n>=1&&n<=MAX_SEWING_LINE?'LINE_'+n:null;}
-  // ⑤ L + 1-2 digits
-  if(m=noSp.match(/^L0*(\d{1,2})$/)){const n=parseInt(m[1]);return n>=1&&n<=MAX_SEWING_LINE?'LINE_'+n:null;}
-  // ⑥ A/B/C + 1-2 digits
-  if(m=noSp.match(/^[ABC]0*(\d{1,2})$/)){const n=parseInt(m[1]);return n>=1&&n<=MAX_SEWING_LINE?'LINE_'+n:null;}
-  // ⑦ APRON/GARMENT + 1-2 digits
-  if(m=noSp.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/)){const n=parseInt(m[1]);return n>=1&&n<=MAX_SEWING_LINE?'LINE_'+n:null;}
-  // ⑧ BLOCKED: non-sewing dept cannot map to LINE_XX → return canonical dept name
-  if(NON_SEW_BLOCKED.test(noSp)){
-    if(/^CUT/.test(noSp))return'CUT';
-    if(/^QC/.test(noSp))return'QC';
-    if(/^PACK|^PRESS/.test(noSp))return'PACK';
-    if(/^ME$|^MAINT/.test(noSp))return'ME';
-    if(/^ADMIN|^OFFICE/.test(noSp))return'ADMIN';
-    if(/^WH|^WARE/.test(noSp))return'WH';
-    if(/^SECU/.test(noSp))return'SECURITY';
-    if(/^HRA$|^HR$/.test(noSp))return'HRA';
-    if(/^SHIP/.test(noSp))return'SHIP';
-    if(/^ACCT/.test(noSp))return'ACCT';
-    if(/^IT$/.test(noSp))return'IT';
-    if(/^MARKER/.test(noSp))return'MARKER';
-    if(/^FINISH/.test(noSp))return'FINISH';
-    if(/^SAMPLE/.test(noSp))return'SAMPLE';
-    if(/^CLEAN|^ENV/.test(noSp))return'ENV';
-    if(/^GAS$/.test(noSp))return'GAS';
-    return noSp.slice(0,8)||null;
-  }
-  return null;
+  if(m=n.match(/^(?:LINE|L)0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^[AB]0*(\d{1,2})$/))return'LINE'+m[1];
+  if(m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/))return'LINE'+m[1];
+  // Bare digit 1-30 (attendance stores sewing lines as "12" not "LINE12")
+  if(m=n.match(/^0*(\d{1,2})$/)){const num=+m[1];if(num>=1&&num<=MAX_SEWING_LINE)return'LINE'+num;}
+  return n;
 }
-
-// ── isSewingLine: STRICT — only LINE_1 to LINE_30 ──
-const CUSTOM_SEWING=new Set();
-function isSewingLine(lineId){
-  if(!lineId)return false;
-  const m=lineId.match(/^LINE_(\d+)$/);
-  if(m){const n=parseInt(m[1]);return n>=1&&n<=MAX_SEWING_LINE;}
-  return CUSTOM_SEWING.has(lineId);
+// isSCLine: exact from attendance — LINE1-LINE30 only
+function isSCLine(lineId){
+  return/^LINE(\d{1,2})$/.test(lineId)&&+lineId.replace('LINE','')>=1&&+lineId.replace('LINE','')<=MAX_SEWING_LINE;
 }
+// isSewingLineAtt: exact from attendance isSewingLineByName
+function isSewingLineAtt(r){
+  if(!r||r.isSubtotal||r.isGrand)return false;
+  const raw=String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||r.lineNo||'').trim();
+  if(!raw)return false;
+  const n=raw.replace(/[\s_\-]+/g,'').toUpperCase();
+  if(/^(QC|QUALITY|PACK|PACKING|CUT|CUTTING|ADMIN|WH|WAREHOUSE|FINISH|FINISHING|SAMPLE|MECHANIC|PRESS|PRESSING|MARKER|INSPECT)/.test(n))return false;
+  if(isSCLine(normSCLine(raw)))return true;
+  if(/sewing|stitching|縫|車縫/i.test(raw)&&/\d/.test(raw))return true;
+  return false;
+}
+// normalizeLineName: kept as alias for backward compat (non-sewing dept)
+function normalizeLineName(raw){return normSCLine(raw)||null;}
+// isSewingLine: alias using new logic
+function isSewingLine(lineId){return isSCLine(lineId||'');}
+function displayLine(lineId){if(!lineId)return'?';if(/^LINE\d+$/.test(lineId))return'LINE '+lineId.slice(4);return lineId;}
 
 function displayLine(lineId){if(!lineId)return'?';if(lineId.startsWith('LINE_'))return'LINE '+lineId.slice(5);return lineId;}
 function normalizeDept(raw){const s=String(raw||'').toUpperCase().replace(/[^A-Z]/g,'');if(/PRODUCT|GARMENT|SEW/.test(s))return'Production';if(/QC|QUALITY/.test(s))return'QC';if(/CUT/.test(s))return'Cutting';if(/PACK/.test(s))return'Packing';if(/MAINT/.test(s))return'Maintenance';if(/ADMIN|OFFICE/.test(s))return'Admin';if(/WH|WARE/.test(s))return'Warehouse';return raw?.trim()||'(other)';}
@@ -425,11 +404,40 @@ async function doSave(){const url=localStorage.getItem(LS.HRA_GAS)||'';if(!url){
 
 // ── REBUILD NORM ──
 function rebuildNorm(){_normCache.clear();_unmatchedHard.clear();_unmatchedHist.clear();_attNorm=[];_sewNorm=[];_joinNorm=[];_matByLine=new Map();
-for(const r of COMPLETE_DB.attendance){const rawLine=r.lineNo||r.group||r.section||r.line||'';if(!rawLine||!r.date)continue;const lineId=normalizeLineName(rawLine);if(!lineId){const hist=/\d{2,}/.test(rawLine)&&parseInt(rawLine.replace(/\D/g,''))>=19;if(hist)_unmatchedHist.add(rawLine);else _unmatchedHard.add(rawLine);continue;}_attNorm.push({date:String(r.date).slice(0,10),lineId,lineRaw:rawLine,hc:+r.ttl||+r.hc||(+r.m||0)+(+r.f||0)||0,att:+r.att||0,join:+r.join||0,resign:+r.resign||0,matLeave:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0});}
+for(const r of COMPLETE_DB.attendance){
+  if(!r.date)continue;
+  // Use SAME sewing detection as attendance module
+  if(!isSewingLineAtt(r))continue; // skip non-sewing for _attNorm (sewing compare)
+  const rawFull=String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||r.lineNo||'').trim();
+  const raw=rawFull.replace(/[/\uFF0F].*/,'').trim();
+  if(!raw)continue;
+  const lineId=normSCLine(raw);
+  if(!isSCLine(lineId)){_unmatchedHard.add(raw);continue;}
+  const hc=(+r.m||0)+(+r.f||0)||+r.ttl||+r.hc||+r.att||0;
+  _attNorm.push({date:String(r.date).slice(0,10),lineId,lineRaw:rawFull,
+    hc,att:+r.att||0,join:+r.join||0,resign:+r.resign||0,
+    matLeave:+r.ml||0,al:+r.al||0,pl:+r.pl||0,sl:+r.sl||0,np:+r.np||0});
+}
+// Also build _attAll for non-sewing tabs (join/resign/maternity by any dept)
+window._attAll=COMPLETE_DB.attendance.filter(r=>r.date).map(r=>({
+  date:String(r.date).slice(0,10),
+  line:String(r.line||r.sect||r.group||r.lineNo||'').trim(),
+  hc:(+r.m||0)+(+r.f||0)||+r.ttl||+r.hc||0,
+  join:+r.join||0, resign:+r.resign||0, ml:+r.ml||0
+}));
 for(const r of COMPLETE_DB.sewing){const rawLine=r.lineNo||r.group||r.section||'';if(!rawLine||!r.date)continue;const lineId=normalizeLineName(rawLine);if(!lineId)continue;_sewNorm.push({date:String(r.date).slice(0,10),lineId,lineRaw:rawLine,workers:+r.workers||0,pieces:+r.pieces||0,eff:+r.efficiency||+r.eff||0});}
 for(const r of COMPLETE_DB.onboarding||[]){const rawLine=r.dept||r.section||r.lineNo||'';const lineId=normalizeLineName(rawLine)||normalizeDept(rawLine);if(r.joinDate||r.entryDate)_joinNorm.push({date:(r.joinDate||r.entryDate||'').slice(0,10),lineId,type:'join',name:r.name||''});if(r.resignDate||r.leaveDate)_joinNorm.push({date:(r.resignDate||r.leaveDate||'').slice(0,10),lineId,type:'resign',name:r.name||''});}
 for(const r of COMPLETE_DB.contract||[]){const lineId=normalizeLineName(r.section||r.dept||'')||normalizeDept(r.dept||'');if(r.entryDate)_joinNorm.push({date:String(r.entryDate).slice(0,10),lineId,type:'join',name:r.name||''});}
-for(const e of COMPLETE_DB.maternity||[]){const rawLine=e.section||e.dept||'';const lineId=normalizeLineName(rawLine)||normalizeDept(e.dept||'');if(!lineId)continue;if(!_matByLine.has(lineId))_matByLine.set(lineId,{preg:0,mat:0,ret:0});const v=_matByLine.get(lineId);if(e.status==='pregnant')v.preg++;if(e.status==='maternity')v.mat++;if(e.status==='returned')v.ret++;}
+for(const e of COMPLETE_DB.maternity||[]){
+  // Use section (LINE17, QC A) or dept directly — same as maternity module
+  const rawDept=(e.dept||e.section||'').replace(/[/\uFF0F].*/,'').trim();
+  if(!rawDept)continue;
+  const lineId=normSCLine(rawDept);
+  const key=isSCLine(lineId)?lineId:rawDept.toUpperCase().slice(0,12)||'—';
+  if(!_matByLine.has(key))_matByLine.set(key,{preg:0,mat:0,ret:0});
+  const v=_matByLine.get(key);
+  if(e.status==='pregnant')v.preg++;else if(e.status==='maternity')v.mat++;else if(e.status==='returned')v.ret++;
+}
 const total=_unmatchedHard.size+_unmatchedHist.size;const umEl=document.getElementById('um-cnt');if(umEl){umEl.textContent=total;umEl.style.display=total?'':'none';}
 rebuildPeriods();}
 
@@ -437,7 +445,7 @@ rebuildPeriods();}
 function getAttStats(lineId,dates){const recs=lineId?_attNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_attNorm.filter(r=>dates.has(r.date));if(!recs.length)return{hc:0,att:0,join:0,resign:0,ml:0,matLeave:0,days:0};const byDate=new Map();for(const r of recs){if(!byDate.has(r.date))byDate.set(r.date,{hc:0,att:0,join:0,resign:0,ml:0});const v=byDate.get(r.date);v.hc+=r.hc;v.att+=r.att;v.join+=r.join;v.resign+=r.resign;v.ml+=r.ml;}const days=byDate.size;const vals=[...byDate.values()];return{hc:Math.round(vals.reduce((s,v)=>s+v.hc,0)/days),att:Math.round(vals.reduce((s,v)=>s+v.att,0)/days),join:vals.reduce((s,v)=>s+v.join,0),resign:vals.reduce((s,v)=>s+v.resign,0),ml:vals.reduce((s,v)=>s+(v.ml||0),0),matLeave:vals.reduce((s,v)=>s+(v.matLeave||v.ml||0),0),days};}
 function getSewStats(lineId,dates){const recs=lineId?_sewNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_sewNorm.filter(r=>dates.has(r.date));if(!recs.length)return{workers:0,pieces:0,eff:0,days:0};const byDate=new Map();for(const r of recs){if(!byDate.has(r.date))byDate.set(r.date,{workers:0,pieces:0,eff:0,cnt:0});const v=byDate.get(r.date);v.workers+=r.workers;v.pieces+=r.pieces;v.eff+=r.eff;v.cnt++;}const days=byDate.size;const vals=[...byDate.values()];return{workers:Math.round(vals.reduce((s,v)=>s+v.workers,0)/days),pieces:vals.reduce((s,v)=>s+v.pieces,0),eff:vals.length?(vals.reduce((s,v)=>s+v.eff,0)/vals.length).toFixed(1):0,days};}
 function getJoinStats(lineId,dates){const recs=lineId?_joinNorm.filter(r=>r.lineId===lineId&&dates.has(r.date)):_joinNorm.filter(r=>dates.has(r.date));return{join:recs.filter(r=>r.type==='join').length,resign:recs.filter(r=>r.type==='resign').length};}
-function getMatStats(lineId){if(lineId)return _matByLine.get(lineId)||{preg:0,mat:0,ret:0};let preg=0,mat=0,ret=0;_matByLine.forEach(v=>{preg+=v.preg;mat+=v.mat;ret+=v.ret;});return{preg,mat,ret};}
+function getMatStats(key){if(key)return _matByLine.get(key)||_matByLine.get(normSCLine(key))||{preg:0,mat:0,ret:0};let preg=0,mat=0,ret=0;_matByLine.forEach(v=>{preg+=v.preg;mat+=v.mat;ret+=v.ret;});return{preg,mat,ret};}
 function dc(diff,base){if(!base||base===0)return'na';const a=Math.abs(diff);return a<=1?'ok':a<=3?'warn':'bad';}
 function diffBadge(d){const s=d>=0?'+':'';const cls=d===0?'ok':Math.abs(d)<=3?'warn':'bad';return`<span class="badge ${cls}">${s}${d}</span>`;}
 
@@ -535,48 +543,134 @@ function renderUnified(){try{
 // ── RENDER AS: Sewing lines ONLY ──
 function renderAS(){try{
   document.getElementById('pbar-as').innerHTML=pbarHtml('as');
-  const dates=getDates('as'),lf=getLF('as');
-  // ONLY Sewing lines from Attendance — strict
-  const lines=getAttLines().filter(l=>isSewingLine(l)&&(!lf||l===lf));
-  const aTotal=getAttStats(lf||'',dates),sTotal=getSewStats(lf||'',dates);
-  const diff=aTotal.hc-sTotal.workers,diffCls=dc(diff,aTotal.hc);
+  const lf=getLF('as');
+  const P=PS.as, key=curKey('as');
+  
+  // ── Same logic as attendance module renderSewCmp ──
+  // Period check: use attendance module's approach
+  function inPeriod(d){
+    if(!d)return false;
+    const ds=String(d).slice(0,10);
+    if(P.m==='day')return ds===key;
+    if(P.m==='month')return ds.slice(0,7)===key;
+    if(P.m==='year')return ds.slice(0,4)===key;
+    return true;
+  }
+  
+  // Build attMap: use SAME logic as attendance renderSewCmp
+  const attMap={};
+  (COMPLETE_DB.attendance||[]).forEach(r=>{
+    if(!inPeriod(r.date)||r.isSubtotal||r.isGrand)return;
+    const rawFull=String(r.line||r.sect||r.group||r.lineNo||'').trim();
+    const raw=rawFull.replace(/[/\uFF0F].*/,'').trim();
+    if(!raw)return;
+    if(!isSewingLineAtt(r))return;
+    let lid=normSCLine(raw);
+    if(!isSCLine(lid)){const digits=raw.replace(/[^\d]/g,'');if(digits){const num=+digits.slice(-2);if(num>=1&&num<=MAX_SEWING_LINE)lid='LINE'+num;}}
+    if(!isSCLine(lid))return;
+    if(lf&&lid!==lf)return;
+    if(!attMap[lid])attMap[lid]={hcSum:0,days:new Set(),join:0,resign:0};
+    const mf=(+r.m||0)+(+r.f||0);
+    attMap[lid].hcSum+=mf>0?mf:(+r.att||0);
+    attMap[lid].days.add(String(r.date).slice(0,10));
+  });
+  
+  // Build sewMap
+  const sewMap={};
+  (COMPLETE_DB.sewing||[]).forEach(r=>{
+    if(!inPeriod(r.date))return;
+    const lid=normSCLine(String(r.lineNo||r.line||'').trim());
+    if(!isSCLine(lid))return;
+    if(lf&&lid!==lf)return;
+    if(!sewMap[lid])sewMap[lid]={wSum:0,days:new Set(),pcs:0,effSum:0,effCnt:0};
+    const w=+r.workers||0;
+    if(w>0){sewMap[lid].wSum+=w;sewMap[lid].days.add(String(r.date).slice(0,10));}
+    sewMap[lid].pcs+=(+r.pieces||0);
+    if(r.efficiency||r.eff){sewMap[lid].effSum+=(+r.efficiency||+r.eff||0);sewMap[lid].effCnt++;}
+  });
+  
+  // Compute averages
+  const attHC={},sewW={};
+  Object.entries(attMap).forEach(([lid,v])=>attHC[lid]=Math.round(v.hcSum/(v.days.size||1)));
+  Object.entries(sewMap).forEach(([lid,v])=>sewW[lid]=Math.round(v.wSum/(v.days.size||1)));
+  
+  // Totals
+  const attTotal=Object.values(attHC).reduce((s,v)=>s+v,0);
+  const sewTotal=Object.values(sewW).reduce((s,v)=>s+v,0);
+  const diff=attTotal-sewTotal;
+  const match=attTotal>0?(sewTotal/attTotal*100).toFixed(1)+'%':'—';
+  
   document.getElementById('kpi-as').innerHTML=[
-    {l:'考勤車工(均)',v:aTotal.hc||'—',c:'nv'},
-    {l:'車縫系統(均)',v:sTotal.workers||'—',c:'tl'},
-    {l:'差異',v:aTotal.hc&&sTotal.workers?(diff>=0?'+':'')+diff:'—',c:diffCls==='ok'?'gn':diffCls==='warn'?'gd':'rd'},
-    {l:'差%',v:sTotal.workers?(diff/sTotal.workers*100).toFixed(1)+'%':'—',c:'pu'},
+    {l:'考勤車工(均)',v:attTotal||'—',c:'nv'},
+    {l:'車縫系統(均)',v:sewTotal||'—',c:'tl'},
+    {l:'差異',v:(diff>=0?'+':'')+diff,c:diff===0?'gn':Math.abs(diff)<10?'gd':'rd'},
+    {l:'差%',v:match,c:'pu'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-  let html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">考勤車工(均)</th><th class="center">車縫系統(均)</th><th class="center">差異</th><th class="center">差%</th><th class="center">效率%</th><th class="center">產量</th></tr></thead><tbody>
-  ${lines.map(line=>{const a=getAttStats(line,dates),s=getSewStats(line,dates);const df=a.hc-s.workers,pct=s.workers?(df/s.workers*100).toFixed(1)+'%':'—';const dcl=dc(df,a.hc);return`<tr><td><b>${displayLine(line)}</b></td><td class="center">${a.hc||'—'}</td><td class="center">${s.workers||'—'}</td><td class="center dc ${dcl}">${a.hc&&s.workers?(df>=0?'+':'')+df:'—'}</td><td class="center">${pct}</td><td class="center">${s.eff||'—'}</td><td class="center">${s.pieces||'—'}</td></tr>`;}).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無 Sewing Line 資料</td></tr>'}</tbody></table></div>`;
-  document.getElementById('as-content').innerHTML=html;}catch(e){console.error('renderAS:',e);}}
+  
+  // Lines sorted numerically (same as attendance)
+  const lines=[...new Set([...Object.keys(attHC),...Object.keys(sewW)])].filter(isSCLine)
+    .sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''));
+  
+  const html=`<div class="utable"><table><thead><tr>
+    <th>LINE</th><th class="center">考勤車工(均)</th><th class="center">車縫系統(均)</th>
+    <th class="center">差異</th><th class="center">差%</th><th class="center">效率%</th>
+  </tr></thead><tbody>${
+    lines.map(lid=>{
+      const a=attHC[lid]||0,s=sewW[lid]||0;
+      const df=a-s,pct=s?(df/s*100).toFixed(1)+'%':'—';
+      const sv=sewMap[lid]||{};
+      const eff=sv.effCnt?(sv.effSum/sv.effCnt).toFixed(1):'—';
+      const dcl=df===0?'gn':Math.abs(df)<5?'gd':'rd';
+      return`<tr><td><b>${displayLine(lid)}</b></td>
+        <td class="center">${a||'—'}</td><td class="center">${s||'—'}</td>
+        <td class="center dc ${dcl}">${a&&s?(df>=0?'+':'')+df:'—'}</td>
+        <td class="center">${pct}</td><td class="center">${eff}</td></tr>`;
+    }).join('')||'<tr><td colspan="6" style="color:var(--gray);text-align:center;padding:20px">無 Sewing Line 資料 — 請先讀取或匯入考勤/車縫</td></tr>'
+  }</tbody></table></div>`;
+  document.getElementById('as-content').innerHTML=html;
+}catch(e){console.error('renderAS:',e);}}
 
 // ── RENDER AC: Attendance vs HR Dual comparison ──
 function renderAC(){try{
   document.getElementById('pbar-ac').innerHTML=pbarHtml('ac');
-  const dates=getDates('ac'),lf=getLF('ac');
-  const a=getAttStats(lf,dates);
-  // HR side from contract+probation
-  const contRR=(COMPLETE_DB.contract||[]).filter(r=>r.entryDate&&dates.has(String(r.entryDate).slice(0,10)));
-  const probRR=(COMPLETE_DB.probation||[]).filter(r=>r.joinDate&&dates.has(String(r.joinDate).slice(0,10)));
-  const hrJoin=contRR.length+probRR.length;
-  const hrResign=_joinNorm.filter(r=>r.type==='resign'&&dates.has(r.date)).length;
-  const jDiff=a.join-hrJoin,rDiff=a.resign-hrResign;
-  // 6-cell dual KPI
+  const P=PS.ac, key=curKey('ac'), lf=getLF('ac');
+  function inP(d){if(!d)return false;const ds=String(d).slice(0,10);if(P.m==='day')return ds===key;if(P.m==='month')return ds.slice(0,7)===key;if(P.m==='year')return ds.slice(0,4)===key;return true;}
+  
+  // Attendance join/resign (from _attAll which includes ALL depts, not just sewing)
+  const attAll=window._attAll||[];
+  let attJoin=0,attResign=0;
+  const attDeptMap={};
+  attAll.filter(r=>inP(r.date)&&(!lf||normSCLine(r.line.replace(/[/\uFF0F].*/,''))===lf)).forEach(r=>{
+    attJoin+=r.join;attResign+=r.resign;
+    const dept=r.line.replace(/[/\uFF0F].*/,'').trim()||'?';
+    if(!attDeptMap[dept])attDeptMap[dept]={join:0,resign:0,hc:0,cnt:0};
+    attDeptMap[dept].join+=r.join;attDeptMap[dept].resign+=r.resign;attDeptMap[dept].hc+=r.hc;attDeptMap[dept].cnt++;
+  });
+  
+  // HR side: onboarding joins/resigns
+  const hrJoins=(COMPLETE_DB.onboarding||[]).filter(r=>(r.type==='join'||r.joinDate)&&inP(r.joinDate||r.date));
+  const hrResigns=(COMPLETE_DB.onboarding||[]).filter(r=>(r.type==='resign'||r.resignDate)&&inP(r.resignDate||r.date));
+  const hrJoin=hrJoins.length, hrResign=hrResigns.length;
+  const jDiff=attJoin-hrJoin, rDiff=attResign-hrResign;
+  
   document.getElementById('kpi-ac').innerHTML=[
-    {l:'Attendance 新進',v:a.join,c:'nv'},
-    {l:'HR 新進',v:hrJoin||'—',c:'tl'},
-    {l:'新進差異',v:hrJoin?(jDiff>=0?'+':'')+jDiff:'—',c:jDiff===0?'gn':Math.abs(jDiff)<=3?'gd':'rd'},
-    {l:'Attendance 離職',v:a.resign,c:'rd'},
-    {l:'HR 離職',v:hrResign||'—',c:'gd'},
-    {l:'離職差異',v:hrResign?(rDiff>=0?'+':'')+rDiff:'—',c:'pu'},
+    {l:'出勤 新進',v:attJoin,c:'nv'},{l:'HR 新進',v:hrJoin||'—',c:'tl'},
+    {l:'新進差異',v:(jDiff>=0?'+':'')+jDiff,c:jDiff===0?'gn':Math.abs(jDiff)<=3?'gd':'rd'},
+    {l:'出勤 離職',v:attResign,c:'rd'},{l:'HR 離職',v:hrResign||'—',c:'gd'},
+    {l:'離職差異',v:(rDiff>=0?'+':'')+rDiff,c:'pu'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
   document.getElementById('kpi-ac').style.gridTemplateColumns='repeat(3,1fr)';
-  // Table by Attendance line order
-  const deptMap=new Map();
-  _attNorm.filter(r=>dates.has(r.date)&&(!lf||r.lineId===lf)).forEach(r=>{const key=r.lineId||'?';if(!deptMap.has(key))deptMap.set(key,{join:0,resign:0,hc:0,cnt:0});const v=deptMap.get(key);v.join+=r.join;v.resign+=r.resign;v.hc+=r.hc;v.cnt++;});
-  const html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">均在職</th><th class="center">考勤 新進</th><th class="center">考勤 離職</th><th class="center">入/離比</th></tr></thead><tbody>
-  ${getAttLines().filter(l=>!lf||l===lf).map(line=>{const v=deptMap.get(line)||{join:0,resign:0,hc:0,cnt:1};const avgHC=v.cnt?Math.round(v.hc/v.cnt):0;const rat=v.join>0?(v.resign/v.join*100).toFixed(1)+'%':'—';return`<tr><td><b>${displayLine(line)}</b></td><td class="center">${avgHC}</td><td class="center">${v.join}</td><td class="center">${v.resign}</td><td class="center" style="font-weight:700;color:${+rat>50?'var(--red)':'var(--navy)'}">${rat}</td></tr>`;}).join('')||'<tr><td colspan="5" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
-  document.getElementById('ac-content').innerHTML=html;}catch(e){console.error('renderAC:',e);}}
+  
+  const depts=Object.keys(attDeptMap).sort();
+  const html=`<div class="utable"><table><thead><tr>
+    <th>部門/LINE</th><th class="center">均在職</th><th class="center">考勤 新進</th>
+    <th class="center">考勤 離職</th><th class="center">入/離比</th>
+  </tr></thead><tbody>${
+    depts.map(dept=>{const v=attDeptMap[dept];const avgHC=v.cnt?Math.round(v.hc/v.cnt):0;const rat=v.join>0?(v.resign/v.join*100).toFixed(1)+'%':'—';
+      return`<tr><td><b>${dept}</b></td><td class="center">${avgHC}</td><td class="center">${v.join}</td><td class="center">${v.resign}</td><td class="center">${rat}</td></tr>`;}).join('')||'<tr><td colspan="5" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'
+  }</tbody></table></div>`;
+  document.getElementById('ac-content').innerHTML=html;
+}catch(e){console.error('renderAC:',e);}}
 
 // ── RENDER AM ──
 function renderAM(){try{
@@ -588,7 +682,8 @@ function renderAM(){try{
     {l:'產假中',v:mAll.mat||'—',c:'rd'},
     {l:'考勤 ML假',v:a.matLeave||a.ml||'—',c:'gd'},
   ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
-  const lines=getAttLines().filter(l=>!lf||l===l);
+  const lines=[...new Set([...(window._attAll||[]).map(r=>r.line.replace(/[/\uFF0F].*/,'').trim()),
+    ..._matByLine.keys()])].filter(Boolean).sort();
   const html=`<div class="utable"><table><thead><tr><th>LINE</th><th class="center">均在職</th><th class="center">🤰孕婦</th><th class="center">🍼產假</th><th class="center">✅復工</th><th class="center">ML假</th><th class="center">差異</th></tr></thead><tbody>
   ${lines.map(line=>{const a2=getAttStats(line,dates),m=getMatStats(line);if(!a2.hc&&!m.preg&&!m.mat)return'';const diff2=a2.ml-(m.preg+m.mat);return`<tr><td><b>${displayLine(line)}</b></td><td class="center">${a2.hc||'—'}</td><td class="center">${m.preg}</td><td class="center">${m.mat}</td><td class="center">${m.ret}</td><td class="center">${a2.ml}</td><td class="center dc ${dc(diff2,m.preg+m.mat||1)}">${diffBadge(diff2)}</td></tr>`;}).join('')||'<tr><td colspan="7" style="color:var(--gray);text-align:center;padding:20px">無資料</td></tr>'}</tbody></table></div>`;
   document.getElementById('am-content').innerHTML=html;}catch(e){console.error('renderAM:',e);}}
