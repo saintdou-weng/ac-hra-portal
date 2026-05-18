@@ -360,6 +360,9 @@ function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))
 // ── Data store ──
 let DB=LS.get('db')||[];// Array of parsed row objects
 let IMPORT_LOG=LS.get('log')||[];
+// DB_META — tracks source, version, updatedAt for cloud vs local comparison
+let DB_META=LS.get('meta')||{updatedAt:'',version:0,source:'local'};
+function saveMeta(m){DB_META={...DB_META,...m};LS.set('meta',DB_META);}
 // ── IndexedDB for full attendance data (no 5MB limit) ──
 const ATT_IDB_NAME  = 'AC_HRA_Attendance';
 const ATT_IDB_STORE = 'records';
@@ -405,13 +408,56 @@ async function loadFromIDB() {
 }
 
 // Load from IDB on startup (before cloud auto-sync)
-(async function loadIDBOnStart() {
-  const recs = await loadFromIDB();
-  if (recs.length > 0) {
-    DB = recs;
-    IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
-    updateHeader();
-    console.log('[IDB] Loaded ' + recs.length + ' records from IndexedDB');
+// ── Smart startup: IDB load → cloud compare → newer wins ──────────
+(async function smartStartup() {
+  // Step 1: Load from IDB (may have more complete data than localStorage)
+  try {
+    const recs = await loadFromIDB();
+    if (recs.length > 0 && recs.length >= DB.length) {
+      DB = recs;
+      IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
+      updateHeader();
+      console.log('[STARTUP] IDB loaded ' + recs.length + ' records');
+    }
+  } catch(e) { console.warn('[STARTUP] IDB load failed:', e); }
+
+  // Step 2: Update debug badge with local info
+  const localTs = DB_META.updatedAt || (IMPORT_LOG.length ? IMPORT_LOG[IMPORT_LOG.length-1] : '');
+  updateSyncBadge(localTs, '確認中…', '—', '確認中…');
+
+  // Step 3: If GAS_URL is set, silently check cloud meta
+  if (!GAS_URL) {
+    updateSyncBadge(localTs, '(無GAS)', '—', '(無GAS)');
+    return;
+  }
+  try {
+    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', {method:'GET',redirect:'follow'});
+    const d1 = await r1.json();
+    if (!d1.ok || !d1.data) { updateSyncBadge(localTs,'','-',''); return; }
+    const cloudTs = d1.data.chunked ? (d1.data.meta?.timestamp||'') : (d1.data.data?.updatedAt||'');
+    const cloudRecs = d1.data.chunked ? (d1.data.meta?.recordCount||0) : (d1.data.data?.recordCount||0);
+
+    // Get sewing cloud meta
+    let sewCloudTs = '';
+    try {
+      const rs = await fetch(GAS_URL+'?action=pull&tool=sewing&meta=1',{method:'GET',redirect:'follow'});
+      const ds = await rs.json();
+      if(ds.ok&&ds.data) sewCloudTs=ds.data.chunked?(ds.data.meta?.timestamp||''):(ds.data.data?.updatedAt||'');
+    } catch(e2) {}
+    const localSewTs = LS.get('sewMeta')?.updatedAt || '';
+    updateSyncBadge(localTs, cloudTs, localSewTs, sewCloudTs);
+
+    // Step 4: If cloud is newer → auto-pull silently (no confirm dialog)
+    if (cloudTs && cloudTs > (DB_META.updatedAt||localTs)) {
+      console.log('[STARTUP] Cloud is newer (' + cloudTs + ' > ' + (DB_META.updatedAt||localTs) + '). Auto-syncing...');
+      updateSyncBadge(localTs, cloudTs+'⬇', localSewTs, sewCloudTs);
+      await pullCloud(true); // silent=true skips confirm dialog
+    } else {
+      console.log('[STARTUP] Local is up-to-date (' + (DB_META.updatedAt||localTs) + ')');
+    }
+  } catch(e) {
+    console.warn('[STARTUP] Cloud check failed:', e.message);
+    updateSyncBadge(localTs, '離線', '—', '離線');
   }
 })();
 
@@ -432,6 +478,21 @@ function updateHeader(){
   document.getElementById('hDays').textContent=dates.length;
   const sz=JSON.stringify(DB).length;
   document.getElementById('hSize').textContent=sz>1048576?(sz/1048576).toFixed(1)+'MB':(sz/1024).toFixed(0)+'KB';
+}
+// ── Debug Sync Status Badge ──────────────────────────────────────
+function updateSyncBadge(attLocal,attCloud,sewLocal,sewCloud){
+  let el=document.getElementById('sync-badge');
+  if(!el){
+    el=document.createElement('div');
+    el.id='sync-badge';
+    el.style.cssText='position:fixed;bottom:12px;right:12px;background:rgba(30,58,95,.92);color:#fff;font-size:10px;font-family:monospace;padding:6px 10px;border-radius:6px;z-index:9999;line-height:1.6;max-width:200px;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  const _d=s=>s?String(s).slice(0,10):'—';
+  const _ok=(l,c)=>l&&c&&l>=c?'✅':'⚠';
+  el.innerHTML=
+    `ATT: ${_ok(attLocal,attCloud)} local=${_d(attLocal)} cloud=${_d(attCloud)}<br>`+
+    `SEW: ${_ok(sewLocal,sewCloud)} local=${_d(sewLocal)} cloud=${_d(sewCloud)}`;
 }
 
 // ── calc ──
@@ -1980,11 +2041,11 @@ async function pullCloud(silent) {
       setProgress(0, false); return;
     }
 
-    // Step 2: Confirm if local DB is not empty
+    // Step 2: Confirm only if manual pull (not silent auto-sync)
+    const cloudTs2 = d1.data?.chunked ? (d1.data?.meta?.timestamp||'') : (d1.data?.data?.updatedAt||'');
     if (!silent && DB.length > 0) {
       const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
-      const cloudTs   = d1.data?.chunked ? (d1.data?.meta?.timestamp || '') : (d1.data?.data?.updatedAt||'');
-      if (!confirm(`雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs)})\n本地有 ${DB.length} 筆。\n\n拉取後會合併（不重複日期）。\n確定拉取？`)) {
+      if (!confirm(`雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n拉取後會合併（不重複日期）。\n確定拉取？`)) {
         setSyncStatus('idle', ''); setProgress(0, false); return;
       }
     }
@@ -2046,12 +2107,20 @@ async function pullCloud(silent) {
     lastSyncTs = new Date().toISOString();
     localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
     setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
+    // Save cloud meta for next startup comparison
+    const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
+    if (_cloudMeta) saveMeta({updatedAt:_cloudMeta.updatedAt||_cloudMeta.timestamp||lastSyncTs, source:'cloud'});
+    updateSyncBadge(DB_META.updatedAt, DB_META.updatedAt, LS.get('sewMeta')?.updatedAt||'', '');
     setProgress(100);
 
     toast(`✅ 拉取完成 — ${pullDB.length} 筆`, 'ok');
 
-    // Navigate to daily tab
-    setTimeout(() => {
+    // Re-render all views with new data
+    try { renderAll(); } catch(e) { console.warn('[pullCloud] renderAll:', e); }
+    // Refresh sewing compare if active
+    const sewTab = [...document.querySelectorAll('.tab')].find(x=>x.classList.contains('active')&&x.textContent.includes('車縫'));
+    if (sewTab) { try { initSewCmp(); } catch(e2) {} }
+    if (!silent) setTimeout(() => {
       const t = [...document.querySelectorAll('.tab')].find(x =>
         x.textContent.includes('每日報告') || x.textContent.includes('Daily'));
       if (t) t.click();
@@ -2173,6 +2242,9 @@ let SC_MODE = 'day';       // day|week|month|year
 let SC_PERIODS = [];       // list of period keys
 
 // ── Read sewing IDB ──────────────────────────────────────
+// ── Save sewing meta when loaded from cloud ──────────────────
+function saveSewMeta(updatedAt){LS.set('sewMeta',{updatedAt});}
+
 async function loadSewingIDB(force) {
   if (SEW_IDB_DATA !== null && !force) return SEW_IDB_DATA;
   const attempts = [
