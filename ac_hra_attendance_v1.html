@@ -480,7 +480,10 @@ function updateHeader(){
   document.getElementById('hSize').textContent=sz>1048576?(sz/1048576).toFixed(1)+'MB':(sz/1024).toFixed(0)+'KB';
 }
 // ── Debug Sync Status Badge ──────────────────────────────────────
+// Set DEBUG_MODE=true in console to show sync badge
+let DEBUG_MODE=false;
 function updateSyncBadge(attLocal,attCloud,sewLocal,sewCloud){
+  if(!DEBUG_MODE){const el=document.getElementById('sync-badge');if(el)el.style.display='none';return;}
   let el=document.getElementById('sync-badge');
   if(!el){
     el=document.createElement('div');
@@ -1970,16 +1973,26 @@ async function pushCloud() {
   if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); return; }
   if (!DB.length) { toast('尚無資料可上傳', 'err'); return; }
 
+  // ── Debug: show what we're about to push ─────────────────────────
+  const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
+  console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
+  toast('PUSH ATT: records='+DB.length+' latest='+_latestAttDate, 'info');
+
   setSyncStatus('syncing', '上傳中…');
   setProgress(0, true);
   const summary = buildCloudSummary();
-  const totalChunks = Math.ceil(DB.length / CHUNK_SIZE);
+  // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
+  const _PUSH_CHUNK = Math.min(CHUNK_SIZE, 3000); // 3000 records ≈ 700KB per chunk
+  const totalChunks = Math.ceil(DB.length / _PUSH_CHUNK);
   let allOk = true;
+  // Include updatedAt = latest date in DB (not push timestamp)
+  const _pushUpdatedAt = _latestAttDate || new Date().toISOString().slice(0,10);
 
   try {
     for (let i = 0; i < totalChunks; i++) {
-      const chunk = DB.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+      const chunk = DB.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
       setProgress((i / totalChunks) * 100);
+      if (i % 5 === 0) setSyncStatus('syncing', `上傳中… ${i+1}/${totalChunks}`);
 
       const payload = {
         action      : 'push',
@@ -1988,8 +2001,9 @@ async function pushCloud() {
         totalChunks,
         records     : chunk,
         recordCount : DB.length,
-        importLog   : IMPORT_LOG,
-        summary,
+        updatedAt   : _pushUpdatedAt,   // ← latest DATE in records, not push timestamp
+        importLog   : i === 0 ? IMPORT_LOG : [],  // only send importLog in first chunk
+        summary     : i === 0 ? summary : {},
         pushedBy    : 'attendance_cloud_v1',
       };
 
@@ -2007,10 +2021,12 @@ async function pushCloud() {
     if (allOk) {
       lastSyncTs = new Date().toISOString();
       localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
+      // Update DB_META so next startup knows cloud is current
+      saveMeta({updatedAt: _pushUpdatedAt, source:'cloud'});
+      updateSyncBadge(_pushUpdatedAt, _pushUpdatedAt, LS.get('sewMeta')?.updatedAt||'', '');
       setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
-      toast(`✅ 上傳成功 — ${DB.length} 筆 / ${totalChunks} 批`, 'ok');
-      // Send upload success to Telegram
-      sendTgMsg(`✅ <b>VRT 考勤雲端上傳成功</b>\n📋 記錄數: ${DB.length}\n📦 批次數: ${totalChunks}\n⏱ ${formatTs(lastSyncTs)}`);
+      toast(`✅ 上傳成功 — ${DB.length} 筆 / ${totalChunks} 批，latest=${_pushUpdatedAt}`, 'ok');
+      sendTgMsg(`✅ <b>VRT 考勤雲端上傳成功</b>\n📋 記錄數: ${DB.length}\n📦 批次數: ${totalChunks}\n📅 最新日期: ${_pushUpdatedAt}\n⏱ ${formatTs(lastSyncTs)}`);
     } else {
       setSyncStatus('failed', '上傳失敗');
       toast('❌ 部分上傳失敗，請重試', 'err');
