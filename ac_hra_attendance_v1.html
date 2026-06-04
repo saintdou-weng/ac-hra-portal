@@ -361,7 +361,8 @@ function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))
 let DB=LS.get('db')||[];// Array of parsed row objects
 let IMPORT_LOG=LS.get('log')||[];
 // DB_META — tracks source, version, updatedAt for cloud vs local comparison
-let DB_META=LS.get('meta')||{updatedAt:'',version:0,source:'local'};
+let DB_META=LS.get('meta')||{updatedAt:'',cloudUpdatedAt:'',version:0,source:'local'};
+function _latestInDB(d){return[...new Set((d||DB).map(r=>r.date).filter(Boolean))].sort().pop()||'';}
 function saveMeta(m){DB_META={...DB_META,...m};LS.set('meta',DB_META);}
 // ── IndexedDB for full attendance data (no 5MB limit) ──
 const ATT_IDB_NAME  = 'AC_HRA_Attendance';
@@ -448,12 +449,15 @@ async function loadFromIDB() {
     updateSyncBadge(localTs, cloudTs, localSewTs, sewCloudTs);
 
     // Step 4: If cloud is newer → auto-pull silently (no confirm dialog)
-    if (cloudTs && cloudTs > (DB_META.updatedAt||localTs)) {
-      console.log('[STARTUP] Cloud is newer (' + cloudTs + ' > ' + (DB_META.updatedAt||localTs) + '). Auto-syncing...');
+    // Use exact match — avoids ISO vs date-string format mismatch causing infinite re-pull
+    const lastKnownCloud = DB_META.cloudUpdatedAt || '';
+    if (cloudTs && cloudTs !== lastKnownCloud) {
+      console.log('[STARTUP] Cloud changed:',lastKnownCloud,'→',cloudTs,'pulling...');
       updateSyncBadge(localTs, cloudTs+'⬇', localSewTs, sewCloudTs);
-      await pullCloud(true); // silent=true skips confirm dialog
+      await pullCloud(true);
     } else {
-      console.log('[STARTUP] Local is up-to-date (' + (DB_META.updatedAt||localTs) + ')');
+      console.log('[STARTUP] Already synced. cloudTs=',cloudTs);
+      updateSyncBadge(localTs, cloudTs, localSewTs, sewCloudTs);
     }
   } catch(e) {
     console.warn('[STARTUP] Cloud check failed:', e.message);
@@ -2021,9 +2025,15 @@ async function pushCloud() {
     if (allOk) {
       lastSyncTs = new Date().toISOString();
       localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
-      // Update DB_META so next startup knows cloud is current
       saveMeta({updatedAt: _pushUpdatedAt, source:'cloud'});
-      updateSyncBadge(_pushUpdatedAt, _pushUpdatedAt, LS.get('sewMeta')?.updatedAt||'', '');
+      // Re-fetch cloud meta to sync cloudUpdatedAt (so next startup won't re-pull)
+      try{
+        const _mr=await fetch(GAS_URL+'?action=pull&tool=attendance&meta=1',{method:'GET',redirect:'follow'});
+        const _md=await _mr.json();
+        const _nct=_md.data?.chunked?(_md.data?.meta?.timestamp||''):(_md.data?.data?.updatedAt||'');
+        if(_nct)saveMeta({cloudUpdatedAt:_nct});
+        updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
+      }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
       setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
       toast(`✅ 上傳成功 — ${DB.length} 筆 / ${totalChunks} 批，latest=${_pushUpdatedAt}`, 'ok');
       sendTgMsg(`✅ <b>VRT 考勤雲端上傳成功</b>\n📋 記錄數: ${DB.length}\n📦 批次數: ${totalChunks}\n📅 最新日期: ${_pushUpdatedAt}\n⏱ ${formatTs(lastSyncTs)}`);
@@ -2123,10 +2133,12 @@ async function pullCloud(silent) {
     lastSyncTs = new Date().toISOString();
     localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
     setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
-    // Save cloud meta for next startup comparison
+    // Save EXACT cloudTs so next startup !== check won't re-pull
     const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
-    if (_cloudMeta) saveMeta({updatedAt:_cloudMeta.updatedAt||_cloudMeta.timestamp||lastSyncTs, source:'cloud'});
-    updateSyncBadge(DB_META.updatedAt, DB_META.updatedAt, LS.get('sewMeta')?.updatedAt||'', '');
+    const _exactCloudTs = cloudTs2||_cloudMeta?.updatedAt||_cloudMeta?.timestamp||lastSyncTs;
+    saveMeta({cloudUpdatedAt:_exactCloudTs, updatedAt:_latestInDB(pullDB), source:'cloud'});
+    console.log('[pullCloud] saved cloudUpdatedAt='+_exactCloudTs);
+    updateSyncBadge(_latestInDB(pullDB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
     setProgress(100);
 
     toast(`✅ 拉取完成 — ${pullDB.length} 筆`, 'ok');
