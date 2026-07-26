@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
-<title>AC HRA Portal</title>
+<title>AC HRA Portal v3</title>
 <style>
 :root{
   --g1:#1b6b3a;--g2:#2d8f55;--g3:#24a35e;
@@ -224,7 +224,7 @@ body::before{
   <!-- Module Grid -->
   <div class="mod-grid">
 
-    <a class="mod-btn" href="ac_hra_attendance_v1.html">
+    <a class="mod-btn" href="ac_hra_attendance_v2.html">
       <div class="mb-icon">🕐</div>
       <div class="mb-text">
         <div class="mb-zh" data-zh="出勤系統" data-en="Attendance" data-km="ប្រព័ន្ធវត្តមាន">出勤系統</div>
@@ -269,11 +269,29 @@ body::before{
       <div class="mb-arr">↗</div>
     </a>
 
-    <a class="mod-btn" href="ac_hra_manpower_v1.html">
+    <a class="mod-btn" href="ac_hra_manpower_v2.html">
       <div class="mb-icon">📋</div>
       <div class="mb-text">
         <div class="mb-zh" data-zh="人力規劃" data-en="Manpower" data-km="ផែនការ">人力規劃</div>
         <div class="mb-en" id="sub-mp">Manpower + Recruitment</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_certificate_visa_v1.html">
+      <div class="mb-icon">🛂</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="證書／簽證" data-en="Certificate / Visa" data-km="វិញ្ញាបនបត្រ / ទិដ្ឋាការ">證書／簽證</div>
+        <div class="mb-en" id="sub-cv">Certificate · Visa · Work Permit</div>
+      </div>
+      <div class="mb-arr">↗</div>
+    </a>
+
+    <a class="mod-btn" href="ac_hra_welfare_suggestion_v1.html">
+      <div class="mb-icon">🤝</div>
+      <div class="mb-text">
+        <div class="mb-zh" data-zh="福利／意見箱" data-en="Welfare / Suggestion" data-km="សុខុមាលភាព / មតិយោបល់">福利／意見箱</div>
+        <div class="mb-en" id="sub-ws">Transport · Accommodation · Union Dues · Suggestion</div>
       </div>
       <div class="mb-arr">↗</div>
     </a>
@@ -301,20 +319,20 @@ body::before{
     <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px">GAS URL</div>
     <input id="gasInput" type="text" placeholder="https://script.google.com/macros/s/…/exec">
     <div class="gas-row">
-      <button class="gbtn gbtn-save" onclick="saveGas()">💾 儲存</button>
+      <button class="gbtn gbtn-save" id="btnSaveGas" onclick="saveGas()">💾 儲存</button>
       <button class="gbtn gbtn-push" id="btnPush" onclick="pushAll()" disabled>☁ Push All</button>
       <button class="gbtn gbtn-pull" id="btnPull" onclick="pullAll()" disabled>⬇ Pull All</button>
     </div>
     <div class="gas-row" style="margin-top:5px;flex-wrap:wrap;gap:5px">
-      <button class="gbtn" style="flex:1;background:#f59e0b;color:#1e3a5f;font-weight:700" onclick="fixWebhookGAS()" title="/hra沒反應時按此">🔧 重設Webhook</button>
-      <button class="gbtn" style="flex:1;background:#8b5cf6;color:#fff" onclick="testHraCmd()" title="發送/hra測試">📱 測試/hra</button>
-      <button class="gbtn" style="flex:1;background:rgba(255,255,255,.15);color:#fff" onclick="checkWebhookStatus()">🔍 Webhook狀態</button>
+      <button class="gbtn" id="btnFixWebhook" style="flex:1;background:#f59e0b;color:#1e3a5f;font-weight:700" onclick="fixWebhookGAS()">🔧 重設 Webhook</button>
+      <button class="gbtn" id="btnTestMenu" style="flex:1;background:#8b5cf6;color:#fff" onclick="testHraCmd()">📱 測試選單</button>
+      <button class="gbtn" id="btnWebhookStatus" style="flex:1;background:rgba(255,255,255,.15);color:#fff" onclick="checkWebhookStatus()">🔍 Webhook 狀態</button>
     </div>
   </div>
 
   <!-- Log -->
   <div class="log-wrap" id="logWrap">
-    <span class="ll-info">AC HRA Portal v3 就緒</span>
+    <span class="ll-info" id="initialLog">AC HRA Portal v3 就緒</span>
   </div>
 
   <!-- Bottom action row -->
@@ -353,12 +371,17 @@ const TXT = {
     cal:'行事曆',     cal_sub:'Calendar',
     ana:'整合分析',   ana_sub:'Cross-Module BI',
     mp:'人力規劃',    mp_sub:'Manpower + Recruitment',
+    cv:'證書／簽證',  cv_sub:'Certificate · Visa · Work Permit',
+    ws:'福利／意見箱', ws_sub:'Transport · Accommodation · Union Dues · Suggestion',
     tg:'Telegram 選單', log:'操作紀錄',
     sl_total:'模組', sl_synced:'已同步', sl_recs:'記錄數', sl_last:'上次同步',
     gas_saved:'GAS 已設定', gas_not:'GAS 未設定', gas_tap:'⚙ 點此設定',
     push_ok:'✅ 全部推送完成', pull_ok:'✅ 全部拉取完成',
     push_err:'❌ 推送失敗', pull_err:'❌ 拉取失敗',
-    no_gas:'請先設定 GAS URL',
+    no_gas:'請先設定 GAS URL', gas_fail:'GAS 連線失敗', gas_reset:'⚙ 點此重設',
+    save_gas:'💾 儲存', push_all:'☁ 手動上傳全部', pull_all:'⬇ 手動下載全部',
+    fix_webhook:'🔧 重設 Webhook', test_menu:'📱 測試選單', webhook_status:'🔍 Webhook 狀態',
+    ready:'AC HRA Portal v3 就緒',
   },
   en:{
     title:'AC HRA Portal',
@@ -369,12 +392,17 @@ const TXT = {
     cal:'Calendar',    cal_sub:'Calendar',
     ana:'Analytics',   ana_sub:'Cross-Module BI',
     mp:'Manpower',     mp_sub:'Manpower + Recruit',
+    cv:'Certificate / Visa', cv_sub:'Certificate · Visa · Work Permit',
+    ws:'Welfare / Suggestion', ws_sub:'Transport · Accommodation · Union Dues · Suggestion',
     tg:'Telegram Menu', log:'Activity Log',
     sl_total:'Modules', sl_synced:'Synced', sl_recs:'Records', sl_last:'Last Sync',
     gas_saved:'GAS configured', gas_not:'GAS not set', gas_tap:'⚙ Tap to configure',
     push_ok:'✅ Push complete', pull_ok:'✅ Pull complete',
     push_err:'❌ Push failed', pull_err:'❌ Pull failed',
-    no_gas:'Please set GAS URL first',
+    no_gas:'Please set GAS URL first', gas_fail:'GAS connection failed', gas_reset:'⚙ Tap to reset',
+    save_gas:'💾 Save', push_all:'☁ Manual Upload All', pull_all:'⬇ Manual Download All',
+    fix_webhook:'🔧 Reset Webhook', test_menu:'📱 Test Menu', webhook_status:'🔍 Webhook Status',
+    ready:'AC HRA Portal v3 ready',
   },
   km:{
     title:'ច្រកHRA',
@@ -385,12 +413,17 @@ const TXT = {
     cal:'ប្រតិទិន',     cal_sub:'Calendar',
     ana:'វិភាគ',        ana_sub:'Analytics',
     mp:'ផែនការ',        mp_sub:'Manpower',
+    cv:'វិញ្ញាបនបត្រ / ទិដ្ឋាការ', cv_sub:'Certificate · Visa · Work Permit',
+    ws:'សុខុមាលភាព / មតិយោបល់', ws_sub:'Transport · Accommodation · Union Dues · Suggestion',
     tg:'Telegram', log:'កំណត់ត្រា',
     sl_total:'ម៉ូឌុល', sl_synced:'Sync', sl_recs:'ទំរង់', sl_last:'ចុងក្រោយ',
     gas_saved:'GAS បានកំណត់', gas_not:'GAS មិនទាន់', gas_tap:'⚙ ចុចដើម្បីកំណត់',
     push_ok:'✅ Push រួច', pull_ok:'✅ Pull រួច',
     push_err:'❌ Push ទ្រេត', pull_err:'❌ Pull ទ្រេត',
-    no_gas:'សូមកំណត់ GAS URL ជាមុន',
+    no_gas:'សូមកំណត់ GAS URL ជាមុន', gas_fail:'GAS មិនអាចភ្ជាប់', gas_reset:'⚙ កំណត់ឡើងវិញ',
+    save_gas:'💾 រក្សាទុក', push_all:'☁ Upload', pull_all:'⬇ Download',
+    fix_webhook:'🔧 Reset Webhook', test_menu:'📱 Test Menu', webhook_status:'🔍 Webhook',
+    ready:'AC HRA Portal v3 រួចរាល់',
   },
 };
 const t = k => (TXT[LANG]||TXT.zh)[k] || (TXT.zh)[k] || k;
@@ -405,18 +438,7 @@ function setLang(l) {
 
 function applyLang() {
   document.getElementById('hTitle').textContent = t('title');
-  // Module buttons — swap main label and sub label based on lang
-  const mods = [
-    {main:'att', sub:'att_sub', zhEl:'.mb-zh[data-zh="出勤系統"]'},
-    {main:'con', sub:'con_sub'},
-    {main:'ob',  sub:'ob_sub'},
-    {main:'mat', sub:'mat_sub'},
-    {main:'cal', sub:'cal_sub'},
-    {main:'ana', sub:'ana_sub'},
-    {main:'mp',  sub:'mp_sub'},
-  ];
-  const subIds = ['sub-att','sub-con','sub-ob','sub-mat','sub-cal','sub-mp','sub-ana'];
-  const mainKeys= ['att','con','ob','mat','cal','mp','ana'];
+  const mainKeys= ['att','con','ob','mat','cal','mp','cv','ws','ana'];
   // Update main label (mb-zh) based on lang
   document.querySelectorAll('.mb-zh').forEach((el, i) => {
     if (i < mainKeys.length) el.textContent = t(mainKeys[i]);
@@ -424,7 +446,8 @@ function applyLang() {
   // Map subId → i18n key explicitly to avoid index mismatches
   const subMap = {
     'sub-att':'att_sub','sub-con':'con_sub','sub-ob':'ob_sub',
-    'sub-mat':'mat_sub','sub-cal':'cal_sub','sub-mp':'mp_sub','sub-ana':'ana_sub'
+    'sub-mat':'mat_sub','sub-cal':'cal_sub','sub-mp':'mp_sub',
+    'sub-cv':'cv_sub','sub-ws':'ws_sub','sub-ana':'ana_sub'
   };
   Object.entries(subMap).forEach(([id, key]) => {
     const el = document.getElementById(id);
@@ -436,6 +459,13 @@ function applyLang() {
   document.getElementById('sl-synced').textContent = t('sl_synced');
   document.getElementById('sl-recs').textContent   = t('sl_recs');
   document.getElementById('sl-last').textContent   = t('sl_last');
+  document.getElementById('btnSaveGas').textContent = t('save_gas');
+  document.getElementById('btnPush').textContent = t('push_all');
+  document.getElementById('btnPull').textContent = t('pull_all');
+  document.getElementById('btnFixWebhook').textContent = t('fix_webhook');
+  document.getElementById('btnTestMenu').textContent = t('test_menu');
+  document.getElementById('btnWebhookStatus').textContent = t('webhook_status');
+  document.getElementById('initialLog').textContent = t('ready');
   updateCloudLabel();
 }
 
@@ -448,6 +478,8 @@ const MODS = [
   { id:'nursing',    lsKey:'vrt_nursing_fees_v1',   getCount: d => Array.isArray(d)?d.length:0 },
   { id:'calendar',   lsKey:'ac_hra_calendar_db',    getCount: d => Array.isArray(d)?d.length:0 },
   { id:'manpower',   lsKey:'ac_hra_manpower_reqs',  getCount: d => Array.isArray(d)?d.length:0, extra:'ac_hra_manpower_recruit' },
+  { id:'certificate_visa', lsKey:'ac_hra_certvisa_meta', getCount: d => Number(d?.count)||0, metaOnly:true },
+  { id:'welfare_suggestion', lsKey:'ac_hra_welfare_suggestion_meta', getCount: d => Number(d?.count)||0, metaOnly:true },
 ];
 
 function getLocalCount() {
@@ -467,7 +499,7 @@ function getLocalCount() {
 }
 
 function updateStats(cloudSnaps) {
-  const total   = 7; // number of modules shown
+  const total   = 9; // number of modules shown
   const snapped = cloudSnaps ? Object.keys(cloudSnaps).filter(k => cloudSnaps[k]?.timestamp).length : 0;
   const totalRecs = getLocalCount();
   const timestamps = cloudSnaps
@@ -479,60 +511,39 @@ function updateStats(cloudSnaps) {
   document.getElementById('sLast').textContent    = timestamps[0] ? fmtTs(timestamps[0]) : '—';
 }
 
-// ── GAS ──────────────────────────────
-// ── /hra Webhook Diagnostics & Fix ──────────────────────
-const TG_BOT_TOKEN = '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
-const TG_CHAT      = '-5233667043';
-
+// ── GAS — all network actions are manual and go through GAS ───────────
 async function fixWebhookGAS() {
-  if (!GAS_URL) { toast('❌ 請先設定 GAS URL'); return; }
-  toast('🔧 重設 Webhook 中…');
+  if (!GAS_URL) { toast(t('no_gas')); return; }
+  toast(LANG==='en' ? '🔧 Resetting Webhook…' : '🔧 重設 Webhook 中…');
   try {
     const r = await fetch(`${GAS_URL}?action=fixWebhook`, { redirect:'follow' });
     const d = await r.json();
-    toast(d.ok !== false ? '✅ Webhook 已重設，請稍候測試 /hra' : '❌ ' + (d.error||'失敗'));
-    log(d.ok !== false ? '✓ fixWebhook OK' : '✗ fixWebhook 失敗', d.ok !== false ? 'ok':'err');
+    toast(d.ok !== false ? (LANG==='en'?'✅ Webhook reset':'✅ Webhook 已重設') : '❌ ' + (d.error||'Failed'));
+    log(d.ok !== false ? '✓ fixWebhook OK' : '✗ fixWebhook failed', d.ok !== false ? 'ok':'err');
   } catch(e) {
     try {
       const r2 = await fetch(GAS_URL, { method:'POST', redirect:'follow',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
         body: JSON.stringify({ action:'fixWebhook' }) });
       const d2 = await r2.json();
-      toast(d2.ok !== false ? '✅ Webhook 已重設' : '❌ ' + (d2.error||'失敗'));
-      log('fixWebhook (POST fallback): '+(d2.ok!==false?'OK':'失敗'), d2.ok!==false?'ok':'err');
+      toast(d2.ok !== false ? (LANG==='en'?'✅ Webhook reset':'✅ Webhook 已重設') : '❌ ' + (d2.error||'Failed'));
+      log('fixWebhook (POST): '+(d2.ok!==false?'OK':'failed'), d2.ok!==false?'ok':'err');
     } catch(e2) { toast('❌ ' + e2.message); log('fixWebhook failed: '+e2.message,'err'); }
   }
 }
 
 async function checkWebhookStatus() {
+  if (!GAS_URL) { toast(t('no_gas')); return; }
   try {
-    const r = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/getWebhookInfo`);
+    const r = await fetch(`${GAS_URL}?action=webhookStatus`, { redirect:'follow' });
     const d = await r.json();
-    if (d.ok) {
-      const url  = d.result.url || '（未設定）';
-      const err  = d.result.last_error_message || '—';
-      const pend = d.result.pending_update_count || 0;
-      const ok2  = url.includes('/exec');
-      toast(ok2 ? '✅ Webhook 正常指向 /exec' : '⚠ Webhook 未設定或指向 /dev，請重設');
-      log(`URL: …${url.slice(-45)||'空'}  Pending: ${pend}`, ok2?'ok':'err');
-      if (err !== '—') log(`Last error: ${err}`, 'err');
-    } else { toast('❌ Token 錯誤：' + d.description); }
+    if (d.ok !== false) { toast(LANG==='en'?'✅ Webhook status received':'✅ 已取得 Webhook 狀態'); log(`Webhook: ${JSON.stringify(d.result||d.data||{})}`,'ok'); }
+    else toast('❌ '+(d.error||'Unsupported GAS action'));
   } catch(e) { toast('❌ ' + e.message); }
 }
 
 async function testHraCmd() {
-  toast('📱 向群組發送 /hra…');
-  try {
-    const r = await fetch(`https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ chat_id:TG_CHAT, text:'/hra', parse_mode:'HTML' }),
-    });
-    const d = await r.json();
-    if (d.ok) {
-      toast('✅ /hra 已發送 — 若Bot沒回應請點「重設Webhook」');
-      log('✓ /hra 已送出。若無回應 → 點「重設Webhook」再試', 'ok');
-    } else { toast('❌ ' + d.description); }
-  } catch(e) { toast('❌ ' + e.message); }
+  await sendTgMenu();
 }
 
 function saveGas() {
@@ -544,8 +555,7 @@ function saveGas() {
   document.getElementById('btnPull').disabled = false;
   updateCloudLabel(true);
   log('GAS URL 已儲存', 'info');
-  toast('✅ GAS 已儲存');
-  fetchStatus();
+  toast(LANG==='en' ? '✅ GAS URL saved (no connection started)' : '✅ GAS 已儲存（未自動連線）');
 }
 
 function toggleGasPanel() {
@@ -566,8 +576,8 @@ function updateCloudLabel(ok) {
     ts.textContent  = t('gas_tap');
   } else if (ok === false) {
     dot.className = 'c-dot err';
-    lbl.textContent = 'GAS 連線失敗';
-    ts.textContent  = '⚙ 點此重設';
+    lbl.textContent = t('gas_fail');
+    ts.textContent  = t('gas_reset');
   } else {
     dot.className = 'c-dot ok';
     lbl.textContent = t('gas_saved');
@@ -597,6 +607,7 @@ async function pushAll() {
   btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
   let ok = 0, fail = 0;
   for (const m of MODS) {
+    if (m.metaOnly) continue; // large IndexedDB modules sync from their own manual buttons
     try {
       let records = [];
       const raw = localStorage.getItem(m.lsKey);
@@ -623,8 +634,8 @@ async function pushAll() {
   localStorage.setItem('ac_hra_portal_meta', JSON.stringify(meta));
   updateCloudLabel(true);
   updateStats(null);
-  toast(fail === 0 ? t('push_ok') + ` (${ok} 模組)` : `⚠️ 完成 ${ok} / 失敗 ${fail}`);
-  btn.disabled = false; btn.innerHTML = '☁ Push All';
+  toast(fail === 0 ? t('push_ok') + ` (${ok})` : `⚠️ ${ok} / ${fail}`);
+  btn.disabled = false; btn.textContent = t('push_all');
 }
 
 // ── Pull ALL ─────────────────────────
@@ -634,6 +645,7 @@ async function pullAll() {
   btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
   let ok = 0, fail = 0;
   for (const m of MODS) {
+    if (m.metaOnly) continue; // module owns its IndexedDB snapshot
     try {
       const r1 = await fetch(`${GAS_URL}?action=pull&tool=${m.id}&meta=1`, { redirect:'follow' });
       const d1 = await r1.json();
@@ -647,13 +659,13 @@ async function pullAll() {
     } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
   }
   updateStats(null);
-  toast(fail === 0 ? t('pull_ok') + ` (${ok} 模組)` : `⚠️ 完成 ${ok} / 失敗 ${fail}`);
-  btn.disabled = false; btn.innerHTML = '⬇ Pull All';
+  toast(fail === 0 ? t('pull_ok') + ` (${ok})` : `⚠️ ${ok} / ${fail}`);
+  btn.disabled = false; btn.textContent = t('pull_all');
 }
 
 // ── Telegram Menu ─────────────────────
 async function sendTgMenu() {
-  const BASE = 'https://saintdou-weng.github.io/ac-hra-portal';
+  if (!GAS_URL) { toast(t('no_gas')); return; }
   const ts   = new Date().toLocaleString('zh-TW', { timeZone:'Asia/Phnom_Penh', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
   const totalRecs = getLocalCount();
   const text = [
@@ -664,36 +676,25 @@ async function sendTgMenu() {
     `🚪 入離職 Onboarding`,
     `🤱 產假 Maternity`,
     `📅 行事曆 Calendar`,
-    `📊 整合分析 Analytics`,
     `📋 人力規劃 Manpower`,
+    `🛂 證書／簽證 Certificate · Visa · Work Permit`,
+    `🤝 福利／意見箱 Welfare · Suggestion`,
+    `📊 整合分析 Analytics`,
     `─────────────────────`,
     `📊 本地記錄 Local: ${totalRecs} 筆`,
     `🏭 Vantage River Textiles · SHV`,
   ].join('\n');
 
-  if (GAS_URL) {
-    try {
-      const r = await fetch(GAS_URL, {
-        method:'POST', redirect:'follow',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify({ action:'telegram', text }),
-      });
-      const d = await r.json();
-      if (d.ok) { toast('✅ Telegram 已發送'); log('✓ Telegram 已發送', 'ok'); return; }
-    } catch(e) {}
-  }
-  // Direct fallback
-  const TOKEN = '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg';
-  const CHAT  = '-5233667043';
   try {
-    const r = await fetch(`https://api.telegram.org/bot${TOKEN}/sendMessage`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ chat_id:CHAT, text, parse_mode:'HTML' }),
+    const r = await fetch(GAS_URL, {
+      method:'POST', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'telegram', text }),
     });
     const d = await r.json();
-    if (d.ok) toast('✅ Telegram 已發送');
-    else      toast('❌ Telegram 失敗');
-  } catch(e) { toast('❌ ' + e.message); }
+    if (d.ok !== false) { toast(LANG==='en'?'✅ Telegram menu sent':'✅ Telegram 選單已發送'); log('✓ Telegram menu sent', 'ok'); }
+    else toast('❌ '+(d.error||'Telegram failed'));
+  } catch(e) { toast('❌ ' + e.message); log('Telegram failed: '+e.message,'err'); }
 }
 
 // ── Log helpers ───────────────────────
@@ -737,7 +738,6 @@ function toast(msg, dur) {
   );
   applyLang();
   updateStats(null);
-  if (GAS_URL) setTimeout(fetchStatus, 600);
 })();
 </script>
 </body>

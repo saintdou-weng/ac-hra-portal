@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>AC HRA Certificate &amp; Visa</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --navy:#153a63;--blue:#1976a8;--blue2:#eaf5fb;--cyan:#34b6cf;
+  --green:#17865b;--green2:#e8f7f0;--amber:#bd6d09;--amber2:#fff6df;
+  --red:#c43e42;--red2:#fff0f0;--ink:#17263a;--muted:#6c7b8e;
+  --line:#d7e2ec;--bg:#f3f7fb;--card:#fff;--shadow:0 5px 18px rgba(32,66,96,.10);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,"Noto Sans TC","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+button,input,select,textarea{font:inherit}
+button{cursor:pointer}
+.app{min-height:100dvh}
+.top{
+  position:sticky;top:0;z-index:40;color:#fff;
+  background:linear-gradient(135deg,#12375f 0%,#1979a8 70%,#28a9bd 100%);
+  box-shadow:0 4px 18px rgba(0,30,70,.25)
+}
+.top-in{max-width:1500px;margin:auto;padding:14px 18px 10px}
+.brand-row{display:flex;align-items:center;gap:12px}
+.brand-icon{
+  width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:28px;
+  background:linear-gradient(145deg,#ffd86b,#f5aa24);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)
+}
+.brand{min-width:0}.brand h1{font-size:22px;margin:0;line-height:1.2}.brand p{font-size:12px;margin:4px 0 0;color:rgba(255,255,255,.72)}
+.grow{flex:1}
+.lang{display:flex;border:1px solid rgba(255,255,255,.3);border-radius:9px;overflow:hidden}
+.lang button{border:0;background:rgba(0,0,0,.1);color:#fff;padding:8px 12px;font-weight:800}
+.lang button.on{background:#ffd75a;color:#183550}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.icon-btn{
+  min-height:42px;border-radius:10px;border:1px solid rgba(255,255,255,.28);
+  background:rgba(255,255,255,.10);color:#fff;padding:7px 11px;font-weight:750;
+  display:flex;align-items:center;gap:7px
+}
+.icon-btn:hover{background:rgba(255,255,255,.2)}
+.icon-btn.primary{background:#fff;color:#15527c;border-color:#fff}
+.sync-note{font-size:11px;color:rgba(255,255,255,.75);display:flex;align-items:center;margin-left:auto}
+.tabs-wrap{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:88px;z-index:35}
+.tabs{max-width:1500px;margin:auto;display:flex;overflow-x:auto;scrollbar-width:thin}
+.tab{
+  white-space:nowrap;border:0;border-bottom:3px solid transparent;background:#fff;color:#68788b;
+  padding:14px 16px;font-weight:800
+}
+.tab.on{color:#11739e;border-bottom-color:#1d95c4;background:#f8fcff}
+.period-bar{
+  max-width:1500px;margin:12px auto 0;padding:0 18px;display:flex;gap:9px;align-items:center;flex-wrap:wrap
+}
+.seg{display:flex;border:1px solid #b9cad9;border-radius:10px;overflow:hidden;background:#fff}
+.seg button{border:0;border-right:1px solid #d3dee8;background:#fff;padding:9px 13px;color:#627387;font-weight:800}
+.seg button:last-child{border-right:0}.seg button.on{background:var(--navy);color:#fff}
+.nav-btn{width:42px;height:40px;border:1px solid #9db7cb;border-radius:10px;background:#fff;color:#176b96;font-weight:900;font-size:18px}
+.control{height:40px;border:1px solid #b8c8d7;border-radius:10px;background:#fff;padding:0 12px;color:var(--ink)}
+.period-caption{font-size:12px;color:var(--muted)}
+main{max-width:1500px;margin:auto;padding:14px 18px 50px}
+.view{display:none}.view.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px}
+.kpi{
+  background:#fff;border:1px solid var(--line);border-radius:16px;padding:17px;
+  box-shadow:var(--shadow);border-left:6px solid var(--blue)
+}
+.kpi.red{border-left-color:var(--red)}.kpi.amber{border-left-color:#df8a16}.kpi.green{border-left-color:var(--green)}.kpi.purple{border-left-color:#7654b9}
+.kpi .label{font-size:13px;font-weight:800;color:#6a788b}.kpi .value{font-size:31px;font-weight:850;margin-top:6px;letter-spacing:.02em}.kpi .sub{font-size:11px;color:#8794a4;margin-top:3px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(320px,.7fr);gap:14px;margin-top:14px}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:10px;padding:15px 17px;border-bottom:1px solid #e5edf3;flex-wrap:wrap}
+.panel-head h2{font-size:16px;margin:0}.panel-head .hint{font-size:11px;color:var(--muted)}.panel-body{padding:15px 17px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.toolbar .grow{flex:1}.search{min-width:210px}
+.btn{
+  border:1px solid #aec1d1;border-radius:9px;background:#fff;color:#24405d;padding:8px 12px;font-weight:800
+}
+.btn:hover{background:#f1f7fb}.btn.blue{background:var(--navy);border-color:var(--navy);color:#fff}.btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.red{background:#fff1f1;border-color:#edb7b8;color:#aa2f34}.btn.small{font-size:12px;padding:6px 9px}
+.table-wrap{overflow:auto;max-width:100%}
+table{border-collapse:separate;border-spacing:0;width:100%;min-width:850px}
+th{position:sticky;top:0;background:#eaf4fb;color:#315574;text-align:left;font-size:12px;padding:11px 12px;border-bottom:1px solid #c8dbe9;z-index:2;white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid #e7edf2;font-size:13px;vertical-align:top}
+tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--muted)}
+.badge{display:inline-flex;align-items:center;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:850;white-space:nowrap}
+.b-active,.b-approved,.b-complete{background:var(--green2);color:#087148}
+.b-pending,.b-due,.b-not_in_latest{background:var(--amber2);color:#9b5b05}
+.b-expired,.b-rejected,.b-resigned{background:var(--red2);color:#b6343a}
+.b-draft{background:#eef1f5;color:#58697b}.b-stopped{background:#eceff2;color:#52606d}
+.empty{text-align:center;padding:38px 15px;color:#8592a2}.empty .ico{font-size:36px;margin-bottom:8px}
+.notice{border:1px solid #b8dded;background:#edf9fd;border-radius:12px;padding:11px 13px;color:#275a72;font-size:12px;line-height:1.55}
+.notice.warn{border-color:#f0d4a6;background:#fff9e9;color:#77521e}
+.chart-box{position:relative;height:340px}.chart-box.sm{height:250px}
+.status-line{display:flex;gap:8px;flex-wrap:wrap}.status-line .badge{font-size:12px}
+.period-list-toggle{display:flex;background:#eef3f8;border-radius:10px;padding:3px}.period-list-toggle button{border:0;background:transparent;padding:8px 15px;border-radius:8px;color:#6c7b8e;font-weight:850}.period-list-toggle button.on{background:#fff;color:#146e98;box-shadow:0 1px 5px rgba(0,0,0,.12)}
+.drop{
+  border:2px dashed #8fc3dc;border-radius:15px;background:#f3fbff;padding:25px;text-align:center;
+  color:#3d6f88;transition:.15s
+}
+.drop.drag{background:#e2f6ff;border-color:#1685b5}.drop .big{font-size:38px}.drop strong{display:block;margin:6px}.drop input{display:none}
+.import-log{margin:0;padding:0;list-style:none}.import-log li{padding:9px 0;border-bottom:1px solid #e7edf2;font-size:12px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:800;color:#56687c}
+.field input,.field select,.field textarea{border:1px solid #b8c9d8;border-radius:9px;background:#fff;padding:9px 10px;min-height:40px}.field textarea{min-height:82px;resize:vertical}
+.check{width:18px;height:18px}
+.right{text-align:right}.money{font-variant-numeric:tabular-nums}
+.modal{
+  position:fixed;inset:0;background:rgba(7,22,38,.58);z-index:100;display:none;align-items:center;justify-content:center;padding:18px
+}
+.modal.open{display:flex}.dialog{background:#fff;border-radius:17px;width:min(820px,100%);max-height:92dvh;overflow:auto;box-shadow:0 25px 70px rgba(0,0,0,.35)}
+.dialog-head{position:sticky;top:0;background:#fff;z-index:2;padding:16px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}.dialog-head h3{margin:0;font-size:18px}.x{margin-left:auto;border:0;background:#edf2f6;border-radius:50%;width:34px;height:34px;font-size:18px}
+.dialog-body{padding:18px}.dialog-foot{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end;padding:13px 18px}
+.preview{white-space:pre-wrap;background:#f4f7fa;border:1px solid #dbe4eb;border-radius:10px;padding:12px;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;max-height:280px;overflow:auto}
+#toast{position:fixed;left:50%;bottom:25px;transform:translate(-50%,20px);background:#172b43;color:#fff;padding:11px 18px;border-radius:10px;z-index:200;opacity:0;pointer-events:none;transition:.2s;box-shadow:0 8px 25px rgba(0,0,0,.25);font-size:13px;font-weight:750}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+.loading{position:fixed;inset:0;display:none;place-items:center;background:rgba(240,247,252,.8);z-index:180}.loading.on{display:grid}.loader{background:#fff;border-radius:14px;padding:18px 24px;box-shadow:var(--shadow);font-weight:800}.spin{display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:980px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.tabs-wrap{top:128px}}
+@media(max-width:640px){
+  .top-in{padding:10px}.brand-icon{width:46px;height:46px}.brand h1{font-size:18px}.brand p{font-size:10px}
+  .actions{gap:6px}.icon-btn{font-size:0;min-width:42px;justify-content:center}.icon-btn span{font-size:20px}
+  .sync-note{width:100%;margin-left:0}.tabs-wrap{top:126px}.tab{padding:12px 13px;font-size:13px}
+  .period-bar,main{padding-left:10px;padding-right:10px}.cards{gap:8px}.kpi{padding:13px}.kpi .value{font-size:27px}
+  .form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.panel-head,.panel-body{padding:13px}
+  .control.search{min-width:0;width:100%}.dialog{border-radius:14px}.modal{padding:8px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="top-in">
+      <div class="brand-row">
+        <div class="brand-icon">🛂</div>
+        <div class="brand">
+          <h1 data-i18n="title">證書、簽證與工作證管理</h1>
+          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v1.0</p>
+        </div>
+        <div class="grow"></div>
+        <div class="lang">
+          <button id="langZh" onclick="setLang('zh')">中</button>
+          <button id="langEn" onclick="setLang('en')">EN</button>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="icon-btn primary" onclick="openImport()" data-i18n-title="import"><span>📥</span><b data-i18n="import">匯入 Excel</b></button>
+        <button class="icon-btn" onclick="cloudPush()" data-i18n-title="cloudUp"><span>☁️↑</span><b data-i18n="cloudUp">手動上傳</b></button>
+        <button class="icon-btn" onclick="cloudPull()" data-i18n-title="cloudDown"><span>☁️↓</span><b data-i18n="cloudDown">手動下載</b></button>
+        <button class="icon-btn" onclick="exportExcel()" data-i18n-title="export"><span>⇩ XLSX</span><b data-i18n="export">匯出</b></button>
+        <button class="icon-btn" onclick="openTelegram()" data-i18n-title="telegram"><span>✈️</span><b data-i18n="telegram">Telegram 摘要</b></button>
+        <button class="icon-btn" onclick="window.print()" data-i18n-title="print"><span>🖨️</span><b data-i18n="print">列印</b></button>
+        <div class="sync-note" id="syncNote">● 僅在按下按鈕時連線</div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="tabs-wrap">
+    <div class="tabs">
+      <button class="tab on" data-tab="dashboard" data-i18n="tabDashboard">總覽</button>
+      <button class="tab" data-tab="timeline" data-i18n="tabTimeline">到期行事曆</button>
+      <button class="tab" data-tab="periods" data-i18n="tabPeriods">月／年列表</button>
+      <button class="tab" data-tab="certificates" data-i18n="tabCertificates">公司證書</button>
+      <button class="tab" data-tab="people" data-i18n="tabPeople">外籍人員</button>
+      <button class="tab" data-tab="approvals" data-i18n="tabApprovals">申請／核可</button>
+      <button class="tab" data-tab="analysis" data-i18n="tabAnalysis">分類分析</button>
+      <button class="tab" data-tab="settings" data-i18n="tabSettings">設定</button>
+    </div>
+  </nav>
+
+  <div class="period-bar">
+    <div class="seg" id="periodModes">
+      <button data-mode="day" data-i18n="day">日</button>
+      <button data-mode="week" data-i18n="week">周</button>
+      <button data-mode="month" class="on" data-i18n="month">月</button>
+      <button data-mode="year" data-i18n="year">年</button>
+    </div>
+    <button class="nav-btn" onclick="movePeriod(-1)" aria-label="Previous">◀</button>
+    <input class="control" id="periodPicker" type="month" onchange="pickPeriod(this.value)">
+    <button class="nav-btn" onclick="movePeriod(1)" aria-label="Next">▶</button>
+    <select class="control" id="eventField" onchange="renderAll()">
+      <option value="all" data-i18n="allFields">全部日期欄位</option>
+      <option value="certificate" data-i18n="certificateExpiry">證書到期／續期</option>
+      <option value="passport" data-i18n="passportExpiry">護照到期</option>
+      <option value="visa" data-i18n="visaExpiry">簽證到期</option>
+      <option value="workPermit" data-i18n="workPermitExpiry">工作證到期</option>
+      <option value="residence" data-i18n="residenceExpiry">居留證到期</option>
+    </select>
+    <span class="period-caption" id="periodCaption"></span>
+  </div>
+
+  <main>
+    <section class="view on" id="view-dashboard">
+      <div class="cards">
+        <div class="kpi"><div class="label" data-i18n="kpiCert">公司證書</div><div class="value" id="kCert">0</div><div class="sub" data-i18n="kpiCertSub">有效追蹤項目</div></div>
+        <div class="kpi purple"><div class="label" data-i18n="kpiExpats">外籍人員</div><div class="value" id="kPeople">0</div><div class="sub" data-i18n="kpiExpatsSub">最新有效名單</div></div>
+        <div class="kpi amber"><div class="label" data-i18n="kpiDue">45 天內到期</div><div class="value" id="kDue">0</div><div class="sub" data-i18n="kpiDueSub">尚未提前完成</div></div>
+        <div class="kpi red"><div class="label" data-i18n="kpiExpired">已逾期</div><div class="value" id="kExpired">0</div><div class="sub" data-i18n="kpiExpiredSub">需處理項目</div></div>
+        <div class="kpi green"><div class="label" data-i18n="kpiPending">待核可</div><div class="value" id="kPending">0</div><div class="sub" data-i18n="kpiPendingSub">批次申請</div></div>
+      </div>
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><h2 data-i18n="upcoming45">45 天提醒清單</h2><span class="hint" data-i18n="reminderRule">提前完成／已核可者不提醒</span><div class="grow"></div><button class="btn small" onclick="openTelegram('reminder')" data-i18n="makeReminder">產生三語提醒</button></div>
+          <div class="table-wrap"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="itemPerson">項目／人員</th><th data-i18n="department">部門／分類</th><th data-i18n="days">天數</th><th data-i18n="status">狀態</th></tr></thead><tbody id="reminderBody"></tbody></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2 data-i18n="dataHealth">資料狀態</h2></div>
+          <div class="panel-body">
+            <div class="notice warn" id="latestRosterNote"></div>
+            <div style="height:12px"></div>
+            <div class="status-line" id="dataBadges"></div>
+            <div style="height:14px"></div>
+            <h3 style="font-size:14px;margin:0 0 8px" data-i18n="recentImports">最近匯入</h3>
+            <ul class="import-log" id="recentImports"></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="view-timeline">
+      <div class="panel">
+        <div class="panel-head"><h2 data-i18n="periodEvents">期間到期／續期項目</h2><span class="hint" id="timelineHint"></span><div class="grow"></div><select class="control" id="timelineDept" onchange="renderTimeline()"><option value="" data-i18n="allDepartments">全部部門／分類</option></select></div>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="itemPerson">項目／人員</th><th data-i18n="department">部門／分類</th><th data-i18n="source">來源</th><th data-i18n="status">狀態</th></tr></thead><tbody id="timelineBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-periods">
+      <div class="panel">
+        <div class="panel-head">
+          <h2 data-i18n="periodReport">期間報表</h2>
+          <div class="period-list-toggle"><button id="monthListBtn" class="on" onclick="setListMode('month')" data-i18n="monthly">月報</button><button id="yearListBtn" onclick="setListMode('year')" data-i18n="yearly">年報</button></div>
+          <span class="hint" id="periodRowsCount"></span><div class="grow"></div>
+          <select class="control" id="listField" onchange="renderPeriodList()">
+            <option value="all" data-i18n="allFields">全部日期欄位</option>
+            <option value="certificate" data-i18n="certificateExpiry">證書到期／續期</option>
+            <option value="passport" data-i18n="passportExpiry">護照到期</option>
+            <option value="visa" data-i18n="visaExpiry">簽證到期</option>
+            <option value="workPermit" data-i18n="workPermitExpiry">工作證到期</option>
+            <option value="residence" data-i18n="residenceExpiry">居留證到期</option>
+          </select>
+          <select class="control" id="listDept" onchange="renderPeriodList()"><option value="" data-i18n="allDepartments">全部部門／分類</option></select>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="period">期間</th><th data-i18n="totalDue">到期／續期</th><th data-i18n="companyCert">公司證書</th><th data-i18n="passport">護照</th><th data-i18n="visa">簽證</th><th data-i18n="workPermit">工作證</th><th data-i18n="residence">居留證</th><th data-i18n="pending">待核可</th><th data-i18n="approvedDone">已核可／完成</th><th data-i18n="estimatedCost">預估費用</th></tr></thead><tbody id="periodBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-certificates">
+      <div class="panel">
+        <div class="panel-head toolbar">
+          <h2 data-i18n="companyCertificates">公司證書與合約</h2><div class="grow"></div>
+          <input class="control search" id="certSearch" data-i18n-placeholder="searchCert" placeholder="搜尋證書／分類／聯絡人" oninput="renderCertificates()">
+          <select class="control" id="certDept" onchange="renderCertificates()"><option value="" data-i18n="allCategories">全部分類</option></select>
+          <button class="btn" onclick="openCertForm()" data-i18n="onlineAdd">＋ 線上新增</button>
+          <button class="btn blue" onclick="createBatchRequest('certificate')" data-i18n="batchApply">批次申請核可</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('certificate',this.checked)"></th><th data-i18n="category">分類</th><th data-i18n="certificate">證書／項目</th><th data-i18n="department">部門</th><th data-i18n="startDate">開始日</th><th data-i18n="expiryDate">到期日</th><th data-i18n="renewalDate">續期日</th><th data-i18n="cost">費用</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="certBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-people">
+      <div class="panel">
+        <div class="panel-head toolbar">
+          <h2 data-i18n="expatDocuments">外籍人員與證件</h2><div class="grow"></div>
+          <input class="control search" id="peopleSearch" data-i18n-placeholder="searchPeople" placeholder="搜尋工號／姓名／護照" oninput="renderPeople()">
+          <select class="control" id="peopleDept" onchange="renderPeople()"><option value="" data-i18n="allDepartments">全部部門</option></select>
+          <select class="control" id="peopleStatus" onchange="renderPeople()"><option value="" data-i18n="allStatuses">全部狀態</option><option value="active" data-i18n="active">在職</option><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select>
+          <button class="btn" onclick="openPersonForm()" data-i18n="onlineAdd">＋ 線上新增</button>
+          <button class="btn blue" onclick="createBatchRequest('person')" data-i18n="batchApply">批次申請核可</button>
+        </div>
+        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-approvals">
+      <div class="panel">
+        <div class="panel-head"><h2 data-i18n="approvalQueue">申請／核可佇列</h2><span class="hint" data-i18n="localWorkflowHint">目前先保存前端流程；共用 GAS 將與其他模組一次串接</span><div class="grow"></div><button class="btn" onclick="openRequestForm()" data-i18n="newRequest">＋ 新申請</button><button class="btn blue" onclick="openTelegram('approval')" data-i18n="sendApproval">傳核可摘要</button></div>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="requestNo">申請編號</th><th data-i18n="requestTitle">申請主旨</th><th data-i18n="items">項目數</th><th data-i18n="applicant">申請人</th><th data-i18n="dueDate">期限</th><th data-i18n="status">狀態</th><th data-i18n="opinion">意見</th><th data-i18n="action">操作</th></tr></thead><tbody id="approvalBody"></tbody></table></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-analysis">
+      <div class="grid2">
+        <div class="panel"><div class="panel-head"><h2 data-i18n="byDepartment">部門／分類到期分析</h2><div class="grow"></div><select class="control" id="analysisField" onchange="renderAnalysis()"><option value="all" data-i18n="allFields">全部日期欄位</option><option value="certificate" data-i18n="companyCert">公司證書</option><option value="passport" data-i18n="passport">護照</option><option value="visa" data-i18n="visa">簽證</option><option value="workPermit" data-i18n="workPermit">工作證</option></select></div><div class="panel-body"><div class="chart-box"><canvas id="deptChart"></canvas></div></div></div>
+        <div class="panel"><div class="panel-head"><h2 data-i18n="byStatus">狀態分布</h2></div><div class="panel-body"><div class="chart-box sm"><canvas id="statusChart"></canvas></div><div id="analysisSummary" class="status-line"></div></div></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-settings">
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head"><h2 data-i18n="importBackup">匯入與備份</h2></div>
+          <div class="panel-body">
+            <div class="drop" id="dropZone" onclick="document.getElementById('fileInput').click()">
+              <input id="fileInput" type="file" accept=".xlsx,.xls" multiple>
+              <div class="big">📂</div><strong data-i18n="dropExcel">拖曳或點選 1～多個 Excel</strong><span data-i18n="autoDetect">系統自動判斷 Certificate／Visa／Work Permit，無需分開匯入</span>
+            </div>
+            <div style="height:12px"></div>
+            <div class="toolbar"><button class="btn" onclick="exportJson()" data-i18n="jsonBackup">下載 JSON 備份</button><button class="btn" onclick="document.getElementById('jsonInput').click()" data-i18n="jsonRestore">還原 JSON</button><input id="jsonInput" type="file" accept=".json" hidden><button class="btn red" onclick="clearAllData()" data-i18n="clearData">清除本模組資料</button></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><h2 data-i18n="workflowSettings">提醒與核可設定</h2></div>
+          <div class="panel-body">
+            <div class="form-grid">
+              <div class="field"><label data-i18n="reminderDays">提前提醒天數</label><input id="setReminderDays" type="number" min="1" max="365" value="45"></div>
+              <div class="field"><label data-i18n="approverTgId">核可者 Telegram ID</label><input id="setApproverId" value="5026942575"></div>
+              <div class="field"><label>GAS URL</label><input id="setGasUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
+              <div class="field"><label data-i18n="defaultDepartment">預設部門</label><input id="setDefaultDept" data-i18n-placeholder="unassigned" placeholder="未指定"></div>
+              <div class="field full"><label data-i18n="autoReminderStatus">自動提醒狀態</label><div class="notice warn" data-i18n="autoReminderDeferred">前端已準備 45 天三語提醒與略過規則；關閉網頁後的自動排程要等共用 GAS 一次整合後才啟用。</div></div>
+            </div>
+            <div style="height:12px"></div><button class="btn blue" onclick="saveSettings()" data-i18n="saveSettings">儲存設定</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="modal" id="importModal">
+  <div class="dialog">
+    <div class="dialog-head"><h3 data-i18n="importExcel">匯入 Excel</h3><button class="x" onclick="closeModal('importModal')">×</button></div>
+    <div class="dialog-body">
+      <div class="drop" onclick="document.getElementById('modalFileInput').click()"><input id="modalFileInput" type="file" accept=".xlsx,.xls" multiple><div class="big">📥</div><strong data-i18n="chooseFilesTogether">可一次選 Certificate、Visa、Permit 多個檔案</strong><span data-i18n="dedupHint">同工號／護照／姓名＋生日會更新，不會重複建立</span></div>
+      <div style="height:12px"></div><div class="notice" data-i18n="latestRule">若舊名單有、最新名單沒有，先標為「最新名單未列／待確認」；來源明確寫離職才標為離職。</div>
+      <ul class="import-log" id="importPreview"></ul>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="certModal">
+  <div class="dialog">
+    <div class="dialog-head"><h3 id="certFormTitle" data-i18n="certificateForm">公司證書</h3><button class="x" onclick="closeModal('certModal')">×</button></div>
+    <form id="certForm" onsubmit="saveCertificate(event)">
+      <div class="dialog-body"><input id="certId" type="hidden"><div class="form-grid">
+        <div class="field"><label data-i18n="category">分類</label><input id="certCategory" required></div>
+        <div class="field"><label data-i18n="certificate">證書／項目</label><input id="certName" required></div>
+        <div class="field"><label data-i18n="department">部門</label><input id="certDepartment"></div>
+        <div class="field"><label data-i18n="cost">費用</label><input id="certCost"></div>
+        <div class="field"><label data-i18n="startDate">開始日</label><input id="certStart" type="date"></div>
+        <div class="field"><label data-i18n="expiryDate">到期日</label><input id="certExpiry" type="date"></div>
+        <div class="field"><label data-i18n="renewalDate">續期日</label><input id="certRenewal" type="date"></div>
+        <div class="field"><label data-i18n="status">狀態</label><select id="certStatus"><option value="active" data-i18n="active">有效</option><option value="complete" data-i18n="complete">已完成</option><option value="stopped" data-i18n="stopped">停止</option></select></div>
+        <div class="field"><label data-i18n="contact">聯絡人</label><input id="certContact"></div>
+        <div class="field"><label data-i18n="completedForDate">已完成到哪個期限</label><input id="certCompletedFor" type="date"></div>
+        <div class="field full"><label data-i18n="remark">備註</label><textarea id="certRemark"></textarea></div>
+      </div></div>
+      <div class="dialog-foot"><button type="button" class="btn" onclick="closeModal('certModal')" data-i18n="cancel">取消</button><button class="btn blue" data-i18n="save">儲存</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="personModal">
+  <div class="dialog">
+    <div class="dialog-head"><h3 data-i18n="personForm">外籍人員／證件</h3><button class="x" onclick="closeModal('personModal')">×</button></div>
+    <form id="personForm" onsubmit="savePerson(event)">
+      <div class="dialog-body"><input id="personId" type="hidden"><div class="form-grid">
+        <div class="field"><label data-i18n="employeeId">工號</label><input id="personEmployeeId"></div>
+        <div class="field"><label data-i18n="nameEn">英文姓名</label><input id="personNameEn" required></div>
+        <div class="field"><label data-i18n="nameKh">柬文姓名</label><input id="personNameKh"></div>
+        <div class="field"><label data-i18n="nickname">英文名／暱稱</label><input id="personNickname"></div>
+        <div class="field"><label data-i18n="department">部門</label><input id="personDepartment"></div>
+        <div class="field"><label data-i18n="status">狀態</label><select id="personStatus"><option value="active" data-i18n="active">在職</option><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select></div>
+        <div class="field"><label data-i18n="sex">性別</label><input id="personSex"></div>
+        <div class="field"><label data-i18n="nationality">國籍</label><input id="personNationality"></div>
+        <div class="field"><label data-i18n="dob">生日</label><input id="personDob" type="date"></div>
+        <div class="field"><label data-i18n="joinDate">到職日</label><input id="personJoin" type="date"></div>
+        <div class="field"><label data-i18n="passport">護照號碼</label><input id="personPassport"></div>
+        <div class="field"><label data-i18n="passportExpiry">護照到期</label><input id="personPassportExpiry" type="date"></div>
+        <div class="field"><label data-i18n="visaExpiry">簽證到期</label><input id="personVisaExpiry" type="date"></div>
+        <div class="field"><label data-i18n="workPermitExpiry">工作證到期</label><input id="personWpExpiry" type="date"></div>
+        <div class="field"><label data-i18n="residenceExpiry">居留證到期</label><input id="personResidenceExpiry" type="date"></div>
+        <div class="field"><label data-i18n="phone">電話</label><input id="personPhone"></div>
+        <div class="field full"><label data-i18n="remark">備註</label><textarea id="personRemark"></textarea></div>
+      </div></div>
+      <div class="dialog-foot"><button type="button" class="btn" onclick="closeModal('personModal')" data-i18n="cancel">取消</button><button class="btn blue" data-i18n="save">儲存</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="requestModal">
+  <div class="dialog">
+    <div class="dialog-head"><h3 data-i18n="requestForm">申請核可</h3><button class="x" onclick="closeModal('requestModal')">×</button></div>
+    <form id="requestForm" onsubmit="saveRequest(event)">
+      <div class="dialog-body"><input id="requestId" type="hidden"><div class="form-grid">
+        <div class="field"><label data-i18n="requestTitle">申請主旨</label><input id="requestTitle" required></div>
+        <div class="field"><label data-i18n="requestType">申請類型</label><select id="requestType"><option value="renewal" data-i18n="renewal">續期</option><option value="new" data-i18n="newApplication">新申請</option><option value="change" data-i18n="change">資料變更</option><option value="close" data-i18n="closeCase">結案／停止</option></select></div>
+        <div class="field"><label data-i18n="applicant">申請人</label><input id="requestApplicant"></div>
+        <div class="field"><label data-i18n="dueDate">期限</label><input id="requestDue" type="date"></div>
+        <div class="field"><label data-i18n="estimatedCost">預估費用</label><input id="requestCost" type="number" step="0.01"></div>
+        <div class="field"><label data-i18n="status">狀態</label><select id="requestStatus"><option value="draft" data-i18n="draft">草稿</option><option value="pending" data-i18n="pending">待核可</option><option value="approved" data-i18n="approved">已核可</option><option value="rejected" data-i18n="rejected">退件</option></select></div>
+        <div class="field full"><label data-i18n="selectedItems">選取項目</label><div class="notice" id="requestItemsLabel">0</div></div>
+        <div class="field full"><label data-i18n="remark">備註</label><textarea id="requestRemark"></textarea></div>
+      </div></div>
+      <div class="dialog-foot"><button type="button" class="btn" onclick="closeModal('requestModal')" data-i18n="cancel">取消</button><button class="btn blue" data-i18n="save">儲存</button></div>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="telegramModal">
+  <div class="dialog">
+    <div class="dialog-head"><h3 data-i18n="telegramSummary">Telegram 摘要／核可</h3><button class="x" onclick="closeModal('telegramModal')">×</button></div>
+    <div class="dialog-body">
+      <div class="form-grid">
+        <div class="field"><label data-i18n="messageType">訊息類型</label><select id="tgType" onchange="refreshTgPreview()"><option value="summary" data-i18n="summary">摘要</option><option value="approval" data-i18n="approvalRequest">核可申請</option><option value="reminder" data-i18n="expiryReminder">45 天到期提醒</option></select></div>
+        <div class="field"><label data-i18n="summaryPeriod">摘要期間</label><select id="tgPeriod" onchange="refreshTgPreview()"><option value="day" data-i18n="daily">每日</option><option value="week" data-i18n="weekly">每周</option><option value="month" data-i18n="monthly">每月</option><option value="year" data-i18n="yearly">每年</option></select></div>
+        <div class="field"><label data-i18n="language">語言</label><select id="tgLang" onchange="refreshTgPreview()"><option value="zh" data-i18n="chinese">中文</option><option value="en" data-i18n="english">English</option><option value="both" data-i18n="bilingual">中英雙語</option><option value="all3" data-i18n="trilingual">中英柬三語</option></select></div>
+        <div class="field"><label data-i18n="recipient">核可者 ID</label><input id="tgRecipient" value="5026942575" oninput="refreshTgPreview()"></div>
+        <div class="field full"><label data-i18n="preview">預覽</label><div class="preview" id="tgPreview"></div></div>
+      </div>
+    </div>
+    <div class="dialog-foot"><button class="btn" onclick="copyTgText()" data-i18n="copy">複製</button><button class="btn blue" onclick="sendTelegram()" data-i18n="manualSend">手動發送</button></div>
+  </div>
+</div>
+
+<div class="loading" id="loading"><div class="loader"><span class="spin">⏳</span> <span id="loadingText">處理中…</span></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const APP_VERSION='1.0.0';
+const DB_NAME='ac_hra_certificate_visa_v1';
+const DB_STORE='snapshots';
+const DB_KEY='main';
+const META_KEY='ac_hra_certvisa_meta';
+const GAS_KEY='ac_hra_gas_url';
+const LANG_KEY='ac_hra_lang';
+const TOOL_ID='certificate_visa';
+let LANG=localStorage.getItem(LANG_KEY)||'zh';
+let STATE=null;
+let PERIOD_MODE='month';
+let PERIOD_ANCHOR=new Date();
+let LIST_MODE='month';
+let ACTIVE_TAB='dashboard';
+let selectedCerts=new Set();
+let selectedPeople=new Set();
+let chartDept=null,chartStatus=null;
+let pendingRequestItems=[];
+
+const I18N={
+zh:{
+ title:'證書、簽證與工作證管理',import:'匯入 Excel',cloudUp:'手動上傳',cloudDown:'手動下載',export:'匯出',telegram:'Telegram 摘要',print:'列印',
+ manualOnly:'● 僅在按下按鈕時連線',tabDashboard:'總覽',tabTimeline:'到期行事曆',tabPeriods:'月／年列表',tabCertificates:'公司證書',tabPeople:'外籍人員',tabApprovals:'申請／核可',tabAnalysis:'分類分析',tabSettings:'設定',
+ day:'日',week:'周',month:'月',year:'年',allFields:'全部日期欄位',certificateExpiry:'證書到期／續期',passportExpiry:'護照到期',visaExpiry:'簽證到期',workPermitExpiry:'工作證到期',residenceExpiry:'居留證到期',
+ kpiCert:'公司證書',kpiCertSub:'有效追蹤項目',kpiExpats:'外籍人員',kpiExpatsSub:'最新有效名單',kpiDue:'45 天內到期',kpiDueSub:'尚未提前完成',kpiExpired:'已逾期',kpiExpiredSub:'需處理項目',kpiPending:'待核可',kpiPendingSub:'批次申請',
+ upcoming45:'45 天提醒清單',reminderRule:'提前完成／已核可者不提醒',makeReminder:'產生三語提醒',date:'日期',type:'類型',itemPerson:'項目／人員',department:'部門／分類',days:'天數',status:'狀態',
+ dataHealth:'資料狀態',recentImports:'最近匯入',periodEvents:'期間到期／續期項目',allDepartments:'全部部門／分類',source:'來源',periodReport:'期間報表',monthly:'月報',yearly:'年報',period:'期間',totalDue:'到期／續期',
+ companyCert:'公司證書',passport:'護照',visa:'簽證',workPermit:'工作證',residence:'居留證',pending:'待核可',approvedDone:'已核可／完成',estimatedCost:'預估費用',
+ companyCertificates:'公司證書與合約',searchCert:'搜尋證書／分類／聯絡人',allCategories:'全部分類',onlineAdd:'＋ 線上新增',batchApply:'批次申請核可',category:'分類',certificate:'證書／項目',startDate:'開始日',expiryDate:'到期日',renewalDate:'續期日',cost:'費用',action:'操作',
+ expatDocuments:'外籍人員與證件',searchPeople:'搜尋工號／姓名／護照',allStatuses:'全部狀態',active:'在職／有效',notInLatest:'最新名單未列',resigned:'離職',employeeId:'工號',name:'姓名',
+ approvalQueue:'申請／核可佇列',localWorkflowHint:'目前先保存前端流程；共用 GAS 將與其他模組一次串接',newRequest:'＋ 新申請',sendApproval:'傳核可摘要',requestNo:'申請編號',requestTitle:'申請主旨',items:'項目數',applicant:'申請人',dueDate:'期限',opinion:'意見',
+ byDepartment:'部門／分類到期分析',byStatus:'狀態分布',importBackup:'匯入與備份',dropExcel:'拖曳或點選 1～多個 Excel',autoDetect:'系統自動判斷 Certificate／Visa／Work Permit，無需分開匯入',jsonBackup:'下載 JSON 備份',jsonRestore:'還原 JSON',clearData:'清除本模組資料',
+ workflowSettings:'提醒與核可設定',reminderDays:'提前提醒天數',approverTgId:'核可者 Telegram ID',defaultDepartment:'預設部門',autoReminderStatus:'自動提醒狀態',autoReminderDeferred:'前端已準備 45 天三語提醒與略過規則；關閉網頁後的自動排程要等共用 GAS 一次整合後才啟用。',saveSettings:'儲存設定',unassigned:'未指定',
+ importExcel:'匯入 Excel',chooseFilesTogether:'可一次選 Certificate、Visa、Permit 多個檔案',dedupHint:'同工號／護照／姓名＋生日會更新，不會重複建立',latestRule:'若舊名單有、最新名單沒有，先標為「最新名單未列／待確認」；來源明確寫離職才標為離職。',
+ certificateForm:'公司證書',contact:'聯絡人',complete:'已完成',stopped:'停止',completedForDate:'已完成到哪個期限',remark:'備註',cancel:'取消',save:'儲存',
+ personForm:'外籍人員／證件',nameEn:'英文姓名',nameKh:'柬文姓名',nickname:'英文名／暱稱',sex:'性別',nationality:'國籍',dob:'生日',joinDate:'到職日',phone:'電話',
+ requestForm:'申請核可',requestType:'申請類型',renewal:'續期',newApplication:'新申請',change:'資料變更',closeCase:'結案／停止',draft:'草稿',approved:'已核可',rejected:'退件',selectedItems:'選取項目',
+ telegramSummary:'Telegram 摘要／核可',messageType:'訊息類型',summary:'摘要',approvalRequest:'核可申請',expiryReminder:'45 天到期提醒',summaryPeriod:'摘要期間',daily:'每日',weekly:'每周',language:'語言',chinese:'中文',english:'English',bilingual:'中英雙語',trilingual:'中英柬三語',recipient:'核可者 ID',preview:'預覽',copy:'複製',manualSend:'手動發送',
+ edit:'編輯',approve:'核可',reject:'退件',delete:'刪除',noData:'尚無資料',noEvents:'此期間沒有項目',daysOverdue:'逾期 {n} 天',daysLeft:'剩 {n} 天',today:'今天',due:'即將到期',expired:'已逾期',notListed:'待確認',latestRoster:'最新名單 {year}：{active} 人；未列／待確認 {missing} 人。',notImported:'尚未匯入外籍人員名單。',
+ certCount:'證書 {n}',peopleCount:'人員 {n}',requestCount:'申請 {n}',fileImported:'{file}：證書新增 {ca}／更新 {cu}，人員新增 {pa}／更新 {pu}，忽略重複 {dupe}',importDone:'匯入完成',importFailed:'無法辨識附件欄位',settingsSaved:'設定已儲存',saved:'已儲存',selectItems:'請先勾選項目',requestItems:'已選 {n} 項',confirmDelete:'確定刪除？',confirmClear:'確定清除本模組全部資料？此操作無法復原。',cleared:'本模組資料已清除',
+ gasMissing:'請先在設定填入 GAS URL',cloudSent:'已手動上傳',cloudReceived:'已手動下載',cloudFail:'雲端操作失敗',telegramSent:'Telegram 已發送',copyDone:'已複製',backendDeferred:'目前 GAS 尚未支援此共用核可動作，資料已保留在本機。',
+ imported:'Excel 匯入',online:'線上新增',notInLatestLong:'最新名單未列／待確認',unknown:'未指定',localOnly:'本機流程',requestDecision:'請輸入核可／退件意見（可留白）',statusActive:'有效',statusComplete:'完成',statusStopped:'停止',statusResigned:'離職',statusMissing:'最新名單未列',statusPending:'待核可',statusApproved:'已核可',statusRejected:'退件',statusDraft:'草稿',
+ latest:'最新',records:'筆',periodRows:'{n} 個期間',sourceCertificate:'Certificate',sourceVisa:'Visa / Permit'
+},
+en:{
+ title:'Certificate, Visa & Work Permit',import:'Import Excel',cloudUp:'Manual Upload',cloudDown:'Manual Download',export:'Export',telegram:'Telegram Summary',print:'Print',
+ manualOnly:'● Connects only when you press a button',tabDashboard:'Overview',tabTimeline:'Expiry Calendar',tabPeriods:'Month / Year List',tabCertificates:'Company Certificates',tabPeople:'Expats',tabApprovals:'Applications / Approval',tabAnalysis:'Analysis',tabSettings:'Settings',
+ day:'Day',week:'Week',month:'Month',year:'Year',allFields:'All date fields',certificateExpiry:'Certificate expiry / renewal',passportExpiry:'Passport expiry',visaExpiry:'Visa expiry',workPermitExpiry:'Work permit expiry',residenceExpiry:'Residence permit expiry',
+ kpiCert:'Company Certificates',kpiCertSub:'Tracked active items',kpiExpats:'Active Expats',kpiExpatsSub:'Latest confirmed roster',kpiDue:'Due Within 45 Days',kpiDueSub:'Not completed early',kpiExpired:'Overdue',kpiExpiredSub:'Items needing action',kpiPending:'Pending Approval',kpiPendingSub:'Batch applications',
+ upcoming45:'45-Day Reminder List',reminderRule:'Completed or approved items are excluded',makeReminder:'Create 3-language reminder',date:'Date',type:'Type',itemPerson:'Item / Person',department:'Department / Category',days:'Days',status:'Status',
+ dataHealth:'Data Status',recentImports:'Recent Imports',periodEvents:'Expiry / Renewal Events',allDepartments:'All departments / categories',source:'Source',periodReport:'Period Report',monthly:'Monthly',yearly:'Yearly',period:'Period',totalDue:'Due / Renewal',
+ companyCert:'Company Certificate',passport:'Passport',visa:'Visa',workPermit:'Work Permit',residence:'Residence Permit',pending:'Pending',approvedDone:'Approved / Completed',estimatedCost:'Estimated Cost',
+ companyCertificates:'Company Certificates & Contracts',searchCert:'Search certificate, category or contact',allCategories:'All categories',onlineAdd:'+ Add Online',batchApply:'Batch Approval Request',category:'Category',certificate:'Certificate / Item',startDate:'Start Date',expiryDate:'Expiry Date',renewalDate:'Renewal Date',cost:'Cost',action:'Action',
+ expatDocuments:'Expat Employees & Documents',searchPeople:'Search employee ID, name or passport',allStatuses:'All statuses',active:'Active',notInLatest:'Not in Latest Roster',resigned:'Resigned',employeeId:'Employee ID',name:'Name',
+ approvalQueue:'Application / Approval Queue',localWorkflowHint:'Frontend workflow is ready; shared GAS will be connected once for all modules',newRequest:'+ New Request',sendApproval:'Send Approval Summary',requestNo:'Request No.',requestTitle:'Subject',items:'Items',applicant:'Applicant',dueDate:'Due Date',opinion:'Opinion',
+ byDepartment:'Expiry by Department / Category',byStatus:'Status Distribution',importBackup:'Import & Backup',dropExcel:'Drop or choose one or more Excel files',autoDetect:'Certificate, Visa and Work Permit sheets are detected automatically',jsonBackup:'Download JSON Backup',jsonRestore:'Restore JSON',clearData:'Clear Module Data',
+ workflowSettings:'Reminder & Approval Settings',reminderDays:'Advance Reminder Days',approverTgId:'Approver Telegram ID',defaultDepartment:'Default Department',autoReminderStatus:'Automatic Reminder Status',autoReminderDeferred:'The 45-day trilingual reminder and skip rules are ready. Closed-page scheduling will be enabled after the shared GAS is consolidated.',saveSettings:'Save Settings',unassigned:'Unassigned',
+ importExcel:'Import Excel',chooseFilesTogether:'Select Certificate, Visa and Permit files together',dedupHint:'Matching employee ID, passport, or name + DOB updates the record instead of duplicating it',latestRule:'A person missing from the latest roster is marked “Not in latest roster / Review”; only an explicit resignation source marks them resigned.',
+ certificateForm:'Company Certificate',contact:'Contact',complete:'Completed',stopped:'Stopped',completedForDate:'Completed for Due Date',remark:'Remark',cancel:'Cancel',save:'Save',
+ personForm:'Expat Employee / Documents',nameEn:'English Name',nameKh:'Khmer Name',nickname:'English / Nickname',sex:'Sex',nationality:'Nationality',dob:'Date of Birth',joinDate:'Join Date',phone:'Phone',
+ requestForm:'Approval Request',requestType:'Request Type',renewal:'Renewal',newApplication:'New Application',change:'Data Change',closeCase:'Close / Stop',draft:'Draft',approved:'Approved',rejected:'Rejected',selectedItems:'Selected Items',
+ telegramSummary:'Telegram Summary / Approval',messageType:'Message Type',summary:'Summary',approvalRequest:'Approval Request',expiryReminder:'45-Day Expiry Reminder',summaryPeriod:'Summary Period',daily:'Daily',weekly:'Weekly',language:'Language',chinese:'Chinese',english:'English',bilingual:'Chinese + English',trilingual:'Chinese + English + Khmer',recipient:'Approver ID',preview:'Preview',copy:'Copy',manualSend:'Send Manually',
+ edit:'Edit',approve:'Approve',reject:'Reject',delete:'Delete',noData:'No data yet',noEvents:'No items in this period',daysOverdue:'{n} days overdue',daysLeft:'{n} days left',today:'Today',due:'Due soon',expired:'Overdue',notListed:'Review',latestRoster:'Latest roster {year}: {active} active; {missing} missing / under review.',notImported:'No expat roster imported yet.',
+ certCount:'Certificates {n}',peopleCount:'People {n}',requestCount:'Requests {n}',fileImported:'{file}: certificates +{ca} / updated {cu}; people +{pa} / updated {pu}; duplicates skipped {dupe}',importDone:'Import complete',importFailed:'The attachment columns could not be recognized',settingsSaved:'Settings saved',saved:'Saved',selectItems:'Select one or more items first',requestItems:'{n} items selected',confirmDelete:'Delete this record?',confirmClear:'Clear all data in this module? This cannot be undone.',cleared:'Module data cleared',
+ gasMissing:'Enter the GAS URL in Settings first',cloudSent:'Manual upload complete',cloudReceived:'Manual download complete',cloudFail:'Cloud action failed',telegramSent:'Telegram sent',copyDone:'Copied',backendDeferred:'The shared approval action is not in GAS yet. The request remains saved locally.',
+ imported:'Excel import',online:'Online entry',notInLatestLong:'Not in latest roster / Review',unknown:'Unassigned',localOnly:'Local workflow',requestDecision:'Enter approval / rejection comments (optional)',statusActive:'Active',statusComplete:'Completed',statusStopped:'Stopped',statusResigned:'Resigned',statusMissing:'Not in Latest Roster',statusPending:'Pending',statusApproved:'Approved',statusRejected:'Rejected',statusDraft:'Draft',
+ latest:'Latest',records:'records',periodRows:'{n} periods',sourceCertificate:'Certificate',sourceVisa:'Visa / Permit'
+}};
+function tr(k,v={}){let s=(I18N[LANG]&&I18N[LANG][k])||I18N.zh[k]||k;Object.entries(v).forEach(([a,b])=>s=s.replaceAll('{'+a+'}',String(b)));return s}
+</script>
+<script>
+/* ── Storage, dates and rendering ─────────────────────────────────────── */
+function uid(prefix='id'){return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function norm(v){return String(v??'').normalize('NFKC').toUpperCase().replace(/[^A-Z0-9\u00C0-\u024F\u1780-\u17FF]/g,'')}
+function clean(v){return String(v??'').replace(/\s+/g,' ').trim()}
+function num(v){
+  if(typeof v==='number'&&Number.isFinite(v))return v;
+  const s=String(v??'').replace(/[$,\s]/g,'');
+  const m=s.match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):0
+}
+function isoDate(v){
+  if(!v&&v!==0)return '';
+  if(v instanceof Date&&!isNaN(v)){return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`}
+  if(typeof v==='number'&&v>20000&&window.XLSX){
+    const d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`
+  }
+  const s=clean(v);
+  let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if(m)return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+  m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+  if(m)return `${m[3]}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`;
+  const d=new Date(s);if(!isNaN(d))return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return '';
+}
+function dateObj(s){if(!s)return null;const [y,m,d]=String(s).slice(0,10).split('-').map(Number);return y&&m&&d?new Date(y,m-1,d):null}
+function todayISO(){return isoDate(new Date())}
+function fmtDate(s){if(!s)return '—';const d=dateObj(s);if(!d)return esc(s);return LANG==='en'?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`}
+function money(v){if(v===''||v==null||Number(v)===0)return '—';return '$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2})}
+function dayDiff(s,from=new Date()){const d=dateObj(s);if(!d)return Infinity;const a=new Date(from.getFullYear(),from.getMonth(),from.getDate());return Math.round((d-a)/86400000)}
+function defaultState(){return{
+  version:APP_VERSION,certificates:[],people:[],requests:[],imports:[],
+  settings:{reminderDays:45,approverTelegramId:'5026942575',defaultDepartment:'',latestRosterRank:0,latestRosterYear:''},
+  updatedAt:new Date().toISOString()
+}}
+function openDb(){return new Promise((resolve,reject)=>{const q=indexedDB.open(DB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(DB_STORE))q.result.createObjectStore(DB_STORE)};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
+async function loadState(){
+  try{const db=await openDb();const value=await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE).objectStore(DB_STORE).get(DB_KEY);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});db.close();return value&&value.certificates?Object.assign(defaultState(),value):defaultState()}
+  catch(e){console.warn('IndexedDB unavailable',e);return defaultState()}
+}
+async function persist(){
+  STATE.updatedAt=new Date().toISOString();
+  const db=await openDb();await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=resolve;q.onerror=()=>reject(q.error)});db.close();
+  const meta={count:STATE.certificates.length+STATE.people.length+STATE.requests.length,certCount:STATE.certificates.length,expatCount:STATE.people.length,requestCount:STATE.requests.length,updatedAt:STATE.updatedAt};
+  localStorage.setItem(META_KEY,JSON.stringify(meta));
+}
+function showLoading(text){document.getElementById('loadingText').textContent=text||'…';document.getElementById('loading').classList.add('on')}
+function hideLoading(){document.getElementById('loading').classList.remove('on')}
+function toast(msg,d=3000){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),d)}
+function openModal(id){document.getElementById(id).classList.add('open')}
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+function setLang(l){
+  LANG=l;localStorage.setItem(LANG_KEY,l);applyLang();renderAll()
+}
+function applyLang(){
+  document.documentElement.lang=LANG==='en'?'en':'zh-TW';
+  document.getElementById('langZh').classList.toggle('on',LANG==='zh');document.getElementById('langEn').classList.toggle('on',LANG==='en');
+  document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=tr(e.dataset.i18n));
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(e=>e.placeholder=tr(e.dataset.i18nPlaceholder));
+  document.querySelectorAll('[data-i18n-title]').forEach(e=>e.title=tr(e.dataset.i18nTitle));
+  document.getElementById('syncNote').textContent=tr('manualOnly');
+}
+function setTab(tab){
+  ACTIVE_TAB=tab;document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.dataset.tab===tab));document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='view-'+tab));
+  if(tab==='analysis')setTimeout(renderAnalysis,0)
+}
+document.querySelectorAll('.tab').forEach(e=>e.addEventListener('click',()=>setTab(e.dataset.tab)));
+document.querySelectorAll('#periodModes button').forEach(e=>e.addEventListener('click',()=>{PERIOD_MODE=e.dataset.mode;document.querySelectorAll('#periodModes button').forEach(x=>x.classList.toggle('on',x===e));syncPeriodPicker();renderAll()}));
+function startOfWeek(d){const r=new Date(d);const n=(r.getDay()+6)%7;r.setDate(r.getDate()-n);r.setHours(0,0,0,0);return r}
+function periodRange(mode=PERIOD_MODE,anchor=PERIOD_ANCHOR){
+  let start,end;if(mode==='day'){start=new Date(anchor.getFullYear(),anchor.getMonth(),anchor.getDate());end=new Date(start);end.setDate(end.getDate()+1)}
+  else if(mode==='week'){start=startOfWeek(anchor);end=new Date(start);end.setDate(end.getDate()+7)}
+  else if(mode==='month'){start=new Date(anchor.getFullYear(),anchor.getMonth(),1);end=new Date(anchor.getFullYear(),anchor.getMonth()+1,1)}
+  else{start=new Date(anchor.getFullYear(),0,1);end=new Date(anchor.getFullYear()+1,0,1)}
+  return{start,end}
+}
+function periodLabel(mode=PERIOD_MODE,anchor=PERIOD_ANCHOR){
+  const {start,end}=periodRange(mode,anchor);const last=new Date(end-86400000);
+  if(mode==='day')return fmtDate(isoDate(start));
+  if(mode==='week')return `${fmtDate(isoDate(start))} – ${fmtDate(isoDate(last))}`;
+  if(mode==='month')return LANG==='en'?start.toLocaleDateString('en-US',{month:'long',year:'numeric'}):`${start.getFullYear()}年${start.getMonth()+1}月`;
+  return String(start.getFullYear())
+}
+function syncPeriodPicker(){
+  const p=document.getElementById('periodPicker');
+  if(PERIOD_MODE==='day'||PERIOD_MODE==='week'){p.type='date';p.value=isoDate(PERIOD_ANCHOR)}
+  else if(PERIOD_MODE==='month'){p.type='month';p.value=`${PERIOD_ANCHOR.getFullYear()}-${String(PERIOD_ANCHOR.getMonth()+1).padStart(2,'0')}`}
+  else{p.type='number';p.min='2000';p.max='2100';p.value=PERIOD_ANCHOR.getFullYear()}
+  document.getElementById('periodCaption').textContent=periodLabel()
+}
+function pickPeriod(v){if(!v)return;if(PERIOD_MODE==='year')PERIOD_ANCHOR=new Date(+v,0,1);else{const a=v.split('-').map(Number);PERIOD_ANCHOR=new Date(a[0],(a[1]||1)-1,a[2]||1)}renderAll()}
+function movePeriod(n){if(PERIOD_MODE==='day')PERIOD_ANCHOR.setDate(PERIOD_ANCHOR.getDate()+n);else if(PERIOD_MODE==='week')PERIOD_ANCHOR.setDate(PERIOD_ANCHOR.getDate()+7*n);else if(PERIOD_MODE==='month')PERIOD_ANCHOR.setMonth(PERIOD_ANCHOR.getMonth()+n);else PERIOD_ANCHOR.setFullYear(PERIOD_ANCHOR.getFullYear()+n);PERIOD_ANCHOR=new Date(PERIOD_ANCHOR);renderAll()}
+function itemName(kind,id){
+  if(kind==='certificate'){const x=STATE.certificates.find(a=>a.id===id);return x?x.name:id}
+  const x=STATE.people.find(a=>a.id===id);return x?(x.nickname||x.nameEn||x.nameKh):id
+}
+function isEventCompleted(e){
+  const rec=e.kind==='certificate'?STATE.certificates.find(x=>x.id===e.recordId):STATE.people.find(x=>x.id===e.recordId);
+  if(!rec)return false;
+  if(['stopped','resigned','not_in_latest'].includes(rec.status))return true;
+  if(rec.completedForDate&&rec.completedForDate>=e.date)return true;
+  return STATE.requests.some(r=>r.status==='approved'&&r.items?.some(i=>i.id===e.recordId)&&r.dueDate&&r.dueDate>=e.date)
+}
+function allEvents(){
+  const out=[];
+  STATE.certificates.forEach(c=>{const d=c.renewalDate||c.expiryDate;if(d)out.push({id:`certificate:${c.id}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:num(c.cost)})});
+  STATE.people.forEach(p=>{
+    [['passport','passportExpiry'],['visa','visaExpiry'],['workPermit','workPermitExpiry'],['residence','residenceExpiry']].forEach(([type,key])=>{if(p[key])out.push({id:`${type}:${p.id}:${p[key]}`,kind:'person',recordId:p.id,type,date:p[key],name:p.nickname||p.nameEn||p.nameKh,department:p.department||tr('unknown'),source:p.sourceFile||tr('sourceVisa'),cost:type==='visa'?num(p.visaExpense):type==='workPermit'?num(p.workPermitExpense):0})})
+  });
+  return out.map(e=>({...e,completed:isEventCompleted(e),days:dayDiff(e.date)})).sort((a,b)=>a.date.localeCompare(b.date))
+}
+function typeLabel(type){return tr({certificate:'companyCert',passport:'passport',visa:'visa',workPermit:'workPermit',residence:'residence'}[type]||type)}
+function statusKey(s){return {active:'statusActive',complete:'statusComplete',completed:'statusComplete',stopped:'statusStopped',resigned:'statusResigned',not_in_latest:'statusMissing',pending:'statusPending',approved:'statusApproved',rejected:'statusRejected',draft:'statusDraft',due:'due',expired:'expired'}[s]||s}
+function badge(s,label){const cls=['approved','complete','completed','active'].includes(s)?'b-'+(s==='completed'?'complete':s):['pending','due','not_in_latest'].includes(s)?'b-'+s:['expired','rejected','resigned'].includes(s)?'b-'+s:['stopped','draft'].includes(s)?'b-'+s:'b-draft';return `<span class="badge ${cls}">${esc(label||tr(statusKey(s)))}</span>`}
+function eventState(e){if(e.completed)return'complete';if(e.days<0)return'expired';if(e.days<=Number(STATE.settings.reminderDays||45))return'due';return'active'}
+function emptyRow(cols,msg='noData'){return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">📭</div>${esc(tr(msg))}</div></td></tr>`}
+function distinctDepartments(){
+  return [...new Set([...STATE.certificates.map(x=>x.department||x.category),...STATE.people.map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))
+}
+function fillSelect(id,values,allKey){
+  const e=document.getElementById(id);if(!e)return;const keep=e.value;e.innerHTML=`<option value="">${esc(tr(allKey))}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if([...e.options].some(o=>o.value===keep))e.value=keep
+}
+function renderDashboard(){
+  const ev=allEvents(),activePeople=STATE.people.filter(p=>p.status==='active').length,rem=Number(STATE.settings.reminderDays||45);
+  document.getElementById('kCert').textContent=STATE.certificates.filter(c=>c.status!=='stopped').length;
+  document.getElementById('kPeople').textContent=activePeople;
+  document.getElementById('kDue').textContent=ev.filter(e=>!e.completed&&e.days>=0&&e.days<=rem).length;
+  document.getElementById('kExpired').textContent=ev.filter(e=>!e.completed&&e.days<0).length;
+  document.getElementById('kPending').textContent=STATE.requests.filter(r=>r.status==='pending').length;
+  const reminder=ev.filter(e=>!e.completed&&e.days<=rem).slice(0,80);
+  document.getElementById('reminderBody').innerHTML=reminder.length?reminder.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${e.days<0?esc(tr('daysOverdue',{n:Math.abs(e.days)})):e.days===0?tr('today'):esc(tr('daysLeft',{n:e.days}))}</td><td>${badge(eventState(e))}</td></tr>`).join(''):emptyRow(6,'noEvents');
+  const latestYear=STATE.settings.latestRosterYear,missing=STATE.people.filter(p=>p.status==='not_in_latest').length;
+  document.getElementById('latestRosterNote').textContent=latestYear?tr('latestRoster',{year:latestYear,active:activePeople,missing}):tr('notImported');
+  document.getElementById('dataBadges').innerHTML=badge('active',tr('certCount',{n:STATE.certificates.length}))+badge('active',tr('peopleCount',{n:STATE.people.length}))+badge('pending',tr('requestCount',{n:STATE.requests.length}));
+  document.getElementById('recentImports').innerHTML=STATE.imports.length?STATE.imports.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,6).map(x=>{const summary=x.stats?tr('fileImported',{file:x.file,...x.stats}):(x.summary||'');return `<li><b>${esc(x.file)}</b><br><span class="muted">${fmtDate(String(x.at).slice(0,10))} · ${esc(summary)}</span></li>`}).join(''):`<li class="muted">${tr('noData')}</li>`
+}
+function eventFilter(events,field,dept){
+  const {start,end}=periodRange();return events.filter(e=>dateObj(e.date)>=start&&dateObj(e.date)<end&&(field==='all'||e.type===field)&&(!dept||e.department===dept))
+}
+function renderTimeline(){
+  const field=document.getElementById('eventField').value,dept=document.getElementById('timelineDept').value;
+  const ev=eventFilter(allEvents(),field,dept);document.getElementById('timelineHint').textContent=`${periodLabel()} · ${ev.length} ${tr('records')}`;
+  document.getElementById('timelineBody').innerHTML=ev.length?ev.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${esc(e.source)}</td><td>${badge(eventState(e))}</td></tr>`).join(''):emptyRow(6,'noEvents')
+}
+function setListMode(m){LIST_MODE=m;document.getElementById('monthListBtn').classList.toggle('on',m==='month');document.getElementById('yearListBtn').classList.toggle('on',m==='year');renderPeriodList()}
+function periodKey(date,mode){return mode==='year'?date.slice(0,4):date.slice(0,7)}
+function renderPeriodList(){
+  const field=document.getElementById('listField').value,dept=document.getElementById('listDept').value;
+  let ev=allEvents().filter(e=>(field==='all'||e.type===field)&&(!dept||e.department===dept));
+  const years=ev.map(e=>+e.date.slice(0,4)).filter(Boolean);let min=Math.min(new Date().getFullYear(),...(years.length?years:[new Date().getFullYear()])),max=Math.max(new Date().getFullYear(),...(years.length?years:[new Date().getFullYear()]));
+  min=Math.max(2000,min-1);max=Math.min(2100,max+1);
+  const keys=[];if(LIST_MODE==='year'){for(let y=max;y>=min;y--)keys.push(String(y))}else{for(let y=max;y>=min;y--)for(let m=12;m>=1;m--)keys.push(`${y}-${String(m).padStart(2,'0')}`)}
+  const reqBy=k=>STATE.requests.filter(r=>r.dueDate&&periodKey(r.dueDate,LIST_MODE)===k);
+  const rows=keys.map(k=>{const a=ev.filter(e=>periodKey(e.date,LIST_MODE)===k),r=reqBy(k);return{k,a,r}}).filter(x=>x.a.length||x.r.length);
+  document.getElementById('periodRowsCount').textContent=tr('periodRows',{n:rows.length});
+  document.getElementById('periodBody').innerHTML=rows.length?rows.map(({k,a,r})=>{
+    const n=type=>a.filter(e=>e.type===type).length,pending=r.filter(x=>x.status==='pending').length,done=a.filter(x=>x.completed).length+r.filter(x=>x.status==='approved').length,cost=a.reduce((s,x)=>s+num(x.cost),0)+r.reduce((s,x)=>s+num(x.cost),0);
+    return `<tr class="row-click" onclick="jumpToPeriod('${k}')"><td><b>${esc(k)}</b></td><td>${a.length}</td><td>${n('certificate')}</td><td>${n('passport')}</td><td>${n('visa')}</td><td>${n('workPermit')}</td><td>${n('residence')}</td><td>${pending}</td><td>${done}</td><td class="money">${money(cost)}</td></tr>`
+  }).join(''):emptyRow(10)
+}
+function jumpToPeriod(k){const a=k.split('-').map(Number);PERIOD_ANCHOR=new Date(a[0],(a[1]||1)-1,1);PERIOD_MODE=k.length===4?'year':'month';document.querySelectorAll('#periodModes button').forEach(x=>x.classList.toggle('on',x.dataset.mode===PERIOD_MODE));setTab('timeline');renderAll()}
+function renderCertificates(){
+  const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;
+  const rows=STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
+  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${money(c.cost)}</td><td>${badge(c.status||'active')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button></td></tr>`).join(''):emptyRow(10)
+}
+function renderPeople(){
+  const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;
+  const rows=STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
+  document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${badge(p.status||'active')}</td><td><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button></td></tr>`).join(''):emptyRow(10)
+}
+function renderApprovals(){
+  const rows=STATE.requests.slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button>${r.status==='pending'?`<button class="btn small green" onclick="decideRequest('${r.id}','approved')">${tr('approve')}</button><button class="btn small red" onclick="decideRequest('${r.id}','rejected')">${tr('reject')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
+}
+function renderAnalysis(){
+  if(ACTIVE_TAB!=='analysis')return;const field=document.getElementById('analysisField').value;const ev=allEvents().filter(e=>field==='all'||e.type===field);
+  const groups={};ev.forEach(e=>groups[e.department]=(groups[e.department]||0)+1);const labels=Object.keys(groups).sort((a,b)=>groups[b]-groups[a]).slice(0,20),data=labels.map(x=>groups[x]);
+  if(chartDept)chartDept.destroy();if(window.Chart)chartDept=new Chart(document.getElementById('deptChart'),{type:'bar',data:{labels,datasets:[{label:tr('totalDue'),data,backgroundColor:'#35b6cf',borderColor:'#167fa2',borderWidth:1}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}});
+  const statuses={active:0,due:0,expired:0,complete:0};ev.forEach(e=>statuses[eventState(e)]++);
+  if(chartStatus)chartStatus.destroy();if(window.Chart)chartStatus=new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:Object.keys(statuses).map(statusKey).map(tr),datasets:[{data:Object.values(statuses),backgroundColor:['#2d98c3','#e5a128','#d94b50','#2a996a']}]},options:{responsive:true,maintainAspectRatio:false}});
+  document.getElementById('analysisSummary').innerHTML=Object.entries(statuses).map(([k,v])=>badge(k,`${tr(statusKey(k))} ${v}`)).join('')
+}
+function renderAll(){
+  if(!STATE)return;syncPeriodPicker();
+  const deps=distinctDepartments();fillSelect('timelineDept',deps,'allDepartments');fillSelect('listDept',deps,'allDepartments');fillSelect('peopleDept',[...new Set(STATE.people.map(x=>x.department).filter(Boolean))].sort(),'allDepartments');fillSelect('certDept',[...new Set(STATE.certificates.map(x=>x.department||x.category).filter(Boolean))].sort(),'allCategories');
+  renderDashboard();renderTimeline();renderPeriodList();renderCertificates();renderPeople();renderApprovals();renderAnalysis()
+}
+
+/* ── One-step multi-file Excel import and deduplication ──────────────── */
+function headerText(row){return row.map(clean).join(' | ').toUpperCase()}
+function yearFrom(...parts){
+  for(const x of parts){const a=String(x||'').match(/20\d{2}/g);if(a?.length)return Math.max(...a.map(Number))}
+  return new Date().getFullYear()
+}
+function sourceStatus(remark){
+  const s=String(remark||'');if(/STOP|CANCEL/i.test(s))return'stopped';if(/DONE|COMPLETE/i.test(s))return'complete';return'active'
+}
+function certKey(x){return `${norm(x.category)}|${norm(x.name)}`}
+function parseCertificate(rows,file,sheet){
+  const hi=rows.findIndex(r=>{const s=headerText(r);return s.includes('CERTIFICATE')&&s.includes('START')&&s.includes('RENEW')&&!/PASS\s*[- ]?PORT|PASSPORT/.test(s)});
+  if(hi<0)return[];
+  const h=rows[hi].map(x=>clean(x).toUpperCase()),idx=(re,fallback)=>{const n=h.findIndex(x=>re.test(x));return n>=0?n:fallback};
+  const iCat=idx(/CERTIFICATE/,1),iStart=idx(/START/,5),iExp=idx(/EXP/,6),iRenew=idx(/RENEW/,7),iRemark=idx(/REMARK/,8),iContact=idx(/CONT/,9);
+  let current='';const year=yearFrom(rows[0]?.[0],file,sheet);const out=[];
+  for(let r=hi+1;r<rows.length;r++){
+    const row=rows[r];if(!row||row.every(v=>clean(v)===''))continue;
+    const cat=clean(row[iCat]);if(cat)current=cat;
+    const name=clean(row[iCat+1])||cat;if(!name||(!current&&name===cat))continue;
+    const remark=clean(row[iRemark]);const expiry=isoDate(row[iExp]),renewal=isoDate(row[iRenew]);
+    out.push({
+      id:'',category:current||name,name,department:current||'',cost:num(row[3])||clean(row[3]),
+      startDate:isoDate(row[iStart]),expiryDate:expiry,renewalDate:renewal,remark,contact:clean(row[iContact]),
+      status:sourceStatus(remark),completedForDate:/DONE|COMPLETE/i.test(remark)?(renewal||expiry):'',
+      sourceFile:file,sourceSheet:sheet,sourceYear:year,sourceRank:year*100,source:'excel'
+    })
+  }
+  return out
+}
+function findHeader(rows){
+  for(let i=0;i<Math.min(rows.length,12);i++){const s=headerText(rows[i]);if(/PASS\s*[- ]?PORT|PASSPORT/.test(s)&&s.includes('NAME'))return i}
+  return-1
+}
+function findGroup(row,re,min=0){for(let i=min;i<row.length;i++)if(re.test(clean(row[i]).toUpperCase()))return i;return-1}
+function hasLatin(s){return /[A-Z]/i.test(String(s||''))}
+function parsePersonSheet(rows,file,sheet){
+  const hi=findHeader(rows);if(hi<0)return null;
+  const h=rows[hi],hs=h.map(x=>clean(x).toUpperCase());
+  const pass=findGroup(h,/PASS\s*[- ]?PORT|PASSPORT/),name=findGroup(h,/^NAME$|ENGLISH NAME/);
+  if(pass<0||name<0)return null;
+  const visaStart=findGroup(h,/VISA/,pass+3),wpStart=findGroup(h,/WORK\s*PERMIT/,pass+3),resStart=findGroup(h,/RESIDENCE\s*PERMIT/,pass+3),resCertStart=findGroup(h,/RESIDENCE\s*CERT/,pass+3),phone=findGroup(h,/PHONE/);
+  const year=yearFrom(sheet,file),rank=year*100+(/WORK\s*PERMIT/i.test(sheet)?20:0);let outMode=false;const records=[];
+  for(let r=hi+1;r<rows.length;r++){
+    const row=rows[r]||[];if(row.some(v=>/^OUT$/i.test(clean(v)))){outMode=true;continue}
+    const passport=clean(row[pass]);let nameEn=clean(row[name]);if(!passport||!nameEn)continue;
+    if(!hasLatin(nameEn)){const n=clean(rows[r+1]?.[name]);if(n&&hasLatin(n)&&!clean(rows[r+1]?.[pass]))nameEn=n}
+    if(/លិខិត|នាម និង|PASS PORT/i.test(nameEn))continue;
+    const all=clean(row.join(' ')),explicitResigned=/RESIGNED|TERMINATED|LEFT COMPANY/i.test(all);
+    const p={
+      id:'',employeeId:'',nameEn,nameKh:clean(row[name+1]),sex:clean(row[name+2]),dob:isoDate(row[name+3]),
+      nationality:clean(row[name+4]),passport,passportExpiry:isoDate(row[pass+1]),visaExpiry:isoDate(row[pass+2]),
+      nickname:clean(row[pass+4]),joinDate:isoDate(row[pass+5]),department:'',phone:phone>=0?clean(row[phone]):'',
+      visaApplyDate:visaStart>=0?isoDate(row[visaStart]):'',visaReceivedDate:visaStart>=0?isoDate(row[visaStart+1]):'',visaNumber:visaStart>=0?clean(row[visaStart+2]):'',visaExpense:visaStart>=0?num(row[visaStart+3]):0,
+      workPermitApplyDate:wpStart>=0?isoDate(row[wpStart]):'',workPermitReceivedDate:wpStart>=0?isoDate(row[wpStart+1]):'',workPermitNumber:wpStart>=0?clean(row[wpStart+2]):'',workPermitExpense:wpStart>=0?num(row[wpStart+3]):0,workPermitExpiry:'',
+      residenceApplyDate:resStart>=0?isoDate(row[resStart]):'',residenceReceivedDate:resStart>=0?isoDate(row[resStart+1]):'',residenceExpense:resStart>=0?num(row[resStart+2]):0,residenceExpiry:'',
+      residenceCertificateApplyDate:resCertStart>=0?isoDate(row[resCertStart]):'',residenceCertificateExpense:resCertStart>=0?num(row[resCertStart+1]):0,
+      status:(outMode||explicitResigned)?'resigned':'active',remark:(outMode||explicitResigned)?all.match(/Resigned[^|]*/i)?.[0]||'OUT':'',
+      sourceFile:file,sourceSheet:sheet,sourceYear:year,sourceRank:rank,rosterManaged:true,source:'excel'
+    };
+    records.push(p)
+  }
+  return{file,sheet,year,rank,records}
+}
+function parseWorkbook(wb,file){
+  const certificates=[];const candidates=[];
+  wb.SheetNames.forEach(sheet=>{
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,raw:true,defval:''});
+    const c=parseCertificate(rows,file,sheet);if(c.length)certificates.push(...c);
+    const p=parsePersonSheet(rows,file,sheet);if(p)candidates.push(p)
+  });
+  const numeric=candidates.filter(x=>/^\s*20\d{2}\s*$/.test(x.sheet));const maxNumeric=numeric.length?Math.max(...numeric.map(x=>x.year)):0;
+  const snapshots=candidates.filter(x=>/WORK\s*PERMIT/i.test(x.sheet)||(!numeric.length)||(/^\s*20\d{2}\s*$/.test(x.sheet)&&x.year===maxNumeric));
+  return{certificates,snapshots,recognized:certificates.length+snapshots.reduce((s,x)=>s+x.records.length,0)}
+}
+function sameValue(a,b){
+  const keys=['employeeId','nameEn','nameKh','passport','passportExpiry','visaExpiry','workPermitExpiry','status','category','name','expiryDate','renewalDate','cost'];
+  return keys.every(k=>String(a[k]??'')===String(b[k]??''))
+}
+function findPerson(rec){
+  const eid=norm(rec.employeeId),pass=norm(rec.passport),name=norm(rec.nameEn),dob=rec.dob||'';
+  return STATE.people.find(p=>(eid&&norm(p.employeeId)===eid)||(pass&&norm(p.passport)===pass)||(name&&dob&&norm(p.nameEn)===name&&p.dob===dob))
+}
+function mergeFields(target,source,newer=true){
+  Object.entries(source).forEach(([k,v])=>{
+    if(['id','history'].includes(k))return;
+    if(v!==''&&v!=null&&(newer||target[k]===''||target[k]==null))target[k]=v
+  })
+}
+function applyImport(parsed,file){
+  const stat={ca:0,cu:0,pa:0,pu:0,dupe:0};
+  parsed.certificates.forEach(c=>{
+    let x=STATE.certificates.find(a=>certKey(a)===certKey(c));
+    if(x){if(sameValue(x,c))stat.dupe++;else stat.cu++;mergeFields(x,c,(c.sourceRank||0)>=(x.sourceRank||0));x.updatedAt=new Date().toISOString()}
+    else{c.id=uid('cert');c.createdAt=c.updatedAt=new Date().toISOString();STATE.certificates.push(c);stat.ca++}
+  });
+  const snaps=parsed.snapshots.slice().sort((a,b)=>a.rank-b.rank);let newest=null,newestActive=[];
+  snaps.forEach(s=>{
+    s.records.forEach(p=>{
+      let x=findPerson(p);
+      if(x){
+        if(sameValue(x,p))stat.dupe++;else stat.pu++;
+        const isNewer=s.rank>=(x.lastSnapshotRank||0);const keepDept=x.department,keepEid=x.employeeId;
+        mergeFields(x,p,isNewer);if(keepDept)x.department=keepDept;if(keepEid)x.employeeId=keepEid;
+        x.lastSnapshotRank=Math.max(x.lastSnapshotRank||0,s.rank);x.updatedAt=new Date().toISOString();x.history=x.history||[];
+      }else{
+        p.id=uid('person');p.department=STATE.settings.defaultDepartment||'';p.lastSnapshotRank=s.rank;p.createdAt=p.updatedAt=new Date().toISOString();p.history=[];STATE.people.push(p);x=p;stat.pa++
+      }
+      const hist={file:s.file,sheet:s.sheet,year:s.year,rank:s.rank,status:p.status,at:new Date().toISOString()};
+      if(!x.history.some(h=>h.file===hist.file&&h.sheet===hist.sheet&&h.status===hist.status))x.history.push(hist);
+      if(!newest||s.rank>newest.rank){newest=s;newestActive=[]}
+      if(newest&&s.rank===newest.rank&&p.status==='active')newestActive.push(x.id)
+    })
+  });
+  if(newest&&newest.rank>=(STATE.settings.latestRosterRank||0)){
+    const activeSet=new Set(newestActive);
+    STATE.people.forEach(p=>{
+      if(!p.rosterManaged||p.status==='resigned')return;
+      if(activeSet.has(p.id)&&p.lastSnapshotRank===newest.rank)p.status='active';
+      else if((p.lastSnapshotRank||0)<newest.rank)p.status='not_in_latest'
+    });
+    STATE.settings.latestRosterRank=newest.rank;STATE.settings.latestRosterYear=newest.year
+  }
+  const summary=tr('fileImported',{file, ...stat});STATE.imports.push({id:uid('imp'),file,at:new Date().toISOString(),summary,stats:stat});
+  return stat
+}
+function finalizeLatestRoster(){
+  const rank=Number(STATE.settings.latestRosterRank||0);if(!rank)return;
+  STATE.people.forEach(p=>{if(p.rosterManaged&&p.status!=='resigned'&&(p.lastSnapshotRank||0)<rank)p.status='not_in_latest'})
+}
+async function importFiles(files){
+  files=[...files].filter(f=>/\.(xlsx|xls)$/i.test(f.name));if(!files.length)return;
+  closeModal('importModal');showLoading(LANG==='en'?'Reading and merging Excel…':'讀取、去重與合併 Excel…');
+  const logs=[];let recognized=0;
+  try{
+    for(const f of files){
+      const data=await f.arrayBuffer(),wb=XLSX.read(data,{type:'array',cellDates:false});const parsed=parseWorkbook(wb,f.name);recognized+=parsed.recognized;
+      if(parsed.recognized){const stat=applyImport(parsed,f.name);logs.push(tr('fileImported',{file:f.name,...stat}))}else logs.push(`⚠ ${f.name}: ${tr('importFailed')}`)
+      await new Promise(r=>setTimeout(r,0))
+    }
+    if(!recognized)throw new Error(tr('importFailed'));finalizeLatestRoster();
+    await persist();selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('importDone')}`);
+    document.getElementById('importPreview').innerHTML=logs.map(x=>`<li>${esc(x)}</li>`).join('');setTab('dashboard')
+  }catch(e){console.error(e);toast(`❌ ${e.message}`,5000)}
+  finally{hideLoading();document.getElementById('fileInput').value='';document.getElementById('modalFileInput').value=''}
+}
+function bindFileInput(id){document.getElementById(id).addEventListener('change',e=>importFiles(e.target.files))}
+bindFileInput('fileInput');bindFileInput('modalFileInput');
+const dz=document.getElementById('dropZone');['dragenter','dragover'].forEach(x=>dz.addEventListener(x,e=>{e.preventDefault();dz.classList.add('drag')}));['dragleave','drop'].forEach(x=>dz.addEventListener(x,e=>{e.preventDefault();dz.classList.remove('drag')}));dz.addEventListener('drop',e=>importFiles(e.dataTransfer.files));
+function openImport(){document.getElementById('importPreview').innerHTML='';openModal('importModal')}
+
+/* ── Online editing and local batch approval workflow ───────────────── */
+function val(id){return document.getElementById(id).value.trim()}
+function setVal(id,v){document.getElementById(id).value=v??''}
+function openCertForm(id=''){
+  document.getElementById('certForm').reset();const c=STATE.certificates.find(x=>x.id===id)||{};
+  setVal('certId',c.id);setVal('certCategory',c.category);setVal('certName',c.name);setVal('certDepartment',c.department);setVal('certCost',c.cost);setVal('certStart',c.startDate);setVal('certExpiry',c.expiryDate);setVal('certRenewal',c.renewalDate);setVal('certStatus',c.status||'active');setVal('certContact',c.contact);setVal('certCompletedFor',c.completedForDate);setVal('certRemark',c.remark);openModal('certModal')
+}
+async function saveCertificate(e){
+  e.preventDefault();let c=STATE.certificates.find(x=>x.id===val('certId'));const fresh=!c;if(!c)c={id:uid('cert'),createdAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
+  Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),cost:num(val('certCost'))||val('certCost'),startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),remark:val('certRemark'),updatedAt:new Date().toISOString()});
+  if(fresh)STATE.certificates.push(c);await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
+}
+function openPersonForm(id=''){
+  document.getElementById('personForm').reset();const p=STATE.people.find(x=>x.id===id)||{};
+  const map={personId:p.id,personEmployeeId:p.employeeId,personNameEn:p.nameEn,personNameKh:p.nameKh,personNickname:p.nickname,personDepartment:p.department,personStatus:p.status||'active',personSex:p.sex,personNationality:p.nationality,personDob:p.dob,personJoin:p.joinDate,personPassport:p.passport,personPassportExpiry:p.passportExpiry,personVisaExpiry:p.visaExpiry,personWpExpiry:p.workPermitExpiry,personResidenceExpiry:p.residenceExpiry,personPhone:p.phone,personRemark:p.remark};Object.entries(map).forEach(([k,v])=>setVal(k,v));openModal('personModal')
+}
+async function savePerson(e){
+  e.preventDefault();const incoming={employeeId:val('personEmployeeId'),nameEn:val('personNameEn'),nameKh:val('personNameKh'),nickname:val('personNickname'),department:val('personDepartment'),status:val('personStatus'),sex:val('personSex'),nationality:val('personNationality'),dob:val('personDob'),joinDate:val('personJoin'),passport:val('personPassport'),passportExpiry:val('personPassportExpiry'),visaExpiry:val('personVisaExpiry'),workPermitExpiry:val('personWpExpiry'),residenceExpiry:val('personResidenceExpiry'),phone:val('personPhone'),remark:val('personRemark'),updatedAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
+  let p=STATE.people.find(x=>x.id===val('personId'));if(!p&&!val('personId'))p=findPerson(incoming);
+  if(p)Object.assign(p,incoming);else STATE.people.push({...incoming,id:uid('person'),createdAt:new Date().toISOString(),rosterManaged:false,history:[]});
+  await persist();closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
+}
+function selectItem(kind,id,on){(kind==='certificate'?selectedCerts:selectedPeople)[on?'add':'delete'](id)}
+function visibleIds(kind){
+  if(kind==='certificate'){const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;return STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).map(x=>x.id)}
+  const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;return STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).map(x=>x.id)
+}
+function toggleAll(kind,on){const set=kind==='certificate'?selectedCerts:selectedPeople;visibleIds(kind).forEach(id=>set[on?'add':'delete'](id));kind==='certificate'?renderCertificates():renderPeople()}
+function nextRequestNo(){const d=new Date(),prefix=`CV-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}-`;const n=STATE.requests.filter(r=>String(r.number).startsWith(prefix)).length+1;return prefix+String(n).padStart(3,'0')}
+function createBatchRequest(kind){
+  const ids=[...(kind==='certificate'?selectedCerts:selectedPeople)];if(!ids.length){toast(tr('selectItems'));return}
+  pendingRequestItems=ids.map(id=>({kind,id,name:itemName(kind,id)}));openRequestForm()
+}
+function openRequestForm(id=''){
+  document.getElementById('requestForm').reset();const r=STATE.requests.find(x=>x.id===id)||{};
+  if(id)pendingRequestItems=(r.items||[]).map(x=>({...x}));else if(!pendingRequestItems.length)pendingRequestItems=[];
+  setVal('requestId',r.id);setVal('requestTitle',r.title||((pendingRequestItems.length?`${tr('renewal')} · ${pendingRequestItems.length} ${tr('items')}`:'')));setVal('requestType',r.type||'renewal');setVal('requestApplicant',r.applicant);setVal('requestDue',r.dueDate);setVal('requestCost',r.cost);setVal('requestStatus',r.status||'draft');setVal('requestRemark',r.remark);
+  document.getElementById('requestItemsLabel').textContent=tr('requestItems',{n:pendingRequestItems.length})+(pendingRequestItems.length?' · '+pendingRequestItems.slice(0,8).map(x=>x.name).join('、'):'');openModal('requestModal')
+}
+async function saveRequest(e){
+  e.preventDefault();let r=STATE.requests.find(x=>x.id===val('requestId'));const fresh=!r;if(!r)r={id:uid('req'),number:nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId};
+  Object.assign(r,{title:val('requestTitle'),type:val('requestType'),applicant:val('requestApplicant'),dueDate:val('requestDue'),cost:num(val('requestCost')),status:val('requestStatus'),remark:val('requestRemark'),items:pendingRequestItems.map(x=>({...x,targetDate:val('requestDue')})),updatedAt:new Date().toISOString()});
+  if(r.status==='pending'&&!r.submittedAt)r.submittedAt=new Date().toISOString();if(fresh)STATE.requests.push(r);
+  await persist();pendingRequestItems=[];closeModal('requestModal');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('saved')}`)
+}
+async function decideRequest(id,status){
+  const r=STATE.requests.find(x=>x.id===id);if(!r)return;const opinion=window.prompt(tr('requestDecision'),r.opinion||'');if(opinion===null)return;
+  r.status=status;r.opinion=opinion;r.decidedAt=new Date().toISOString();r.updatedAt=r.decidedAt;r.reviewerTelegramId=STATE.settings.approverTelegramId;
+  if(status==='approved'&&r.dueDate)r.items?.forEach(i=>{const rec=i.kind==='certificate'?STATE.certificates.find(x=>x.id===i.id):STATE.people.find(x=>x.id===i.id);if(rec)rec.completedForDate=r.dueDate});
+  await persist();renderAll();toast(`✅ ${tr(status==='approved'?'approved':'rejected')}`)
+}
+
+/* ── Backup, Excel export, settings and manual cloud sync ────────────── */
+function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+function exportJson(){downloadBlob(new Blob([JSON.stringify(STATE,null,2)],{type:'application/json'}),`AC_HRA_Certificate_Visa_${todayISO()}.json`)}
+document.getElementById('jsonInput').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!d.certificates||!d.people)throw new Error('Invalid backup');STATE=Object.assign(defaultState(),d);await persist();renderAll();toast(`✅ ${tr('saved')}`)}catch(x){toast(`❌ ${x.message}`)}e.target.value=''
+});
+function exportExcel(){
+  if(!window.XLSX){toast('XLSX library unavailable');return}const wb=XLSX.utils.book_new();
+  const cert=STATE.certificates.map(c=>({'Category':c.category,'Certificate / Item':c.name,'Department':c.department,'Cost':c.cost,'Start Date':c.startDate,'Expiry Date':c.expiryDate,'Renewal Date':c.renewalDate,'Status':c.status,'Contact':c.contact,'Remark':c.remark,'Source File':c.sourceFile}));
+  const people=STATE.people.map(p=>({'Employee ID':p.employeeId,'English Name':p.nameEn,'Khmer Name':p.nameKh,'Nickname':p.nickname,'Department':p.department,'Status':p.status,'Sex':p.sex,'Nationality':p.nationality,'DOB':p.dob,'Join Date':p.joinDate,'Passport No.':p.passport,'Passport Expiry':p.passportExpiry,'Visa Expiry':p.visaExpiry,'Visa Apply':p.visaApplyDate,'Visa Received':p.visaReceivedDate,'Visa No.':p.visaNumber,'Visa Expense':p.visaExpense,'Work Permit Expiry':p.workPermitExpiry,'Work Permit Apply':p.workPermitApplyDate,'Work Permit Received':p.workPermitReceivedDate,'Work Permit No.':p.workPermitNumber,'Work Permit Expense':p.workPermitExpense,'Residence Expiry':p.residenceExpiry,'Phone':p.phone,'Remark':p.remark,'Source File':p.sourceFile}));
+  const req=STATE.requests.map(r=>({'Request No.':r.number,'Subject':r.title,'Type':r.type,'Applicant':r.applicant,'Due Date':r.dueDate,'Cost':r.cost,'Status':r.status,'Item Count':r.items?.length||0,'Items':(r.items||[]).map(i=>i.name).join(' | '),'Opinion':r.opinion,'Created At':r.createdAt,'Decided At':r.decidedAt}));
+  [['Certificates',cert],['Expat Documents',people],['Approval Requests',req]].forEach(([n,d])=>{const ws=XLSX.utils.json_to_sheet(d.length?d:[{}]);ws['!cols']=Object.keys(d[0]||{}).map(k=>({wch:Math.min(35,Math.max(12,k.length+2))}));XLSX.utils.book_append_sheet(wb,ws,n)});
+  XLSX.writeFile(wb,`AC_HRA_Certificate_Visa_${todayISO()}.xlsx`)
+}
+async function clearAllData(){
+  if(!confirm(tr('confirmClear')))return;STATE=defaultState();selectedCerts.clear();selectedPeople.clear();await persist();renderAll();toast(tr('cleared'))
+}
+function saveSettings(){
+  STATE.settings.reminderDays=Math.max(1,Number(val('setReminderDays'))||45);STATE.settings.approverTelegramId=val('setApproverId')||'5026942575';STATE.settings.defaultDepartment=val('setDefaultDept');
+  const gas=val('setGasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);
+  persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})
+}
+function gasUrl(){return localStorage.getItem(GAS_KEY)||''}
+async function postGas(payload){
+  const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
+}
+async function cloudPush(){
+  showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');try{await postGas({action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],recordCount:STATE.certificates.length+STATE.people.length+STATE.requests.length,updatedAt:new Date().toISOString()});toast(`✅ ${tr('cloudSent')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
+}
+async function cloudPull(){
+  const url=gasUrl();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading manually…':'手動下載中…');
+  try{
+    const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');
+    let records=d.data?.records||d.data?.data?.records||d.records||[];let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.certificates)snap=d.data.data;if(!snap?.certificates)throw new Error('No Certificate & Visa snapshot');
+    STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)
+  }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
+}
+
+/* ── Telegram summaries (manual only; no bot token in the HTML) ─────── */
+function eventsForMode(mode){
+  const {start,end}=periodRange(mode,PERIOD_ANCHOR);return allEvents().filter(e=>{const d=dateObj(e.date);return d>=start&&d<end})
+}
+function tgSummaryText(lang,mode){
+  const old=LANG;const label=periodLabel(mode,PERIOD_ANCHOR),ev=eventsForMode(mode),due=ev.filter(e=>eventState(e)==='due').length,expired=ev.filter(e=>eventState(e)==='expired').length,pending=STATE.requests.filter(r=>r.status==='pending').length;
+  if(lang==='en')return [`📊 AC HRA Certificate & Visa — ${label}`,`• Company certificates: ${STATE.certificates.length}`,`• Active expats: ${STATE.people.filter(p=>p.status==='active').length}`,`• Expiry / renewal events: ${ev.length}`,`• Due soon: ${due} · Overdue: ${expired}`,`• Pending approval: ${pending}`,`🏭 Vantage River Textiles`].join('\n');
+  return [`📊 AC HRA 證書／簽證摘要 — ${label}`,`• 公司證書：${STATE.certificates.length} 項`,`• 最新有效外籍人員：${STATE.people.filter(p=>p.status==='active').length} 人`,`• 到期／續期事件：${ev.length} 項`,`• 即將到期：${due} · 已逾期：${expired}`,`• 待核可：${pending} 件`,`🏭 Vantage River Textiles`].join('\n')
+}
+function tgApprovalText(lang){
+  const rows=STATE.requests.filter(r=>r.status==='pending').slice(0,20),id=document.getElementById('tgRecipient').value.trim();
+  if(lang==='en')return [`✅ APPROVAL REQUEST · AC HRA`,`Approver Telegram ID: ${id||'—'}`,`Pending: ${rows.length}`,...rows.map(r=>`• ${r.number} · ${r.title} · ${r.items?.length||0} item(s) · Due ${r.dueDate||'—'}`),`Reply with approval or rejection comments after the shared workflow is enabled.`].join('\n');
+  return [`✅ AC HRA 核可申請`,`核可者 Telegram ID：${id||'—'}`,`待核可：${rows.length} 件`,...rows.map(r=>`• ${r.number} · ${r.title} · ${r.items?.length||0} 項 · 期限 ${r.dueDate||'—'}`),`共用流程啟用後可直接核可或退件並留意見。`].join('\n')
+}
+function reminderRows(){const n=Number(STATE.settings.reminderDays||45);return allEvents().filter(e=>!e.completed&&e.days<=n).slice(0,30)}
+function tgReminderText(lang){
+  const rows=reminderRows();
+  if(lang==='en')return [`🔔 ${STATE.settings.reminderDays}-DAY DOCUMENT EXPIRY REMINDER`,`Items not completed or approved early: ${rows.length}`,...rows.map(e=>`• ${e.date} · ${typeLabel(e.type)} · ${e.name} · ${e.days<0?Math.abs(e.days)+' days overdue':e.days+' days left'}`),`Please apply, renew or submit for approval before the due date.`].join('\n');
+  if(lang==='km')return [`🔔 សេចក្តីរំលឹកឯកសារជិតផុតកំណត់ ${STATE.settings.reminderDays} ថ្ងៃ`,`ឯកសារដែលមិនទាន់បញ្ចប់ ឬអនុម័ត៖ ${rows.length}`,...rows.map(e=>`• ${e.date} · ${e.name} · នៅសល់ ${Math.max(0,e.days)} ថ្ងៃ`),`សូមដាក់ពាក្យ បន្តសុពលភាព ឬស្នើសុំការអនុម័តមុនថ្ងៃកំណត់។`].join('\n');
+  return [`🔔 文件到期前 ${STATE.settings.reminderDays} 天提醒`,`尚未提前完成或核可：${rows.length} 項`,...rows.map(e=>`• ${e.date} · ${typeLabel(e.type)} · ${e.name} · ${e.days<0?'逾期 '+Math.abs(e.days)+' 天':'剩 '+e.days+' 天'}`),`請在期限前辦理申請、續期或送核。`].join('\n')
+}
+function buildTgText(){
+  const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?tgReminderText(l):tgSummaryText(l,mode);
+  if(lang==='both')return one('zh')+'\n\n────────────────\n\n'+one('en');
+  if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+(type==='reminder'?one('km'):tgReminderText('km'));
+  return one(lang)
+}
+function refreshTgPreview(){document.getElementById('tgPreview').textContent=buildTgText()}
+function openTelegram(type='summary'){
+  setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');refreshTgPreview();openModal('telegramModal')
+}
+async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
+async function sendTelegram(){
+  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,messageType:val('tgType')});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal')}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
+}
+
+/* ── Startup: local IndexedDB only. No automatic upload or download. ─── */
+async function init(){
+  showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();
+  STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});
+  setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId',STATE.settings.approverTelegramId||'5026942575');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
+  applyLang();renderAll();hideLoading()
+}
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
+init();
+</script>
+</body>
+</html>

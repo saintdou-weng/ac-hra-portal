@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>AC HRA Welfare &amp; Suggestion</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --navy:#173c60;--teal:#0b7b7b;--teal2:#e7f7f6;--blue:#1e80ae;--blue2:#edf8fc;
+  --gold:#e9a21b;--gold2:#fff7df;--red:#c4454a;--red2:#fff0f1;--green:#16855d;--green2:#e9f8f1;
+  --ink:#17283b;--muted:#6d7d8f;--line:#d8e3ec;--bg:#f2f7fa;--card:#fff;--shadow:0 5px 18px rgba(25,63,92,.10)
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,"Noto Sans TC","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.top{position:sticky;top:0;z-index:50;color:#fff;background:linear-gradient(130deg,#173c60,#0c7b83 72%,#22a6a0);box-shadow:0 4px 18px rgba(0,34,55,.25)}
+.top-in{max-width:1500px;margin:auto;padding:13px 18px 10px}.brand-row{display:flex;align-items:center;gap:12px}
+.logo{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:28px;background:linear-gradient(145deg,#ffdd75,#eea91d);box-shadow:inset 0 0 0 2px rgba(255,255,255,.35)}
+.brand h1{font-size:22px;line-height:1.2;margin:0}.brand p{font-size:11px;color:rgba(255,255,255,.72);margin:4px 0 0}.grow{flex:1}
+.lang{display:flex;border:1px solid rgba(255,255,255,.3);border-radius:9px;overflow:hidden}.lang button{border:0;background:rgba(0,0,0,.1);color:#fff;padding:8px 12px;font-weight:850}.lang button.on{background:#ffda61;color:#173852}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}.top-btn{min-height:42px;border:1px solid rgba(255,255,255,.28);border-radius:10px;background:rgba(255,255,255,.1);color:#fff;padding:7px 11px;display:flex;align-items:center;gap:7px;font-weight:800}.top-btn.primary{background:#fff;color:#15556f}.top-btn:hover{background:rgba(255,255,255,.2)}.top-btn.primary:hover{background:#eefaff}
+.manual-note{font-size:11px;color:rgba(255,255,255,.78);display:flex;align-items:center;margin-left:auto}
+.tab-wrap{position:sticky;top:128px;z-index:40;background:#fff;border-bottom:1px solid var(--line)}.tabs{max-width:1500px;margin:auto;display:flex;overflow-x:auto}
+.tab{white-space:nowrap;border:0;border-bottom:3px solid transparent;background:#fff;color:#6b7a8a;padding:13px 16px;font-weight:850}.tab.on{color:#087b80;border-bottom-color:#0a9891;background:#f6fdfd}
+.period-bar{max-width:1500px;margin:12px auto 0;padding:0 18px;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;border:1px solid #abc3cf;border-radius:10px;overflow:hidden;background:#fff}.seg button{border:0;border-right:1px solid #d3e0e6;background:#fff;padding:9px 16px;color:#647689;font-weight:850}.seg button:last-child{border-right:0}.seg button.on{background:var(--navy);color:#fff}
+.nav-btn{width:42px;height:40px;border:1px solid #9cb9c8;border-radius:10px;background:#fff;color:#0c7785;font-weight:900;font-size:18px}.control{height:40px;border:1px solid #b5c8d4;border-radius:10px;background:#fff;padding:0 11px;color:var(--ink)}
+main{max-width:1500px;margin:auto;padding:14px 18px 55px}.view{display:none}.view.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px}.kpi{background:#fff;border:1px solid var(--line);border-left:6px solid var(--teal);border-radius:16px;padding:16px;box-shadow:var(--shadow)}.kpi.blue{border-left-color:var(--blue)}.kpi.gold{border-left-color:var(--gold)}.kpi.red{border-left-color:var(--red)}.kpi.green{border-left-color:var(--green)}
+.kpi .label{font-size:13px;font-weight:850;color:#68798b}.kpi .value{font-size:30px;font-weight:900;margin-top:6px}.kpi .sub{font-size:11px;color:#8592a0;margin-top:3px}
+.grid2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(320px,.75fr);gap:14px;margin-top:14px}.panel{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid #e5edf2}.panel-head h2{font-size:16px;margin:0}.hint{font-size:11px;color:var(--muted)}.panel-body{padding:15px 16px}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.btn{border:1px solid #aec1cc;border-radius:9px;background:#fff;color:#29455d;padding:8px 11px;font-weight:850}.btn:hover{background:#f0f8fa}.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}.btn.green{background:var(--green);border-color:var(--green);color:#fff}.btn.red{background:var(--red2);border-color:#edb8ba;color:#a82e34}.btn.small{font-size:12px;padding:6px 8px}
+.table-wrap{overflow:auto}table{border-collapse:separate;border-spacing:0;width:100%;min-width:850px}th{position:sticky;top:0;z-index:2;background:#e8f4f6;color:#315b67;text-align:left;font-size:12px;padding:11px 12px;border-bottom:1px solid #c5dbe0;white-space:nowrap}td{padding:10px 12px;border-bottom:1px solid #e7edf1;font-size:13px;vertical-align:top}tbody tr:hover{background:#f7fbfc}.money{font-variant-numeric:tabular-nums;text-align:right}
+.badge{display:inline-flex;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:850;white-space:nowrap}.b-active,.b-closed,.b-paid{background:var(--green2);color:#08704a}.b-reviewing,.b-action,.b-new{background:var(--gold2);color:#955a06}.b-stopped,.b-rejected,.b-unpaid{background:var(--red2);color:#ac3439}.b-draft{background:#edf1f4;color:#5b6978}
+.notice{border:1px solid #b8dde3;background:#eefafb;border-radius:11px;padding:11px 13px;color:#285d69;font-size:12px;line-height:1.55}.notice.warn{border-color:#efd4a0;background:#fff9e8;color:#76521b}
+.empty{text-align:center;padding:36px 12px;color:#8794a1}.empty .ico{font-size:35px;margin-bottom:6px}
+.month-grid{display:grid;grid-template-columns:repeat(4,minmax(170px,1fr));gap:12px}.month-card{border:1px solid var(--line);border-radius:14px;background:#fff;padding:14px;text-align:left;box-shadow:0 3px 12px rgba(31,69,91,.08)}.month-card:hover{border-color:#53aeb0;transform:translateY(-1px)}.month-card h3{margin:0 0 8px;font-size:15px}.month-card .nums{display:flex;gap:12px;font-size:12px;color:var(--muted)}.thumb-row{display:flex;gap:5px;margin-top:9px;height:52px;overflow:hidden}.thumb-row img{width:52px;height:52px;object-fit:cover;border-radius:7px;border:1px solid #d6e0e6}.more-thumb{width:52px;height:52px;display:grid;place-items:center;border-radius:7px;background:#e9f3f5;color:#436b73;font-size:11px;font-weight:850}
+.suggestion-list{display:grid;gap:10px}.suggestion-item{border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;grid-template-columns:110px minmax(0,1fr) auto;gap:12px;align-items:start}.suggestion-item h4{margin:0 0 5px}.suggestion-item p{margin:0;color:#637486;font-size:12px;white-space:pre-wrap}.photo-strip{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}.photo-strip img{width:86px;height:70px;object-fit:cover;border-radius:8px;border:1px solid #d5e0e6;cursor:zoom-in}
+.photo-drop{border:2px dashed #8ebfc7;border-radius:13px;background:#f3fbfc;padding:20px;text-align:center;position:relative;color:#416d73}.photo-drop input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer}.photo-previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.photo-wrap{position:relative}.photo-wrap img{width:105px;height:82px;object-fit:cover;border-radius:9px;border:1px solid #ccdce3}.photo-remove{position:absolute;right:-5px;top:-5px;border:0;border-radius:50%;width:23px;height:23px;background:#b92f38;color:#fff;font-size:11px}
+.chart{height:340px;position:relative}.drop{border:2px dashed #8dbfc8;border-radius:14px;background:#f2fbfc;padding:25px;text-align:center;color:#3b6c74}.drop.drag{background:#e4f8f7;border-color:#0a918a}.drop input{display:none}.drop .big{font-size:38px}.drop strong{display:block;margin:5px}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:flex;flex-direction:column;gap:5px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:850;color:#556a7c}.field input,.field select,.field textarea{border:1px solid #b7c9d4;border-radius:9px;padding:9px 10px;min-height:40px;background:#fff}.field textarea{min-height:85px;resize:vertical}.check-row{display:flex;gap:18px;align-items:center;min-height:40px}.check-row label{display:flex;align-items:center;gap:6px}
+.modal{position:fixed;inset:0;background:rgba(7,23,35,.6);z-index:120;display:none;align-items:center;justify-content:center;padding:16px}.modal.open{display:flex}.dialog{width:min(850px,100%);max-height:93dvh;overflow:auto;background:#fff;border-radius:17px;box-shadow:0 25px 70px rgba(0,0,0,.35)}.dialog.wide{width:min(1050px,100%)}.dialog-head{position:sticky;top:0;z-index:3;background:#fff;padding:15px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px}.dialog-head h3{margin:0;font-size:18px}.x{margin-left:auto;border:0;width:34px;height:34px;border-radius:50%;background:#edf2f4;font-size:19px}.dialog-body{padding:18px}.dialog-foot{position:sticky;bottom:0;background:#fff;border-top:1px solid var(--line);padding:13px 18px;display:flex;justify-content:flex-end;gap:8px}
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.gallery img{width:100%;height:210px;object-fit:cover;border-radius:10px;cursor:zoom-in}.lightbox .dialog{background:#101820;width:min(1200px,100%)}.lightbox img{display:block;max-width:100%;max-height:86dvh;margin:auto}.lightbox .x{position:fixed;right:20px;top:20px;z-index:3}
+.preview{white-space:pre-wrap;background:#f4f7f9;border:1px solid #d8e3e9;border-radius:10px;padding:12px;font:12px/1.6 ui-monospace,monospace;max-height:300px;overflow:auto}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;transition:.2s;background:#183249;color:#fff;padding:11px 18px;border-radius:10px;z-index:220;font-size:13px;font-weight:800;pointer-events:none}#toast.on{opacity:1;transform:translate(-50%,0)}
+.loading{position:fixed;inset:0;background:rgba(242,248,250,.84);z-index:210;display:none;place-items:center}.loading.on{display:grid}.loader{background:#fff;padding:18px 24px;border-radius:13px;box-shadow:var(--shadow);font-weight:850}.spin{display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.month-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.top-in{padding:10px}.brand h1{font-size:18px}.brand p{font-size:10px}.logo{width:46px;height:46px}.top-btn{font-size:0;min-width:42px;justify-content:center}.top-btn span{font-size:19px}.manual-note{width:100%;margin-left:0}.tab-wrap{top:126px}.tab{padding:12px 13px;font-size:13px}.period-bar,main{padding-left:10px;padding-right:10px}.cards{gap:8px}.kpi{padding:13px}.month-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.suggestion-item{grid-template-columns:1fr}.gallery{grid-template-columns:1fr 1fr}.gallery img{height:150px}.modal{padding:7px}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand-row">
+      <div class="logo">🤝</div>
+      <div class="brand"><h1 data-i18n="title">員工福利與意見箱</h1><p>AC HRA · TRANSPORT · ACCOMMODATION · UNION DUES · SUGGESTION v1.0</p></div>
+      <div class="grow"></div>
+      <div class="lang"><button id="langZh" onclick="setLang('zh')">中</button><button id="langEn" onclick="setLang('en')">EN</button></div>
+    </div>
+    <div class="actions">
+      <button class="top-btn primary" onclick="openImport()"><span>📥</span><b data-i18n="import">匯入 Excel</b></button>
+      <button class="top-btn" onclick="cloudPush()"><span>☁️↑</span><b data-i18n="cloudUp">手動上傳</b></button>
+      <button class="top-btn" onclick="cloudPull()"><span>☁️↓</span><b data-i18n="cloudDown">手動下載</b></button>
+      <button class="top-btn" onclick="exportExcel()"><span>⇩ XLSX</span><b data-i18n="export">匯出</b></button>
+      <button class="top-btn" onclick="openTelegram()"><span>✈️</span><b data-i18n="telegram">Telegram 摘要</b></button>
+      <button class="top-btn" onclick="window.print()"><span>🖨️</span><b data-i18n="print">列印</b></button>
+      <div class="manual-note" id="manualNote">● 僅按下按鈕時連線</div>
+    </div>
+  </div>
+</header>
+
+<nav class="tab-wrap"><div class="tabs">
+  <button class="tab on" data-tab="dashboard" data-i18n="tabDashboard">總覽</button>
+  <button class="tab" data-tab="periods" data-i18n="tabPeriods">月／年列表</button>
+  <button class="tab" data-tab="transport" data-i18n="tabTransport">交通／住宿</button>
+  <button class="tab" data-tab="union" data-i18n="tabUnion">工會費</button>
+  <button class="tab" data-tab="suggestion" data-i18n="tabSuggestion">意見箱</button>
+  <button class="tab" data-tab="analysis" data-i18n="tabAnalysis">部門分析</button>
+  <button class="tab" data-tab="settings" data-i18n="tabSettings">匯入／設定</button>
+</div></nav>
+
+<div class="period-bar">
+  <div class="seg"><button id="modeMonth" class="on" onclick="setPeriodMode('month')" data-i18n="month">月</button><button id="modeYear" onclick="setPeriodMode('year')" data-i18n="year">年</button></div>
+  <button class="nav-btn" onclick="movePeriod(-1)">◀</button>
+  <input class="control" id="periodPicker" type="month" onchange="pickPeriod(this.value)">
+  <button class="nav-btn" onclick="movePeriod(1)">▶</button>
+  <select class="control" id="globalField" onchange="renderAll()">
+    <option value="all" data-i18n="allFields">全部項目</option><option value="transport" data-i18n="transport">交通</option><option value="accommodation" data-i18n="accommodation">住宿</option><option value="union" data-i18n="unionDues">工會費</option><option value="suggestion" data-i18n="suggestionBox">意見箱</option>
+  </select>
+  <select class="control" id="globalDept" onchange="renderAll()"><option value="" data-i18n="allDepartments">全部部門</option></select>
+  <span class="hint" id="periodLabel"></span>
+</div>
+
+<main>
+  <section class="view on" id="view-dashboard">
+    <div class="cards">
+      <div class="kpi"><div class="label" data-i18n="kpiTransport">交通人數</div><div class="value" id="kTransport">0</div><div class="sub" data-i18n="selectedPeriod">所選期間</div></div>
+      <div class="kpi blue"><div class="label" data-i18n="kpiAccommodation">住宿人數</div><div class="value" id="kAccommodation">0</div><div class="sub" id="kAccommodationSub">Local 0 · Expat 0</div></div>
+      <div class="kpi gold"><div class="label" data-i18n="kpiUnion">工會費</div><div class="value" id="kUnion">$0</div><div class="sub" id="kUnionSub">0 人</div></div>
+      <div class="kpi red"><div class="label" data-i18n="kpiSuggestions">意見箱</div><div class="value" id="kSuggestions">0</div><div class="sub" id="kSuggestionSub">0 張照片</div></div>
+      <div class="kpi green"><div class="label" data-i18n="kpiClosed">已完成建議</div><div class="value" id="kClosed">0</div><div class="sub" data-i18n="closedInPeriod">本期已結案</div></div>
+    </div>
+    <div class="grid2">
+      <div class="panel">
+        <div class="panel-head"><h2 data-i18n="periodOverview">期間摘要</h2><span class="hint" id="dashPeriod"></span><div class="grow"></div><button class="btn small" onclick="openTelegram()" data-i18n="makeSummary">產生中英摘要</button></div>
+        <div class="table-wrap"><table><thead><tr><th data-i18n="item">項目</th><th data-i18n="people">人數</th><th data-i18n="amount">金額</th><th data-i18n="newAdded">新增</th><th data-i18n="stopped">停止</th><th data-i18n="photos">照片</th><th data-i18n="remark">備註</th></tr></thead><tbody id="overviewBody"></tbody></table></div>
+      </div>
+      <div class="panel"><div class="panel-head"><h2 data-i18n="dataStatus">資料狀態</h2></div><div class="panel-body"><div class="notice" id="dataStatusNote"></div><div style="height:12px"></div><div id="recentImports"></div></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-periods">
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="periodReport">月／年期間報表</h2><span class="hint" id="periodCount"></span><div class="grow"></div><select class="control" id="listField" onchange="renderPeriodList()"><option value="all" data-i18n="allFields">全部項目</option><option value="transport" data-i18n="transport">交通</option><option value="accommodation" data-i18n="accommodation">住宿</option><option value="union" data-i18n="unionDues">工會費</option><option value="suggestion" data-i18n="suggestionBox">意見箱</option></select><select class="control" id="listDept" onchange="renderPeriodList()"><option value="" data-i18n="allDepartments">全部部門</option></select></div>
+      <div class="table-wrap"><table><thead><tr><th data-i18n="period">期間</th><th data-i18n="transportMembers">交通人數</th><th data-i18n="accommodationLocal">本地住宿</th><th data-i18n="accommodationExpat">外籍住宿</th><th data-i18n="transportApply">交通新增</th><th data-i18n="transportStop">交通停止</th><th data-i18n="unionMembers">工會人數</th><th data-i18n="unionAmount">工會費</th><th data-i18n="suggestions">建議</th><th data-i18n="photos">照片</th><th data-i18n="closed">結案</th></tr></thead><tbody id="periodBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-transport">
+    <div class="panel">
+      <div class="panel-head toolbar"><h2 data-i18n="transportAccommodation">交通與住宿名單</h2><div class="grow"></div><input class="control" id="transportSearch" data-i18n-placeholder="searchEmployee" placeholder="搜尋工號／姓名" oninput="renderTransport()"><select class="control" id="transportType" onchange="renderTransport()"><option value="" data-i18n="allTypes">全部類型</option><option value="transport" data-i18n="transport">交通</option><option value="accommodation" data-i18n="accommodation">住宿</option></select><button class="btn primary" onclick="openMemberForm()" data-i18n="onlineAdd">＋ 線上新增</button></div>
+      <div class="table-wrap"><table><thead><tr><th data-i18n="period">期間</th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="joinDate">到職日</th><th data-i18n="transport">交通</th><th data-i18n="accommodation">住宿</th><th data-i18n="driver">司機／車牌</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="transportBody"></tbody></table></div>
+    </div>
+    <div class="panel" style="margin-top:14px"><div class="panel-head"><h2 data-i18n="movementRecords">申請／停止／入住／搬出紀錄</h2></div><div class="table-wrap"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="remark">備註</th></tr></thead><tbody id="movementBody"></tbody></table></div></div>
+  </section>
+
+  <section class="view" id="view-union">
+    <div class="panel">
+      <div class="panel-head toolbar"><h2 data-i18n="unionDuesList">工會費名單</h2><div class="grow"></div><input class="control" id="unionSearch" data-i18n-placeholder="searchEmployee" placeholder="搜尋工號／姓名" oninput="renderUnion()"><button class="btn primary" onclick="openUnionForm()" data-i18n="onlineAdd">＋ 線上新增</button></div>
+      <div class="table-wrap"><table><thead><tr><th data-i18n="period">期間</th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="joinDate">到職日</th><th data-i18n="unionJoinDate">入會日</th><th data-i18n="amount">金額</th><th data-i18n="status">狀態</th><th data-i18n="remark">備註</th><th data-i18n="action">操作</th></tr></thead><tbody id="unionBody"></tbody></table></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-suggestion">
+    <div class="panel">
+      <div class="panel-head"><h2 data-i18n="suggestionByMonth">意見箱月份與照片</h2><span class="hint" data-i18n="clickMonth">點月份即可查看該月全部照片</span><div class="grow"></div><button class="btn primary" onclick="openSuggestionForm()" data-i18n="newSuggestion">＋ 線上新增建議</button></div>
+      <div class="panel-body"><div class="month-grid" id="suggestionMonths"></div></div>
+    </div>
+    <div class="panel" style="margin-top:14px"><div class="panel-head"><h2 data-i18n="selectedMonthRecords">所選月份建議明細</h2><span class="hint" id="suggestionPeriodHint"></span></div><div class="panel-body"><div class="suggestion-list" id="suggestionList"></div></div></div>
+  </section>
+
+  <section class="view" id="view-analysis">
+    <div class="grid2">
+      <div class="panel"><div class="panel-head"><h2 data-i18n="departmentAnalysis">部門分析</h2><div class="grow"></div><select class="control" id="analysisField" onchange="renderAnalysis()"><option value="transport" data-i18n="transport">交通</option><option value="accommodation" data-i18n="accommodation">住宿</option><option value="unionCount" data-i18n="unionMembers">工會人數</option><option value="unionAmount" data-i18n="unionAmount">工會費</option><option value="suggestion" data-i18n="suggestions">建議</option></select></div><div class="panel-body"><div class="chart"><canvas id="deptChart"></canvas></div></div></div>
+      <div class="panel"><div class="panel-head"><h2 data-i18n="monthlyTrend">月份趨勢</h2></div><div class="panel-body"><div class="chart"><canvas id="trendChart"></canvas></div></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="view-settings">
+    <div class="grid2">
+      <div class="panel"><div class="panel-head"><h2 data-i18n="importBackup">匯入與備份</h2></div><div class="panel-body">
+        <div class="drop" id="dropZone" onclick="document.getElementById('fileInput').click()"><input id="fileInput" type="file" accept=".xlsx,.xls" multiple><div class="big">📂</div><strong data-i18n="dropFiles">拖曳或一次選取三份 Excel</strong><span data-i18n="autoDetect">自動辨識交通住宿、工會費、意見箱及內嵌照片</span></div>
+        <div style="height:12px"></div><div class="toolbar"><button class="btn" onclick="exportJson()" data-i18n="jsonBackup">下載 JSON 備份</button><button class="btn" onclick="document.getElementById('jsonInput').click()" data-i18n="jsonRestore">還原 JSON</button><input id="jsonInput" type="file" accept=".json" hidden><button class="btn red" onclick="clearAllData()" data-i18n="clearData">清除本模組資料</button></div>
+      </div></div>
+      <div class="panel"><div class="panel-head"><h2 data-i18n="cloudSettings">雲端與照片設定</h2></div><div class="panel-body"><div class="form-grid">
+        <div class="field full"><label>GAS URL</label><input id="gasUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
+        <div class="field"><label data-i18n="imageSize">照片最大邊長</label><select id="imageSize"><option value="800">800 px</option><option value="1000">1000 px</option><option value="1200">1200 px</option></select></div>
+        <div class="field"><label data-i18n="imageQuality">照片品質</label><select id="imageQuality"><option value=".6">60%</option><option value=".7">70%</option><option value=".8">80%</option></select></div>
+        <div class="field full"><label data-i18n="storageUsage">本模組資料量</label><div class="notice" id="storageUsage"></div></div>
+        <div class="field full"><div class="notice warn" data-i18n="manualCloudNote">資料與照片只在按下雲端按鈕時上傳／下載；關閉再開不會自動同步。</div></div>
+      </div><div style="height:12px"></div><button class="btn primary" onclick="saveSettings()" data-i18n="saveSettings">儲存設定</button></div></div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="importModal"><div class="dialog"><div class="dialog-head"><h3 data-i18n="importExcel">匯入 Excel</h3><button class="x" onclick="closeModal('importModal')">×</button></div><div class="dialog-body">
+  <div class="drop" onclick="document.getElementById('modalFileInput').click()"><input id="modalFileInput" type="file" accept=".xlsx,.xls" multiple><div class="big">📥</div><strong data-i18n="chooseTogether">可一次選 1～3 份檔案，不用先分類</strong><span data-i18n="photoImportNote">意見箱 Excel 內嵌照片會自動抓取、壓縮並依月份保存</span></div><div style="height:12px"></div><div class="notice" data-i18n="dedupRule">同月份＋工號會更新而不重複；意見箱依日期＋編號更新，原有處理狀態會保留。</div><div id="importLog"></div>
+</div></div></div>
+
+<div class="modal" id="memberModal"><div class="dialog"><div class="dialog-head"><h3 data-i18n="memberForm">交通／住宿資料</h3><button class="x" onclick="closeModal('memberModal')">×</button></div><form id="memberForm" onsubmit="saveMember(event)"><div class="dialog-body"><input id="memberId" type="hidden"><div class="form-grid">
+  <div class="field"><label data-i18n="period">期間</label><input id="memberPeriod" type="month" required></div><div class="field"><label data-i18n="employeeId">工號</label><input id="memberEmployeeId" required></div>
+  <div class="field"><label data-i18n="name">姓名</label><input id="memberName" required></div><div class="field"><label data-i18n="department">部門</label><input id="memberDept"></div>
+  <div class="field"><label data-i18n="gender">性別</label><input id="memberGender"></div><div class="field"><label data-i18n="joinDate">到職日</label><input id="memberJoin" type="date"></div>
+  <div class="field full"><label data-i18n="benefitType">福利類型</label><div class="check-row"><label><input id="memberTransport" type="checkbox"> <span data-i18n="transport">交通</span></label><label><input id="memberAccommodation" type="checkbox"> <span data-i18n="accommodation">住宿</span></label></div></div>
+  <div class="field"><label data-i18n="accommodationType">住宿類型</label><select id="memberAccommodationType"><option value="" data-i18n="unknown">未指定</option><option value="local" data-i18n="local">本地員工</option><option value="expat" data-i18n="expat">外籍員工</option></select></div><div class="field"><label data-i18n="driver">司機／車牌</label><input id="memberDriver"></div>
+  <div class="field"><label data-i18n="status">狀態</label><select id="memberStatus"><option value="active" data-i18n="active">有效</option><option value="stopped" data-i18n="stopped">停止</option></select></div><div class="field"><label data-i18n="remark">備註</label><input id="memberRemark"></div>
+</div></div><div class="dialog-foot"><button type="button" class="btn" onclick="closeModal('memberModal')" data-i18n="cancel">取消</button><button class="btn primary" data-i18n="save">儲存</button></div></form></div></div>
+
+<div class="modal" id="unionModal"><div class="dialog"><div class="dialog-head"><h3 data-i18n="unionForm">工會費資料</h3><button class="x" onclick="closeModal('unionModal')">×</button></div><form id="unionForm" onsubmit="saveUnion(event)"><div class="dialog-body"><input id="unionId" type="hidden"><div class="form-grid">
+  <div class="field"><label data-i18n="period">期間</label><input id="unionPeriod" type="month" required></div><div class="field"><label data-i18n="employeeId">工號</label><input id="unionEmployeeId" required></div>
+  <div class="field"><label data-i18n="name">姓名</label><input id="unionName" required></div><div class="field"><label data-i18n="department">部門</label><input id="unionDept"></div>
+  <div class="field"><label data-i18n="joinDate">到職日</label><input id="unionJoin" type="date"></div><div class="field"><label data-i18n="unionJoinDate">入會日</label><input id="unionMemberSince" type="date"></div>
+  <div class="field"><label data-i18n="amount">金額 USD</label><input id="unionAmountInput" type="number" step=".01" value="1"></div><div class="field"><label data-i18n="status">狀態</label><select id="unionStatus"><option value="paid" data-i18n="paid">已付</option><option value="unpaid" data-i18n="unpaid">未付</option></select></div>
+  <div class="field full"><label data-i18n="remark">備註</label><textarea id="unionRemark"></textarea></div>
+</div></div><div class="dialog-foot"><button type="button" class="btn" onclick="closeModal('unionModal')" data-i18n="cancel">取消</button><button class="btn primary" data-i18n="save">儲存</button></div></form></div></div>
+
+<div class="modal" id="suggestionModal"><div class="dialog"><div class="dialog-head"><h3 data-i18n="suggestionForm">意見箱紀錄</h3><button class="x" onclick="closeModal('suggestionModal')">×</button></div><form id="suggestionForm" onsubmit="saveSuggestion(event)"><div class="dialog-body"><input id="suggestionId" type="hidden"><div class="form-grid">
+  <div class="field"><label data-i18n="date">日期</label><input id="suggestionDate" type="date" required></div><div class="field"><label data-i18n="department">部門</label><input id="suggestionDept"></div>
+  <div class="field"><label data-i18n="category">分類</label><select id="suggestionCategory"><option value="welfare" data-i18n="welfare">福利</option><option value="workplace" data-i18n="workplace">工作環境</option><option value="management" data-i18n="management">管理</option><option value="safety" data-i18n="safety">安全</option><option value="other" data-i18n="other">其他</option></select></div><div class="field"><label data-i18n="submittedBy">提出人（可匿名）</label><input id="suggestionBy"></div>
+  <div class="field full"><label data-i18n="grievance">建議／申訴內容</label><textarea id="suggestionGrievance" required></textarea></div>
+  <div class="field"><label data-i18n="checkedBy">檢查人</label><textarea id="suggestionChecked"></textarea></div><div class="field"><label data-i18n="responsible">負責人</label><input id="suggestionResponsible"></div>
+  <div class="field"><label data-i18n="status">狀態</label><select id="suggestionStatus"><option value="new" data-i18n="newStatus">新建</option><option value="reviewing" data-i18n="reviewing">審查中</option><option value="action" data-i18n="inAction">處理中</option><option value="closed" data-i18n="closed">已結案</option><option value="rejected" data-i18n="rejected">不採納</option></select></div><div class="field"><label data-i18n="closedDate">結案日</label><input id="suggestionClosed" type="date"></div>
+  <div class="field full"><label data-i18n="actionTaken">處理方式／回覆</label><textarea id="suggestionAction"></textarea></div>
+  <div class="field full"><label data-i18n="photos">照片</label><div class="photo-drop"><input id="suggestionPhotos" type="file" accept="image/*" multiple onchange="handlePhotoInput(event)"><b>📷</b> <span data-i18n="addPhotos">拍照或選取照片（最多 6 張）</span></div><div class="photo-previews" id="photoPreviews"></div></div>
+</div></div><div class="dialog-foot"><button type="button" class="btn" onclick="closeModal('suggestionModal')" data-i18n="cancel">取消</button><button class="btn primary" data-i18n="save">儲存</button></div></form></div></div>
+
+<div class="modal" id="galleryModal"><div class="dialog wide"><div class="dialog-head"><h3 id="galleryTitle"></h3><button class="x" onclick="closeModal('galleryModal')">×</button></div><div class="dialog-body"><div id="galleryRecords"></div></div></div></div>
+<div class="modal lightbox" id="lightboxModal" onclick="closeModal('lightboxModal')"><button class="x">×</button><div class="dialog" onclick="event.stopPropagation()"><img id="lightboxImage" alt="Suggestion photo"></div></div>
+
+<div class="modal" id="telegramModal"><div class="dialog"><div class="dialog-head"><h3 data-i18n="telegramSummary">Telegram 摘要</h3><button class="x" onclick="closeModal('telegramModal')">×</button></div><div class="dialog-body"><div class="form-grid">
+  <div class="field"><label data-i18n="summaryType">摘要類型</label><select id="tgType" onchange="refreshTg()"><option value="all" data-i18n="combined">合併摘要</option><option value="transport" data-i18n="transportAccommodation">交通與住宿</option><option value="union" data-i18n="unionDues">工會費</option><option value="suggestion" data-i18n="suggestionBox">意見箱</option></select></div>
+  <div class="field"><label data-i18n="summaryPeriod">摘要期間</label><select id="tgPeriod" onchange="refreshTg()"><option value="month" data-i18n="monthly">每月</option><option value="year" data-i18n="yearly">每年</option></select></div>
+  <div class="field"><label data-i18n="language">語言</label><select id="tgLang" onchange="refreshTg()"><option value="zh" data-i18n="chinese">中文</option><option value="en" data-i18n="english">English</option><option value="both" data-i18n="bilingual">中英雙語</option></select></div>
+  <div class="field full"><label data-i18n="preview">預覽</label><div class="preview" id="tgPreview"></div></div>
+</div></div><div class="dialog-foot"><button class="btn" onclick="copyTg()" data-i18n="copy">複製</button><button class="btn primary" onclick="sendTelegram()" data-i18n="manualSend">手動發送</button></div></div></div>
+
+<div class="loading" id="loading"><div class="loader"><span class="spin">⏳</span> <span id="loadingText">處理中…</span></div></div>
+<div id="toast"></div>
+
+<script>
+'use strict';
+const APP_VERSION='1.0.0',DB_NAME='ac_hra_welfare_suggestion_v1',DB_STORE='snapshots',DB_KEY='main',META_KEY='ac_hra_welfare_suggestion_meta',GAS_KEY='ac_hra_gas_url',LANG_KEY='ac_hra_lang',TOOL_ID='welfare_suggestion';
+let LANG=localStorage.getItem(LANG_KEY)||'zh',STATE=null,PERIOD_MODE='month',ANCHOR=new Date(2026,6,1),ACTIVE_TAB='dashboard',FORM_PHOTOS=[],deptChart=null,trendChart=null;
+const I18N={
+zh:{
+ title:'員工福利與意見箱',import:'匯入 Excel',cloudUp:'手動上傳',cloudDown:'手動下載',export:'匯出',telegram:'Telegram 摘要',print:'列印',manualOnly:'● 僅按下按鈕時連線',
+ tabDashboard:'總覽',tabPeriods:'月／年列表',tabTransport:'交通／住宿',tabUnion:'工會費',tabSuggestion:'意見箱',tabAnalysis:'部門分析',tabSettings:'匯入／設定',
+ month:'月',year:'年',allFields:'全部項目',transport:'交通',accommodation:'住宿',unionDues:'工會費',suggestionBox:'意見箱',allDepartments:'全部部門',
+ kpiTransport:'交通人數',kpiAccommodation:'住宿人數',kpiUnion:'工會費',kpiSuggestions:'意見箱',kpiClosed:'已完成建議',selectedPeriod:'所選期間',closedInPeriod:'本期已結案',
+ periodOverview:'期間摘要',makeSummary:'產生中英摘要',item:'項目',people:'人數',amount:'金額',newAdded:'新增',stopped:'停止',photos:'照片',remark:'備註',dataStatus:'資料狀態',
+ periodReport:'月／年期間報表',period:'期間',transportMembers:'交通人數',accommodationLocal:'本地住宿',accommodationExpat:'外籍住宿',transportApply:'交通新增',transportStop:'交通停止',unionMembers:'工會人數',unionAmount:'工會費',suggestions:'建議',closed:'結案',
+ transportAccommodation:'交通與住宿名單',searchEmployee:'搜尋工號／姓名',allTypes:'全部類型',onlineAdd:'＋ 線上新增',employeeId:'工號',name:'姓名',department:'部門',joinDate:'到職日',driver:'司機／車牌',status:'狀態',action:'操作',movementRecords:'申請／停止／入住／搬出紀錄',date:'日期',type:'類型',
+ unionDuesList:'工會費名單',unionJoinDate:'入會日',suggestionByMonth:'意見箱月份與照片',clickMonth:'點月份即可查看該月全部照片',newSuggestion:'＋ 線上新增建議',selectedMonthRecords:'所選月份建議明細',
+ departmentAnalysis:'部門分析',monthlyTrend:'月份趨勢',importBackup:'匯入與備份',dropFiles:'拖曳或一次選取三份 Excel',autoDetect:'自動辨識交通住宿、工會費、意見箱及內嵌照片',jsonBackup:'下載 JSON 備份',jsonRestore:'還原 JSON',clearData:'清除本模組資料',
+ cloudSettings:'雲端與照片設定',imageSize:'照片最大邊長',imageQuality:'照片品質',storageUsage:'本模組資料量',manualCloudNote:'資料與照片只在按下雲端按鈕時上傳／下載；關閉再開不會自動同步。',saveSettings:'儲存設定',
+ importExcel:'匯入 Excel',chooseTogether:'可一次選 1～3 份檔案，不用先分類',photoImportNote:'意見箱 Excel 內嵌照片會自動抓取、壓縮並依月份保存',dedupRule:'同月份＋工號會更新而不重複；意見箱依日期＋編號更新，原有處理狀態會保留。',
+ memberForm:'交通／住宿資料',gender:'性別',benefitType:'福利類型',accommodationType:'住宿類型',unknown:'未指定',local:'本地員工',expat:'外籍員工',active:'有效',cancel:'取消',save:'儲存',
+ unionForm:'工會費資料',paid:'已付',unpaid:'未付',suggestionForm:'意見箱紀錄',category:'分類',welfare:'福利',workplace:'工作環境',management:'管理',safety:'安全',other:'其他',submittedBy:'提出人（可匿名）',grievance:'建議／申訴內容',checkedBy:'檢查人',responsible:'負責人',newStatus:'新建',reviewing:'審查中',inAction:'處理中',rejected:'不採納',closedDate:'結案日',actionTaken:'處理方式／回覆',addPhotos:'拍照或選取照片（最多 6 張）',
+ telegramSummary:'Telegram 摘要',summaryType:'摘要類型',combined:'合併摘要',summaryPeriod:'摘要期間',monthly:'每月',yearly:'每年',language:'語言',chinese:'中文',english:'English',bilingual:'中英雙語',preview:'預覽',copy:'複製',manualSend:'手動發送',
+ edit:'編輯',noData:'尚無資料',noPhoto:'沒有照片',photoCount:'{n} 張照片',peopleCount:'{n} 人',listedVsSummary:'名單 {listed}；月摘要 {summary}',imports:'最近匯入',records:'筆',storageText:'資料約 {mb} MB；照片 {photos} 張。完整資料存於 IndexedDB，不占一般 localStorage 配額。',
+ transportApplyLabel:'申請交通',transportStopLabel:'停止交通',dormInLabel:'住宿入住',dormOutLabel:'住宿搬出',paidStatus:'已付',unpaidStatus:'未付',newLabel:'新建',reviewingLabel:'審查中',actionLabel:'處理中',closedLabel:'已結案',rejectedLabel:'不採納',
+ importDone:'匯入完成',importFailed:'無法辨識附件欄位',fileResult:'{file}：交通住宿 +{ma}/更新 {mu}；工會費 +{ua}/更新 {uu}；建議 +{sa}/更新 {su}；照片 {ph}',saved:'已儲存',settingsSaved:'設定已儲存',selectPhotoLimit:'最多 6 張照片',confirmClear:'確定清除本模組全部資料？',cleared:'本模組資料已清除',
+ gasMissing:'請先在設定填入 GAS URL',cloudSent:'已手動上傳（含照片）',cloudReceived:'已手動下載（含照片）',cloudFail:'雲端操作失敗',telegramSent:'Telegram 摘要已發送',copyDone:'已複製',sourceSummary:'月摘要含外籍住宿 {n} 人，但原檔未提供這些人的個別名單。',noSourceSummary:'本期間沒有月摘要資料。'
+},
+en:{
+ title:'Employee Welfare & Suggestion',import:'Import Excel',cloudUp:'Manual Upload',cloudDown:'Manual Download',export:'Export',telegram:'Telegram Summary',print:'Print',manualOnly:'● Connects only when you press a button',
+ tabDashboard:'Overview',tabPeriods:'Month / Year List',tabTransport:'Transport / Accommodation',tabUnion:'Union Dues',tabSuggestion:'Suggestion Box',tabAnalysis:'Department Analysis',tabSettings:'Import / Settings',
+ month:'Month',year:'Year',allFields:'All Items',transport:'Transport',accommodation:'Accommodation',unionDues:'Union Dues',suggestionBox:'Suggestion Box',allDepartments:'All Departments',
+ kpiTransport:'Transport Members',kpiAccommodation:'Accommodation',kpiUnion:'Union Dues',kpiSuggestions:'Suggestions',kpiClosed:'Closed Suggestions',selectedPeriod:'Selected period',closedInPeriod:'Closed in period',
+ periodOverview:'Period Summary',makeSummary:'Create Bilingual Summary',item:'Item',people:'People',amount:'Amount',newAdded:'New',stopped:'Stopped',photos:'Photos',remark:'Remark',dataStatus:'Data Status',
+ periodReport:'Monthly / Yearly Period Report',period:'Period',transportMembers:'Transport',accommodationLocal:'Local Accommodation',accommodationExpat:'Expat Accommodation',transportApply:'Transport Added',transportStop:'Transport Stopped',unionMembers:'Union Members',unionAmount:'Union Dues',suggestions:'Suggestions',closed:'Closed',
+ transportAccommodation:'Transport & Accommodation Roster',searchEmployee:'Search employee ID or name',allTypes:'All Types',onlineAdd:'+ Add Online',employeeId:'Employee ID',name:'Name',department:'Department',joinDate:'Join Date',driver:'Driver / Plate',status:'Status',action:'Action',movementRecords:'Apply / Stop / Move-in / Move-out Records',date:'Date',type:'Type',
+ unionDuesList:'Union Dues Roster',unionJoinDate:'Union Join Date',suggestionByMonth:'Suggestion Months & Photos',clickMonth:'Click a month to view all photos',newSuggestion:'+ New Suggestion',selectedMonthRecords:'Selected Month Details',
+ departmentAnalysis:'Department Analysis',monthlyTrend:'Monthly Trend',importBackup:'Import & Backup',dropFiles:'Drop or choose all three Excel files together',autoDetect:'Automatically detects transport, accommodation, union dues, suggestions and embedded photos',jsonBackup:'Download JSON Backup',jsonRestore:'Restore JSON',clearData:'Clear Module Data',
+ cloudSettings:'Cloud & Photo Settings',imageSize:'Maximum Photo Side',imageQuality:'Photo Quality',storageUsage:'Module Data Size',manualCloudNote:'Data and photos upload or download only when you press a cloud button. Opening the page never syncs automatically.',saveSettings:'Save Settings',
+ importExcel:'Import Excel',chooseTogether:'Choose one to three files together; no manual classification',photoImportNote:'Embedded suggestion-box photos are extracted, compressed and linked to their month automatically',dedupRule:'The same month + employee ID updates the existing row. Suggestions update by date + number while preserving workflow status.',
+ memberForm:'Transport / Accommodation Record',gender:'Gender',benefitType:'Benefit Type',accommodationType:'Accommodation Type',unknown:'Unspecified',local:'Local Employee',expat:'Expat Employee',active:'Active',cancel:'Cancel',save:'Save',
+ unionForm:'Union Dues Record',paid:'Paid',unpaid:'Unpaid',suggestionForm:'Suggestion Record',category:'Category',welfare:'Welfare',workplace:'Workplace',management:'Management',safety:'Safety',other:'Other',submittedBy:'Submitted By (may be anonymous)',grievance:'Suggestion / Grievance',checkedBy:'Checked By',responsible:'Responsible Person',newStatus:'New',reviewing:'Reviewing',inAction:'In Action',rejected:'Not Accepted',closedDate:'Closed Date',actionTaken:'Action / Reply',addPhotos:'Take or choose photos (maximum 6)',
+ telegramSummary:'Telegram Summary',summaryType:'Summary Type',combined:'Combined Summary',summaryPeriod:'Summary Period',monthly:'Monthly',yearly:'Yearly',language:'Language',chinese:'Chinese',english:'English',bilingual:'Chinese + English',preview:'Preview',copy:'Copy',manualSend:'Send Manually',
+ edit:'Edit',noData:'No data yet',noPhoto:'No photos',photoCount:'{n} photos',peopleCount:'{n} people',listedVsSummary:'Roster {listed}; monthly summary {summary}',imports:'Recent Imports',records:'records',storageText:'About {mb} MB; {photos} photos. Full data uses IndexedDB and does not consume the normal localStorage quota.',
+ transportApplyLabel:'Transport Application',transportStopLabel:'Transport Stop',dormInLabel:'Dormitory Move-in',dormOutLabel:'Dormitory Move-out',paidStatus:'Paid',unpaidStatus:'Unpaid',newLabel:'New',reviewingLabel:'Reviewing',actionLabel:'In Action',closedLabel:'Closed',rejectedLabel:'Not Accepted',
+ importDone:'Import complete',importFailed:'The attachment columns could not be recognized',fileResult:'{file}: welfare +{ma} / updated {mu}; union dues +{ua} / updated {uu}; suggestions +{sa} / updated {su}; photos {ph}',saved:'Saved',settingsSaved:'Settings saved',selectPhotoLimit:'Maximum 6 photos',confirmClear:'Clear all data in this module?',cleared:'Module data cleared',
+ gasMissing:'Enter the GAS URL in Settings first',cloudSent:'Manual upload complete, including photos',cloudReceived:'Manual download complete, including photos',cloudFail:'Cloud action failed',telegramSent:'Telegram summary sent',copyDone:'Copied',sourceSummary:'The monthly summary includes {n} expat residents, but the source file has no individual roster for them.',noSourceSummary:'No source monthly summary for this period.'
+}};
+function tr(k,v={}){let s=(I18N[LANG]&&I18N[LANG][k])||I18N.zh[k]||k;Object.entries(v).forEach(([a,b])=>s=s.replaceAll('{'+a+'}',String(b)));return s}
+</script>
+<script>
+/* ── Utilities, IndexedDB and UI state ─────────────────────────────── */
+function uid(p='id'){return `${p}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function clean(v){return String(v??'').replace(/\s+/g,' ').trim()}
+function norm(v){return clean(v).normalize('NFKC').toUpperCase().replace(/[^A-Z0-9\u1780-\u17FF]/g,'')}
+function num(v){if(typeof v==='number'&&Number.isFinite(v))return v;const m=String(v??'').replace(/[,$\s]/g,'').match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):0}
+function padId(v){const s=clean(v);return /^\d{1,4}$/.test(s)?s.padStart(4,'0'):s}
+function isoDate(v){
+  if(!v&&v!==0)return'';if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  if(typeof v==='number'&&v>20000&&window.XLSX){const d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`}
+  const s=clean(v);let m=s.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);if(m)return `${m[1]}-${String(+m[2]).padStart(2,'0')}-${String(+m[3]).padStart(2,'0')}`;
+  m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);if(m)return `${m[3]}-${String(+m[2]).padStart(2,'0')}-${String(+m[1]).padStart(2,'0')}`;
+  const d=new Date(s);return isNaN(d)?'':`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+function dateObj(s){if(!s)return null;const [y,m,d]=String(s).slice(0,10).split('-').map(Number);return y&&m&&d?new Date(y,m-1,d):null}
+function fmtDate(s){if(!s)return'—';const d=dateObj(s);return !d?esc(s):(LANG==='en'?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`)}
+function money(v){return '$'+Number(v||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:2})}
+function periodFromFile(name,text=''){const s=`${name} ${text}`;let m=s.match(/(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[- _]*(20\d{2})/i);if(m){const mon=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(m[0].slice(0,3).toLowerCase());return `${m[1]}-${String(mon+1).padStart(2,'0')}`}m=s.match(/(20\d{2})[- _/.](\d{1,2})/);return m?`${m[1]}-${String(+m[2]).padStart(2,'0')}`:''}
+function monthLabel(p){if(!p)return'—';const [y,m]=p.split('-').map(Number),d=new Date(y,m-1,1);return LANG==='en'?d.toLocaleDateString('en-US',{month:'short',year:'numeric'}):`${y}年${m}月`}
+function defaultState(){return{version:APP_VERSION,members:[],movements:[],unionDues:[],suggestions:[],summaries:[],imports:[],settings:{imageSize:1000,imageQuality:.7},updatedAt:new Date().toISOString()}}
+function openDb(){return new Promise((resolve,reject)=>{const q=indexedDB.open(DB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(DB_STORE))q.result.createObjectStore(DB_STORE)};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
+async function loadState(){try{const db=await openDb(),value=await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE).objectStore(DB_STORE).get(DB_KEY);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});db.close();return value?.members?Object.assign(defaultState(),value):defaultState()}catch(e){console.warn(e);return defaultState()}}
+async function persist(){STATE.updatedAt=new Date().toISOString();const db=await openDb();await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=resolve;q.onerror=()=>reject(q.error)});db.close();localStorage.setItem(META_KEY,JSON.stringify({count:STATE.members.length+STATE.unionDues.length+STATE.suggestions.length,memberCount:STATE.members.length,unionCount:STATE.unionDues.length,suggestionCount:STATE.suggestions.length,photoCount:STATE.suggestions.reduce((s,x)=>s+(x.photos?.length||0),0),updatedAt:STATE.updatedAt}))}
+function showLoading(s){document.getElementById('loadingText').textContent=s||'…';document.getElementById('loading').classList.add('on')}function hideLoading(){document.getElementById('loading').classList.remove('on')}
+function toast(s,d=3000){const e=document.getElementById('toast');e.textContent=s;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),d)}
+function openModal(id){document.getElementById(id).classList.add('open')}function closeModal(id){document.getElementById(id).classList.remove('open')}
+function val(id){return document.getElementById(id).value.trim()}function setVal(id,v){document.getElementById(id).value=v??''}
+function empty(cols){return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">📭</div>${esc(tr('noData'))}</div></td></tr>`}
+function badge(status){const cls=['active','closed','paid'].includes(status)?`b-${status}`:['stopped','rejected','unpaid'].includes(status)?`b-${status}`:['new','reviewing','action'].includes(status)?`b-${status}`:'b-draft';const key={active:'active',stopped:'stopped',paid:'paidStatus',unpaid:'unpaidStatus',new:'newLabel',reviewing:'reviewingLabel',action:'actionLabel',closed:'closedLabel',rejected:'rejectedLabel'}[status]||status;return `<span class="badge ${cls}">${esc(tr(key))}</span>`}
+function setLang(l){LANG=l;localStorage.setItem(LANG_KEY,l);applyLang();renderAll()}
+function applyLang(){document.documentElement.lang=LANG==='en'?'en':'zh-TW';document.getElementById('langZh').classList.toggle('on',LANG==='zh');document.getElementById('langEn').classList.toggle('on',LANG==='en');document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=tr(e.dataset.i18n));document.querySelectorAll('[data-i18n-placeholder]').forEach(e=>e.placeholder=tr(e.dataset.i18nPlaceholder));document.getElementById('manualNote').textContent=tr('manualOnly')}
+function setTab(tab){ACTIVE_TAB=tab;document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.dataset.tab===tab));document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='view-'+tab));if(tab==='analysis')setTimeout(renderAnalysis,0)}
+document.querySelectorAll('.tab').forEach(e=>e.addEventListener('click',()=>setTab(e.dataset.tab)));
+function setPeriodMode(m){PERIOD_MODE=m;document.getElementById('modeMonth').classList.toggle('on',m==='month');document.getElementById('modeYear').classList.toggle('on',m==='year');syncPeriod();renderAll()}
+function syncPeriod(){const p=document.getElementById('periodPicker');if(PERIOD_MODE==='month'){p.type='month';p.value=`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`}else{p.type='number';p.min=2000;p.max=2100;p.value=ANCHOR.getFullYear()}document.getElementById('periodLabel').textContent=PERIOD_MODE==='month'?monthLabel(`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`):String(ANCHOR.getFullYear())}
+function pickPeriod(v){if(!v)return;if(PERIOD_MODE==='year')ANCHOR=new Date(+v,0,1);else{const [y,m]=v.split('-').map(Number);ANCHOR=new Date(y,m-1,1)}renderAll()}
+function movePeriod(n){if(PERIOD_MODE==='month')ANCHOR.setMonth(ANCHOR.getMonth()+n);else ANCHOR.setFullYear(ANCHOR.getFullYear()+n);ANCHOR=new Date(ANCHOR);renderAll()}
+function selectedKey(){return PERIOD_MODE==='month'?`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`:String(ANCHOR.getFullYear())}
+function matchPeriod(p,mode=PERIOD_MODE,key=selectedKey()){return mode==='year'?String(p||'').startsWith(key):p===key}
+function allDepartments(){return [...new Set([...STATE.members.map(x=>x.department),...STATE.unionDues.map(x=>x.department),...STATE.suggestions.map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))}
+function fillSelect(id,values,key='allDepartments'){const e=document.getElementById(id),keep=e.value;e.innerHTML=`<option value="">${esc(tr(key))}</option>`+values.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if([...e.options].some(o=>o.value===keep))e.value=keep}
+function filterDept(x,dept){return !dept||x.department===dept}
+function statsFor(key,mode='month',dept=''){
+  const members=STATE.members.filter(x=>matchPeriod(x.period,mode,key)&&filterDept(x,dept)),mov=STATE.movements.filter(x=>matchPeriod((x.date||'').slice(0,7),mode,key)&&filterDept(x,dept)),union=STATE.unionDues.filter(x=>matchPeriod(x.period,mode,key)&&filterDept(x,dept)),sugs=STATE.suggestions.filter(x=>matchPeriod(x.period,mode,key)&&filterDept(x,dept));
+  const summaries=STATE.summaries.filter(x=>matchPeriod(x.period,mode,key));const noDept=!dept;
+  const transportListed=members.filter(x=>x.transport&&x.status!=='stopped').length,accomListed=members.filter(x=>x.accommodation&&x.status!=='stopped').length;
+  const transport=noDept&&summaries.length?summaries.reduce((s,x)=>s+num(x.transport),0):transportListed;
+  const local=noDept&&summaries.length?summaries.reduce((s,x)=>s+num(x.accommodationLocal),0):members.filter(x=>x.accommodation&&x.accommodationType!=='expat'&&x.status!=='stopped').length;
+  const expat=noDept?summaries.reduce((s,x)=>s+num(x.accommodationExpat),0):members.filter(x=>x.accommodation&&x.accommodationType==='expat'&&x.status!=='stopped').length;
+  return{members,mov,union,sugs,summaries,transport,transportListed,accomListed,local,expat,accommodation:local+expat,apply:mov.filter(x=>x.action==='transport_apply').length,stop:mov.filter(x=>x.action==='transport_stop').length,unionMembers:union.filter(x=>x.status!=='unpaid').length,unionAmount:union.reduce((s,x)=>s+num(x.amount),0),suggestions:sugs.length,photos:sugs.reduce((s,x)=>s+(x.photos?.length||0),0),closed:sugs.filter(x=>x.status==='closed').length}
+}
+function renderDashboard(){
+  const dep=document.getElementById('globalDept').value,field=document.getElementById('globalField').value,s=statsFor(selectedKey(),PERIOD_MODE,dep);document.getElementById('dashPeriod').textContent=document.getElementById('periodLabel').textContent;
+  document.getElementById('kTransport').textContent=s.transport;document.getElementById('kAccommodation').textContent=s.accommodation;document.getElementById('kAccommodationSub').textContent=`Local ${s.local} · Expat ${s.expat}`;document.getElementById('kUnion').textContent=money(s.unionAmount);document.getElementById('kUnionSub').textContent=tr('peopleCount',{n:s.unionMembers});document.getElementById('kSuggestions').textContent=s.suggestions;document.getElementById('kSuggestionSub').textContent=tr('photoCount',{n:s.photos});document.getElementById('kClosed').textContent=s.closed;
+  const cardFields={kTransport:'transport',kAccommodation:'accommodation',kUnion:'union',kSuggestions:'suggestion',kClosed:'suggestion'};Object.entries(cardFields).forEach(([id,f])=>document.getElementById(id).closest('.kpi').style.display=field==='all'||field===f?'':'none');
+  const overviewRows=[
+    {field:'transport',cells:[tr('transport'),s.transport,'—',s.apply,s.stop,'—',s.transport!==s.transportListed?tr('listedVsSummary',{listed:s.transportListed,summary:s.transport}):'']},
+    {field:'accommodation',cells:[tr('accommodation'),s.accommodation,'—',s.mov.filter(x=>x.action==='dorm_in').length,s.mov.filter(x=>x.action==='dorm_out').length,'—',tr('listedVsSummary',{listed:s.accomListed,summary:s.accommodation})]},
+    {field:'union',cells:[tr('unionDues'),s.unionMembers,money(s.unionAmount),'—','—','—','']},
+    {field:'suggestion',cells:[tr('suggestionBox'),s.suggestions,'—','—','—',s.photos,`${tr('closed')} ${s.closed}`]},
+  ].filter(r=>field==='all'||r.field===field);document.getElementById('overviewBody').innerHTML=overviewRows.map(r=>`<tr>${r.cells.map((v,i)=>`<td${i===2?' class="money"':''}>${esc(v)}</td>`).join('')}</tr>`).join('');
+  const expat=s.summaries.reduce((a,x)=>a+num(x.accommodationExpat),0);document.getElementById('dataStatusNote').textContent=s.summaries.length?(expat?tr('sourceSummary',{n:expat}):tr('listedVsSummary',{listed:s.members.length,summary:s.transport+s.accommodation})):tr('noSourceSummary');
+  document.getElementById('recentImports').innerHTML=`<b>${tr('imports')}</b>`+(STATE.imports.length?STATE.imports.slice().reverse().slice(0,5).map(x=>`<div style="padding:8px 0;border-bottom:1px solid #e6edf1"><b>${esc(x.file)}</b><br><span class="hint">${fmtDate(String(x.at).slice(0,10))} · ${esc(tr('fileResult',{file:x.file,...x.stats}))}</span></div>`).join(''):`<div class="empty">${tr('noData')}</div>`)
+}
+function availablePeriods(){const p=[...STATE.members.map(x=>x.period),...STATE.unionDues.map(x=>x.period),...STATE.suggestions.map(x=>x.period),...STATE.summaries.map(x=>x.period)].filter(Boolean);return [...new Set(p)].sort().reverse()}
+function renderPeriodList(){
+  const mode=PERIOD_MODE,dept=document.getElementById('listDept').value,field=document.getElementById('listField').value;let keys=mode==='year'?[...new Set(availablePeriods().map(x=>x.slice(0,4)))]:availablePeriods();
+  const rows=keys.map(k=>({k,s:statsFor(k,mode,dept)})).filter(({s})=>field==='all'?(s.transport+s.accommodation+s.unionMembers+s.suggestions)>0:field==='transport'?s.transport+s.apply+s.stop>0:field==='accommodation'?s.accommodation>0:field==='union'?s.unionMembers>0:s.suggestions>0);
+  document.getElementById('periodCount').textContent=`${rows.length} ${tr('records')}`;document.getElementById('periodBody').innerHTML=rows.length?rows.map(({k,s})=>`<tr style="cursor:pointer" onclick="jumpPeriod('${k}')"><td><b>${esc(mode==='month'?monthLabel(k):k)}</b></td><td>${s.transport}</td><td>${s.local}</td><td>${s.expat}</td><td>${s.apply}</td><td>${s.stop}</td><td>${s.unionMembers}</td><td class="money">${money(s.unionAmount)}</td><td>${s.suggestions}</td><td>${s.photos}</td><td>${s.closed}</td></tr>`).join(''):empty(11)
+}
+function jumpPeriod(k){if(k.length===4){PERIOD_MODE='year';ANCHOR=new Date(+k,0,1)}else{PERIOD_MODE='month';const [y,m]=k.split('-').map(Number);ANCHOR=new Date(y,m-1,1)}setTab('dashboard');renderAll()}
+function renderTransport(){
+  const key=selectedKey(),dep=document.getElementById('globalDept').value,q=norm(document.getElementById('transportSearch').value),type=document.getElementById('transportType').value;
+  const rows=STATE.members.filter(x=>matchPeriod(x.period)&&filterDept(x,dep)&&(!q||norm([x.employeeId,x.name].join('')).includes(q))&&(!type||x[type])).sort((a,b)=>String(a.employeeId).localeCompare(String(b.employeeId)));
+  document.getElementById('transportBody').innerHTML=rows.length?rows.map(x=>`<tr><td>${monthLabel(x.period)}</td><td>${esc(x.employeeId)}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.department||'—')}</td><td>${fmtDate(x.joinDate)}</td><td>${x.transport?'✓':'—'}</td><td>${x.accommodation?'✓ '+esc(x.accommodationType||''):'—'}</td><td>${esc(x.driver||'—')}</td><td>${badge(x.status||'active')}</td><td><button class="btn small" onclick="openMemberForm('${x.id}')">${tr('edit')}</button></td></tr>`).join(''):empty(10);
+  const mov=STATE.movements.filter(x=>matchPeriod((x.date||'').slice(0,7))&&filterDept(x,dep)).sort((a,b)=>String(b.date).localeCompare(String(a.date)));document.getElementById('movementBody').innerHTML=mov.length?mov.map(x=>`<tr><td>${fmtDate(x.date)}</td><td>${esc(movementLabel(x.action))}</td><td>${esc(x.employeeId||'—')}</td><td>${esc(x.name||'—')}</td><td>${esc(x.department||'—')}</td><td>${esc(x.remark||'')}</td></tr>`).join(''):empty(6)
+}
+function movementLabel(a){return tr({transport_apply:'transportApplyLabel',transport_stop:'transportStopLabel',dorm_in:'dormInLabel',dorm_out:'dormOutLabel'}[a]||a)}
+function renderUnion(){const dep=document.getElementById('globalDept').value,q=norm(document.getElementById('unionSearch').value);const rows=STATE.unionDues.filter(x=>matchPeriod(x.period)&&filterDept(x,dep)&&(!q||norm([x.employeeId,x.name].join('')).includes(q))).sort((a,b)=>String(a.employeeId).localeCompare(String(b.employeeId)));document.getElementById('unionBody').innerHTML=rows.length?rows.map(x=>`<tr><td>${monthLabel(x.period)}</td><td>${esc(x.employeeId)}</td><td><b>${esc(x.name)}</b></td><td>${esc(x.department||'—')}</td><td>${fmtDate(x.joinDate)}</td><td>${fmtDate(x.unionJoinDate)}</td><td class="money">${money(x.amount)}</td><td>${badge(x.status||(+x.amount>0?'paid':'unpaid'))}</td><td>${esc(x.remark||'')}</td><td><button class="btn small" onclick="openUnionForm('${x.id}')">${tr('edit')}</button></td></tr>`).join(''):empty(10)}
+function renderSuggestion(){
+  const year=String(ANCHOR.getFullYear()),dep=document.getElementById('globalDept').value,all=STATE.suggestions.filter(x=>x.period?.startsWith(year)&&filterDept(x,dep));const groups={};all.forEach(x=>(groups[x.period]??=[]).push(x));
+  document.getElementById('suggestionMonths').innerHTML=Object.keys(groups).sort().map(p=>{const a=groups[p],photos=a.reduce((s,x)=>s+(x.photos?.length||0),0),thumbs=a.flatMap(x=>x.photos||[]).slice(0,3);return `<button class="month-card" onclick="openSuggestionMonth('${p}')"><h3>📅 ${monthLabel(p)}</h3><div class="nums"><span>${tr('suggestions')} <b>${a.length}</b></span><span>${tr('photos')} <b>${photos}</b></span></div><div class="thumb-row">${thumbs.map(src=>`<img src="${src}" alt="">`).join('')}${photos>3?`<span class="more-thumb">+${photos-3}</span>`:''}</div></button>`}).join('')||`<div class="empty"><div class="ico">💬</div>${tr('noData')}</div>`;
+  const rows=STATE.suggestions.filter(x=>matchPeriod(x.period)&&filterDept(x,dep)).sort((a,b)=>String(b.date).localeCompare(String(a.date)));document.getElementById('suggestionPeriodHint').textContent=document.getElementById('periodLabel').textContent;document.getElementById('suggestionList').innerHTML=rows.length?rows.map(suggestionHtml).join(''):`<div class="empty"><div class="ico">💬</div>${tr('noData')}</div>`
+}
+function suggestionHtml(x){return `<article class="suggestion-item"><div><b>${fmtDate(x.date)}</b><br>${badge(x.status||'new')}</div><div><h4>${esc(x.grievance||'n/a')}</h4><p>${esc(x.department||'')} ${x.checkedBy?'\n'+esc(x.checkedBy):''}${x.actionTaken?'\n'+esc(x.actionTaken):''}</p><div class="photo-strip">${(x.photos||[]).map(src=>`<img src="${src}" onclick="openLightbox(this.src)" alt="">`).join('')}</div></div><button class="btn small" onclick="openSuggestionForm('${x.id}')">${tr('edit')}</button></article>`}
+function openSuggestionMonth(p){const rows=STATE.suggestions.filter(x=>x.period===p).sort((a,b)=>String(a.date).localeCompare(String(b.date)));document.getElementById('galleryTitle').textContent=`${monthLabel(p)} · ${tr('suggestions')} ${rows.length} · ${tr('photos')} ${rows.reduce((s,x)=>s+(x.photos?.length||0),0)}`;document.getElementById('galleryRecords').innerHTML=rows.map(x=>`<section style="margin-bottom:20px"><h4>${fmtDate(x.date)} · ${esc(x.grievance||'n/a')} ${badge(x.status||'new')}</h4><div class="gallery">${(x.photos||[]).map(src=>`<img src="${src}" onclick="openLightbox(this.src)" alt="">`).join('')||`<div class="notice">${tr('noPhoto')}</div>`}</div></section>`).join('');openModal('galleryModal')}
+function openLightbox(src){document.getElementById('lightboxImage').src=src;openModal('lightboxModal')}
+function renderAnalysis(){
+  if(ACTIVE_TAB!=='analysis')return;const key=selectedKey(),mode=PERIOD_MODE,field=val('analysisField'),groups={};allDepartments().forEach(d=>groups[d]=0);
+  if(field==='transport'||field==='accommodation')STATE.members.filter(x=>matchPeriod(x.period,mode,key)&&x[field]).forEach(x=>groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+1);
+  else if(field==='unionCount'||field==='unionAmount')STATE.unionDues.filter(x=>matchPeriod(x.period,mode,key)).forEach(x=>groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+(field==='unionAmount'?num(x.amount):1));
+  else STATE.suggestions.filter(x=>matchPeriod(x.period,mode,key)).forEach(x=>groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+1);
+  const labels=Object.keys(groups).filter(x=>groups[x]).sort((a,b)=>groups[b]-groups[a]).slice(0,20);if(deptChart)deptChart.destroy();if(window.Chart)deptChart=new Chart(document.getElementById('deptChart'),{type:'bar',data:{labels,datasets:[{data:labels.map(x=>groups[x]),backgroundColor:'#24a5a0'}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
+  const year=String(ANCHOR.getFullYear()),months=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`),series=months.map(p=>{const s=statsFor(p,'month','');return field==='transport'?s.transport:field==='accommodation'?s.accommodation:field==='unionCount'?s.unionMembers:field==='unionAmount'?s.unionAmount:s.suggestions});if(trendChart)trendChart.destroy();if(window.Chart)trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:months.map(monthLabel),datasets:[{data:series,borderColor:'#e39a17',backgroundColor:'rgba(227,154,23,.18)',fill:true,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}})
+}
+function updateStorage(){const bytes=new Blob([JSON.stringify(STATE)]).size,photos=STATE.suggestions.reduce((s,x)=>s+(x.photos?.length||0),0);document.getElementById('storageUsage').textContent=tr('storageText',{mb:(bytes/1048576).toFixed(2),photos})}
+function renderAll(){if(!STATE)return;syncPeriod();const deps=allDepartments();fillSelect('globalDept',deps);fillSelect('listDept',deps);renderDashboard();renderPeriodList();renderTransport();renderUnion();renderSuggestion();renderAnalysis();updateStorage()}
+
+/* ── Excel image extraction and one-step multi-file import ──────────── */
+function cfbPath(p){return String(p||'').replace(/^Root Entry\//,'').replace(/\\/g,'/')}
+function cfbEntry(cfb,suffix){const i=cfb.FullPaths.findIndex(p=>cfbPath(p).endsWith(suffix));return i>=0?cfb.FileIndex[i]:null}
+function decodeEntry(entry){
+  if(!entry)return '';
+  const bytes=new Uint8Array(entry.content);
+  if(typeof TextDecoder!=='undefined')return new TextDecoder('utf-8').decode(bytes);
+  let binary='';for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode.apply(null,bytes.subarray(i,i+32768));
+  try{return decodeURIComponent(escape(binary))}catch{return binary}
+}
+function bytesBase64(bytes){let out='',u=new Uint8Array(bytes);for(let i=0;i<u.length;i+=32768)out+=String.fromCharCode(...u.subarray(i,i+32768));return btoa(out)}
+function mimeFor(path){const ext=String(path).split('.').pop().toLowerCase();return ext==='jpg'||ext==='jpeg'?'image/jpeg':ext==='gif'?'image/gif':ext==='webp'?'image/webp':'image/png'}
+async function compressDataUrl(src){
+  if(window.__NO_IMAGE_COMPRESSION)return src;return new Promise(resolve=>{const img=new Image();img.onload=()=>{try{const max=Number(STATE?.settings?.imageSize||1000),q=Number(STATE?.settings?.imageQuality||.7);let w=img.naturalWidth||img.width,h=img.naturalHeight||img.height;if(w>max||h>max){if(w>=h){h=Math.max(1,Math.round(h*max/w));w=max}else{w=Math.max(1,Math.round(w*max/h));h=max}}const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',q))}catch{resolve(src)}};img.onerror=()=>resolve(src);img.src=src})
+}
+async function extractEmbeddedImages(buffer){
+  const cfb=XLSX.CFB.read(new Uint8Array(buffer),{type:'array'}),refs=[];
+  for(const full of cfb.FullPaths){
+    const path=cfbPath(full);if(!/^xl\/drawings\/drawing\d+\.xml$/i.test(path))continue;
+    const name=path.split('/').pop(),xml=decodeEntry(cfbEntry(cfb,path)),rels=decodeEntry(cfbEntry(cfb,`xl/drawings/_rels/${name}.rels`));if(!xml||!rels)continue;
+    const relDoc=new DOMParser().parseFromString(rels,'application/xml'),relMap={};[...relDoc.getElementsByTagNameNS('*','Relationship')].forEach(n=>relMap[n.getAttribute('Id')]=n.getAttribute('Target'));
+    const doc=new DOMParser().parseFromString(xml,'application/xml');for(const a of [...doc.getElementsByTagNameNS('*','twoCellAnchor')]){
+      const from=[...a.children].find(n=>n.localName==='from'),blip=a.getElementsByTagNameNS('*','blip')[0];if(!from||!blip)continue;const row=Number(from.getElementsByTagNameNS('*','row')[0]?.textContent),rid=blip.getAttribute('r:embed')||blip.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','embed'),target=relMap[rid];if(target)refs.push({row,target:`xl/media/${target.split('/').pop()}`})
+    }
+  }
+  const unique=[...new Set(refs.map(x=>x.target))],data={};await Promise.all(unique.map(async target=>{const e=cfbEntry(cfb,target);if(!e)return;const raw=`data:${mimeFor(target)};base64,${bytesBase64(e.content)}`;data[target]=await compressDataUrl(raw)}));
+  const byRow={};refs.forEach(({row,target})=>{if(!data[target])return;byRow[row]??=[];if(!byRow[row].some(x=>x.target===target))byRow[row].push({target,src:data[target]})});return byRow
+}
+function findHeader(rows,tests){for(let i=0;i<Math.min(rows.length,15);i++){const s=rows[i].map(clean).join(' | ').toUpperCase();if(tests.every(x=>s.includes(x)))return i}return-1}
+function parseTransportSheet(rows,file,sheet){
+  const hi=findHeader(rows,['ID','NAME','TRANSPORTATION','ACCOMMODATION']);if(hi<0)return null;const period=periodFromFile(file,rows.slice(0,3).flat().join(' '));if(!period)return null;
+  const members=[];for(let r=hi+1;r<rows.length;r++){const row=rows[r]||[],seq=row[0],eid=padId(row[1]);if(!eid||!clean(row[2])||!Number.isFinite(Number(seq)))continue;members.push({id:'',period,employeeId:eid,name:clean(row[2]),gender:clean(row[3]),joinDate:isoDate(row[4]),department:clean(row[5]),transport:!!num(row[6]),accommodation:!!num(row[7]),accommodationType:'',driver:clean(row[8]),remark:clean(row[9]),status:'active',source:'excel',sourceFile:file,sourceSheet:sheet})}
+  const month=['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'][Number(period.slice(5,7))-1];const sr=rows.find(row=>clean(row[15]).toLowerCase().startsWith(month));const summary={period,transport:sr?num(sr[16]):members.filter(x=>x.transport).length,accommodationLocal:sr?num(sr[17]):members.filter(x=>x.accommodation).length,accommodationExpat:sr?num(sr[18]):0,sourceFile:file};
+  return{members,summary}
+}
+function parseMovements(rows,file,sheet){let action='';const out=[];for(const row of rows){const title=clean(row?.[0]).toLowerCase();if(title.includes('apply transportation')){action='transport_apply';continue}if(title.includes('stop transportation')){action='transport_stop';continue}if(title.includes('dormitory move in')){action='dorm_in';continue}if(title.includes('dormitory move out')){action='dorm_out';continue}const eid=padId(row?.[1]),name=clean(row?.[2]),date=isoDate(row?.[6]);if(action&&eid&&name&&date&&Number.isFinite(Number(row?.[0])))out.push({id:'',action,date,employeeId:eid,name,gender:clean(row[3]),joinDate:isoDate(row[4]),department:clean(row[5]),remark:clean(row[7]),source:'excel',sourceFile:file,sourceSheet:sheet})}return out}
+function parseUnionSheet(rows,file,sheet){
+  const hi=findHeader(rows,['ID','NAME','SALARY TO BE PAID']);if(hi<0)return[];const period=periodFromFile(file,rows.slice(0,7).flat().join(' '));if(!period)return[];const out=[];
+  for(let r=hi+1;r<rows.length;r++){const row=rows[r]||[];if(!Number.isFinite(Number(row[0])))continue;const eid=padId(row[1]),name=clean(row[2]);if(!eid||!name)continue;const amount=num(row[7]);out.push({id:'',period,employeeId:eid,name,nationality:clean(row[3]),department:clean(row[4]),joinDate:isoDate(row[5]),unionJoinDate:isoDate(row[6]),amount,status:amount>0?'paid':'unpaid',remark:clean(row[9]),source:'excel',sourceFile:file,sourceSheet:sheet})}return out
+}
+function parseSuggestionSheet(rows,file,sheet,images){
+  const title=rows.slice(0,3).flat().map(clean).join(' ').toUpperCase();if(!title.includes('SUGGESTION')&&!title.includes('GRIEVANCE'))return[];const out=[];
+  const hi=rows.findIndex(row=>{const h=row.map(x=>clean(x).toUpperCase());return h.some(x=>x==='DATE')&&h.some(x=>x.includes('GRIEVANCE'))});
+  if(hi<0)return out;const head=rows[hi].map(x=>clean(x).toLowerCase()),col=(test,fallback)=>{const i=head.findIndex(test);return i<0?fallback:i},noCol=col(x=>/^no\\.?$/.test(x),0),dateCol=col(x=>x==='date',1),grievanceCol=col(x=>x.includes('grievance'),2),checkedCol=col(x=>x.includes('checked'),4);
+  for(let r=hi+1;r<rows.length;r++){const row=rows[r]||[],no=Number(row[noCol]),date=isoDate(row[dateCol]);if(!Number.isFinite(no)||!date)continue;out.push({id:'',number:no,date,period:date.slice(0,7),department:'',category:'other',submittedBy:'',grievance:clean(row[grievanceCol])||'n/a',checkedBy:clean(row[checkedCol]),responsible:'',status:'new',closedDate:'',actionTaken:'',photos:(images[r]||[]).map(x=>x.src),source:'excel',sourceFile:file,sourceSheet:sheet,sourceKey:`${date}|${no}`})}return out
+}
+async function parseWorkbook(buffer,file){
+  const wb=XLSX.read(buffer,{type:'array',cellDates:false}),parsed={members:[],movements:[],unionDues:[],suggestions:[],summaries:[]},sheetRows={};let suggestionFound=false;
+  for(const sheet of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,raw:true,defval:''});sheetRows[sheet]=rows;const t=parseTransportSheet(rows,file,sheet);if(t){parsed.members.push(...t.members);parsed.summaries.push(t.summary)}parsed.movements.push(...parseMovements(rows,file,sheet));parsed.unionDues.push(...parseUnionSheet(rows,file,sheet));const title=rows.slice(0,3).flat().map(clean).join(' ').toUpperCase();if(title.includes('SUGGESTION')||title.includes('GRIEVANCE'))suggestionFound=true}
+  const images=suggestionFound?await extractEmbeddedImages(buffer):{};for(const sheet of wb.SheetNames)parsed.suggestions.push(...parseSuggestionSheet(sheetRows[sheet],file,sheet,images));return parsed
+}
+function changed(a,b,keys){return keys.some(k=>JSON.stringify(a[k]??'')!==JSON.stringify(b[k]??''))}
+function applyParsed(p,file){
+  const st={ma:0,mu:0,ua:0,uu:0,sa:0,su:0,ph:p.suggestions.reduce((s,x)=>s+x.photos.length,0)};
+  p.members.forEach(x=>{let old=STATE.members.find(a=>a.period===x.period&&norm(a.employeeId)===norm(x.employeeId));if(old){if(changed(old,x,['name','department','transport','accommodation','driver','status']))st.mu++;Object.assign(old,x,{id:old.id,createdAt:old.createdAt,updatedAt:new Date().toISOString()})}else{STATE.members.push({...x,id:uid('member'),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});st.ma++}});
+  p.movements.forEach(x=>{let old=STATE.movements.find(a=>a.action===x.action&&a.date===x.date&&norm(a.employeeId)===norm(x.employeeId));if(old)Object.assign(old,x,{id:old.id});else STATE.movements.push({...x,id:uid('move')})});
+  p.unionDues.forEach(x=>{let old=STATE.unionDues.find(a=>a.period===x.period&&norm(a.employeeId)===norm(x.employeeId));if(old){if(changed(old,x,['name','department','amount','status']))st.uu++;Object.assign(old,x,{id:old.id,createdAt:old.createdAt,updatedAt:new Date().toISOString()})}else{STATE.unionDues.push({...x,id:uid('union'),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});st.ua++}});
+  p.summaries.forEach(x=>{let old=STATE.summaries.find(a=>a.period===x.period);if(old)Object.assign(old,x);else STATE.summaries.push({...x,id:uid('summary')})});
+  p.suggestions.forEach(x=>{let old=STATE.suggestions.find(a=>a.sourceKey===x.sourceKey);if(old){if(changed(old,x,['grievance','checkedBy','photos']))st.su++;const workflow={department:old.department,category:old.category,submittedBy:old.submittedBy,responsible:old.responsible,status:old.status,closedDate:old.closedDate,actionTaken:old.actionTaken};Object.assign(old,x,{id:old.id,createdAt:old.createdAt,...workflow,photos:[...new Set([...(old.photos||[]),...(x.photos||[])])],updatedAt:new Date().toISOString()})}else{STATE.suggestions.push({...x,id:uid('suggest'),createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});st.sa++}});
+  STATE.imports.push({id:uid('imp'),file,at:new Date().toISOString(),stats:st});return st
+}
+async function importFiles(files){
+  files=[...files].filter(x=>/\.(xlsx|xls)$/i.test(x.name));if(!files.length)return;closeModal('importModal');showLoading(LANG==='en'?'Reading Excel and embedded photos…':'讀取 Excel 與內嵌照片…');let recognized=0,latest='';
+  try{for(const f of files){const buffer=await f.arrayBuffer(),p=await parseWorkbook(buffer,f.name),count=p.members.length+p.unionDues.length+p.suggestions.length+p.movements.length;recognized+=count;if(count){const st=applyParsed(p,f.name),periods=[...p.members.map(x=>x.period),...p.unionDues.map(x=>x.period),...p.suggestions.map(x=>x.period)].sort();if(periods.at(-1)>latest)latest=periods.at(-1);document.getElementById('importLog').innerHTML+=`<div class="notice" style="margin-top:8px">${esc(tr('fileResult',{file:f.name,...st}))}</div>`}else document.getElementById('importLog').innerHTML+=`<div class="notice warn" style="margin-top:8px">⚠ ${esc(f.name)} · ${tr('importFailed')}</div>`;await new Promise(r=>setTimeout(r,0))}if(!recognized)throw new Error(tr('importFailed'));await persist();if(latest){const [y,m]=latest.split('-').map(Number);ANCHOR=new Date(y,m-1,1);PERIOD_MODE='month'}renderAll();setTab('dashboard');toast(`✅ ${tr('importDone')}`)}catch(e){console.error(e);toast(`❌ ${e.message}`,5000)}finally{hideLoading();document.getElementById('fileInput').value='';document.getElementById('modalFileInput').value=''}}
+function openImport(){document.getElementById('importLog').innerHTML='';openModal('importModal')}
+['fileInput','modalFileInput'].forEach(id=>document.getElementById(id).addEventListener('change',e=>importFiles(e.target.files)));const dz=document.getElementById('dropZone');['dragenter','dragover'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.add('drag')}));['dragleave','drop'].forEach(n=>dz.addEventListener(n,e=>{e.preventDefault();dz.classList.remove('drag')}));dz.addEventListener('drop',e=>importFiles(e.dataTransfer.files));
+
+/* ── Online editing and photo capture ──────────────────────────────── */
+function openMemberForm(id=''){document.getElementById('memberForm').reset();const x=STATE.members.find(a=>a.id===id)||{};setVal('memberId',x.id);setVal('memberPeriod',x.period||`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`);setVal('memberEmployeeId',x.employeeId);setVal('memberName',x.name);setVal('memberDept',x.department);setVal('memberGender',x.gender);setVal('memberJoin',x.joinDate);document.getElementById('memberTransport').checked=!!x.transport;document.getElementById('memberAccommodation').checked=!!x.accommodation;setVal('memberAccommodationType',x.accommodationType);setVal('memberDriver',x.driver);setVal('memberStatus',x.status||'active');setVal('memberRemark',x.remark);openModal('memberModal')}
+async function saveMember(e){e.preventDefault();const incoming={period:val('memberPeriod'),employeeId:padId(val('memberEmployeeId')),name:val('memberName'),department:val('memberDept'),gender:val('memberGender'),joinDate:val('memberJoin'),transport:document.getElementById('memberTransport').checked,accommodation:document.getElementById('memberAccommodation').checked,accommodationType:val('memberAccommodationType'),driver:val('memberDriver'),status:val('memberStatus'),remark:val('memberRemark'),source:'online',sourceFile:'Online',updatedAt:new Date().toISOString()};let x=STATE.members.find(a=>a.id===val('memberId'));if(!x)x=STATE.members.find(a=>a.period===incoming.period&&norm(a.employeeId)===norm(incoming.employeeId));if(x)Object.assign(x,incoming);else STATE.members.push({...incoming,id:uid('member'),createdAt:new Date().toISOString()});await persist();closeModal('memberModal');renderAll();toast(`✅ ${tr('saved')}`)}
+function openUnionForm(id=''){document.getElementById('unionForm').reset();const x=STATE.unionDues.find(a=>a.id===id)||{};setVal('unionId',x.id);setVal('unionPeriod',x.period||`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`);setVal('unionEmployeeId',x.employeeId);setVal('unionName',x.name);setVal('unionDept',x.department);setVal('unionJoin',x.joinDate);setVal('unionMemberSince',x.unionJoinDate);setVal('unionAmountInput',x.amount??1);setVal('unionStatus',x.status||'paid');setVal('unionRemark',x.remark);openModal('unionModal')}
+async function saveUnion(e){e.preventDefault();const incoming={period:val('unionPeriod'),employeeId:padId(val('unionEmployeeId')),name:val('unionName'),department:val('unionDept'),joinDate:val('unionJoin'),unionJoinDate:val('unionMemberSince'),amount:num(val('unionAmountInput')),status:val('unionStatus'),remark:val('unionRemark'),source:'online',sourceFile:'Online',updatedAt:new Date().toISOString()};let x=STATE.unionDues.find(a=>a.id===val('unionId'));if(!x)x=STATE.unionDues.find(a=>a.period===incoming.period&&norm(a.employeeId)===norm(incoming.employeeId));if(x)Object.assign(x,incoming);else STATE.unionDues.push({...incoming,id:uid('union'),createdAt:new Date().toISOString()});await persist();closeModal('unionModal');renderAll();toast(`✅ ${tr('saved')}`)}
+function openSuggestionForm(id=''){document.getElementById('suggestionForm').reset();const x=STATE.suggestions.find(a=>a.id===id)||{};setVal('suggestionId',x.id);setVal('suggestionDate',x.date||`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}-01`);setVal('suggestionDept',x.department);setVal('suggestionCategory',x.category||'other');setVal('suggestionBy',x.submittedBy);setVal('suggestionGrievance',x.grievance);setVal('suggestionChecked',x.checkedBy);setVal('suggestionResponsible',x.responsible);setVal('suggestionStatus',x.status||'new');setVal('suggestionClosed',x.closedDate);setVal('suggestionAction',x.actionTaken);FORM_PHOTOS=[...(x.photos||[])];renderPhotoPreviews();openModal('suggestionModal')}
+function readAsDataUrl(file){return new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)})}
+async function handlePhotoInput(e){const files=[...e.target.files];if(FORM_PHOTOS.length+files.length>6){toast(tr('selectPhotoLimit'));e.target.value='';return}showLoading(LANG==='en'?'Compressing photos…':'壓縮照片中…');try{for(const f of files.slice(0,6-FORM_PHOTOS.length))FORM_PHOTOS.push(await compressDataUrl(await readAsDataUrl(f)));renderPhotoPreviews()}finally{hideLoading();e.target.value=''}}
+function renderPhotoPreviews(){document.getElementById('photoPreviews').innerHTML=FORM_PHOTOS.map((src,i)=>`<div class="photo-wrap"><img src="${src}" alt=""><button type="button" class="photo-remove" onclick="removeFormPhoto(${i})">×</button></div>`).join('')}
+function removeFormPhoto(i){FORM_PHOTOS.splice(i,1);renderPhotoPreviews()}
+async function saveSuggestion(e){e.preventDefault();const date=val('suggestionDate'),incoming={date,period:date.slice(0,7),department:val('suggestionDept'),category:val('suggestionCategory'),submittedBy:val('suggestionBy'),grievance:val('suggestionGrievance'),checkedBy:val('suggestionChecked'),responsible:val('suggestionResponsible'),status:val('suggestionStatus'),closedDate:val('suggestionClosed'),actionTaken:val('suggestionAction'),photos:[...FORM_PHOTOS],source:'online',sourceFile:'Online',updatedAt:new Date().toISOString()};let x=STATE.suggestions.find(a=>a.id===val('suggestionId'));if(x)Object.assign(x,incoming);else STATE.suggestions.push({...incoming,id:uid('suggest'),number:STATE.suggestions.filter(a=>a.period===incoming.period).length+1,sourceKey:'',createdAt:new Date().toISOString()});await persist();FORM_PHOTOS=[];closeModal('suggestionModal');renderAll();toast(`✅ ${tr('saved')}`)}
+
+/* ── Export, backup, manual cloud sync ─────────────────────────────── */
+function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
+function exportJson(){downloadBlob(new Blob([JSON.stringify(STATE,null,2)],{type:'application/json'}),`AC_HRA_Welfare_Suggestion_${new Date().toISOString().slice(0,10)}.json`)}
+document.getElementById('jsonInput').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!d.members||!d.suggestions)throw new Error('Invalid backup');STATE=Object.assign(defaultState(),d);await persist();renderAll();toast(`✅ ${tr('saved')}`)}catch(x){toast(`❌ ${x.message}`)}e.target.value=''});
+function exportExcel(){
+  if(!window.XLSX)return;const wb=XLSX.utils.book_new(),sheets=[
+    ['Transport & Accommodation',STATE.members.map(x=>({'Period':x.period,'Employee ID':x.employeeId,'Name':x.name,'Gender':x.gender,'Join Date':x.joinDate,'Department':x.department,'Transport':x.transport?'Yes':'','Accommodation':x.accommodation?'Yes':'','Accommodation Type':x.accommodationType,'Driver / Plate':x.driver,'Status':x.status,'Remark':x.remark,'Source':x.sourceFile}))],
+    ['Movements',STATE.movements.map(x=>({'Date':x.date,'Type':movementLabel(x.action),'Employee ID':x.employeeId,'Name':x.name,'Department':x.department,'Remark':x.remark,'Source':x.sourceFile}))],
+    ['Union Dues',STATE.unionDues.map(x=>({'Period':x.period,'Employee ID':x.employeeId,'Name':x.name,'Department':x.department,'Join Date':x.joinDate,'Union Join Date':x.unionJoinDate,'Amount USD':x.amount,'Status':x.status,'Remark':x.remark,'Source':x.sourceFile}))],
+    ['Suggestions',STATE.suggestions.map(x=>({'No.':x.number,'Date':x.date,'Department':x.department,'Category':x.category,'Suggestion / Grievance':x.grievance,'Checked By':x.checkedBy,'Responsible':x.responsible,'Status':x.status,'Action / Reply':x.actionTaken,'Closed Date':x.closedDate,'Photo Count':x.photos?.length||0,'Source':x.sourceFile}))],
+    ['Monthly Summary',STATE.summaries.map(x=>({'Period':x.period,'Transport':x.transport,'Local Accommodation':x.accommodationLocal,'Expat Accommodation':x.accommodationExpat,'Source':x.sourceFile}))]
+  ];sheets.forEach(([name,data])=>{const ws=XLSX.utils.json_to_sheet(data.length?data:[{}]);ws['!cols']=Object.keys(data[0]||{}).map(k=>({wch:Math.min(36,Math.max(12,k.length+2))}));XLSX.utils.book_append_sheet(wb,ws,name)});XLSX.writeFile(wb,`AC_HRA_Welfare_Suggestion_${new Date().toISOString().slice(0,10)}.xlsx`)
+}
+async function clearAllData(){if(!confirm(tr('confirmClear')))return;STATE=defaultState();await persist();renderAll();toast(tr('cleared'))}
+function saveSettings(){STATE.settings.imageSize=Number(val('imageSize'))||1000;STATE.settings.imageQuality=Number(val('imageQuality'))||.7;const gas=val('gasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})}
+function gasUrlValue(){return localStorage.getItem(GAS_KEY)||''}
+async function postGas(payload){const url=gasUrlValue();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d}
+async function cloudPush(){showLoading(LANG==='en'?'Uploading data and photos manually…':'手動上傳資料與照片中…');try{await postGas({action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],recordCount:STATE.members.length+STATE.unionDues.length+STATE.suggestions.length,updatedAt:new Date().toISOString()});toast(`✅ ${tr('cloudSent')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}}
+async function cloudPull(){const url=gasUrlValue();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading data and photos manually…':'手動下載資料與照片中…');try{const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');let records=d.data?.records||d.data?.data?.records||d.records||[],snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.members)snap=d.data.data;if(!snap?.members)throw new Error('No welfare snapshot');STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}}
+
+/* ── Telegram text summaries — always manual ───────────────────────── */
+function summaryText(lang,type,mode){
+  const old=LANG,key=mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`,s=statsFor(key,mode,''),label=mode==='year'?key:monthLabel(key);
+  const zh=[],en=[];if(type==='all'||type==='transport'){zh.push(`🚌 交通：${s.transport} 人（新增 ${s.apply}／停止 ${s.stop}）`,`🏠 住宿：本地 ${s.local}／外籍 ${s.expat}`);en.push(`🚌 Transport: ${s.transport} people (Added ${s.apply} / Stopped ${s.stop})`,`🏠 Accommodation: Local ${s.local} / Expat ${s.expat}`)}
+  if(type==='all'||type==='union'){zh.push(`🤝 工會費：${s.unionMembers} 人／${money(s.unionAmount)}`);en.push(`🤝 Union dues: ${s.unionMembers} people / ${money(s.unionAmount)}`)}
+  if(type==='all'||type==='suggestion'){zh.push(`💬 意見箱：${s.suggestions} 件／照片 ${s.photos} 張／結案 ${s.closed}`);en.push(`💬 Suggestion box: ${s.suggestions} cases / ${s.photos} photos / ${s.closed} closed`)}
+  return lang==='en'?[`📊 AC HRA Welfare & Suggestion — ${label}`,...en,'🏭 Vantage River Textiles'].join('\n'):[`📊 AC HRA 福利／意見箱摘要 — ${label}`,...zh,'🏭 Vantage River Textiles'].join('\n')
+}
+function refreshTg(){const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>summaryText(l,type,mode);document.getElementById('tgPreview').textContent=lang==='both'?one('zh')+'\n\n────────────────\n\n'+one('en'):one(lang)}
+function openTelegram(){setVal('tgPeriod',PERIOD_MODE);setVal('tgLang','both');refreshTg();openModal('telegramModal')}
+async function copyTg(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
+async function sendTelegram(){showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{await postGas({action:'telegram',tool:TOOL_ID,text:document.getElementById('tgPreview').textContent,messageType:val('tgType')});closeModal('telegramModal');toast(`✅ ${tr('telegramSent')}`)}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}}
+
+/* ── Local-only startup: no network request ────────────────────────── */
+async function init(){showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();for(const k of ['members','movements','unionDues','suggestions','summaries','imports'])STATE[k]=STATE[k]||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});setVal('imageSize',STATE.settings.imageSize);setVal('imageQuality',STATE.settings.imageQuality);setVal('gasUrl',gasUrlValue());applyLang();renderAll();hideLoading()}
+document.querySelectorAll('.modal:not(#lightboxModal)').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));init();
+</script>
+</body>
+</html>
