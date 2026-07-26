@@ -88,11 +88,11 @@ tr.sel{background:#eff6ff}
   <div class="grid lg:grid-cols-2 gap-4">
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[13px] font-semibold mb-3" data-i="chDept">部門分佈 By Department</div>
-      <canvas id="ch-dept" height="200"></canvas>
+      <div class="relative" style="height:260px"><canvas id="ch-dept"></canvas></div>
     </div>
     <div class="bg-white rounded-xl border border-slate-200 p-4">
       <div class="text-[13px] font-semibold mb-3" data-i="chTrend">未來 6 個月到期趨勢 Upcoming Expiry</div>
-      <canvas id="ch-trend" height="200"></canvas>
+      <div class="relative" style="height:260px"><canvas id="ch-trend"></canvas></div>
     </div>
   </div>
 </section>
@@ -100,6 +100,7 @@ tr.sel{background:#eff6ff}
 <!-- ══ TAB: PROBATION ══ -->
 <section id="pane-prob" class="hidden">
   <div id="nav-prob" class="mb-3"></div>
+  <div id="sum-prob" class="mb-3"></div>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="p-3 border-b border-slate-200 flex gap-2 flex-wrap items-center">
       <input id="q-prob" oninput="renderProb()" placeholder="搜尋 工號/姓名/部門…"
@@ -124,6 +125,7 @@ tr.sel{background:#eff6ff}
 <!-- ══ TAB: CONTRACT ══ -->
 <section id="pane-cont" class="hidden">
   <div id="nav-cont" class="mb-3"></div>
+  <div id="sum-cont" class="mb-3"></div>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="p-3 border-b border-slate-200 flex gap-2 flex-wrap items-center">
       <input id="q-cont" oninput="renderCont()" placeholder="搜尋 工號/姓名/部門…"
@@ -151,6 +153,7 @@ tr.sel{background:#eff6ff}
 <!-- ══ TAB: FINISH ══ -->
 <section id="pane-finish" class="hidden">
   <div id="nav-finish" class="mb-3"></div>
+  <div id="sum-finish" class="mb-3"></div>
   <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
     <div class="p-3 border-b border-slate-200 flex gap-2 flex-wrap items-center">
       <input id="q-fin" oninput="renderFinish()" placeholder="搜尋 工號/姓名/部門…"
@@ -262,13 +265,20 @@ tr.sel{background:#eff6ff}
       </div>
       <div class="flex gap-2 items-center">
         <label class="text-[12px] text-slate-500">內容來源</label>
-        <select id="tg-src" onchange="previewTg()" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-[13px]">
+        <select id="tg-src" onchange="onTgSrcChange()" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-[13px]">
           <option value="alert">半月到期提醒（目前視窗）</option>
-          <option value="prob">試用期名單（目前期間）</option>
-          <option value="cont">合約名單（目前期間）</option>
-          <option value="finish">到期終止（目前期間）</option>
+          <option value="prob">試用期名單</option>
+          <option value="cont">合約名單</option>
+          <option value="finish">到期終止</option>
           <option value="dash">總覽摘要</option>
         </select>
+      </div>
+      <div class="flex gap-2 items-center">
+        <label class="text-[12px] text-slate-500">期間 Period</label>
+        <select id="tg-period" onchange="previewTg()" class="flex-1 px-3 py-1.5 rounded-lg border border-slate-200 text-[13px] jmono"></select>
+        <label class="text-[12px] text-slate-500 flex items-center gap-1 whitespace-nowrap">
+          <input type="checkbox" id="tg-bi" checked onchange="previewTg()"> 中英雙語
+        </label>
       </div>
       <div>
         <div class="text-[12px] text-slate-500 mb-1">預覽 Preview</div>
@@ -726,6 +736,77 @@ function navJump(tab,val){
 }
 function renderTab(tab){ if(tab==='prob') renderProb(); else if(tab==='cont') renderCont(); else renderFinish(); }
 
+// ── Payroll-style period report (shown in 月 / 年 mode) ──────
+function rowsForPeriod(tab, key){
+  const src = tab==='prob'?PROBS : tab==='cont'?CONTS : FINISH;
+  if(!key || key==='ALL') return src.slice();
+  const len=key.length;                       // 7 = month, 4 = year
+  return src.filter(r=>{ const d=dateFieldOf(tab,r); return d && d.slice(0,len)===key; });
+}
+function periodGroups(tab, mode){
+  const src = tab==='prob'?PROBS : tab==='cont'?CONTS : FINISH;
+  const cut = mode==='year'?4:7;
+  const map={};
+  src.forEach(r=>{ const d=dateFieldOf(tab,r); if(!d) return;
+    const k=d.slice(0,cut); (map[k]=map[k]||[]).push(r); });
+  return Object.keys(map).sort().reverse().map(k=>({k, rows:map[k]}));
+}
+function renderSummary(tab){
+  const box=qs('#sum-'+tab); if(!box) return;
+  const st=NAV[tab];
+  if(st.mode!=='month' && st.mode!=='year'){ box.innerHTML=''; return; }
+  const groups=periodGroups(tab, st.mode);
+  const cur=pKey(lds(st.pivot), st);
+  const HD = tab==='prob'
+    ? ['期間 Period','到期 Expiring','通過 Pass','未通過 Fail','待評估 Pending','通過率 Rate']
+    : tab==='cont'
+    ? ['期間 Period','到期 Expiring','平均薪資 Avg','累計薪資 Total','5% 提存 Reserve']
+    : ['期間 Period','人數 Staff','薪資 Salary','年假 A/L','5% 資遣 Sev.','合計 Amount'];
+  const body = groups.map(g=>{
+    const isCur=g.k===cur, rs=g.rows;
+    let cells;
+    if(tab==='prob'){
+      const p=rs.filter(r=>r.result==='pass').length, f=rs.filter(r=>r.result==='fail').length;
+      const pd=rs.length-p-f, rate=rs.length?Math.round(p/rs.length*100)+'%':'—';
+      cells=['<span class="text-right">'+rs.length+'</span>','<span class="text-emerald-600">'+p+'</span>',
+             '<span class="text-rose-600">'+f+'</span>','<span class="text-slate-400">'+pd+'</span>', rate];
+    }else if(tab==='cont'){
+      const avg=rs.reduce((s,r)=>s+N(r.avgSalary),0)/(rs.length||1);
+      cells=[String(rs.length), fmt(avg), fmt(rs.reduce((s,r)=>s+N(r.totalSalary),0)),
+             '<span class="text-sky-600">'+fmt(rs.reduce((s,r)=>s+N(r.severance5),0))+'</span>'];
+    }else{
+      cells=[String(rs.length), fmt(rs.reduce((s,r)=>s+N(r.salary),0)), fmt(rs.reduce((s,r)=>s+N(r.annualLeave),0)),
+             '<span class="text-sky-600">'+fmt(rs.reduce((s,r)=>s+N(r.severance5),0))+'</span>',
+             '<b>'+fmt(rs.reduce((s,r)=>s+N(r.amount),0))+'</b>'];
+    }
+    return '<tr class="border-t border-slate-100 cursor-pointer '+(isCur?'bg-sky-50':'hover:bg-slate-50')
+      +'" onclick="sumJump(\''+tab+'\',\''+g.k+'\')">'
+      +'<td class="px-3 py-2 jmono font-semibold '+(isCur?'text-sky-700':'')+'">'+g.k+(isCur?' ◀':'')+'</td>'
+      + cells.map(c=>'<td class="px-3 py-2 text-right jmono">'+c+'</td>').join('')
+      +'</tr>';
+  }).join('');
+  box.innerHTML =
+    '<div class="bg-white rounded-xl border border-slate-200 overflow-hidden">'
+    +'<div class="px-3 py-2 border-b border-slate-200 flex items-center gap-2">'
+      +'<span class="text-[13px] font-semibold">📋 '+T('期間報表','Period Report')+'</span>'
+      +'<span class="text-[11px] text-slate-400">'+(st.mode==='year'?T('年報','Yearly'):T('月報','Monthly'))
+      +' · '+groups.length+' '+T('個期間','periods')+' · '+T('點列可切換','click a row to switch')+'</span>'
+    +'</div>'
+    +'<div class="overflow-auto" style="max-height:260px"><table class="w-full text-[12.5px]">'
+    +'<thead class="bg-slate-50 sticky top-0"><tr class="text-slate-500">'
+      +'<th class="px-3 py-2 text-left">'+HD[0]+'</th>'
+      + HD.slice(1).map(h=>'<th class="px-3 py-2 text-right">'+h+'</th>').join('')
+    +'</tr></thead><tbody>'
+    + (body || '<tr><td colspan="'+HD.length+'" class="px-3 py-6 text-center text-slate-400">'+T('尚無資料','No data')+'</td></tr>')
+    +'</tbody></table></div></div>';
+}
+function sumJump(tab, key){
+  const st=NAV[tab];
+  const y=+key.slice(0,4), mo = key.length>4 ? (+key.slice(5,7)-1) : 0;
+  st.pivot=new Date(y,mo,1);
+  navRender(tab); renderTab(tab);
+}
+
 // ═══════════════════════════════════════════════════════════
 // Semi-monthly alert window
 //  當月 1–15 日  → 提醒「下個月 1–15」到期
@@ -934,6 +1015,7 @@ function filterRows(tab){
   });
 }
 function renderProb(){
+  renderSummary('prob');
   let rows=filterRows('prob');
   const f=qs('#f-prob-res').value;
   if(f) rows=rows.filter(r=>(r.result||'pending')===f);
@@ -954,6 +1036,7 @@ function renderProb(){
   }).join('') : emptyRow(10);
 }
 function renderCont(){
+  renderSummary('cont');
   let rows=filterRows('cont');
   if(qs('#f-cont-soon').checked){
     const t=today0(), lim=new Date(t); lim.setDate(t.getDate()+90);
@@ -987,6 +1070,7 @@ function editEnd(k){
   persist(); renderCont(); renderDash(); renderAlert();
 }
 function renderFinish(){
+  renderSummary('finish');
   const rows=filterRows('finish').sort((a,b)=>String(b.period||'').localeCompare(String(a.period||'')));
   qs('#tb-fin').innerHTML = rows.length ? rows.map((r,i)=>
     '<tr class="border-t border-slate-100 hover:bg-slate-50">'
@@ -1011,6 +1095,7 @@ function emptyRow(n){ return '<tr><td colspan="'+n+'" class="px-3 py-8 text-cent
 function openTgModal(src){
   if(src) qs('#tg-src').value=src;
   qs('#tg-modal').classList.remove('hidden');
+  fillTgPeriods();
   setTgMode(TG_MODE); previewTg();
 }
 function closeTgModal(){ qs('#tg-modal').classList.add('hidden'); }
@@ -1027,19 +1112,29 @@ function setTgMode(m){
   }else hint.classList.add('hidden');
   previewTg();
 }
+// ── Bilingual TG text ───────────────────────────────────────
+// BI=true → 中英雙語；BI=false → 只用目前介面語言
+function tgBi(){ const el=qs('#tg-bi'); return el ? el.checked : true; }
+function L(zh,en){ return tgBi() ? (zh+' '+en) : (LANG==='en'?en:zh); }
+function tgPeriodVal(){ const el=qs('#tg-period'); return el&&el.value ? el.value : 'ALL'; }
+
 function buildText(src){
   const SEP='— — — — — — — — — —';
+  const FOOT='\n🏭 VRT Sihanoukville';
+
+  // ── 半月到期提醒 ──
   if(src==='alert'){
-    const win=windowFor(ALERT_OFFSET), kind=qs('#al-kind').value;
+    const win=windowFor(ALERT_OFFSET), kind=qs('#al-kind')?qs('#al-kind').value:'';
     let items=alertItems(win,kind);
     if(ALERT_SEL.size) items=items.filter(i=>ALERT_SEL.has(i.key));
-    if(!items.length) return {err:'目前視窗沒有可送出的項目（或未勾選）'};
+    if(!items.length) return {err:T('目前視窗沒有可送出的項目（或未勾選）','Nothing to send in this window (or none selected)')};
+    const nP=items.filter(i=>i.kind==='prob').length, nC=items.filter(i=>i.kind==='cont').length;
     const byDept={};
     items.forEach(i=>{ const d=i.dept||'Other'; (byDept[d]=byDept[d]||[]).push(i); });
-    let t='📋 <b>合約 / 試用到期通知</b>\n'
-      +'🗓 視窗 Window：'+esc(win.label)+'（'+win.from+' ~ '+win.to+'）\n'
-      +'👥 到期人數：<b>'+items.length+'</b>　⏳ 試用 '+items.filter(i=>i.kind==='prob').length
-      +'　📋 合約 '+items.filter(i=>i.kind==='cont').length+'\n'+SEP+'\n';
+    let t='📋 <b>'+L('合約 / 試用到期通知','Contract / Probation Expiry Notice')+'</b>\n'
+      +'🗓 '+L('視窗','Window')+'：'+esc(win.label)+'（'+win.from+' ~ '+win.to+'）\n'
+      +'👥 '+L('到期人數','Expiring')+'：<b>'+items.length+'</b>'
+      +'　⏳ '+L('試用','Probation')+' '+nP+'　📋 '+L('合約','Contract')+' '+nC+'\n'+SEP+'\n';
     Object.keys(byDept).sort().forEach(d=>{
       t+='<b>'+esc(d)+'</b>\n';
       byDept[d].forEach(i=>{
@@ -1049,39 +1144,79 @@ function buildText(src){
           +(dec.note?'（'+esc(dec.note)+'）':'')+'\n';
       });
     });
-    const app=items.filter(i=>DECISIONS[i.key]?.d==='approve').length;
-    const rej=items.filter(i=>DECISIONS[i.key]?.d==='reject').length;
-    t+=SEP+'\n✔ 建議續約 '+app+'　✖ 建議不續 '+rej+'　◻ 未決 '+(items.length-app-rej)
-      +'\n🏭 VRT Sihanoukville';
+    const app=items.filter(i=>(DECISIONS[i.key]||{}).d==='approve').length;
+    const rej=items.filter(i=>(DECISIONS[i.key]||{}).d==='reject').length;
+    t+=SEP+'\n✔ '+L('建議續約','Renew')+' '+app
+      +'　✖ '+L('建議不續','Not renew')+' '+rej
+      +'　◻ '+L('未決','Pending')+' '+(items.length-app-rej)+FOOT;
     return {text:t, items, win};
   }
+
+  // ── 總覽摘要 ──
   if(src==='dash'){
     const t0=today0(), in30=new Date(t0); in30.setDate(t0.getDate()+30);
     const ps=PROBS.filter(r=>{const d=parseYMD(probEndOf(r));return d&&d>=t0&&d<=in30;}).length;
     const cs=CONTS.filter(r=>{const d=parseYMD(contractEndOf(r));return d&&d>=t0&&d<=in30;}).length;
-    return {text:'📊 <b>合約 / 試用期總覽</b>\n'+SEP
-      +'\n⏳ 試用期人數：'+PROBS.length+'（通過 '+PROBS.filter(r=>r.result==='pass').length
-      +' / 未通過 '+PROBS.filter(r=>r.result==='fail').length+'）'
-      +'\n📋 合約員工：'+CONTS.length
-      +'\n🏁 已終止合約：'+FINISH.length
-      +'\n🔔 30 天內到期：試用 '+ps+' · 合約 '+cs
-      +'\n💰 5% 資遣提存合計：$'+fmt(CONTS.reduce((s,r)=>s+N(r.severance5),0))
-      +'\n'+SEP+'\n🏭 VRT Sihanoukville'};
+    return {text:'📊 <b>'+L('合約 / 試用期總覽','Contract & Probation Overview')+'</b>\n'+SEP
+      +'\n⏳ '+L('試用期人數','Probation')+'：'+PROBS.length
+      +'（'+L('通過','Pass')+' '+PROBS.filter(r=>r.result==='pass').length
+      +' / '+L('未通過','Fail')+' '+PROBS.filter(r=>r.result==='fail').length+'）'
+      +'\n📋 '+L('合約員工','Contract staff')+'：'+CONTS.length
+      +'\n🏁 '+L('已終止合約','Finished')+'：'+FINISH.length
+      +'\n🔔 '+L('30 天內到期','Expiring in 30 days')+'：'+L('試用','Prob.')+' '+ps+' · '+L('合約','Cont.')+' '+cs
+      +'\n💰 '+L('5% 資遣提存合計','5% severance reserve')+'：$'+fmt(CONTS.reduce((s,r)=>s+N(r.severance5),0))
+      +'\n'+SEP+FOOT};
   }
-  const tab=src;
-  const rows=filterRows(tab);
-  if(!rows.length) return {err:'目前期間沒有資料可傳送'};
-  const label=pLabel(NAV[tab]);
-  const head = tab==='prob'?'⏳ <b>試用期名單 Probation</b>' : tab==='cont'?'📋 <b>合約名單 Contract</b>' : '🏁 <b>到期終止 Finish Contract</b>';
+
+  // ── 名單（可選任一期間，不限當月）──
+  const tab=src, key=tgPeriodVal();
+  const rows=rowsForPeriod(tab, key);
+  if(!rows.length) return {err:T('該期間沒有資料可傳送','No data for the selected period')};
+  const label = key==='ALL' ? L('全部','All') : key;
+  const head = tab==='prob' ? '⏳ <b>'+L('試用期名單','Probation List')+'</b>'
+             : tab==='cont' ? '📋 <b>'+L('合約名單','Contract List')+'</b>'
+             :                '🏁 <b>'+L('到期終止','Finished Contracts')+'</b>';
   const dm={}; rows.forEach(r=>{const d=(r.dept||r.section||'Other');dm[d]=(dm[d]||0)+1;});
-  let t=head+'\n🗓 期間：'+esc(label)+'\n👥 人數：<b>'+rows.length+'</b>\n'+SEP+'\n';
-  Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,n])=>{ t+=esc(d)+'：'+n+' 人\n'; });
-  if(tab==='finish'){
-    t+=SEP+'\n💰 合計金額：$'+fmt(rows.reduce((s,r)=>s+N(r.amount),0));
+  let t=head+'\n🗓 '+L('期間','Period')+'：'+esc(label)
+       +'\n👥 '+L('人數','Headcount')+'：<b>'+rows.length+'</b>\n';
+  if(tab==='prob'){
+    const p=rows.filter(r=>r.result==='pass').length, f=rows.filter(r=>r.result==='fail').length;
+    t+='✅ '+L('通過','Pass')+' '+p+'　❌ '+L('未通過','Fail')+' '+f
+      +'　◻ '+L('待評估','Pending')+' '+(rows.length-p-f)
+      +'　📈 '+L('通過率','Pass rate')+' '+(rows.length?Math.round(p/rows.length*100):0)+'%\n';
   }
-  t+=SEP+'\n🏭 VRT Sihanoukville';
+  t+=SEP+'\n<b>'+L('各部門明細','By Department')+'</b>\n';
+  Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,n])=>{
+    t+=esc(d)+'：'+n+' '+L('人','staff')+'\n'; });
+  if(tab==='cont'){
+    t+=SEP+'\n💰 '+L('5% 資遣提存','5% reserve')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.severance5),0));
+  }
+  if(tab==='finish'){
+    t+=SEP+'\n💰 '+L('合計金額','Total amount')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.amount),0));
+  }
+  t+=FOOT;
   return {text:t};
 }
+
+// ── TG period dropdown ──────────────────────────────────────
+function fillTgPeriods(){
+  const src=qs('#tg-src').value, sel=qs('#tg-period'); if(!sel) return;
+  if(src==='alert'||src==='dash'){
+    sel.innerHTML='<option value="ALL">'+T('（此來源不需選期間）','(not applicable)')+'</option>';
+    sel.disabled=true; return;
+  }
+  sel.disabled=false;
+  const cutSrc = src==='prob'?PROBS : src==='cont'?CONTS : FINISH;
+  const months=[...new Set(cutSrc.map(r=>{const d=dateFieldOf(src,r); return d?d.slice(0,7):'';}).filter(Boolean))].sort().reverse();
+  const years =[...new Set(months.map(m=>m.slice(0,4)))].sort().reverse();
+  const curMonth = pKey(lds(NAV[src].pivot), {mode:'month'});
+  sel.innerHTML = '<option value="ALL">'+T('全部期間','All periods')+'</option>'
+    + years.map(y=>'<option value="'+y+'">'+y+' '+T('全年','full year')+'</option>').join('')
+    + months.map(m=>'<option value="'+m+'"'+(m===curMonth?' selected':'')+'>'+m+'</option>').join('');
+  if(!months.includes(curMonth)) sel.value='ALL';
+}
+function onTgSrcChange(){ fillTgPeriods(); previewTg(); }
+
 function previewTg(){
   const r=buildText(qs('#tg-src').value);
   qs('#tg-preview').textContent = r.err ? ('⚠ '+r.err) : r.text.replace(/<\/?b>/g,'');
@@ -1306,7 +1441,7 @@ async function init(){
 window.addEventListener('DOMContentLoaded', init);
 
 // expose for inline handlers
-Object.assign(window,{smartImport,goTab,setLang,navMode,navStep,navToday,navJump,renderProb,renderCont,
+Object.assign(window,{smartImport,goTab,setLang,navMode,navStep,navToday,navJump,sumJump,onTgSrcChange,fillTgPeriods,renderProb,renderCont,
   renderFinish,renderAlert,alertStep,alertToday,alertToggle,alertToggleAll,alertSetDecision,editEnd,
   openTgModal,closeTgModal,setTgMode,previewTg,confirmSendTg,cloudUpload,cloudDownload,
   saveCfg,testGas,exportJSON,importJSON,clearAll,exportCSV});
