@@ -98,7 +98,7 @@ tbody tr:hover{background:#f8fafc}
         <p class="text-xs font-semibold text-slate-700">📥 <span data-t="dz1">智慧匯入 Smart Import</span></p>
         <p class="text-[10px] text-slate-400 mt-1 leading-relaxed" data-t="dz2">
           拖放或點選 · 三種檔案自動判斷，不用分開匯入<br>
-          孕婦登記 .xls／孕婦名單 .xlsx／護理費 Nursing .xlsx
+          孕婦登記／孕婦名單／產假給付／護理費 Nursing<br>四類 .xls/.xlsx 皆自動判斷
         </p>
         <input id="file-input" type="file" multiple accept=".xlsx,.xls,.xlsm" class="hidden" onchange="onFiles(this.files)">
       </div>
@@ -444,7 +444,7 @@ var I18N={
      t_pregdet:'孕婦明細',t_matdet:'產假明細',t_nurdet:'護理費明細',t_appr:'核可清單',
      dim:'統計維度',dimside:'對象',s_cloud:'雲端 / Telegram',s_about:'相容性',
      dz1:'智慧匯入 Smart Import',
-     dz2:'拖放或點選 · 三種檔案自動判斷，不用分開匯入<br>孕婦登記 .xls／孕婦名單 .xlsx／護理費 Nursing .xlsx',
+     dz2:'拖放或點選 · 四類檔案自動判斷，不用分開匯入<br>孕婦登記／孕婦名單／產假給付／護理費 Nursing',
      dz3:'尚未匯入任何檔案。可一次拖入多個檔案，系統依工作表標題自動判斷孕婦/產假/護理費，並以工號跨檔去重合併。'},
  en:{hdr_title:'Maternity Management',up:'Upload',down:'Download',exp:'Export',imp:'Restore',
      tab_ov:'Overview',tab_preg:'🤰 Pregnant',tab_mat:'🍼 Maternity',tab_nur:'💊 Nursing',tab_anly:'📊 Analysis',tab_appr:'Approval',tab_set:'⚙️ Settings',
@@ -454,7 +454,7 @@ var I18N={
      t_pregdet:'Pregnant Records',t_matdet:'Maternity Records',t_nurdet:'Nursing Records',t_appr:'Approval List',
      dim:'Dimension',dimside:'Scope',s_cloud:'Cloud / Telegram',s_about:'Compatibility',
      dz1:'Smart Import',
-     dz2:'Drag &amp; drop or click · 3 file types auto-detected<br>Register .xls / Pregnant list .xlsx / Nursing .xlsx',
+     dz2:'Drag &amp; drop or click · 4 file types auto-detected<br>Register / Pregnant list / Maternity payment / Nursing',
      dz3:'No file imported yet. Drop several files at once — type auto-detected, de-duplicated across files by Employee ID.'}
 };
 function T(k){var d=I18N[LANG]||I18N.zh;return d[k]!==undefined?d[k]:(I18N.zh[k]||k);}
@@ -582,8 +582,12 @@ function renderNav(key){
     '<button onclick="pToday(\''+key+'\')" title="回到今天" class="px-2 py-1 text-xs rounded-md border border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100">&#9679;</button>';
   host.innerHTML='<div class="sect p-2.5 flex flex-wrap items-center gap-2 no-print"><div class="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">'+seg+'</div>'+sel+'<span class="text-xs text-slate-500 ml-1">'+esc(pLabel(st))+'</span></div>';
 }
-/* 每筆的期間代表日期 */
-function evDateEmp(r){ return r.registerTime||r.applyDate||r.leaveStart||r.edd||''; }
+/* 每筆的期間代表日期：產假/回歸以產假起始日為準，孕婦以登記日為準 */
+function evDateEmp(r){
+  if(r.status==='maternity'||r.status==='returned')
+    return r.leaveStart||r.applyDate||r.registerTime||r.edd||'';
+  return r.registerTime||r.applyDate||r.leaveStart||r.edd||'';
+}
 
 /* ═══════════ STORAGE（相容 v1 key） ═══════════ */
 function loadData(){
@@ -634,6 +638,9 @@ function detectType(wb,fileName){
   for(var s=0;s<names.length;s++){
     var sn=names[s];
     var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+    /* 產假給付結算：Summery 表頭含 ID No. + AMOUNT + Date Maternity */
+    if(hdrRowOf(rows,[/id no/,/amount/,/date maternity/],8)>=0)
+      return {type:'matpay',why:L('偵測到產假給付表（AMOUNT + Date Maternity）','payment sheet (AMOUNT + Date Maternity)')};
     /* 孕婦名單（v1 匯出）：表頭第一列即欄名 idNo/status/edd */
     var h0=hdrMap(rows[0]||[]);
     if(cIdx(h0,/^idno$/)>=0&&cIdx(h0,/^status$/)>=0&&cIdx(h0,/^edd$/)>=0)
@@ -706,7 +713,46 @@ function parseRegister(wb){
   return {rows:out,warn:warn};
 }
 
-/* ═══════════ 解析：孕婦名單 (v1 匯出) ═══════════ */
+/* ═══════════ 解析：產假給付結算 (Summery) ═══════════ */
+function parseMatPay(wb){
+  var out=[],warn=[];
+  var sn=wb.SheetNames.filter(function(n){
+    var rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:null,raw:true});
+    return hdrRowOf(rows,[/id no/,/amount/,/date maternity|maternity/],8)>=0;
+  })[0];
+  if(!sn){ /* 退而找 Summery */ sn=wb.SheetNames.filter(function(n){return /summe?ry/i.test(n);})[0]; }
+  if(!sn)return {rows:out,warn:[L('找不到產假給付表','payment sheet not found')]};
+  var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+  var h=hdrRowOf(rows,[/id no/,/amount/],8);
+  if(h<0)return {rows:out,warn:['['+sn+'] '+L('找不到產假給付表頭','payment header not found')]};
+  var hdr=hdrMap(rows[h]);
+  var cId=cIdx(hdr,/id no/,/^id$/), cName=cIdx(hdr,/^name$/,/name/), cAmt=cIdx(hdr,/amount/),
+      cDate=cIdx(hdr,/date maternity/), cGen=cIdx(hdr,/gender/), cPos=cIdx(hdr,/position/),
+      cAge=cIdx(hdr,/date of birth|age/), cRemark=cIdx(hdr,/remark/);
+  if(cId<0)return {rows:out,warn:['['+sn+'] '+L('缺少工號欄','missing ID column')]};
+  for(var i=h+1;i<rows.length;i++){
+    var row=rows[i]||[];
+    var idNo=empIdOf(row[cId]); if(!idNo)continue;
+    var nm=cs(row[cName]); if(/^(name|total|合計)$/i.test(nm))continue;
+    var amt=cAmt>=0?N(row[cAmt]):0;
+    var mdate=cDate>=0?xdate(row[cDate]):'';
+    var gen=cGen>=0?(cs(row[cGen])||'').toUpperCase().slice(0,1):'';
+    var pos=cPos>=0?cs(row[cPos]):'';
+    var ageRaw=cAge>=0?parseInt(cs(row[cAge]),10):NaN;
+    var rec={_k:'E|'+idNo,id:'e_'+uid(),idNo:idNo,name:nm,status:'maternity',type:'maternity',
+      matAmount:Math.round(amt*100)/100,totalDays:90,
+      remark:cRemark>=0?(cs(row[cRemark])||'Maternity payment'):'Maternity payment',
+      source:'matpay',srcSheet:sn};
+    /* 只在有值時帶入，避免覆蓋登記表既有欄位 */
+    if(mdate){rec.leaveStart=mdate;rec.applyDate=mdate;}
+    if(gen==='F'||gen==='M')rec.gender=gen;
+    if(pos)rec.position=pos;
+    if(isFinite(ageRaw)&&ageRaw>0&&ageRaw<100)rec.age=ageRaw;
+    out.push(rec);
+  }
+  return {rows:out,warn:warn};
+}
+
 var PREG_FIELDS=['id','idNo','name','engName','dept','group','position','gender','phone','edd','applyDate','leaveStart','returnDate','totalDays','status','basicSalary','mealFee','transportAllowance','nssf','deductions','remarks','type','birthday','nssfNo','registerTime','pregnantPeriod','remark','contactName','contactPhone','address'];
 function parsePregnant(wb){
   var out=[],warn=[];
@@ -811,12 +857,19 @@ function readOne(file){
         var det=detectType(wb,file.name);
         if(!det.type){ resolve({html:'<div class="text-amber-600">⚠️ '+esc(file.name)+' → '+L('無法判斷檔案類型，已略過','type undetected, skipped')+'</div>',ne:0,nn:0}); return; }
         var ne=0,nn=0,detail=[],warns=[],label='';
-        if(det.type==='register'||det.type==='pregnant'){
-          var a=det.type==='register'?parseRegister(wb):parsePregnant(wb);
+        if(det.type==='register'||det.type==='pregnant'||det.type==='matpay'){
+          var a=det.type==='register'?parseRegister(wb):det.type==='matpay'?parseMatPay(wb):parsePregnant(wb);
           warns=a.warn;
           var me=mergeInto(EMP,a.rows); EMP=me.arr; ne=a.rows.length;
-          label=det.type==='register'?'🤰 '+L('孕婦登記表','Pregnant register'):'📋 '+L('孕婦名單','Pregnant list');
-          detail.push(L('名冊','Registry')+' '+a.rows.length+' ('+L('新增','new')+' '+me.added+' / '+L('更新','upd')+' '+me.updated+')');
+          label=det.type==='register'?'🤰 '+L('孕婦登記表','Pregnant register')
+               :det.type==='matpay'?'🍼 '+L('產假給付結算','Maternity payment')
+               :'📋 '+L('孕婦名單','Pregnant list');
+          if(det.type==='matpay'){
+            var totAmt=a.rows.reduce(function(s,r){return s+(+r.matAmount||0);},0);
+            detail.push(L('產假給付','Payments')+' '+a.rows.length+' ('+L('新增','new')+' '+me.added+' / '+L('更新','upd')+' '+me.updated+') · '+L('給付合計','Total')+' $'+fmt(totAmt));
+          }else{
+            detail.push(L('名冊','Registry')+' '+a.rows.length+' ('+L('新增','new')+' '+me.added+' / '+L('更新','upd')+' '+me.updated+')');
+          }
         }else{
           var b=parseNursing(wb); warns=b.warn;
           var mn=mergeInto(NUR,b.rows); NUR=mn.arr; nn=b.rows.length;
@@ -1057,14 +1110,17 @@ function renderMat(){
     var today=lds(new Date());
     var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th>'+
       '<th>'+L('產假開始','Leave Start')+'</th><th>'+L('回歸日','Return')+'</th><th class="text-right">'+L('天數','Days')+'</th>'+
+      '<th class="text-right">'+L('產假給付','Payment')+'</th>'+
       '<th class="text-right">'+L('距回歸','To Return')+'</th><th>'+L('狀態','Status')+'</th><th>'+L('核可','Appr')+'</th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="9" class="text-center text-slate-400 py-6">'+L('此期間沒有產假記錄','No maternity records')+'</td></tr>';
+    if(!rows.length)h+='<tr><td colspan="10" class="text-center text-slate-400 py-6">'+L('此期間沒有產假記錄','No maternity records')+'</td></tr>';
     rows.forEach(function(r){
       var toRet=dayDiff(today,r.returnDate);
       var cls=toRet!=null&&toRet>=0&&toRet<=30?'text-amber-600 font-semibold':(toRet!=null&&toRet<0?'text-slate-300':'text-slate-500');
       h+='<tr><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td>'+
         '<td class="jmono">'+esc(r.leaveStart||r.applyDate||'—')+'</td><td class="jmono">'+esc(r.returnDate||'—')+'</td>'+
-        '<td class="text-right jmono">'+fmt0(r.totalDays||90)+'</td><td class="text-right jmono '+cls+'">'+(toRet==null?'—':(toRet<0?L('已回歸','done'):'+'+toRet+L('天','d')))+'</td>'+
+        '<td class="text-right jmono">'+fmt0(r.totalDays||90)+'</td>'+
+        '<td class="text-right jmono '+(+r.matAmount>0?'text-emerald-600 font-semibold':'text-slate-300')+'">'+(+r.matAmount>0?'$'+fmt(r.matAmount):'—')+'</td>'+
+        '<td class="text-right jmono '+cls+'">'+(toRet==null?'—':(toRet<0?L('已回歸','done'):'+'+toRet+L('天','d')))+'</td>'+
         '<td>'+statusBadge(r.status)+'</td><td>'+decBadge(r._k)+'</td></tr>';
     });
     h+='</tbody></table>'; el('mat-tbl').innerHTML=h;
@@ -1080,13 +1136,13 @@ function renderMat(){
 function renderMatKpi(rows){
   var tot=rows.length, today=lds(new Date());
   var onLeave=rows.filter(function(r){return r.status==='maternity';}).length;
-  var returned=rows.filter(function(r){return r.status==='returned';}).length;
   var ret30=rows.filter(function(r){var u=dayDiff(today,r.returnDate);return u!=null&&u>=0&&u<=30;}).length;
   var days=rows.map(function(r){return +r.totalDays;}).filter(function(x){return isFinite(x)&&x>0;});
   var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):90;
+  var payTot=rows.reduce(function(s,r){return s+(+r.matAmount||0);},0);
   el('mat-kpi').innerHTML=
     kpiCard(fmt0(onLeave),'',L('產假中','On Leave'),'text-violet-600')+
-    kpiCard(fmt0(returned),'',L('已回歸','Returned'),'text-emerald-600')+
+    kpiCard('$'+fmt(payTot),'',L('產假給付合計','Payment Total'),'text-emerald-600')+
     kpiCard(fmt0(ret30),'',L('30天內回歸','Return ≤30d'),'text-amber-600')+
     kpiCard(fmt0(avgD),L('天','days'),L('平均產假天數','Avg Days'),'text-slate-700');
 }
@@ -1329,7 +1385,9 @@ function matBlock(M,bi){
   var ret30=M.filter(function(r){var u=dayDiff(today,r.returnDate);return u!=null&&u>=0&&u<=30;}).length;
   var days=M.map(function(r){return +r.totalDays;}).filter(function(x){return isFinite(x)&&x>0;});
   var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):90;
+  var payTot=M.reduce(function(s,r){return s+(+r.matAmount||0);},0);
   var t='🍼 <b>'+esc(BL('產假','Maternity',bi))+'：'+M.length+'</b>（'+esc(BL('產假中','on leave',bi))+' '+onLeave+'）\n';
+  if(payTot>0)t+='💵 '+esc(BL('產假給付合計','Payment total',bi))+'：$'+fmt(payTot)+'\n';
   t+='📅 '+esc(BL('30天內回歸','Return ≤30d',bi))+'：'+ret30+'\n';
   t+='⏱ '+esc(BL('平均產假天數','Avg days',bi))+'：'+avgD+'\n';
   return t;
