@@ -211,6 +211,21 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
 .yr-table .total-row td{background:#f0f9f0;font-weight:700;color:var(--green)}
 /* ── TYPE COLOR DOTS ── */
 .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0}
+/* ── PERIOD ANALYSIS / AUTOMATION ── */
+.analysis-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:10px 0}
+.period-seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:#fff}
+.period-seg button{border:0;border-right:1px solid var(--border);background:#fff;color:var(--text2);padding:7px 12px;font-weight:700;font-size:.75rem}
+.period-seg button:last-child{border-right:0}.period-seg button.active{background:var(--green);color:#fff}
+.period-nav{border:1px solid var(--border);background:#fff;border-radius:7px;padding:7px 10px;color:var(--green);font-weight:800}
+.period-anchor{border:1px solid var(--border);border-radius:7px;padding:7px 10px;min-height:34px}
+.period-label{padding:8px 10px;background:var(--green4);border:1px solid #c8e6c9;border-radius:8px;color:var(--green);font-size:.78rem;font-weight:700;margin-bottom:9px}
+.period-table{width:100%;border-collapse:collapse;font-size:.72rem;min-width:760px}
+.period-table th{background:#e8f5e9;color:var(--green);padding:7px;border:1px solid #c8e6c9;white-space:nowrap}
+.period-table td{padding:6px 7px;border:1px solid var(--border);vertical-align:top}
+.schedule-box{border:1px solid #b3d6e8;background:#eef8fd;border-radius:9px;padding:10px;font-size:.75rem;color:#234b61;line-height:1.55}
+.manual-badge{display:inline-flex;align-items:center;gap:4px;background:#fff8e1;color:#7b5200;border:1px solid #ffe082;border-radius:999px;padding:4px 8px;font-size:.65rem;font-weight:800}
+.tg-inline-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+@media(max-width:650px){.period-seg{width:100%}.period-seg button{flex:1}.analysis-controls .btn{flex:1}.tg-inline-controls{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -268,6 +283,7 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
     </div>
     <div style="margin-left:auto;display:flex;gap:6px;align-items:center">
       <button class="btn btn-green btn-sm" onclick="openModal()">＋ <span data-t="add_hol">新增假日</span></button>
+      <button class="btn btn-tg btn-sm" onclick="openChangeTelegram()">✈️ <span data-t="send_changes">變更摘要</span></button>
       <button class="btn btn-gold btn-sm" onclick="exportExcel()">📊 Excel</button>
       <button class="btn btn-gray btn-sm" onclick="exportColorPrint()">🖨 彩色列印</button>
     </div>
@@ -332,6 +348,24 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
 
 <!-- ─────── ANALYSIS TAB ─────── -->
 <div class="tab-panel" id="tab-analysis">
+  <div class="section-card" style="margin-bottom:14px">
+    <div class="section-title">📊 <span data-t="period_analysis">期間分析</span> <span class="manual-badge" data-t="day_week_month_year">日／週／月／年</span></div>
+    <div class="analysis-controls">
+      <div class="period-seg">
+        <button id="ap-day" onclick="setAnalysisMode('day')" data-t="view_day">日</button>
+        <button id="ap-week" onclick="setAnalysisMode('week')" data-t="view_week">週</button>
+        <button id="ap-month" class="active" onclick="setAnalysisMode('month')" data-t="view_month">月</button>
+        <button id="ap-year" onclick="setAnalysisMode('year')" data-t="view_year">年</button>
+      </div>
+      <button class="period-nav" onclick="moveAnalysisPeriod(-1)">◀</button>
+      <input class="period-anchor" id="analysis-anchor" type="date" onchange="setAnalysisAnchor(this.value)">
+      <button class="period-nav" onclick="moveAnalysisPeriod(1)">▶</button>
+      <button class="btn btn-tg btn-sm" onclick="openTelegramForPeriod()">✈️ <span data-t="send_period_summary">發送本期摘要</span></button>
+    </div>
+    <div class="period-label" id="analysis-period-label"></div>
+    <div class="stats-grid" id="period-stats"></div>
+    <div class="tbl-wrap" style="margin-top:10px"><table class="period-table"><thead id="period-breakdown-head"></thead><tbody id="period-breakdown-body"></tbody></table></div>
+  </div>
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
     <!-- Stats cards -->
     <div>
@@ -408,54 +442,62 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
     <div class="section-card">
       <div class="section-title">⚙️ Telegram <span data-t="tg_config">設定</span></div>
       <div class="info-box">
-        <strong>設定步驟：</strong><br>
-        1. 搜尋 @BotFather → /newbot 建立 Bot<br>
-        2. 複製 Bot Token（格式：123456:ABC...）<br>
-        3. 將 Bot 加入群組並給予管理員權限<br>
-        4. 搜尋 @userinfobot 取得群組 Chat ID<br>
-        5. 群組 Chat ID 通常以 <code>-100</code> 開頭
+        <strong data-t="safe_send">由共用 GAS 安全發送</strong><br>
+        <span data-t="tg_no_secret">本頁不保存 Bot Token 或群組 ID；只有按下手動發送或安裝月底排程時才連線。</span>
       </div>
       <div class="form-grid">
-        <div class="form-group full">
-          <label class="form-label">Bot Token</label>
-          <input class="form-input" id="tg-token" placeholder="1234567890:ABCdefGHIjklMNO..." style="font-family:monospace;font-size:.75rem">
-        </div>
-        <div class="form-group full">
-          <label class="form-label">群組 Chat ID</label>
-          <input class="form-input" id="tg-chatid" placeholder="-1001234567890" style="font-family:monospace">
-        </div>
         <div class="form-group">
-          <label class="form-label">通知類型</label>
-          <select class="form-select" id="tg-msgtype">
-            <option value="upcoming">即將到來假日（5筆）</option>
-            <option value="month">本月假日</option>
-            <option value="year">全年假日摘要</option>
-            <option value="custom">自訂訊息</option>
+          <label class="form-label" data-t="notice_type">通知類型</label>
+          <select class="form-select" id="tg-msgtype" onchange="previewTgMsg()">
+            <option value="nextmonth" data-t="next_month_summary">下月完整摘要</option>
+            <option value="period" data-t="selected_period_summary">所選期間摘要</option>
+            <option value="changes" data-t="change_summary">日曆變更摘要</option>
+            <option value="upcoming" data-t="upcoming_summary">即將到來假日</option>
+            <option value="year" data-t="year_summary">全年假日摘要</option>
+            <option value="custom" data-t="custom_message">自訂訊息</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label">年份</label>
-          <select class="form-select" id="tg-year"></select>
+          <label class="form-label" data-t="language">語言</label>
+          <select class="form-select" id="tg-lang" onchange="previewTgMsg()">
+            <option value="both" data-t="bilingual">中英雙語</option>
+            <option value="zh" data-t="chinese">中文</option>
+            <option value="en" data-t="english">English</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" data-t="year">年份</label>
+          <select class="form-select" id="tg-year" onchange="previewTgMsg()"></select>
         </div>
         <div class="form-group full">
-          <label class="form-label">自訂訊息（選填，留空自動生成）</label>
-          <textarea class="form-textarea" id="tg-msg" placeholder="輸入自訂通知內容..." style="min-height:80px"></textarea>
+          <label class="form-label" data-t="custom_optional">自訂訊息（僅自訂類型使用）</label>
+          <textarea class="form-textarea" id="tg-msg" data-t-placeholder="custom_placeholder" placeholder="輸入自訂通知內容..." style="min-height:70px" oninput="previewTgMsg()"></textarea>
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-        <button class="btn btn-gray" onclick="previewTgMsg()" style="flex:1">👁 預覽</button>
-        <button class="btn btn-tg" onclick="sendTelegram()" style="flex:2">✈️ 發送 Telegram 通知</button>
+        <button class="btn btn-gray" onclick="previewTgMsg()" style="flex:1">👁 <span data-t="preview">預覽</span></button>
+        <button class="btn btn-tg" onclick="sendTelegram()" style="flex:2">✈️ <span data-t="manual_send">手動發送</span></button>
       </div>
       <div id="tg-status" style="margin-top:10px"></div>
+      <div class="schedule-box" style="margin-top:12px">
+        <strong>🗓 <span data-t="month_end_auto">每月底自動通知下月</span></strong>
+        <div style="margin:7px 0" data-t="month_end_desc">內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。</div>
+        <div class="tg-inline-controls">
+          <label><input type="checkbox" id="auto-enabled"> <span data-t="enable_auto">啟用月底通知</span></label>
+          <label><span data-t="send_hour">發送時間</span> <select id="auto-hour"><option value="7">07:00</option><option value="8" selected>08:00</option><option value="9">09:00</option><option value="16">16:00</option><option value="17">17:00</option></select></label>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-blue btn-sm" onclick="saveAutoSchedule()">☁️ <span data-t="save_schedule">儲存／安裝排程</span></button>
+          <span id="schedule-status" class="manual-badge"></span>
+        </div>
+      </div>
     </div>
     <div class="section-card">
-      <div class="section-title">📝 訊息預覽</div>
+      <div class="section-title">📝 <span data-t="message_preview">訊息預覽</span></div>
       <div class="tg-preview" id="tg-preview">點擊「預覽」按鈕查看通知內容...</div>
-      <div style="margin-top:8px;font-size:.72rem;color:var(--text2)">
-        📌 支援 HTML 格式（&lt;b&gt;粗體&lt;/b&gt;、&lt;i&gt;斜體&lt;/i&gt;、&lt;code&gt;程式碼&lt;/code&gt;）
-      </div>
-      <div class="warn-box" style="margin-top:10px">
-        <strong>💡 注意：</strong>直接從瀏覽器發送 Telegram API 需要 CORS 支持。若遇到跨域錯誤，建議使用後端代理或 Telegram Bot Server。
+      <div class="info-box" style="margin-top:10px">
+        <strong data-t="change_tracking">變更追蹤：</strong>
+        <span data-t="change_tracking_desc">新增、修改、取消與刪除假日都會留下本機變更紀錄，手動摘要可直接列出。</span>
       </div>
     </div>
   </div>
@@ -1088,12 +1130,18 @@ function hol(id, date, enddate, zh, en, km, type, days, note, refdate='', source
 }
 
 // ═══════════════════ STATE ═══════════════════
-let lang = 'zh';
+let lang = localStorage.getItem('ac_hra_lang') || 'zh';
 let curYear = 2026;
 let calView = 'year';
 let weekOffset = 0; // weeks from today
 let selDate = null;
 let editingId = null;
+let analysisMode = 'month';
+let analysisAnchor = new Date();
+let CHANGE_LOG = [];
+let CAL_SETTINGS = {autoMonthEnd:false,sendHour:8,timezone:'Asia/Phnom_Penh',scheduleInstalled:false,scheduleUpdatedAt:''};
+let LAST_SAVED_DB = null;
+const CAL_DB_KEY='cambodia_hols',CAL_FLAT_KEY='ac_hra_calendar_db',CAL_CHANGE_KEY='ac_hra_calendar_changes',CAL_SETTINGS_KEY='ac_hra_calendar_settings',CAL_META_KEY='ac_hra_calendar_meta';
 
 const LANGS = {
   zh:{ cal:'行事曆',sum:'總表',mgr:'假日管理',ana:'統計對比',exp:'匯出匯入',
@@ -1104,7 +1152,14 @@ const LANGS = {
     col_name_en:'English',col_name_km:'ខ្មែរ',col_days:'天數',col_weekday:'星期',col_note:'備注',col_action:'操作',
     year_stats:'年度統計',type_dist:'類型分佈',month_heat:'月份熱力圖',compare:'年份對比',
     upcoming:'即將到來的假日',export:'匯出資料',import:'匯入資料',data_overview:'資料總覽',
-    tg_config:'設定',
+    tg_config:'設定',period_analysis:'期間分析',day_week_month_year:'日／週／月／年',send_period_summary:'發送本期摘要',send_changes:'變更摘要',
+    safe_send:'由共用 GAS 安全發送',tg_no_secret:'本頁不保存 Bot Token 或群組 ID；只有按下手動發送或安裝月底排程時才連線。',
+    notice_type:'通知類型',next_month_summary:'下月完整摘要',selected_period_summary:'所選期間摘要',change_summary:'日曆變更摘要',upcoming_summary:'即將到來假日',year_summary:'全年假日摘要',custom_message:'自訂訊息',
+    language:'語言',bilingual:'中英雙語',chinese:'中文',english:'English',year:'年份',custom_optional:'自訂訊息（僅自訂類型使用）',custom_placeholder:'輸入自訂通知內容…',preview:'預覽',manual_send:'手動發送',
+    month_end_auto:'每月底自動通知下月',month_end_desc:'內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。',enable_auto:'啟用月底通知',send_hour:'發送時間',save_schedule:'儲存／安裝排程',message_preview:'訊息預覽',
+    change_tracking:'變更追蹤：',change_tracking_desc:'新增、修改、取消與刪除假日都會留下本機變更紀錄，手動摘要可直接列出。',
+    calendar_days:'日曆天數',sunday_count:'周日',saturday_count:'周六',holiday_days:'實際休假日',legal_days:'法定假日',estimated_workdays:'預估工作日',moved_days:'換／延後假',cancelled_days:'取消假日',added_holiday_days:'加假／補假',extra_workdays:'新增上班日',change_records:'變更筆數',
+    day_status:'當日狀態',workday:'上班日',sunday:'周日休息',holiday:'假日',changes:'變更',month_summary:'月份摘要',no_records:'沒有相關紀錄',
     MONTHS:['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'],
     WD:['日','一','二','三','四','五','六'],
     WDF:['星期日','星期一','星期二','星期三','星期四','星期五','星期六'],
@@ -1117,7 +1172,14 @@ const LANGS = {
     col_name_en:'English',col_name_km:'Khmer',col_days:'Days',col_weekday:'Weekday',col_note:'Notes',col_action:'Actions',
     year_stats:'Year Stats',type_dist:'Type Distribution',month_heat:'Monthly Heatmap',compare:'Year Comparison',
     upcoming:'Upcoming Holidays',export:'Export Data',import:'Import Data',data_overview:'Data Overview',
-    tg_config:'Configuration',
+    tg_config:'Configuration',period_analysis:'Period Analysis',day_week_month_year:'Day / Week / Month / Year',send_period_summary:'Send Period Summary',send_changes:'Change Summary',
+    safe_send:'Secure delivery through shared GAS',tg_no_secret:'This page stores no bot token or group ID. It connects only when you send manually or install the month-end schedule.',
+    notice_type:'Notice Type',next_month_summary:'Full Next-Month Summary',selected_period_summary:'Selected Period Summary',change_summary:'Calendar Change Summary',upcoming_summary:'Upcoming Holidays',year_summary:'Full-Year Summary',custom_message:'Custom Message',
+    language:'Language',bilingual:'Chinese + English',chinese:'Chinese',english:'English',year:'Year',custom_optional:'Custom message (custom type only)',custom_placeholder:'Enter a custom notice…',preview:'Preview',manual_send:'Send Manually',
+    month_end_auto:'Automatic Next-Month Notice at Month End',month_end_desc:'Includes next month’s calendar days, Sundays, holidays, estimated workdays, moved, cancelled or added holidays, and extra workdays.',enable_auto:'Enable month-end notice',send_hour:'Send time',save_schedule:'Save / Install Schedule',message_preview:'Message Preview',
+    change_tracking:'Change tracking:',change_tracking_desc:'Adding, editing, cancelling or deleting a holiday creates a local change record that can be sent as a manual summary.',
+    calendar_days:'Calendar Days',sunday_count:'Sundays',saturday_count:'Saturdays',holiday_days:'Actual Days Off',legal_days:'Legal Holidays',estimated_workdays:'Estimated Workdays',moved_days:'Moved / Postponed',cancelled_days:'Cancelled Holidays',added_holiday_days:'Added / Makeup Holidays',extra_workdays:'Extra Workdays',change_records:'Changes',
+    day_status:'Day Status',workday:'Workday',sunday:'Sunday Off',holiday:'Holiday',changes:'Changes',month_summary:'Monthly Summary',no_records:'No related records',
     MONTHS:['January','February','March','April','May','June','July','August','September','October','November','December'],
     WD:['Su','Mo','Tu','We','Th','Fr','Sa'],
     WDF:['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'],
@@ -1130,7 +1192,14 @@ const LANGS = {
     col_name_en:'English',col_name_km:'ខ្មែរ',col_days:'ថ្ងៃ',col_weekday:'ថ្ងៃ',col_note:'កំណត់ចំណាំ',col_action:'សកម្មភាព',
     year_stats:'ស្ថិតិ',type_dist:'ប្រភេទ',month_heat:'ផែនទីកំដៅ',compare:'ប្រៀបធៀប',
     upcoming:'ថ្ងៃឈប់ខាងមុខ',export:'នាំចេញ',import:'នាំចូល',data_overview:'ទិដ្ឋភាព',
-    tg_config:'ការកំណត់',
+    tg_config:'ការកំណត់',period_analysis:'វិភាគរយៈពេល',day_week_month_year:'ថ្ងៃ / សប្ដាហ៍ / ខែ / ឆ្នាំ',send_period_summary:'ផ្ញើសេចក្តីសង្ខេប',send_changes:'សង្ខេបការកែប្រែ',
+    safe_send:'ផ្ញើដោយសុវត្ថិភាពតាម GAS',tg_no_secret:'ទំព័រនេះមិនរក្សាទុក Bot Token ឬ Group ID ទេ។ វាភ្ជាប់តែពេលផ្ញើដោយដៃ ឬដំឡើងកាលវិភាគ។',
+    notice_type:'ប្រភេទជូនដំណឹង',next_month_summary:'សង្ខេបខែក្រោយ',selected_period_summary:'សង្ខេបរយៈពេល',change_summary:'សង្ខេបការកែប្រែ',upcoming_summary:'ថ្ងៃឈប់ខាងមុខ',year_summary:'សង្ខេបប្រចាំឆ្នាំ',custom_message:'សារផ្ទាល់ខ្លួន',
+    language:'ភាសា',bilingual:'ចិន + អង់គ្លេស',chinese:'ចិន',english:'English',year:'ឆ្នាំ',custom_optional:'សារផ្ទាល់ខ្លួន',custom_placeholder:'បញ្ចូលសារ…',preview:'មើលជាមុន',manual_send:'ផ្ញើដោយដៃ',
+    month_end_auto:'ជូនដំណឹងខែក្រោយនៅចុងខែ',month_end_desc:'រួមមានចំនួនថ្ងៃ ថ្ងៃអាទិត្យ ថ្ងៃឈប់ ថ្ងៃធ្វើការ និងការផ្លាស់ប្តូរ។',enable_auto:'បើកការជូនដំណឹង',send_hour:'ម៉ោងផ្ញើ',save_schedule:'រក្សាទុក / ដំឡើង',message_preview:'មើលសារជាមុន',
+    change_tracking:'តាមដានការកែប្រែ៖',change_tracking_desc:'ការបន្ថែម កែប្រែ លុប ឬបោះបង់ថ្ងៃឈប់ នឹងរក្សាទុកជាប្រវត្តិ។',
+    calendar_days:'ថ្ងៃសរុប',sunday_count:'ថ្ងៃអាទិត្យ',saturday_count:'ថ្ងៃសៅរ៍',holiday_days:'ថ្ងៃឈប់ពិត',legal_days:'ថ្ងៃឈប់ច្បាប់',estimated_workdays:'ថ្ងៃធ្វើការប៉ាន់ស្មាន',moved_days:'ប្តូរ / ពន្យារ',cancelled_days:'ថ្ងៃឈប់បានលុប',added_holiday_days:'ថ្ងៃឈប់បន្ថែម',extra_workdays:'ថ្ងៃធ្វើការបន្ថែម',change_records:'ការកែប្រែ',
+    day_status:'ស្ថានភាពថ្ងៃ',workday:'ថ្ងៃធ្វើការ',sunday:'ឈប់ថ្ងៃអាទិត្យ',holiday:'ថ្ងៃឈប់',changes:'ការកែប្រែ',month_summary:'សង្ខេបខែ',no_records:'គ្មានទិន្នន័យ',
     MONTHS:['មករា','កុម្ភៈ','មីនា','មេសា','ឧសភា','មិថុនា','កក្កដា','សីហា','កញ្ញា','តុលា','វិច្ឆិកា','ធ្នូ'],
     WD:['អ','ច','អ','ព','ព','ស','ស'],
     WDF:['អាទិត្យ','ច័ន្ទ','អង្គារ','ពុធ','ព្រហស្បតិ៍','សុក្រ','សៅរ៍'],
@@ -1140,6 +1209,7 @@ const LANGS = {
 // ═══════════════════ UTILS ═══════════════════
 const L = () => LANGS[lang];
 function t(key){ return L()[key] || key; }
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function pad(n){ return String(n).padStart(2,'0'); }
 function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function parseDate(s){ return s ? new Date(s+'T00:00:00') : null; }
@@ -1178,34 +1248,73 @@ function badgeHtml(type){
   const c=typeCfg(type);
   return `<span class="badge badge-${type}">${c.icon} ${c[lang]||c.zh}</span>`;
 }
-function saveDB(){ try{ localStorage.setItem('cambodia_hols',JSON.stringify(DB)); }catch(e){} }
-function loadDB(){ try{ const d=localStorage.getItem('cambodia_hols'); if(d) DB=JSON.parse(d); }catch(e){} }
+function clone(v){return JSON.parse(JSON.stringify(v))}
+function flatDB(db=DB){return Object.entries(db).flatMap(([year,list])=>(list||[]).map(h=>({...h,_year:+year})))}
+function dbFromFlat(rows){const out={};(rows||[]).forEach(x=>{const y=+(x._year||String(x.date||'').slice(0,4));if(!y)return;const h={...x};delete h._year;(out[y]??=[]).push(h)});return out}
+function logDbDiff(before,after){
+  if(!before)return;const oldMap=new Map(flatDB(before).map(x=>[x.id,x])),newMap=new Map(flatDB(after).map(x=>[x.id,x])),at=new Date().toISOString(),add=(action,oldRec,newRec)=>CHANGE_LOG.push({id:uid(),action,at,recordId:(newRec||oldRec)?.id||'',date:(newRec||oldRec)?.date||'',year:(newRec||oldRec)?._year||'',type:(newRec||oldRec)?.type||'',zh:(newRec||oldRec)?.zh||'',en:(newRec||oldRec)?.en||'',before:oldRec||null,after:newRec||null});
+  newMap.forEach((n,id)=>{const o=oldMap.get(id);if(!o)add('add',null,n);else if(JSON.stringify(o)!==JSON.stringify(n))add('update',o,n)});
+  oldMap.forEach((o,id)=>{if(!newMap.has(id))add('delete',o,null)});if(CHANGE_LOG.length>500)CHANGE_LOG=CHANGE_LOG.slice(-500)
+}
+function saveDB(track=true){
+  try{
+    if(track)logDbDiff(LAST_SAVED_DB,DB);LAST_SAVED_DB=clone(DB);
+    const flat=flatDB();localStorage.setItem(CAL_DB_KEY,JSON.stringify(DB));localStorage.setItem(CAL_FLAT_KEY,JSON.stringify(flat));localStorage.setItem(CAL_CHANGE_KEY,JSON.stringify(CHANGE_LOG));localStorage.setItem(CAL_SETTINGS_KEY,JSON.stringify(CAL_SETTINGS));
+    let meta={};try{meta=JSON.parse(localStorage.getItem(CAL_META_KEY)||'{}')}catch{}localStorage.setItem(CAL_META_KEY,JSON.stringify({...meta,localUpdatedAt:Date.now(),count:flat.length,changeCount:CHANGE_LOG.length}));
+  }catch(e){console.warn('Calendar save failed',e)}
+}
+function loadDB(){
+  try{
+    const full=localStorage.getItem(CAL_DB_KEY),flat=localStorage.getItem(CAL_FLAT_KEY);if(full)DB=JSON.parse(full);else if(flat){const rows=JSON.parse(flat);if(Array.isArray(rows))DB=dbFromFlat(rows)}
+    CHANGE_LOG=JSON.parse(localStorage.getItem(CAL_CHANGE_KEY)||'[]')||[];CAL_SETTINGS=Object.assign(CAL_SETTINGS,JSON.parse(localStorage.getItem(CAL_SETTINGS_KEY)||'{}'));LAST_SAVED_DB=clone(DB)
+  }catch(e){console.warn('Calendar load failed',e);LAST_SAVED_DB=clone(DB)}
+}
 function countByType(list,type){ return list.filter(h=>h.type===type).reduce((s,h)=>s+(+h.days||1),0); }
+function rangeDates(start,end){const out=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1))out.push(ymd(d));return out}
+function periodBounds(mode=analysisMode,anchor=analysisAnchor){
+  const a=new Date(anchor);a.setHours(0,0,0,0);let start=new Date(a),end=new Date(a);
+  if(mode==='week'){const day=(a.getDay()+6)%7;start.setDate(a.getDate()-day);end=new Date(start);end.setDate(start.getDate()+6)}
+  else if(mode==='month'){start=new Date(a.getFullYear(),a.getMonth(),1);end=new Date(a.getFullYear(),a.getMonth()+1,0)}
+  else if(mode==='year'){start=new Date(a.getFullYear(),0,1);end=new Date(a.getFullYear(),11,31)}
+  return{start,end,keyStart:ymd(start),keyEnd:ymd(end)}
+}
+function recordsForRange(start,end){const ys=[];for(let y=start.getFullYear();y<=end.getFullYear();y++)ys.push(...getHols(y));return ys.filter(h=>{const a=parseDate(h.date),b=parseDate(h.enddate||h.date);return a&&b&&a<=end&&b>=start})}
+function datesOfRecord(h,start,end){const a=parseDate(h.date),b=parseDate(h.enddate||h.date);if(!a||!b)return[];return rangeDates(a<start?start:a,b>end?end:b)}
+function periodStats(mode=analysisMode,anchor=analysisAnchor){
+  const bounds=periodBounds(mode,anchor),dates=rangeDates(bounds.start,bounds.end),records=recordsForRange(bounds.start,bounds.end),holiday=new Set(),legal=new Set(),moved=new Set(),cancelled=new Set(),added=new Set(),extraWork=new Set();
+  const activeOff=new Set(['legal','regular','substitute','annual','makeup','halfpay','vrt','stopwork']);
+  records.forEach(h=>{const ds=datesOfRecord(h,bounds.start,bounds.end);if(activeOff.has(h.type))ds.forEach(x=>holiday.add(x));if(h.type==='legal')ds.forEach(x=>legal.add(x));if(h.type==='substitute'||h.type==='postponed')ds.forEach(x=>moved.add(x));if(h.type==='cancelled')ds.forEach(x=>cancelled.add(x));if(h.type==='makeup'||h.type==='vrt')ds.forEach(x=>added.add(x));if(h.type==='workday')ds.forEach(x=>extraWork.add(x))});
+  const sundays=new Set(dates.filter(x=>parseDate(x).getDay()===0)),saturdays=new Set(dates.filter(x=>parseDate(x).getDay()===6)),off=new Set([...sundays,...holiday]);cancelled.forEach(x=>off.delete(x));extraWork.forEach(x=>off.delete(x));
+  const rangeChanges=CHANGE_LOG.filter(x=>{const d=x.date||x.after?.date||x.before?.date||'';return d>=bounds.keyStart&&d<=bounds.keyEnd});
+  rangeChanges.filter(x=>x.action==='add'&&x.after&&activeOff.has(x.after.type)).forEach(x=>datesOfRecord(x.after,bounds.start,bounds.end).forEach(d=>added.add(d)));
+  return{...bounds,dates,records,sundays,saturdays,holiday,legal,moved,cancelled,added,extraWork,off,workdays:dates.length-off.size,rangeChanges}
+}
 
 // ═══════════════════ INIT ═══════════════════
 loadDB();
 
 function init(){
+  const maxYear=Math.max(new Date().getFullYear()+5,...Object.keys(DB).map(Number).filter(Boolean)),years=Array.from({length:maxYear-2018},(_,i)=>2019+i);
   // Year selector
   const yrSel = document.getElementById('yearSel');
   yrSel.innerHTML = '';
-  [2019,2020,2021,2022,2023,2024,2025,2026,2027].forEach(y=>{
+  years.forEach(y=>{
     const o=document.createElement('option');
-    o.value=y; o.textContent=y+'年';
+    o.value=y; o.textContent=lang==='zh'?y+'年':String(y);
     if(y===curYear) o.selected=true;
     yrSel.appendChild(o);
   });
   // Modal year
   const fy=document.getElementById('f-year');
-  fy.innerHTML=[2019,2020,2021,2022,2023,2024,2025,2026,2027].map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
+  fy.innerHTML=years.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
   // Filter years
   ['flt-year','mgr-flt-year','exp-year','ana-yr1','tg-year'].forEach(id=>{
     const el=document.getElementById(id); if(!el) return;
-    el.innerHTML=[2019,2020,2021,2022,2023,2024,2025,2026,2027].map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
+    el.innerHTML=years.map(y=>`<option value="${y}"${y===curYear?' selected':''}>${y}</option>`).join('');
   });
   // ana-yr2 default to prev year
   const ay2=document.getElementById('ana-yr2');
-  if(ay2) ay2.innerHTML=[2019,2020,2021,2022,2023,2024,2025,2026].map(y=>`<option value="${y}"${y===2025?' selected':''}>${y}</option>`).join('');
+  if(ay2) ay2.innerHTML=years.map(y=>`<option value="${y}"${y===curYear-1?' selected':''}>${y}</option>`).join('');
 
   // Type filters
   const allOpt = `<option value="all">全部類型</option>`;
@@ -1228,14 +1337,19 @@ function init(){
   renderExpOverview();
   renderMgrTypeCards();
   updateLangUI();
+  const anchor=document.getElementById('analysis-anchor');if(anchor)anchor.value=ymd(analysisAnchor);
+  const ae=document.getElementById('auto-enabled'),ah=document.getElementById('auto-hour');if(ae)ae.checked=!!CAL_SETTINGS.autoMonthEnd;if(ah)ah.value=String(CAL_SETTINGS.sendHour||8);
+  renderScheduleStatus();
 }
 
 function changeYear(y){
   curYear=+y; weekOffset=0; selDate=null;
+  analysisAnchor=new Date(curYear,analysisAnchor.getMonth(),Math.min(analysisAnchor.getDate(),28));
   renderRibbon(); renderCalendar(); renderSummary(); renderManage(); renderAnalysis(); renderExpOverview();
 }
 function setLang(l){
   lang=l;
+  localStorage.setItem('ac_hra_lang',l);
   document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim()===(l==='zh'?'中':l==='en'?'EN':'ខ្មែរ')));
   init();
 }
@@ -1244,10 +1358,11 @@ function setLang(l){
 function switchTab(tab){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-  event.currentTarget.classList.add('active');
+  const trigger=(typeof event!=='undefined'&&event?.currentTarget?.classList?.contains('tab-btn'))?event.currentTarget:[...document.querySelectorAll('.tab-btn')].find(b=>String(b.getAttribute('onclick')).includes(`'${tab}'`));if(trigger)trigger.classList.add('active');
   document.getElementById('tab-'+tab).classList.add('active');
   if(tab==='analysis') renderAnalysis();
   if(tab==='expimp') renderExpOverview();
+  if(tab==='telegram') previewTgMsg();
 }
 
 // ═══════════════════ RIBBON ═══════════════════
@@ -1258,13 +1373,14 @@ function renderRibbon(){
   const makeup=countByType(list,'makeup');
   const annual=countByType(list,'annual');
   const sub=countByType(list,'substitute');
+  const unit=lang==='zh'?'天':lang==='en'?'d':'ថ្ងៃ',totalLabel=lang==='en'?'Total Holidays':lang==='km'?'ថ្ងៃឈប់សរុប':'總假日';
   const chips=[
-    {bg:'#e8f5e9',bc:'#81c784',tc:'#1b5e20',icon:'🗓',label:`${curYear}年`,val:''},
-    {bg:'#ffebee',bc:'#ef9a9a',tc:'#c62828',icon:'🔴',label:'法定假日',val:`${legal}天`},
-    {bg:'#fffde7',bc:'#fff176',tc:'#f57f17',icon:'🟡',label:'補假',val:`${makeup}天`},
-    {bg:'#f3e5f5',bc:'#ce93d8',tc:'#6a1b9a',icon:'🟣',label:'年假',val:`${annual}天`},
-    {bg:'#fff3e0',bc:'#ffcc80',tc:'#e65100',icon:'🟠',label:'調換假',val:`${sub}天`},
-    {bg:'#c8e6c9',bc:'#66bb6a',tc:'#1b5e20',icon:'📊',label:'總假日',val:`${total}天`},
+    {bg:'#e8f5e9',bc:'#81c784',tc:'#1b5e20',icon:'🗓',label:lang==='zh'?`${curYear}年`:String(curYear),val:''},
+    {bg:'#ffebee',bc:'#ef9a9a',tc:'#c62828',icon:'🔴',label:TYPE_CFG.legal[lang]||TYPE_CFG.legal.zh,val:`${legal}${unit}`},
+    {bg:'#fffde7',bc:'#fff176',tc:'#f57f17',icon:'🟡',label:TYPE_CFG.makeup[lang]||TYPE_CFG.makeup.zh,val:`${makeup}${unit}`},
+    {bg:'#f3e5f5',bc:'#ce93d8',tc:'#6a1b9a',icon:'🟣',label:TYPE_CFG.annual[lang]||TYPE_CFG.annual.zh,val:`${annual}${unit}`},
+    {bg:'#fff3e0',bc:'#ffcc80',tc:'#e65100',icon:'🟠',label:TYPE_CFG.substitute[lang]||TYPE_CFG.substitute.zh,val:`${sub}${unit}`},
+    {bg:'#c8e6c9',bc:'#66bb6a',tc:'#1b5e20',icon:'📊',label:totalLabel,val:`${total}${unit}`},
   ];
   document.getElementById('ribbon').innerHTML=chips.map(c=>
     `<div class="stat-chip" style="background:${c.bg};border:1px solid ${c.bc};color:${c.tc}">
@@ -1358,6 +1474,7 @@ function renderMonthCal(){
   const el=document.getElementById('view-month');
   const list=getHols(curYear);
   const dm=buildDateMap(list);
+  const extMm=getExtMap(curYear),swapMm=buildSwapMap(list);
   // Navigation
   let curMonthView = el.dataset.month !== undefined ? +el.dataset.month : new Date().getMonth();
   const m=curMonthView, days=dimY(curYear,m), first=fdow(curYear,m);
@@ -1836,19 +1953,55 @@ function renderManage(){
 }
 
 // ═══════════════════ ANALYSIS ═══════════════════
+function setAnalysisMode(mode){analysisMode=mode;document.querySelectorAll('[id^="ap-"]').forEach(b=>b.classList.toggle('active',b.id===`ap-${mode}`));renderPeriodAnalysis()}
+function setAnalysisAnchor(value){if(value){const d=parseDate(value);if(d)analysisAnchor=d}renderPeriodAnalysis()}
+function moveAnalysisPeriod(step){
+  const d=new Date(analysisAnchor);if(analysisMode==='day')d.setDate(d.getDate()+step);else if(analysisMode==='week')d.setDate(d.getDate()+step*7);else if(analysisMode==='month')d.setMonth(d.getMonth()+step);else d.setFullYear(d.getFullYear()+step);analysisAnchor=d;renderPeriodAnalysis()
+}
+function periodLabelText(s){
+  const fmt=d=>lang==='en'?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):lang==='km'?d.toLocaleDateString('km-KH',{day:'2-digit',month:'short',year:'numeric'}):`${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+  return s.keyStart===s.keyEnd?fmt(s.start):`${fmt(s.start)} — ${fmt(s.end)}`
+}
+function recordCovers(h,ds){return h.date<=ds&&(h.enddate||h.date)>=ds}
+function statusForDate(ds,records){
+  const dayRecords=records.filter(h=>recordCovers(h,ds)),force=dayRecords.some(h=>h.type==='workday'||h.type==='cancelled'),active=dayRecords.filter(h=>!['workday','cancelled','postponed'].includes(h.type)),sun=parseDate(ds).getDay()===0;
+  if(force)return{label:t('workday'),color:'#2e7d32',bg:'#e8f5e9'};if(active.length)return{label:t('holiday'),color:'#c62828',bg:'#ffebee'};if(sun)return{label:t('sunday'),color:'#e65100',bg:'#fff3e0'};return{label:t('workday'),color:'#546e7a',bg:'#f5f5f5'}
+}
+function renderPeriodAnalysis(){
+  const el=document.getElementById('period-stats');if(!el)return;const s=periodStats();document.querySelectorAll('[id^="ap-"]').forEach(b=>b.classList.toggle('active',b.id===`ap-${analysisMode}`));const anchor=document.getElementById('analysis-anchor');if(anchor)anchor.value=ymd(analysisAnchor);document.getElementById('analysis-period-label').textContent=periodLabelText(s);
+  const cards=[
+    [t('calendar_days'),s.dates.length,'#1565c0','#e3f2fd'],[t('sunday_count'),s.sundays.size,'#c62828','#ffebee'],[t('saturday_count'),s.saturdays.size,'#6a1b9a','#f3e5f5'],
+    [t('holiday_days'),s.holiday.size,'#e65100','#fff3e0'],[t('legal_days'),s.legal.size,'#c62828','#ffebee'],[t('estimated_workdays'),s.workdays,'#2e7d32','#e8f5e9'],
+    [t('moved_days'),s.moved.size,'#ef6c00','#fff3e0'],[t('cancelled_days'),s.cancelled.size,'#546e7a','#eceff1'],[t('added_holiday_days'),s.added.size,'#f57f17','#fffde7'],
+    [t('extra_workdays'),s.extraWork.size,'#2e7d32','#e8f5e9'],[t('change_records'),s.rangeChanges.length,'#00695c','#e0f2f1']
+  ];el.innerHTML=cards.map(([lbl,val,color,bg])=>`<div class="stat-card" style="border-color:${bg}"><div class="big" style="color:${color}">${val}</div><div class="lbl">${esc(lbl)}</div></div>`).join('');
+  const head=document.getElementById('period-breakdown-head'),body=document.getElementById('period-breakdown-body');
+  if(analysisMode==='year'){
+    head.innerHTML=`<tr><th>${esc(t('month_summary'))}</th><th>${esc(t('calendar_days'))}</th><th>${esc(t('sunday_count'))}</th><th>${esc(t('holiday_days'))}</th><th>${esc(t('estimated_workdays'))}</th><th>${esc(t('moved_days'))}</th><th>${esc(t('cancelled_days'))}</th><th>${esc(t('added_holiday_days'))}</th><th>${esc(t('extra_workdays'))}</th></tr>`;
+    body.innerHTML=Array.from({length:12},(_,m)=>{const ms=periodStats('month',new Date(analysisAnchor.getFullYear(),m,1));return`<tr><td><b>${esc(L().MONTHS[m])}</b></td><td>${ms.dates.length}</td><td>${ms.sundays.size}</td><td>${ms.holiday.size}</td><td>${ms.workdays}</td><td>${ms.moved.size}</td><td>${ms.cancelled.size}</td><td>${ms.added.size}</td><td>${ms.extraWork.size}</td></tr>`}).join('')
+  }else{
+    head.innerHTML=`<tr><th>${esc(t('col_date'))}</th><th>${esc(t('col_weekday'))}</th><th>${esc(t('day_status'))}</th><th>${esc(t('holiday'))}</th><th>${esc(t('changes'))}</th></tr>`;
+    body.innerHTML=s.dates.map(ds=>{const rs=s.records.filter(h=>recordCovers(h,ds)),st=statusForDate(ds,rs),hols=rs.filter(h=>!['workday','cancelled','postponed'].includes(h.type)).map(h=>`${typeCfg(h.type).icon} ${holName(h)}`),chg=rs.filter(h=>['substitute','makeup','workday','cancelled','postponed'].includes(h.type)).map(h=>`${typeCfg(h.type).icon} ${typeCfg(h.type)[lang]||typeCfg(h.type).zh}`);return`<tr><td><b>${ds}</b></td><td>${esc(wdName(ds))}</td><td><span class="badge" style="background:${st.bg};color:${st.color}">${esc(st.label)}</span></td><td>${hols.length?hols.map(esc).join('<br>'):'—'}</td><td>${chg.length?chg.map(esc).join('<br>'):'—'}</td></tr>`}).join('')
+  }
+}
+function openTelegramForPeriod(){const type=document.getElementById('tg-msgtype');if(type)type.value='period';switchTab('telegram');previewTgMsg()}
+function openChangeTelegram(){const type=document.getElementById('tg-msgtype');if(type)type.value='changes';switchTab('telegram');previewTgMsg()}
+
 function renderAnalysis(){
+  renderPeriodAnalysis();
   const yr=curYear;
   const list=getHols(yr);
   const total=totalHolDays(list);
+  const dayUnit=lang==='zh'?'天':lang==='en'?'days':'ថ្ងៃ',recUnit=lang==='zh'?'筆記錄':lang==='en'?'records':'កំណត់ត្រា';
 
   // Stats cards
   document.getElementById('ana-stats').innerHTML=[
-    {lbl:'總假期天數',val:total,color:var_green,bg:'#e8f5e9'},
-    {lbl:'法定假日',val:countByType(list,'legal'),color:'#c62828',bg:'#ffebee'},
-    {lbl:'補假天數',val:countByType(list,'makeup'),color:'#f57f17',bg:'#fffde7'},
-    {lbl:'調換假',val:countByType(list,'substitute'),color:'#e65100',bg:'#fff3e0'},
-    {lbl:'年假',val:countByType(list,'annual'),color:'#6a1b9a',bg:'#f3e5f5'},
-    {lbl:'記錄筆數',val:list.length,color:var_green,bg:'#e8f5e9'},
+    {lbl:lang==='en'?'Total Holiday Days':lang==='km'?'ថ្ងៃឈប់សរុប':'總假期天數',val:total,color:var_green,bg:'#e8f5e9'},
+    {lbl:TYPE_CFG.legal[lang]||TYPE_CFG.legal.zh,val:countByType(list,'legal'),color:'#c62828',bg:'#ffebee'},
+    {lbl:TYPE_CFG.makeup[lang]||TYPE_CFG.makeup.zh,val:countByType(list,'makeup'),color:'#f57f17',bg:'#fffde7'},
+    {lbl:TYPE_CFG.substitute[lang]||TYPE_CFG.substitute.zh,val:countByType(list,'substitute'),color:'#e65100',bg:'#fff3e0'},
+    {lbl:TYPE_CFG.annual[lang]||TYPE_CFG.annual.zh,val:countByType(list,'annual'),color:'#6a1b9a',bg:'#f3e5f5'},
+    {lbl:lang==='en'?'Records':lang==='km'?'កំណត់ត្រា':'記錄筆數',val:list.length,color:var_green,bg:'#e8f5e9'},
   ].map(s=>`<div class="stat-card" style="border-color:${s.bg}">
     <div class="big" style="color:${s.color}">${s.val}</div>
     <div class="lbl">${s.lbl}</div>
@@ -1860,7 +2013,7 @@ function renderAnalysis(){
     return cnt>0?`<div class="bar-row">
       <div class="bar-label">${v[lang]||v.zh}</div>
       <div class="bar-track"><div class="bar-fill" style="width:${total?Math.min(cnt/total*100,100):0}%;background:${v.dot}"></div></div>
-      <div class="bar-val" style="color:${v.dot}">${cnt}天</div>
+      <div class="bar-val" style="color:${v.dot}">${cnt} ${dayUnit}</div>
     </div>`:'' ;
   }).join('');
 
@@ -1869,7 +2022,7 @@ function renderAnalysis(){
     const cnt=list.filter(h=>h.date.startsWith(yr+'-'+pad(m+1))).reduce((s,h)=>s+(+h.days||1),0);
     const opacity=cnt===0?'#f5f5f5':cnt<=2?'#c8e6c9':cnt<=5?'#66bb6a':cnt<=8?'#2e7d32':'#1b5e20';
     const tc=cnt>2?'#fff':cnt>0?'#1b5e20':'#9e9e9e';
-    return `<div class="heat-cell" style="background:${opacity}" title="${mn}: ${cnt}天">
+    return `<div class="heat-cell" style="background:${opacity}" title="${mn}: ${cnt} ${dayUnit}">
       <div class="hm" style="color:${tc}">${mn.slice(0,1)}</div>
       <div class="hd" style="color:${tc}">${cnt||'·'}</div>
     </div>`;
@@ -1886,12 +2039,12 @@ function renderAnalysis(){
       ${[{y:yr1,l:l1,t:t1,c:'#c62828',bg:'#ffebee'},{y:yr2,l:l2,t:t2,c:'#1565c0',bg:'#e3f2fd'}].map(x=>`
       <div style="background:${x.bg};border-radius:8px;padding:10px;text-align:center">
         <div style="font-size:1.3rem;font-weight:900;color:${x.c};font-family:var(--font2)">${x.y}</div>
-        <div style="font-size:1.5rem;font-weight:800;color:${x.c}">${x.t}<span style="font-size:.7rem">天</span></div>
-        <div style="font-size:.68rem;color:var(--text2)">${x.l.length}筆記錄</div>
+        <div style="font-size:1.5rem;font-weight:800;color:${x.c}">${x.t}<span style="font-size:.7rem">${dayUnit}</span></div>
+        <div style="font-size:.68rem;color:var(--text2)">${x.l.length} ${recUnit}</div>
       </div>`).join('')}
     </div>
     <div style="text-align:center;padding:8px;border-radius:7px;background:${diff>0?'#e8f5e9':diff<0?'#ffebee':'#f5f5f5'};font-weight:700;font-size:.82rem;color:${diff>0?'#2e7d32':diff<0?'#c62828':'#546e7a'}">
-      ${diff>0?'📈':diff<0?'📉':'➡️'} ${yr1} 比 ${yr2} ${diff>0?'多':'少'} ${Math.abs(diff)} 天
+      ${diff>0?'📈':diff<0?'📉':'➡️'} ${lang==='en'?(diff===0?`${yr1} and ${yr2} have the same number of days`:`${yr1} has ${Math.abs(diff)} ${diff>0?'more':'fewer'} days than ${yr2}`):`${yr1} 比 ${yr2} ${diff===0?'相同，共差':diff>0?'多':'少'} ${Math.abs(diff)} 天`}
     </div>`;
 
   // Upcoming
@@ -1904,10 +2057,10 @@ function renderAnalysis(){
       <div style="font-weight:700;font-size:.82rem;color:${tc.text}">${tc.icon} ${holName(h)}</div>
       <div style="font-size:.7rem;color:var(--text2);margin-top:3px">${h.date}</div>
       <div style="font-size:.72rem;margin-top:4px;font-weight:700;color:${daysLeft<=7?'#c62828':daysLeft<=30?'#e65100':'#546e7a'}">
-        ${daysLeft<=0?'⭐ 今天':daysLeft===1?'明天':'還有 '+daysLeft+' 天'}
+        ${lang==='en'?(daysLeft<=0?'⭐ Today':daysLeft===1?'Tomorrow':daysLeft+' days away'):(daysLeft<=0?'⭐ 今天':daysLeft===1?'明天':'還有 '+daysLeft+' 天')}
       </div>
     </div>`;
-  }).join('') || '<div style="color:var(--text3)">暫無未來假日</div>';
+  }).join('') || `<div style="color:var(--text3)">${esc(t('no_records'))}</div>`;
 }
 const var_green='#2e7d32';
 const var_red='#c62828';
@@ -1964,14 +2117,18 @@ function importJSON(e){
   reader.onload=ev=>{
     try{
       const d=JSON.parse(ev.target.result);
-      let count=0;
+      let added=0,updated=0,unchanged=0;
       Object.entries(d).forEach(([y,list])=>{
         if(!DB[y]) DB[y]=[];
-        const existing=new Set(DB[y].map(h=>h.id));
-        list.forEach(h=>{ if(!existing.has(h.id)){DB[y].push(h);count++;} });
+        (list||[]).forEach(h=>{
+          const key=x=>x.id||`${x.date}|${x.enddate||''}|${x.type}|${x.zh||x.en||''}`,idx=DB[y].findIndex(x=>key(x)===key(h));
+          if(idx<0){DB[y].push({...h,id:h.id||uid()});added++}
+          else if(JSON.stringify(DB[y][idx])!==JSON.stringify(h)){DB[y][idx]={...h,id:DB[y][idx].id||h.id||uid()};updated++}
+          else unchanged++
+        });
       });
       saveDB(); init();
-      document.getElementById('imp-status').innerHTML=`<div class="success-msg">✅ 成功匯入 ${count} 筆假日記錄！</div>`;
+      document.getElementById('imp-status').innerHTML=`<div class="success-msg">✅ ${lang==='en'?`Imported ${added}, updated ${updated}, unchanged ${unchanged}.`:`新增 ${added} 筆、更新 ${updated} 筆、相同略過 ${unchanged} 筆。`}</div>`;
     }catch(err){ document.getElementById('imp-status').innerHTML=`<div class="error-msg">❌ 解析失敗: ${err.message}</div>`; }
   };
   reader.readAsText(file);
@@ -1998,103 +2155,60 @@ function tgDateFmt(ds){
   return `${ds} (${WD_EN[d.getDay()]})`;
 }
 
+function summaryPeriodName(code,s){
+  if(analysisMode==='month')return code==='zh'?`${s.start.getFullYear()}年${s.start.getMonth()+1}月`:`${MON_EN[s.start.getMonth()]} ${s.start.getFullYear()}`;
+  if(analysisMode==='year')return String(s.start.getFullYear());return `${s.keyStart} — ${s.keyEnd}`
+}
+function listPeriodHolidays(s,code){
+  return s.records.filter(h=>!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date)).map(h=>`${typeCfg(h.type).icon} ${h.date}${h.enddate?` → ${h.enddate}`:''} · ${code==='zh'?(h.zh||h.en):(h.en||h.zh)}`)
+}
+function buildPeriodSummary(code,mode=analysisMode,anchor=analysisAnchor,titleKind='period'){
+  const s=periodStats(mode,anchor),name=mode==='month'?(code==='zh'?`${s.start.getFullYear()}年${s.start.getMonth()+1}月`:`${MON_EN[s.start.getMonth()]} ${s.start.getFullYear()}`):mode==='year'?String(s.start.getFullYear()):`${s.keyStart} — ${s.keyEnd}`,lines=listPeriodHolidays(s,code);
+  if(code==='zh')return[
+    `🇰🇭 VRT 日曆${titleKind==='next'?'下月':'期間'}摘要｜${name}`,
+    `📅 日曆 ${s.dates.length} 天｜周日 ${s.sundays.size} 天｜周六 ${s.saturdays.size} 天`,
+    `🏖 假日 ${s.holiday.size} 天｜法定假日 ${s.legal.size} 天｜預估工作 ${s.workdays} 天`,
+    `🔄 換／延後 ${s.moved.size} 天｜取消 ${s.cancelled.size} 天｜加／補假 ${s.added.size} 天｜新增上班 ${s.extraWork.size} 天`,
+    lines.length?'── 假日明細 ──':'── 本期無假日明細 ──',...lines,'🏭 Vantage River Textiles · HRA'
+  ].join('\n');
+  return[
+    `🇰🇭 VRT Calendar ${titleKind==='next'?'Next-Month':'Period'} Summary | ${name}`,
+    `📅 ${s.dates.length} calendar days | ${s.sundays.size} Sundays | ${s.saturdays.size} Saturdays`,
+    `🏖 ${s.holiday.size} holiday days | ${s.legal.size} legal holidays | ${s.workdays} estimated workdays`,
+    `🔄 ${s.moved.size} moved/postponed | ${s.cancelled.size} cancelled | ${s.added.size} added/makeup | ${s.extraWork.size} extra workdays`,
+    lines.length?'── Holiday Details ──':'── No holiday details ──',...lines,'🏭 Vantage River Textiles · HRA'
+  ].join('\n')
+}
+function buildChangeSummary(code){
+  const changes=CHANGE_LOG.slice().reverse().slice(0,20),actionZh={add:'新增',update:'修改',delete:'刪除'},actionEn={add:'Added',update:'Updated',delete:'Deleted'};
+  if(code==='zh')return[`📝 VRT 日曆變更摘要`,`共 ${changes.length} 筆最近變更`,...(changes.length?changes.map(x=>`• ${String(x.at).slice(0,10)}｜${actionZh[x.action]||x.action}｜${x.date||'—'}｜${x.zh||x.en||'—'}`):['目前沒有變更紀錄。']),'🏭 Vantage River Textiles · HRA'].join('\n');
+  return[`📝 VRT Calendar Change Summary`,`${changes.length} recent changes`,...(changes.length?changes.map(x=>`• ${String(x.at).slice(0,10)} | ${actionEn[x.action]||x.action} | ${x.date||'—'} | ${x.en||x.zh||'—'}`):['No change records yet.']),'🏭 Vantage River Textiles · HRA'].join('\n')
+}
+function buildUpcomingSummary(code){
+  const today=ymd(new Date()),year=+today.slice(0,4),list=[...getHols(year),...getHols(year+1)].filter(h=>h.date>=today&&!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,8);
+  return code==='zh'?[`⏰ VRT 即將到來假日`,...(list.length?list.map(h=>`${typeCfg(h.type).icon} ${h.date}${h.enddate?` → ${h.enddate}`:''}｜${h.zh||h.en}`):['目前沒有即將到來的假日。']),'🏭 Vantage River Textiles · HRA'].join('\n'):[`⏰ VRT Upcoming Holidays`,...(list.length?list.map(h=>`${typeCfg(h.type).icon} ${h.date}${h.enddate?` → ${h.enddate}`:''} | ${h.en||h.zh}`):['No upcoming holidays.']),'🏭 Vantage River Textiles · HRA'].join('\n')
+}
 function buildTgMsg(){
-  const mt=document.getElementById('tg-msgtype')?.value||'upcoming';
-  const yr=+(document.getElementById('tg-year')?.value||curYear);
-  const list=[...getHols(yr)].sort((a,b)=>a.date.localeCompare(b.date));
-  const now=ymd(new Date());
-  const total=totalHolDays(list);
-  let msg='';
-  const div='┄'.repeat(18)+'\n';
-
-  if(mt==='upcoming'){
-    const fu=list.filter(h=>h.date>=now&&h.type!=='workday'&&h.type!=='stopwork').slice(0,5);
-    msg =`🇰🇭 <b>Cambodia Holiday Notice｜柬埔寨假日通知</b>\n`;
-    msg+=`📅 Year ${yr}  |  Full-year total: <b>${total} days</b>\n`;
-    msg+=div;
-    msg+=`<b>⏰ Upcoming Holidays｜即將到來假日</b>\n\n`;
-    fu.forEach(h=>{
-      const tc=TYPE_CFG[h.type];
-      const dl=Math.ceil((parseDate(h.date)-new Date())/86400000);
-      const enName=h.en||h.zh;
-      msg+=`${tc.icon} <b>${h.zh}</b>  <i>${enName}</i>\n`;
-      msg+=`   📅 ${tgDateFmt(h.date)}${h.enddate?' → '+tgDateFmt(h.enddate):''}\n`;
-      msg+=`   ⏳ ${h.days} day${h.days>1?'s':''}  |  ${tgDaysLeft(dl)}\n`;
-      if(h.note) msg+=`   📝 <i>${h.note}</i>\n`;
-      msg+='\n';
-    });
-    msg+=div;
-    msg+=`<i>🏭 VRT (Vantage River Textiles) HR &amp; GA</i>`;
-
-  } else if(mt==='month'){
-    const mo=new Date().getMonth()+1;
-    const ml=list.filter(h=>h.date.startsWith(yr+'-'+pad(mo)));
-    const moZh=['一','二','三','四','五','六','七','八','九','十','十一','十二'][mo-1];
-    msg =`🇰🇭 <b>${yr} ${MON_EN[mo-1]} Holidays｜${yr}年${moZh}月假日</b>\n`;
-    msg+=div;
-    if(!ml.length){
-      msg+=`No public holidays this month.\n本月無假日安排。\n`;
-    } else {
-      ml.forEach(h=>{
-        const tc=TYPE_CFG[h.type];
-        const enName=h.en||h.zh;
-        msg+=`${tc.icon} <b>${tgDateFmt(h.date)}</b>\n`;
-        msg+=`   ZH: ${h.zh}  |  EN: ${enName}\n`;
-        msg+=`   Duration: ${h.days} day${h.days>1?'s':''}  (${tc.en||tc.zh})\n`;
-        if(h.note) msg+=`   📝 <i>${h.note}</i>\n`;
-        msg+='\n';
-      });
-    }
-    msg+=div;
-    msg+=`<i>🏭 VRT HR &amp; GA  |  ${yr}年${moZh}月假日通知</i>`;
-
-  } else if(mt==='year'){
-    msg =`🇰🇭 <b>${yr} Full Holiday List｜${yr}年假日完整清單</b>\n`;
-    msg+=`📊 Total: <b>${total} days</b>  |  Records: <b>${list.length}</b>\n`;
-    msg+=div;
-    const byType={};
-    list.forEach(h=>{if(!byType[h.type])byType[h.type]=[];byType[h.type].push(h);});
-    Object.entries(byType).forEach(([k,hs])=>{
-      const tc=TYPE_CFG[k];
-      const cnt=hs.reduce((s,h)=>s+(+h.days||1),0);
-      msg+=`${tc.icon} <b>${tc.en||tc.zh}｜${tc.zh}</b> (${cnt}天/days)\n`;
-      hs.forEach(h=>{
-        const enName=h.en||h.zh;
-        msg+=`  • ${h.date}  ${h.zh} / ${enName}  [${h.days}d]\n`;
-      });
-      msg+='\n';
-    });
-    msg+=div;
-    msg+=`<i>🏭 VRT (Vantage River Textiles) — Phnom Penh, Cambodia</i>`;
-
-  } else if(mt==='custom'){
-    msg=document.getElementById('tg-msg')?.value.trim()||'(empty)';
-  }
-  return msg;
+  const mt=document.getElementById('tg-msgtype')?.value||'nextmonth',choice=document.getElementById('tg-lang')?.value||'both',yr=+(document.getElementById('tg-year')?.value||curYear),custom=document.getElementById('tg-msg')?.value.trim()||'';
+  const one=code=>{if(mt==='custom')return custom|| (code==='zh'?'（尚未輸入訊息）':'(No custom message)');if(mt==='changes')return buildChangeSummary(code);if(mt==='upcoming')return buildUpcomingSummary(code);if(mt==='year')return buildPeriodSummary(code,'year',new Date(yr,0,1));if(mt==='nextmonth'){const d=new Date();return buildPeriodSummary(code,'month',new Date(d.getFullYear(),d.getMonth()+1,1),'next')}return buildPeriodSummary(code,analysisMode,analysisAnchor)};
+  return choice==='both'?`${one('zh')}\n\n──────────────────\n\n${one('en')}`:one(choice)
 }
-function previewTgMsg(){
-  const custom=document.getElementById('tg-msg').value.trim();
-  const msg=custom||buildTgMsg();
-  document.getElementById('tg-preview').textContent=msg;
-}
+function previewTgMsg(){const el=document.getElementById('tg-preview');if(el)el.textContent=buildTgMsg()}
+function gasUrl(){return localStorage.getItem('ac_hra_gas_url')||''}
+async function postCalendarGas(payload){const url=gasUrl();if(!url)throw new Error(lang==='en'?'Please configure the GAS URL in Cloud Sync first.':'請先在雲端同步設定 GAS URL。');const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');return d}
 async function sendTelegram(){
-  const token=document.getElementById('tg-token').value.trim();
-  const chatId=document.getElementById('tg-chatid').value.trim();
-  const custom=document.getElementById('tg-msg').value.trim();
-  const msg=custom||buildTgMsg();
-  const stEl=document.getElementById('tg-status');
-  if(!token||!chatId){ stEl.innerHTML='<div class="error-msg">⚠️ 請輸入 Bot Token 和 Chat ID</div>'; return; }
-  stEl.innerHTML='<div class="warn-box">發送中... ✈️</div>';
-  try{
-    const res=await fetch(`https://api.telegram.org/bot${token}/sendMessage`,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({chat_id:chatId,text:msg,parse_mode:'HTML'})
-    });
-    const json=await res.json();
-    if(json.ok){ stEl.innerHTML='<div class="success-msg">✅ 發送成功！訊息已送達群組。</div>'; }
-    else { stEl.innerHTML=`<div class="error-msg">❌ 發送失敗: ${json.description||'未知錯誤'}</div>`; }
-  }catch(e){ stEl.innerHTML=`<div class="error-msg">❌ 錯誤: ${e.message}（可能是 CORS 限制，建議使用後端代理）</div>`; }
-  setTimeout(()=>stEl.innerHTML='',8000);
+  const stEl=document.getElementById('tg-status'),msg=buildTgMsg();stEl.innerHTML=`<div class="warn-box">${lang==='en'?'Sending manually…':'手動發送中…'} ✈️</div>`;
+  try{await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value});stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已發送到 Telegram 群組。'}</div>`}
+  catch(e){stEl.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}</div>`}setTimeout(()=>stEl.innerHTML='',8000)
+}
+function renderScheduleStatus(){
+  const el=document.getElementById('schedule-status');if(!el)return;if(CAL_SETTINGS.scheduleInstalled)el.textContent=lang==='en'?'Installed in GAS':'GAS 排程已安裝';else if(CAL_SETTINGS.autoMonthEnd)el.textContent=lang==='en'?'Saved; GAS setup pending':'設定已儲存，待 GAS 啟用';else el.textContent=lang==='en'?'Disabled':'尚未啟用'
+}
+async function saveAutoSchedule(){
+  CAL_SETTINGS.autoMonthEnd=!!document.getElementById('auto-enabled').checked;CAL_SETTINGS.sendHour=+document.getElementById('auto-hour').value||8;CAL_SETTINGS.timezone='Asia/Phnom_Penh';CAL_SETTINGS.scheduleUpdatedAt=new Date().toISOString();CAL_SETTINGS.scheduleInstalled=false;saveDB(false);renderScheduleStatus();
+  const st=document.getElementById('tg-status');if(!gasUrl()){st.innerHTML=`<div class="warn-box">${lang==='en'?'Settings saved locally. The shared GAS schedule will be enabled together with the later approval workflow update.':'設定已先保存在本機；共用 GAS 排程會與後續核可／退件功能一次啟用。'}</div>`;return}
+  try{await postCalendarGas({action:'calendarScheduleUpsert',tool:'calendar',schedule:{enabled:CAL_SETTINGS.autoMonthEnd,rule:'last_day_of_month',hour:CAL_SETTINGS.sendHour,timezone:CAL_SETTINGS.timezone,summaryType:'nextmonth',languages:['zh','en'],source:'latest_calendar_snapshot',fields:['calendarDays','sundays','saturdays','holidayDays','legalDays','estimatedWorkdays','moved','cancelled','added','extraWorkdays','holidayDetails']}});CAL_SETTINGS.scheduleInstalled=CAL_SETTINGS.autoMonthEnd;saveDB(false);renderScheduleStatus();st.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Month-end schedule updated.':'月底自動通知排程已更新。'}</div>`}
+  catch(e){st.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}<br>${lang==='en'?'The setting remains saved locally.':'設定仍已保存在本機。'}</div>`}
 }
 
 
@@ -2394,9 +2508,14 @@ function deleteHolById(id){
 // ═══════════════════ LANG UI UPDATES ═══════════════════
 function updateLangUI(){
   document.querySelectorAll('[data-t]').forEach(el=>{ const k=el.getAttribute('data-t'); if(L()[k]) el.textContent=L()[k]; });
+  document.querySelectorAll('[data-t-placeholder]').forEach(el=>{const k=el.getAttribute('data-t-placeholder');if(L()[k])el.placeholder=L()[k]});
+  document.documentElement.lang=lang==='en'?'en':lang==='km'?'km':'zh-TW';
+  document.getElementById('hdr-title').textContent=lang==='en'?'Cambodia Holiday Calendar Management':lang==='km'?'ប្រព័ន្ធគ្រប់គ្រងប្រតិទិនថ្ងៃឈប់កម្ពុជា':'柬埔寨假日行事曆管理系統';
+  const ct=document.getElementById('calCloudTitle'),pb=document.getElementById('calPushBtn'),db=document.getElementById('calPullBtn');if(ct)ct.textContent=lang==='en'?'☁ Manual Cloud Sync — Calendar':lang==='km'?'☁ Cloud Sync — ប្រតិទិន':'☁ 手動雲端同步 — 行事曆';if(pb)pb.textContent=lang==='en'?'☁ Upload':lang==='km'?'☁ Upload':'☁ 上傳';if(db)db.textContent=lang==='en'?'⬇ Download':lang==='km'?'⬇ Download':'⬇ 下載';
   // Modal type options
   const ftype=document.getElementById('f-type');
   if(ftype) ftype.innerHTML=Object.entries(TYPE_CFG).map(([k,v])=>`<option value="${k}">${v.icon} ${v[lang]||v.zh}</option>`).join('');
+  renderScheduleStatus();
 }
 
 // ═══════════════════ CLICK OUTSIDE MODAL ═══════════════════
@@ -2440,13 +2559,13 @@ init();
 .calspin{display:inline-block;animation:calspin .7s linear infinite}
 </style>
 
-<button id="calCloudBtn" title="☁ 雲端同步" onclick="calCloudToggle()">☁</button>
+<button id="calCloudBtn" title="☁ 手動雲端同步" onclick="calCloudToggle()">☁</button>
 <div id="calCloudPanel">
-  <div class="calcp-title">☁ 雲端同步 — 行事曆</div>
+  <div class="calcp-title" id="calCloudTitle">☁ 手動雲端同步 — 行事曆</div>
   <div class="calcp-status" id="calCloudStatus">讀取中…</div>
   <div class="calcp-row">
-    <button class="calcp-btn calcp-push" id="calPushBtn" onclick="calPush()">☁ 推送</button>
-    <button class="calcp-btn calcp-pull" id="calPullBtn" onclick="calPull()">⬇ 拉取</button>
+    <button class="calcp-btn calcp-push" id="calPushBtn" onclick="calPush()">☁ 上傳</button>
+    <button class="calcp-btn calcp-pull" id="calPullBtn" onclick="calPull()">⬇ 下載</button>
   </div>
   <div class="calcp-gasrow">
     <input class="calcp-input" id="calGasInput" placeholder="GAS /exec URL"/>
@@ -2459,7 +2578,6 @@ init();
 (function(){
   var GAS_KEY  = 'ac_hra_gas_url';
   var META_KEY = 'ac_hra_calendar_meta';
-  var DATA_KEY = 'ac_hra_calendar_db';
   var gasUrl   = localStorage.getItem(GAS_KEY) || '';
   var panelOpen= false;
 
@@ -2479,13 +2597,13 @@ init();
     if(!el) return;
     var meta = null;
     try{ meta = JSON.parse(localStorage.getItem(META_KEY)||'null'); }catch(e){}
-    if(meta){
-      var mins = (Date.now()-new Date(meta.ts))/60000;
+    if(meta&&meta.lastCloudAt){
+      var mins = (Date.now()-new Date(meta.lastCloudAt))/60000;
       var age  = mins<60 ? Math.round(mins)+'分前' : Math.round(mins/60)+'小時前';
-      el.textContent  = meta.count+'筆 · 上次同步 '+age;
+      el.textContent  = meta.count+'筆 · '+(lang==='en'?'Last cloud sync ':'上次雲端同步 ')+age;
       el.className    = 'calcp-status '+(mins<120?'ok':'warn');
     } else {
-      el.textContent = gasUrl ? '尚未同步' : '未設定 GAS URL';
+      el.textContent = gasUrl ? (lang==='en'?'Not synced yet':'尚未同步') : (lang==='en'?'GAS URL not set':'未設定 GAS URL');
       el.className   = 'calcp-status '+(gasUrl?'warn':'err');
     }
   }
@@ -2503,7 +2621,7 @@ init();
     gasUrl = (document.getElementById('calGasInput').value||'').trim();
     if(!gasUrl) return;
     localStorage.setItem(GAS_KEY, gasUrl);
-    calLog('GAS URL 已儲存','i');
+    calLog(lang==='en'?'GAS URL saved; no connection started':'GAS URL 已儲存，未開始連線','i');
     calShowStatus();
   };
 
@@ -2512,36 +2630,37 @@ init();
     var btn = document.getElementById('calPushBtn');
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
-      var rawData = localStorage.getItem(DATA_KEY);
-      var recs = rawData ? JSON.parse(rawData) : [];
-      if(!Array.isArray(recs)) recs = recs.records || recs.employees || [];
-      var payload = {action:'push',tool:'calendar',records:recs,
-        recordCount:recs.length,updatedAt:new Date().toISOString()};
+      saveDB(false);
+      var count=flatDB().length;
+      var snapshot={kind:'calendarSnapshot',version:3,db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS,updatedAt:new Date().toISOString()};
+      var payload = {action:'push',tool:'calendar',records:[snapshot],
+        recordCount:count,updatedAt:snapshot.updatedAt};
       var r = await fetch(gasUrl, {method:'POST',redirect:'follow',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
         body:JSON.stringify(payload)});
       var d = await r.json();
       if(d.ok){
-        localStorage.setItem(META_KEY, JSON.stringify({ts:Date.now(),count:recs.length}));
-        calLog('✓ 推送完成 ('+recs.length+'筆)','ok');
+        var meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
+        localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
+        calLog('✓ '+(lang==='en'?'Manual upload complete':'手動上傳完成')+' ('+count+'筆)','ok');
         calShowStatus();
       } else {
         calLog('✗ '+d.error,'err');
       }
     } catch(e){ calLog('✗ '+e.message,'err'); }
-    finally{ if(btn){ btn.disabled=false; btn.innerHTML='☁ 推送'; } }
+    finally{ if(btn){ btn.disabled=false; btn.innerHTML=lang==='en'?'☁ Upload':'☁ 上傳'; } }
   };
 
   window.calPull = async function(){
     if(!gasUrl){ calLog('請先設定 GAS URL','err'); return; }
-    if(!confirm('拉取雲端資料？本地資料會被覆蓋。')) return;
+    if(!confirm(lang==='en'?'Download the latest cloud calendar? Local records will be replaced.':'下載最新雲端日曆？本機資料會被覆蓋。')) return;
     var btn = document.getElementById('calPullBtn');
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
       var r1 = await fetch(gasUrl+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
       var d1 = await r1.json();
       if(!d1.ok) throw new Error(d1.error||'GAS error');
-      var dd = d1.data;
+      var dd = d1.data || d1;
       if(dd.data===null){ calLog('☁️ 雲端尚無資料','i'); return; }
       var recs = dd.records || (dd.data&&dd.data.records) || dd.data || [];
       if(!dd.chunked){
@@ -2555,12 +2674,17 @@ init();
           recs = recs.concat(dc.data&&dc.data.records || dc.records || []);
         }
       }
-      localStorage.setItem(DATA_KEY, JSON.stringify(recs));
-      localStorage.setItem(META_KEY, JSON.stringify({ts:Date.now(),count:recs.length}));
-      calLog('✓ 拉取完成 ('+recs.length+'筆)，重新整理可見資料','ok');
+      var snap=Array.isArray(recs)?recs.find(function(x){return x&&x.kind==='calendarSnapshot'}):null;
+      if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:[];CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{});}
+      else if(Array.isArray(recs)&&recs.length){DB=dbFromFlat(recs);}
+      else throw new Error(lang==='en'?'No calendar snapshot found':'雲端沒有可用的日曆資料');
+      LAST_SAVED_DB=clone(DB);saveDB(false);init();
+      var count=flatDB().length,meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
+      localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
+      calLog('✓ '+(lang==='en'?'Latest cloud data downloaded':'已下載最新雲端資料')+' ('+count+'筆)','ok');
       calShowStatus();
     } catch(e){ calLog('✗ '+e.message,'err'); }
-    finally{ if(btn){ btn.disabled=false; btn.innerHTML='⬇ 拉取'; } }
+    finally{ if(btn){ btn.disabled=false; btn.innerHTML=lang==='en'?'⬇ Download':'⬇ 下載'; } }
   };
 
   // Init
