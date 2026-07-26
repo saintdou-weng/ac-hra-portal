@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AC HRA Manpower v2</title>
+<title>AC HRA Manpower v2.1</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -179,7 +179,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="logo">👥</div>
     <div>
       <div class="title" data-zh="人力與招募管理" data-en="Manpower & Recruitment" data-km="ការគ្រប់គ្រងកម្លាំងពលកម្ម">人力與招募管理</div>
-      <div class="subtitle">AC HRA · VRT · MANPOWER v2</div>
+      <div class="subtitle">AC HRA · VRT · MANPOWER v2.1</div>
     </div>
     <div class="header-actions">
       <div class="cloud-state"><span id="cloudDot" class="dot"></span><span id="cloudState">Cloud —</span></div>
@@ -543,7 +543,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         <span class="summary-chip"><b>Resign</b>：Resigned</span>
         <span class="summary-chip"><b>Daily</b>：General list / Chat</span>
       </div>
-      <p class="panel-note" style="margin-top:10px" data-zh="匯入採 Upsert：同一唯一鍵存在時更新原記錄。人力鍵＝月份＋部門＋職位；入職鍵＝工號；離職鍵＝工號＋離職日；應徵鍵＝登記日＋姓名＋電話。並保留舊版 ac_hra_manpower_reqs / ac_hra_manpower_recruit 相容資料。" data-en="Imports use upsert: matching keys update existing records. Compatibility data for the prior Manpower module is retained." data-km="ការនាំចូលធ្វើបច្ចុប្បន្នភាពកំណត់ត្រាដែលមានស្រាប់ និងរក្សាភាពឆបគ្នាជាមួយកំណែចាស់។">匯入採 Upsert：同一唯一鍵存在時更新原記錄。人力鍵＝月份＋部門＋職位；入職鍵＝工號；離職鍵＝工號＋離職日；應徵鍵＝登記日＋姓名＋電話。並保留舊版 ac_hra_manpower_reqs / ac_hra_manpower_recruit 相容資料。</p>
+      <p class="panel-note" style="margin-top:10px" data-zh="匯入採 Upsert：同一唯一鍵存在時更新原記錄。主要資料存入 IndexedDB（瀏覽器內建的大容量資料庫）；第一次開啟會自動搬移舊版 localStorage 資料，成功後刪除重複副本。人力鍵＝月份＋部門＋職位；入職鍵＝工號；離職鍵＝工號＋離職日；應徵鍵＝登記日＋姓名＋電話。" data-en="Imports use upsert: matching keys update existing records. Primary data is stored in IndexedDB, the browser's larger built-in database. Existing localStorage data is migrated automatically and duplicate legacy copies are removed after success." data-km="ការនាំចូលធ្វើបច្ចុប្បន្នភាពកំណត់ត្រាដែលមានស្រាប់។ ទិន្នន័យសំខាន់រក្សាទុកក្នុង IndexedDB ហើយទិន្នន័យចាស់ត្រូវបានផ្ទេរដោយស្វ័យប្រវត្តិ។">匯入採 Upsert：同一唯一鍵存在時更新原記錄。主要資料存入 IndexedDB（瀏覽器內建的大容量資料庫）；第一次開啟會自動搬移舊版 localStorage 資料，成功後刪除重複副本。人力鍵＝月份＋部門＋職位；入職鍵＝工號；離職鍵＝工號＋離職日；應徵鍵＝登記日＋姓名＋電話。</p>
     </div>
     <div class="panel">
       <div class="panel-head"><div class="panel-title" data-zh="最近匯入記錄" data-en="Recent import log" data-km="ប្រវត្តិនាំចូល">最近匯入記錄</div></div>
@@ -647,6 +647,10 @@ const GAS_KEY='ac_hra_gas_url';
 const LANG_KEY='ac_hra_lang';
 const ONBOARD_JOIN_KEY='ac_hra_joins';
 const ONBOARD_RESIGN_KEY='ac_hra_resigns';
+const IDB_NAME='ac_hra_manpower_v2_store';
+const IDB_VERSION=1;
+const IDB_STORE='app_data';
+const IDB_RECORD_KEY='database';
 const DEFAULT_DB=()=>({version:2,plans:[],candidates:[],joins:[],resigns:[],daily:[],imports:[],updatedAt:''});
 const NAV={
   dashboard:{mode:'month',pivot:new Date()},
@@ -671,18 +675,34 @@ const REPORT_METRICS=[
 ];
 const REPORT_SELECTED=new Set(['required','actual','gap','applicants','joined','resigned','turnover']);
 let DB=DEFAULT_DB();
-let LANG=localStorage.getItem(LANG_KEY)||'zh';
+let LANG=lsGet(LANG_KEY)||'zh';
 let ACTIVE_TAB='dashboard';
 let REPORT_GRAIN='month';
 let MP_PERIOD_GRAIN='month';
 let EDITING={kind:'',key:''};
 let LAST_TG_HTML='';
 let REPORT_LAST_ROWS=[];
+let IDB_CONNECTION_PROMISE=null;
+let SAVE_QUEUE=Promise.resolve({ok:true,mode:'initial'});
+const STORAGE={
+  mode:'initializing',lastError:'',lastReason:'',appBytes:0,usage:0,quota:0,
+  warnedMode:'',initialWarning:'',emergencyDownloaded:false
+};
 const CHARTS={};
 
 function el(id){return document.getElementById(id)}
 function qsa(s){return [...document.querySelectorAll(s)]}
 function L(zh,en,km){return LANG==='en'?en:LANG==='km'?(km||en):zh}
+function lsGet(key){
+  try{return window.localStorage.getItem(key)}catch(e){return null}
+}
+function lsSet(key,value){
+  try{window.localStorage.setItem(key,value);return{ok:true,error:null}}
+  catch(error){return{ok:false,error}}
+}
+function lsRemove(key){
+  try{window.localStorage.removeItem(key);return true}catch(e){return false}
+}
 function n(v){const x=Number(v);return Number.isFinite(x)?x:0}
 function int(v){return Math.round(n(v))}
 function fmt(v,d=0){return n(v).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
@@ -870,7 +890,7 @@ function safeDB(raw){
 function migrateLegacy(){
   const d=DEFAULT_DB();
   try{
-    const reqs=JSON.parse(localStorage.getItem(LEGACY_REQ_KEY)||'[]');
+    const reqs=JSON.parse(lsGet(LEGACY_REQ_KEY)||'[]');
     arrayValue(reqs).forEach((r,i)=>{
       const date=parseDate(r.date)||today(),period=date.slice(0,7),dept=norm(r.dept)||'—',position=norm(r.position||r.title)||'—';
       d.plans.push({
@@ -880,7 +900,7 @@ function migrateLegacy(){
         actual:n(r.filled),source:'legacy-v1',updatedAt:new Date().toISOString(),_legacyIndex:i
       });
     });
-    const rc=JSON.parse(localStorage.getItem(LEGACY_RECRUIT_KEY)||'[]');
+    const rc=JSON.parse(lsGet(LEGACY_RECRUIT_KEY)||'[]');
     arrayValue(rc).forEach((r,i)=>{
       const registerDate=parseDate(r.date)||today(),name=norm(r.name),phone=digits(r.phone);
       const key=`C|${registerDate}|${normName(name)}|${phone||i}`;
@@ -893,35 +913,194 @@ function migrateLegacy(){
   }catch(e){console.warn('Legacy migration:',e)}
   return d;
 }
-function loadDB(){
+function namedStorageError(name,message){
+  const e=new Error(message);e.name=name;return e;
+}
+function cloneData(value){
+  if(typeof structuredClone==='function')return structuredClone(value);
+  return JSON.parse(JSON.stringify(value));
+}
+function dbHasData(d){
+  return ['plans','candidates','joins','resigns','daily','imports'].some(k=>arrayValue(d?.[k]).length);
+}
+function openDataStore(){
+  let factory;
+  try{factory=window.indexedDB}catch(e){return Promise.reject(e)}
+  if(!factory)return Promise.reject(namedStorageError('NotSupportedError','IndexedDB is unavailable'));
+  if(IDB_CONNECTION_PROMISE)return IDB_CONNECTION_PROMISE;
+  const pending=new Promise((resolve,reject)=>{
+    let req;
+    try{req=factory.open(IDB_NAME,IDB_VERSION)}
+    catch(e){reject(e);return}
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess=()=>{
+      const db=req.result;
+      db.onversionchange=()=>{db.close();IDB_CONNECTION_PROMISE=null};
+      resolve(db);
+    };
+    req.onerror=()=>reject(req.error||namedStorageError('UnknownError','Unable to open IndexedDB'));
+    req.onblocked=()=>reject(namedStorageError('InvalidStateError','IndexedDB upgrade is blocked by another tab'));
+  });
+  IDB_CONNECTION_PROMISE=pending.catch(e=>{IDB_CONNECTION_PROMISE=null;throw e});
+  return IDB_CONNECTION_PROMISE;
+}
+async function idbRead(){
+  const db=await openDataStore();
+  return new Promise((resolve,reject)=>{
+    let tx,req;
+    try{
+      tx=db.transaction(IDB_STORE,'readonly');
+      req=tx.objectStore(IDB_STORE).get(IDB_RECORD_KEY);
+    }catch(e){reject(e);return}
+    req.onsuccess=()=>resolve(req.result);
+    req.onerror=()=>reject(req.error||tx.error||namedStorageError('UnknownError','IndexedDB read failed'));
+    tx.onabort=()=>reject(tx.error||namedStorageError('AbortError','IndexedDB read was aborted'));
+  });
+}
+async function idbWrite(value){
+  const db=await openDataStore();
+  return new Promise((resolve,reject)=>{
+    let tx,req;
+    try{
+      tx=db.transaction(IDB_STORE,'readwrite');
+      req=tx.objectStore(IDB_STORE).put(value,IDB_RECORD_KEY);
+    }catch(e){reject(e);return}
+    tx.oncomplete=()=>resolve(true);
+    tx.onerror=()=>reject(tx.error||req?.error||namedStorageError('UnknownError','IndexedDB write failed'));
+    tx.onabort=()=>reject(tx.error||req?.error||namedStorageError('AbortError','IndexedDB write was aborted'));
+  });
+}
+function localStorageProbe(){
+  const key='__ac_hra_storage_probe__',result=lsSet(key,'1');
+  if(result.ok)lsRemove(key);
+  return result;
+}
+function readLocalDatabase(){
+  const raw=lsGet(DB_KEY);
+  if(raw){
+    try{return{db:safeDB(JSON.parse(raw)),source:'local-main'}}
+    catch(e){console.warn('Local DB parse:',e)}
+  }
+  const migrated=migrateLegacy();
+  return{db:migrated,source:dbHasData(migrated)?'legacy':'empty'};
+}
+function clearLocalDatabaseCopies(){
+  lsRemove(DB_KEY);lsRemove(LEGACY_REQ_KEY);lsRemove(LEGACY_RECRUIT_KEY);
+}
+function writeLocalFallback(snapshot){
+  const result=lsSet(DB_KEY,JSON.stringify(snapshot));
+  if(result.ok){
+    // Keep only one fallback copy; old compatibility mirrors caused avoidable quota use.
+    lsRemove(LEGACY_REQ_KEY);lsRemove(LEGACY_RECRUIT_KEY);
+  }
+  return result;
+}
+function storageReason(error){
+  const name=error?.name||'',message=String(error?.message||'');
+  if(name==='QuotaExceededError'||/quota|space/i.test(message))
+    return L('瀏覽器分配給此網頁的儲存配額已滿（不是硬碟已滿）','This page has reached its browser storage quota; your disk is not full','ទំហំផ្ទុករបស់កម្មវិធីរុករកបានពេញ');
+  if(['SecurityError','NotAllowedError'].includes(name)||/denied|permission|security/i.test(message))
+    return L('瀏覽器禁止此本機網頁儲存資料；請用一般 Chrome 或 GitHub Pages 開啟','The browser blocked storage for this local page; use regular Chrome or GitHub Pages','កម្មវិធីរុករកបានរារាំងការរក្សាទុក');
+  if(['InvalidStateError','NotSupportedError'].includes(name))
+    return L('此開啟方式不支援較大容量的瀏覽器資料庫','This opening method does not support the larger browser database','វិធីបើកនេះមិនគាំទ្រមូលដ្ឋានទិន្នន័យ');
+  return L('瀏覽器資料庫暫時無法寫入','The browser database could not be written','មិនអាចរក្សាទុកទិន្នន័យក្នុងកម្មវិធីរុករក');
+}
+function storageModeLabel(){
+  if(STORAGE.mode==='indexeddb')return L('大型瀏覽器資料庫','Browser database','មូលដ្ឋានទិន្នន័យ');
+  if(STORAGE.mode==='local')return L('相容備援模式','Compatibility fallback','របៀបបម្រុង');
+  if(STORAGE.mode==='memory')return L('僅目前頁面（未落盤）','Current page only (not saved)','តែទំព័របច្ចុប្បន្ន');
+  return L('初始化中','Initializing','កំពុងចាប់ផ្តើម');
+}
+function byteLabel(bytes){
+  const value=n(bytes);
+  if(value<1024)return`${fmt(value)} B`;
+  if(value<1048576)return`${fmt(value/1024,1)} KB`;
+  if(value<1073741824)return`${fmt(value/1048576,1)} MB`;
+  return`${fmt(value/1073741824,1)} GB`;
+}
+async function refreshStorageEstimate(){
+  try{STORAGE.appBytes=new Blob([JSON.stringify(DB)]).size}catch(e){STORAGE.appBytes=0}
+  if(navigator.storage?.estimate){
+    try{
+      const estimate=await navigator.storage.estimate();
+      STORAGE.usage=n(estimate.usage);STORAGE.quota=n(estimate.quota);
+    }catch(e){}
+  }
+  updateCounts();
+}
+function notifyStorageMode(error,mode){
+  const warning=`${storageReason(error)}；${mode==='local'?L('已改用單一備援檔保存，未再重複儲存','A single fallback copy is being used without duplicate mirrors','បានប្តូរទៅច្បាប់ចម្លងបម្រុងតែមួយ'):L('資料仍保留在目前頁面，請立即下載 JSON 備份','Data remains on this page; download a JSON backup now','ទិន្នន័យនៅក្នុងទំព័រ សូមបម្រុងទុក JSON')}`;
+  if(STORAGE.warnedMode!==mode){STORAGE.warnedMode=mode;toast(warning,mode==='local'?'warn':'err')}
+}
+async function loadDB(){
+  let idbError=null;
   try{
-    const raw=localStorage.getItem(DB_KEY);
-    DB=raw?safeDB(JSON.parse(raw)):migrateLegacy();
-  }catch(e){DB=DEFAULT_DB();console.warn('DB load:',e)}
+    const stored=await idbRead();
+    if(stored){
+      DB=safeDB(stored);
+    }else{
+      const local=readLocalDatabase();DB=local.db;
+      await idbWrite(cloneData(DB));
+    }
+    STORAGE.mode='indexeddb';STORAGE.lastError='';STORAGE.lastReason='';
+    clearLocalDatabaseCopies();
+  }catch(error){
+    idbError=error;
+    const local=readLocalDatabase();DB=local.db;
+    const probe=localStorageProbe();
+    if(probe.ok){
+      const saved=writeLocalFallback(DB);
+      if(saved.ok){
+        STORAGE.mode='local';STORAGE.lastError=String(error?.message||error);STORAGE.lastReason=storageReason(error);
+        STORAGE.initialWarning={error,mode:'local'};
+      }else{
+        STORAGE.mode='memory';STORAGE.lastError=String(saved.error?.message||saved.error);STORAGE.lastReason=storageReason(saved.error||error);
+        STORAGE.initialWarning={error:saved.error||error,mode:'memory'};
+      }
+    }else{
+      STORAGE.mode='memory';STORAGE.lastError=String(probe.error?.message||idbError);STORAGE.lastReason=storageReason(probe.error||idbError);
+      STORAGE.initialWarning={error:probe.error||idbError,mode:'memory'};
+    }
+  }
   relinkCandidates();
+  await refreshStorageEstimate();
+  return DB;
+}
+async function persistSnapshot(snapshot){
+  let idbError=null;
+  try{
+    await idbWrite(snapshot);
+    STORAGE.mode='indexeddb';STORAGE.lastError='';STORAGE.lastReason='';
+    clearLocalDatabaseCopies();
+    await refreshStorageEstimate();
+    return{ok:true,mode:'indexeddb'};
+  }catch(error){idbError=error}
+  const fallback=writeLocalFallback(snapshot);
+  if(fallback.ok){
+    STORAGE.mode='local';STORAGE.lastError=String(idbError?.message||idbError);STORAGE.lastReason=storageReason(idbError);
+    notifyStorageMode(idbError,'local');
+    await refreshStorageEstimate();
+    return{ok:true,mode:'local',warning:idbError};
+  }
+  STORAGE.mode='memory';STORAGE.lastError=String(fallback.error?.message||idbError);STORAGE.lastReason=storageReason(fallback.error||idbError);
+  notifyStorageMode(fallback.error||idbError,'memory');
+  if(!STORAGE.emergencyDownloaded){
+    STORAGE.emergencyDownloaded=true;
+    try{downloadBlob(`VRT_Manpower_EMERGENCY_${today()}.json`,JSON.stringify(snapshot,null,2))}catch(e){}
+  }
+  await refreshStorageEstimate();
+  return{ok:false,mode:'memory',error:fallback.error||idbError};
 }
 function saveDB(){
   DB.updatedAt=new Date().toISOString();
-  try{
-    localStorage.setItem(DB_KEY,JSON.stringify(DB));
-    const legacyReq=DB.plans.map(r=>({
-      id:r._k,title:r.position,dept:r.dept,position:r.position,required:n(r.required),
-      filled:n(r.actual),date:r.snapshotDate,status:n(r.actual)>=n(r.required)?'closed':n(r.actual)>0?'partial':'open',
-      priority:n(r.required)-n(r.actual)>0?'urgent':'normal',source:'manpower-v2'
-    }));
-    const legacyRecruit=DB.candidates.map(r=>({
-      id:r._k,date:r.registerDate,name:r.name,empId:r.empId||'',dept:r.dept||r.section,
-      section:r.section,position:r.position,gender:r.gender,referral:r.referral,
-      result:r.joined?'join':r.interviewResult==='fail'?'reject':r.interviewResult||'pending',
-      joinDate:r.joinDate||'',remark:r.remark||r.noShowReason||''
-    }));
-    localStorage.setItem(LEGACY_REQ_KEY,JSON.stringify(legacyReq));
-    localStorage.setItem(LEGACY_RECRUIT_KEY,JSON.stringify(legacyRecruit));
-  }catch(e){
-    toast(L('本機儲存空間不足，請先備份或上傳雲端','Local storage is full; back up or upload first','ទំហំផ្ទុកពេញ'),'err');
-    console.error('DB save:',e);
-  }
+  const snapshot=cloneData(DB);
+  SAVE_QUEUE=SAVE_QUEUE.catch(()=>({ok:false})).then(()=>persistSnapshot(snapshot));
+  return SAVE_QUEUE;
 }
+function flushSaves(){return SAVE_QUEUE}
 function counts(){
   return{plan:DB.plans.length,candidate:DB.candidates.length,join:DB.joins.length,resign:DB.resigns.length,daily:DB.daily.length};
 }
@@ -929,10 +1108,14 @@ function updateCounts(){
   const c=counts(),total=Object.values(c).reduce((a,b)=>a+b,0);
   el('dataCounts').textContent=`${fmt(total)} records`;
   el('smartDrop').classList.toggle('done',total>0);
-  el('storageStats').textContent=`Plan ${c.plan} · Candidate ${c.candidate} · Join ${c.join} · Resign ${c.resign} · Daily ${c.daily} · ${L('最後更新','Updated','បានធ្វើបច្ចុប្បន្នភាព')} ${DB.updatedAt?DB.updatedAt.slice(0,19).replace('T',' '):'—'}`;
+  const browserUsage=STORAGE.quota?` · ${L('瀏覽器使用','Browser usage','ការប្រើប្រាស់')} ${byteLabel(STORAGE.usage)} / ${byteLabel(STORAGE.quota)}`:'';
+  const fallbackReason=STORAGE.lastReason?` · ${L('備援原因','Fallback reason','មូលហេតុបម្រុង')}：${STORAGE.lastReason}`:'';
+  el('storageStats').textContent=`Plan ${c.plan} · Candidate ${c.candidate} · Join ${c.join} · Resign ${c.resign} · Daily ${c.daily} · ${L('儲存','Storage','ការផ្ទុក')}：${storageModeLabel()} · ${L('本工具資料','App data','ទិន្នន័យកម្មវិធី')} ${byteLabel(STORAGE.appBytes)}${browserUsage}${fallbackReason} · ${L('最後更新','Updated','បានធ្វើបច្ចុប្បន្នភាព')} ${DB.updatedAt?DB.updatedAt.slice(0,19).replace('T',' '):'—'}`;
 }
 function setLang(lang){
-  LANG=['zh','en','km'].includes(lang)?lang:'zh';localStorage.setItem(LANG_KEY,LANG);
+  LANG=['zh','en','km'].includes(lang)?lang:'zh';
+  const saved=lsSet(LANG_KEY,LANG);
+  if(!saved.ok)toast(storageReason(saved.error),'warn');
   renderReportMetricChoices();applyLang();renderAll();
 }
 function applyLang(){
@@ -1353,8 +1536,11 @@ async function smartImport(input){
     const [y,m,d]=latest.split('-').map(Number);
     Object.values(NAV).forEach(st=>{st.pivot=new Date(y,m-1,d);if(st.mode==='all')st.mode='month'});
   }
-  saveDB();populateFilters();renderAll();renderImportLog();
-  toast(L('匯入完成；重複記錄已合併','Import complete; duplicates were merged','នាំចូលរួចរាល់'),'ok');
+  const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+  toast(saved.ok
+    ?L('匯入完成；重複記錄已合併並保存','Import complete; duplicates were merged and saved','នាំចូល និងរក្សាទុករួចរាល់')
+    :L('匯入完成但無法落盤；已下載緊急 JSON 備份','Import completed but could not be saved; an emergency JSON backup was downloaded','នាំចូលរួច ប៉ុន្តែមិនអាចរក្សាទុកបាន'),
+    saved.ok?'ok':'err');
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1682,8 +1868,8 @@ function renderRecruit(){
 
 function onboardingData(){
   let joins=[],resigns=[];
-  try{joins=arrayValue(JSON.parse(localStorage.getItem(ONBOARD_JOIN_KEY)||'[]'))}catch(e){}
-  try{resigns=arrayValue(JSON.parse(localStorage.getItem(ONBOARD_RESIGN_KEY)||'[]'))}catch(e){}
+  try{joins=arrayValue(JSON.parse(lsGet(ONBOARD_JOIN_KEY)||'[]'))}catch(e){}
+  try{resigns=arrayValue(JSON.parse(lsGet(ONBOARD_RESIGN_KEY)||'[]'))}catch(e){}
   const idOf=r=>digits(r.empId||r.idNo||r.factoryId||r.id||r.cardNo);
   return{joins,resigns,joinIds:new Set(joins.map(idOf).filter(Boolean)),resignIds:new Set(resigns.map(idOf).filter(Boolean)),idOf};
 }
@@ -1925,7 +2111,7 @@ function onlineKey(kind,r){
   if(kind==='resign')return `R|${digits(r.empId)}|${r.resignDate}`;
   return `D|${r.date}`;
 }
-function saveOnlineRecord(){
+async function saveOnlineRecord(){
   const kind=el('recordType').value,r=readOnlineForm(kind);
   if(!requiredOnline(kind,r)){toast(L('請填完必要欄位，工號須為數字','Complete required fields; employee ID must be numeric','សូមបំពេញទិន្នន័យ'),'warn');return}
   if(kind==='plan'){
@@ -1947,20 +2133,24 @@ function saveOnlineRecord(){
     }
     result=upsertArray(arr,[r],kind);
   }
-  relinkCandidates();saveDB();populateFilters();closeModal('recordModal');renderAll();
-  toast(result.added?L('已新增記錄','Record added','បានបន្ថែម'):L('已更新記錄','Record updated','បានធ្វើបច្ចុប្បន្នភាព'),'ok');
+  relinkCandidates();const saved=await saveDB();populateFilters();closeModal('recordModal');renderAll();
+  toast(saved.ok
+    ?(result.added?L('已新增並保存記錄','Record added and saved','បានបន្ថែម និងរក្សាទុក'):L('已更新並保存記錄','Record updated and saved','បានធ្វើបច្ចុប្បន្នភាព និងរក្សាទុក'))
+    :L('記錄已更新但尚未保存；請使用緊急備份','Record updated but not saved; use the emergency backup','កំណត់ត្រាបានកែ ប៉ុន្តែមិនបានរក្សាទុក'),
+    saved.ok?'ok':'err');
 }
-function deleteRecord(kind,encodedKey){
+async function deleteRecord(kind,encodedKey){
   const key=decodeURIComponent(encodedKey);
   if(!confirm(L('確認刪除此筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
   const arr=collection(kind),i=arr.findIndex(r=>r._k===key);if(i>=0)arr.splice(i,1);
-  relinkCandidates();saveDB();renderAll();toast(L('已刪除','Deleted','បានលុប'),'ok');
+  relinkCandidates();const saved=await saveDB();renderAll();
+  toast(saved.ok?L('已刪除並保存','Deleted and saved','បានលុប និងរក្សាទុក'):L('已從畫面刪除但尚未保存','Removed from the page but not saved','បានលុបពីទំព័រ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
 }
 
 // ─────────────────────────────────────────────────────────────
 // Settings, cloud sync and Telegram
 // ─────────────────────────────────────────────────────────────
-function gasUrl(){return norm(localStorage.getItem(GAS_KEY)||'')}
+function gasUrl(){return norm(lsGet(GAS_KEY)||'')}
 function setCloudState(state,text){
   el('cloudDot').className=`dot ${state||''}`;el('cloudState').textContent=text||'Cloud —';
 }
@@ -1968,7 +2158,8 @@ function renderSettings(){el('gasUrl').value=gasUrl();renderImportLog();updateCo
 function saveSettings(){
   const url=norm(el('gasUrl').value);
   if(url&&!/^https:\/\/script\.google\.com\/macros\/s\//.test(url)){toast(L('GAS URL 格式不正確','Invalid GAS URL','URL មិនត្រឹមត្រូវ'),'warn');return}
-  localStorage.setItem(GAS_KEY,url);
+  const saved=lsSet(GAS_KEY,url);
+  if(!saved.ok){toast(storageReason(saved.error),'err');return}
   setCloudState(url?'ok':'',url?L('GAS 已設定','GAS ready','GAS រួចរាល់'):'Cloud —');
   toast(L('設定已儲存','Settings saved','បានរក្សាទុក'),'ok');
 }
@@ -2050,14 +2241,17 @@ async function cloudDownload(){
       if(payload)records=arrayValue(payload.records);
       if(!records.length&&payload){
         const parsed=migrateCloudLegacy(payload),stats=mergeParsed(parsed);
-        saveDB();populateFilters();renderAll();setCloudState('ok',L('已下載並合併','Downloaded & merged','បានទាញយក'));
-        toast(statText(stats),'ok');return;
+        const saved=await saveDB();populateFilters();renderAll();
+        setCloudState(saved.ok?'ok':'err',saved.ok?L('已下載並合併','Downloaded & merged','បានទាញយក'):L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
+        if(saved.ok)toast(statText(stats),'ok');
+        return;
       }
     }
     if(!records.length)throw new Error(L('雲端尚無 Manpower 資料','No Manpower data in cloud','មិនមានទិន្នន័យក្នុង Cloud'));
     const parsed=splitCloudRecords(records),stats=mergeParsed(parsed);
-    saveDB();populateFilters();renderAll();setCloudState('ok',`${L('已合併','Merged','បានបញ្ចូល')} ${records.length}`);
-    toast(`${L('雲端下載完成','Cloud download complete','ទាញយករួចរាល់')} · ${statText(stats)}`,'ok');
+    const saved=await saveDB();populateFilters();renderAll();
+    setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${records.length}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
+    if(saved.ok)toast(`${L('雲端下載完成','Cloud download complete','ទាញយករួចរាល់')} · ${statText(stats)}`,'ok');
   }catch(e){setCloudState('err',L('下載失敗','Download failed','ទាញយកបរាជ័យ'));toast(e.message,'err')}
   finally{btn.classList.remove('busy');btn.disabled=false}
 }
@@ -2160,17 +2354,19 @@ function downloadBlob(name,content,type='application/json'){
 function backupJSON(){downloadBlob(`VRT_Manpower_Backup_${today()}.json`,JSON.stringify(DB,null,2));toast(L('備份已下載','Backup downloaded','បានទាញយកបម្រុង'),'ok')}
 function restoreJSON(input){
   const file=input.files?.[0];input.value='';if(!file)return;
-  const reader=new FileReader();reader.onload=()=>{
+  const reader=new FileReader();reader.onload=async()=>{
     try{
       const incoming=safeDB(JSON.parse(reader.result));
       if(!confirm(L('還原會取代目前本機 Manpower 資料，確定繼續？','Restore will replace current local Manpower data. Continue?','ការស្តារនឹងជំនួសទិន្នន័យបច្ចុប្បន្ន។')))return;
-      DB=incoming;relinkCandidates();saveDB();populateFilters();renderAll();renderImportLog();toast(L('還原完成','Restore complete','ស្តាររួចរាល់'),'ok');
+      DB=incoming;relinkCandidates();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+      toast(saved.ok?L('還原並保存完成','Restore and save complete','ស្តារ និងរក្សាទុករួចរាល់'):L('資料已還原到畫面但無法保存','Data restored on screen but could not be saved','បានស្តារលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
     }catch(e){toast(L('JSON 檔案無效','Invalid JSON file','ឯកសារ JSON មិនត្រឹមត្រូវ'),'err')}
   };reader.readAsText(file);
 }
-function clearAllData(){
+async function clearAllData(){
   if(!confirm(L('確定清除所有 Manpower 本機資料？請先備份。','Clear all local Manpower data? Back up first.','លុបទិន្នន័យ Manpower ទាំងអស់?')))return;
-  DB=DEFAULT_DB();saveDB();populateFilters();renderAll();renderImportLog();toast(L('已清除全部資料','All data cleared','បានលុបទាំងអស់'),'ok');
+  DB=DEFAULT_DB();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+  toast(saved.ok?L('已清除並保存','All data cleared and saved','បានលុប និងរក្សាទុក'):L('畫面已清除但無法保存變更','Cleared on screen but the change could not be saved','បានលុបលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
 }
 function renderImportLog(){
   const html=DB.imports.slice(0,20).map(x=>{
@@ -2188,8 +2384,8 @@ function setupDropzone(){
   ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{e.preventDefault();z.classList.remove('drag')}));
   z.addEventListener('drop',e=>smartImport(e.dataTransfer.files));
 }
-function init(){
-  loadDB();
+async function init(){
+  await loadDB();
   const latest=allDataDates('dashboard').sort().at(-1);
   if(latest){
     const [y,m,d]=latest.split('-').map(Number);
@@ -2198,6 +2394,11 @@ function init(){
   el('gasUrl').value=gasUrl();
   setCloudState(gasUrl()?'ok':'',gasUrl()?L('GAS 已設定','GAS ready','GAS រួចរាល់'):'Cloud —');
   populateFilters();renderReportMetricChoices();populateComparePeriods();renderImportLog();setupDropzone();applyLang();renderAll();
+  if(STORAGE.initialWarning){
+    const warning=STORAGE.initialWarning;STORAGE.initialWarning='';
+    notifyStorageMode(warning.error,warning.mode);
+  }
+  refreshStorageEstimate();
 }
 
 Object.assign(window,{
@@ -2208,7 +2409,11 @@ Object.assign(window,{
   exportExcel,exportReportExcel,backupJSON,restoreJSON,clearAllData
 });
 
-init();
+init().catch(e=>{
+  console.error('Init:',e);
+  STORAGE.mode='memory';STORAGE.lastError=String(e?.message||e);STORAGE.lastReason=storageReason(e);
+  try{toast(`${storageReason(e)}；${L('資料只保留在目前頁面','Data remains only on this page','ទិន្នន័យនៅតែលើទំព័រនេះ')}`,'err')}catch(_){}
+});
 </script>
 </body>
 </html>
