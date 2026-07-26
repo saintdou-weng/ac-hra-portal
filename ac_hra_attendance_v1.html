@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>VRT 考勤分析系統 Cloud v1</title>
+<title>VRT 考勤分析系統 v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -76,8 +76,21 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 @keyframes sUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 /* Tg preview */
 .tg-preview{background:#1e2640;color:#e2e6f0;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;max-height:400px;overflow-y:auto;margin-top:12px}
+.period-list-table{min-width:880px}
+.period-list-table tbody tr{cursor:pointer}
+.period-list-table tbody tr:hover td{background:#f0fdf8}
+.period-list-table tr.active td{background:#e0f2fe;color:#075985;font-weight:700}
+.period-list-table th:first-child,.period-list-table td:first-child{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 #e2e6f0}
+.period-list-table thead th:first-child{z-index:3;background:#e8f4f1}
+.period-list-table tr.active td:first-child{background:#e0f2fe}
+.segmented{display:inline-flex;border:1px solid #d0d5e8;border-radius:7px;overflow:hidden;background:#fff}
+.segmented button{border:0;border-right:1px solid #d0d5e8;background:#fff;color:#6b7a9e;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer}
+.segmented button:last-child{border-right:0}.segmented button.on{background:#1a6e5c;color:#fff}
+.analysis-table{min-width:760px}
+.tab-busy{position:fixed;right:16px;top:124px;z-index:120;background:#1e2640;color:#fff;border-radius:999px;padding:6px 11px;font-size:10px;box-shadow:0 4px 12px rgba(0,0,0,.18);display:none}
+.tab-busy.on{display:block}
 @media(max-width:900px){.g2,.g3,.tips{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(3,1fr)}}
-@media(max-width:600px){.h-stats .hstat{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:600px){.h-stats .hstat{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}.sec{padding:12px 10px}.tabs,.cloud-bar,.cloud-cfg-row{padding-left:10px;padding-right:10px}}
 
 /* ── Cloud Sync Bar ── */
 .cloud-bar{background:#fff;border-bottom:2px solid #e2e6f0;padding:7px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:40px}
@@ -110,7 +123,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 
 <div class="header">
   <div class="logo">VRT</div>
-  <div><div class="h-title">考勤分析系統</div><div class="h-sub">ATTENDANCE ANALYTICS · Cloud v1</div></div>
+  <div><div class="h-title" data-zh="考勤分析系統" data-en="Attendance Analytics" data-km="ប្រព័ន្ធវិភាគវត្តមាន">考勤分析系統</div><div class="h-sub">ATTENDANCE ANALYTICS · v2</div></div>
   <div class="h-stats">
     <div class="hstat"><div class="hstat-v" id="hRecs">0</div><div class="hstat-l" data-zh="總記錄" data-en="Records">總記錄</div></div>
     <div class="hstat"><div class="hstat-v" id="hDays">0</div><div class="hstat-l" data-zh="天數" data-en="Days">天數</div></div>
@@ -127,19 +140,20 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <!-- ══ CLOUD SYNC BAR ══ -->
 <div class="cloud-bar">
   <div class="cloud-dot" id="cloudDot"></div>
-  <span class="cloud-lbl" id="cloudLbl">雲端未設定</span>
+  <span class="cloud-lbl" id="cloudLbl" data-zh="雲端未設定（僅手動同步）" data-en="Cloud not configured (manual sync only)" data-km="Cloud មិនទាន់កំណត់ (ធ្វើដោយដៃ)">雲端未設定（僅手動同步）</span>
   <span class="cloud-ts" id="cloudTs"></span>
+  <span class="cloud-ts" data-zh="不會自動上傳或下載" data-en="No automatic upload or download" data-km="មិនផ្ទុកឡើង ឬទាញយកដោយស្វ័យប្រវត្តិ">不會自動上傳或下載</span>
   <div class="cloud-btns">
     <button class="btn-cloud btn-push" onclick="pushCloud()" id="btnPush" disabled title="上傳至雲端 Push to Cloud" style="font-size:15px;padding:4px 9px">☁↑</button>
     <button class="btn-cloud btn-pull" onclick="pullCloud()" id="btnPull" disabled title="從雲端拉取 Pull from Cloud" style="font-size:15px;padding:4px 9px">☁↓</button>
-    <button class="btn-cloud btn-cfg"  onclick="toggleCloudCfg()" title="設定 GAS URL">⚙</button>
+    <button class="btn-cloud btn-cfg"  onclick="toggleCloudCfg()" title="設定 GAS URL / Configure GAS URL">⚙</button>
   </div>
 </div>
 <div class="cloud-cfg-row" id="cloudCfgRow">
   <label style="font-size:11px;font-weight:700;color:#6b7a9e;white-space:nowrap">GAS URL</label>
   <input id="gasUrlInput" type="text" placeholder="https://script.google.com/macros/s/…/exec" />
-  <button class="btn-cloud btn-push" onclick="saveGasUrl()">儲存</button>
-  <button class="btn-cloud btn-cfg"  onclick="testConnection()" id="btnTest">🔌 測試</button>
+  <button class="btn-cloud btn-push" onclick="saveGasUrl()"><span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+  <button class="btn-cloud btn-cfg"  onclick="testConnection()" id="btnTest"><span data-zh="🔌 測試" data-en="🔌 Test" data-km="🔌 សាកល្បង">🔌 測試</span></button>
 </div>
 <div class="cloud-prog" id="cloudProg"><div class="cloud-prog-fill" id="cloudProgFill"></div></div>
 
@@ -147,7 +161,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="tab on" onclick="goTab('upload',this)">📥 <span data-zh="上傳考勤" data-en="Import">上傳考勤</span></div>
   <div class="tab" onclick="goTab('daily',this)">📊 <span data-zh="每日報告" data-en="Daily">每日報告</span></div>
   <div class="tab" onclick="goTab('weekly',this)">📅 <span data-zh="週統計" data-en="Weekly">週統計</span></div>
-  <div class="tab" onclick="goTab('monthly',this)">📆 <span data-zh="月趨勢" data-en="Monthly">月趨勢</span></div>
+  <div class="tab" onclick="goTab('monthly',this)">📆 <span data-zh="月／年列表" data-en="Monthly / Yearly" data-km="ប្រចាំខែ / ឆ្នាំ">月／年列表</span></div>
   <div class="tab" onclick="goTab('yearly',this)">📈 <span data-zh="年度分析" data-en="Yearly">年度分析</span></div>
   <div class="tab" onclick="goTab('dept',this)">🏢 <span data-zh="部門分析" data-en="Dept">部門分析</span></div>
   <div class="tab" onclick="goTab('group',this)">📊 <span data-zh="組別分析" data-en="Group">組別分析</span></div>
@@ -160,22 +174,22 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="card">
     <div class="ct"><span data-zh="📧 拖放考勤 Excel 或 Email 檔案" data-en="📧 Drop Attendance File Here">📧 拖放考勤 Excel 或 Email 檔案</span></div>
     <div class="tips">
-      <div class="tip" style="background:#f0fdf4;border-color:#bbf7d0"><b style="color:#059669">✅ 每日更新方式</b><br>只需拖入<b>最新那封</b> .msg 或 .eml<br>它已包含整月所有日期的 Sheet<br><span style="color:#059669;font-size:11px">✓ 系統自動跳過已匯入日期，只解析新增的</span></div>
-      <div class="tip" style="background:#f0f9ff;border-color:#bae6fd"><b style="color:#0369a1">📊 直接拖 .xlsx</b><br>考勤 Excel 每天佔一個 Sheet<br>拖入後自動讀取 Date: 儲存格<br><span style="color:#0369a1;font-size:11px">✓ 不需每天拖，拖最新的就好</span></div>
-      <div class="tip" style="background:#fff1f2;border-color:#fca5a5"><b style="color:#991b1b">⚠️ 不要一次拖多封 .msg</b><br>每封 .msg 都包含之前所有日期<br>一次拖多封會重複掃描導致卡頓<br><span style="color:#991b1b;font-size:11px">✗ 只拖最新那封即可</span></div>
+      <div class="tip" style="background:#f0fdf4;border-color:#bbf7d0" data-zh="✅ 每日更新：只需拖入最新一封 .msg／.eml；系統會跳過已匯入日期，只解析新增日期。" data-en="✅ Daily update: Drop only the latest .msg/.eml. Imported dates are skipped and only new dates are parsed." data-km="✅ បច្ចុប្បន្នភាពប្រចាំថ្ងៃ៖ ដាក់តែឯកសារចុងក្រោយ។">✅ 每日更新：只需拖入最新一封 .msg／.eml；系統會跳過已匯入日期，只解析新增日期。</div>
+      <div class="tip" style="background:#f0f9ff;border-color:#bae6fd" data-zh="📊 Excel 匯入：直接拖入 .xlsx；每天一個 Sheet，系統會讀取日期並自動防重複。" data-en="📊 Excel import: Drop the .xlsx directly. Each day is one sheet; dates are detected and duplicates are prevented." data-km="📊 នាំចូល Excel៖ ដាក់ឯកសារ .xlsx ដោយផ្ទាល់។">📊 Excel 匯入：直接拖入 .xlsx；每天一個 Sheet，系統會讀取日期並自動防重複。</div>
+      <div class="tip" style="background:#fff1f2;border-color:#fca5a5" data-zh="⚠️ 請勿同時拖入多封 .msg；每封都含先前日期，多封一起掃描會造成明顯卡頓。" data-en="⚠️ Do not drop several .msg files together. Each contains earlier dates, so rescanning them causes major delays." data-km="⚠️ កុំដាក់ឯកសារ .msg ច្រើនក្នុងពេលតែមួយ។">⚠️ 請勿同時拖入多封 .msg；每封都含先前日期，多封一起掃描會造成明顯卡頓。</div>
     </div>
     <div class="drop" id="dz" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dzDrop(event)">
       <input type="file" multiple accept=".xlsx,.xls,.eml,.msg" onchange="dzSelect(event)">
       <div style="font-size:36px;margin-bottom:10px">📥</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:4px">拖放考勤檔案到這裡</div>
-      <div style="font-size:12px;color:#6b7a9e">.eml .msg 自動提取附件 · .xlsx 解析所有 Sheet · 防重複匯入</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px" data-zh="拖放考勤檔案到這裡" data-en="Drop attendance files here" data-km="ដាក់ឯកសារវត្តមាននៅទីនេះ">拖放考勤檔案到這裡</div>
+      <div style="font-size:12px;color:#6b7a9e" data-zh=".eml／.msg 自動提取附件 · .xlsx 解析所有 Sheet · 防重複匯入" data-en="Extract attachments from .eml/.msg · Read all .xlsx sheets · Prevent duplicate imports" data-km="ទាញឯកសារភ្ជាប់ និងការពារទិន្នន័យស្ទួន">.eml／.msg 自動提取附件 · .xlsx 解析所有 Sheet · 防重複匯入</div>
     </div>
     <div id="fileList" style="margin-top:10px"></div>
     <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-p" id="btnImport" onclick="doImport()" disabled><span data-zh="🔍 解析匯入" data-en="🔍 Import">🔍 解析匯入</span></button>
       <button class="btn btn-g" onclick="clearFiles()"><span data-zh="清除列表" data-en="Clear">清除列表</span></button>
       <label style="font-size:11px;color:#6b7a9e;display:flex;align-items:center;gap:4px;cursor:pointer" title="勾選後會覆蓋已匯入日期的資料（重新解析）">
-        <input type="checkbox" id="chkOverwrite"> 覆蓋已匯入日期
+        <input type="checkbox" id="chkOverwrite"> <span data-zh="覆蓋已匯入日期" data-en="Replace imported dates" data-km="ជំនួសកាលបរិច្ឆេទដែលបាននាំចូល">覆蓋已匯入日期</span>
       </label>
       <span id="importMsg" style="font-size:13px"></span>
     </div>
@@ -208,7 +222,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <div class="sec" id="sec-daily">
   <div class="frow">
     <button class="btn btn-g" onclick="navDay(-1)" style="padding:6px 12px;font-size:16px">◀</button>
-    <label style="color:#6b7a9e">日期</label>
+    <label style="color:#6b7a9e" data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</label>
     <select id="dsel" onchange="renderDaily()"></select>
     <button class="btn btn-g" onclick="navDay(1)" style="padding:6px 12px;font-size:16px">▶</button>
     <span id="dayMeta" style="font-size:12px;color:#8b95b8;margin-left:auto"></span>
@@ -220,23 +234,23 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
     <div class="card"><div class="ct"><span data-zh="假別佔比" data-en="Leave Types">假別佔比</span></div><div class="ch" style="height:150px"><canvas id="cLeave"></canvas></div></div>
     <div class="card"><div class="ct"><span data-zh="部門出勤率" data-en="Dept Att.Rate">部門出勤率</span></div><div class="ch" style="height:150px"><canvas id="cDeptRate"></canvas></div></div>
   </div>
-  <div class="card"><div class="ct">考勤日報表 Daily Attendance Report</div><div class="twrap" id="dayTable"></div></div>
+  <div class="card"><div class="ct" data-zh="考勤日報表" data-en="Daily Attendance Report" data-km="របាយការណ៍វត្តមានប្រចាំថ្ងៃ">考勤日報表</div><div class="twrap" id="dayTable"></div></div>
 </div>
 
 <!-- ══ WEEKLY ══ -->
 <div class="sec" id="sec-weekly">
   <div class="frow">
     <button class="btn btn-g" onclick="navWeek(-1)" style="padding:6px 12px;font-size:16px">◀</button>
-    <label style="color:#6b7a9e">週次</label>
+    <label style="color:#6b7a9e" data-zh="週次" data-en="Week" data-km="សប្តាហ៍">週次</label>
     <select id="wsel" onchange="renderWeekly()"></select>
     <button class="btn btn-g" onclick="navWeek(1)" style="padding:6px 12px;font-size:16px">▶</button>
-    <button class="btn btn-t" onclick="genTelegram('weekly')" style="margin-left:auto">📱 Telegram</button>
+    <button class="btn btn-t" onclick="genTelegram('weekly')" style="margin-left:auto"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary" data-km="📱 សេចក្តីសង្ខេប Telegram">📱 Telegram 摘要</span></button>
   </div>
   <div id="weekKpi" class="kpi-strip"></div>
-  <div class="card"><div class="ct">週內逐日出勤率趨勢</div><div class="ch" style="height:240px"><canvas id="cWeekTrend"></canvas></div></div>
+  <div class="card"><div class="ct" data-zh="週內逐日出勤率趨勢" data-en="Daily Attendance Rate During the Week" data-km="អត្រាវត្តមានប្រចាំថ្ងៃក្នុងសប្តាហ៍">週內逐日出勤率趨勢</div><div class="ch" style="height:240px"><canvas id="cWeekTrend"></canvas></div></div>
   <div class="g2">
-    <div class="card"><div class="ct">新進 vs 離職</div><div class="ch" style="height:200px"><canvas id="cWeekJR"></canvas></div></div>
-    <div class="card"><div class="ct">假別分布</div><div class="ch" style="height:200px"><canvas id="cWeekLeave"></canvas></div></div>
+    <div class="card"><div class="ct" data-zh="新進 vs 離職" data-en="Join vs Resign" data-km="ចូលថ្មី vs លាឈប់">新進 vs 離職</div><div class="ch" style="height:200px"><canvas id="cWeekJR"></canvas></div></div>
+    <div class="card"><div class="ct" data-zh="假別分布" data-en="Leave Type Distribution" data-km="ការបែងចែកប្រភេទឈប់">假別分布</div><div class="ch" style="height:200px"><canvas id="cWeekLeave"></canvas></div></div>
   </div>
   <div class="card" style="margin-top:4px">
     <div class="ct"><span data-zh="各組出勤率 (週)" data-en="Section Att. Rate (Week)">各組出勤率 (週)</span></div>
@@ -248,20 +262,48 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <div class="sec" id="sec-monthly">
   <div class="frow">
     <button class="btn btn-g" onclick="navMonth(-1)" style="padding:6px 12px;font-size:16px">◀</button>
-    <label style="color:#6b7a9e">月份</label>
+    <label style="color:#6b7a9e" data-zh="月份" data-en="Month" data-km="ខែ">月份</label>
     <select id="msel" onchange="renderMonthly()"></select>
     <button class="btn btn-g" onclick="navMonth(1)" style="padding:6px 12px;font-size:16px">▶</button>
-    <button class="btn btn-t" onclick="genTelegram('monthly')" style="margin-left:auto">📱 Telegram</button>
+    <button class="btn btn-t" onclick="genTelegram('monthly')" style="margin-left:auto"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary" data-km="📱 សេចក្តីសង្ខេប Telegram">📱 Telegram 摘要</span></button>
   </div>
   <div id="monthKpi" class="kpi-strip"></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px">
+      <div class="ct" style="margin-bottom:0" data-zh="期間考勤報表" data-en="Period Attendance Report" data-km="របាយការណ៍វត្តមានតាមរយៈពេល">期間考勤報表</div>
+      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <div class="segmented">
+          <button id="attListMonthBtn" class="on" onclick="setAttendanceListGrain('month')" data-zh="月報" data-en="Monthly" data-km="ប្រចាំខែ">月報</button>
+          <button id="attListYearBtn" onclick="setAttendanceListGrain('year')" data-zh="年報" data-en="Yearly" data-km="ប្រចាំឆ្នាំ">年報</button>
+        </div>
+        <span id="attPeriodCount" style="font-size:10px;color:#8b95b8"></span>
+      </div>
+    </div>
+    <div class="twrap" style="max-height:360px">
+      <table class="dtbl period-list-table">
+        <thead><tr>
+          <th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th>
+          <th data-zh="天數" data-en="Days" data-km="ថ្ងៃ">天數</th>
+          <th data-zh="平均在職" data-en="Avg Headcount" data-km="បុគ្គលិកមធ្យម">平均在職</th>
+          <th data-zh="平均出勤" data-en="Avg Attendance" data-km="វត្តមានមធ្យម">平均出勤</th>
+          <th data-zh="出勤率" data-en="Attendance Rate" data-km="អត្រាវត្តមាន">出勤率</th>
+          <th data-zh="缺勤" data-en="Absence" data-km="អវត្តមាន">缺勤</th>
+          <th data-zh="新進" data-en="Join" data-km="ចូលថ្មី">新進</th>
+          <th data-zh="離職" data-en="Resign" data-km="លាឈប់">離職</th>
+          <th data-zh="流失率" data-en="Turnover" data-km="អត្រាចាកចេញ">流失率</th>
+        </tr></thead>
+        <tbody id="attPeriodBody"></tbody>
+      </table>
+    </div>
+  </div>
   <div class="card" style="margin-bottom:14px">
     <div class="ct"><span data-zh="各組出勤率 (月)" data-en="Section Att. Rate (Month)">各組出勤率 (月)</span></div>
     <div id="monthGrpCards" class="g3" style="gap:10px"></div>
   </div>
-  <div class="card"><div class="ct">月內出勤率趨勢</div><div class="ch" style="height:260px"><canvas id="cMonthTrend"></canvas></div></div>
+  <div class="card"><div class="ct" data-zh="月內出勤率趨勢" data-en="Attendance Rate During the Month" data-km="អត្រាវត្តមានក្នុងខែ">月內出勤率趨勢</div><div class="ch" style="height:260px"><canvas id="cMonthTrend"></canvas></div></div>
   <div class="g2">
-    <div class="card"><div class="ct">人數變動（在職 / 出勤）</div><div class="ch" style="height:220px"><canvas id="cMonthHead"></canvas></div></div>
-    <div class="card"><div class="ct">流失率趨勢</div><div class="ch" style="height:220px"><canvas id="cMonthTurnover"></canvas></div></div>
+    <div class="card"><div class="ct" data-zh="人數變動（在職／出勤）" data-en="Headcount Change (Headcount / Attendance)" data-km="ការប្រែប្រួលចំនួនបុគ្គលិក">人數變動（在職／出勤）</div><div class="ch" style="height:220px"><canvas id="cMonthHead"></canvas></div></div>
+    <div class="card"><div class="ct" data-zh="流失率趨勢" data-en="Turnover Trend" data-km="និន្នាការចាកចេញ">流失率趨勢</div><div class="ch" style="height:220px"><canvas id="cMonthTurnover"></canvas></div></div>
   </div>
 </div>
 
@@ -272,7 +314,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
     <label style="color:#6b7a9e"><span data-zh="年度" data-en="Year">年度</span></label>
     <select id="ysel" onchange="renderYearly()"></select>
     <button class="btn btn-g" onclick="navYear(1)" style="padding:6px 12px;font-size:16px">▶</button>
-    <button class="btn btn-t" onclick="genTelegram('yearly')" style="margin-left:auto">📱 Telegram</button>
+    <button class="btn btn-t" onclick="genTelegram('yearly')" style="margin-left:auto"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary" data-km="📱 សេចក្តីសង្ខេប Telegram">📱 Telegram 摘要</span></button>
   </div>
   <div id="yearKpi" class="kpi-strip"></div>
   <div class="card"><div class="ct"><span data-zh="月度出勤率走勢" data-en="Monthly Att. Rate Trend">月度出勤率走勢</span></div><div class="ch" style="height:280px"><canvas id="cYearRate"></canvas></div></div>
@@ -285,8 +327,37 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 
 <!-- ══ DEPT ══ -->
 <div class="sec" id="sec-dept">
-  <div class="frow"><label style="color:#6b7a9e"><span data-zh="選擇日期" data-en="Date">選擇日期</span></label><select id="deptSel" onchange="renderDept()"></select></div>
+  <div class="frow">
+    <label style="color:#6b7a9e" data-zh="期間模式" data-en="Period Mode" data-km="របៀបរយៈពេល">期間模式</label>
+    <select id="deptMode" onchange="deptModeChange()">
+      <option value="day" data-zh="單日" data-en="Day" data-km="ថ្ងៃ">單日</option>
+      <option value="week" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</option>
+      <option value="month" selected data-zh="月" data-en="Month" data-km="ខែ">月</option>
+      <option value="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</option>
+    </select>
+    <button class="btn btn-g" onclick="navDept(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <select id="deptSel" onchange="renderDept()"></select>
+    <button class="btn btn-g" onclick="navDept(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <input id="deptSearch" oninput="renderDept()" style="min-width:190px;border:1px solid #d0d5e8;border-radius:6px;padding:7px 10px" data-placeholder-zh="搜尋部門／組別" data-placeholder-en="Search department / section" placeholder="搜尋部門／組別">
+  </div>
   <div id="deptCards"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="ct" data-zh="部門／組別排名明細" data-en="Department / Section Ranking" data-km="ចំណាត់ថ្នាក់ផ្នែក / ក្រុម">部門／組別排名明細</div>
+    <div class="twrap" style="max-height:420px">
+      <table class="dtbl analysis-table">
+        <thead><tr>
+          <th data-zh="部門／組別" data-en="Department / Section" data-km="ផ្នែក / ក្រុម">部門／組別</th>
+          <th data-zh="平均在職" data-en="Avg Headcount" data-km="បុគ្គលិកមធ្យម">平均在職</th>
+          <th data-zh="平均出勤" data-en="Avg Attendance" data-km="វត្តមានមធ្យម">平均出勤</th>
+          <th data-zh="出勤率" data-en="Attendance Rate" data-km="អត្រាវត្តមាន">出勤率</th>
+          <th>AL</th><th>NP</th><th>ML</th>
+          <th data-zh="新進" data-en="Join" data-km="ចូលថ្មី">新進</th>
+          <th data-zh="離職" data-en="Resign" data-km="លាឈប់">離職</th>
+        </tr></thead>
+        <tbody id="deptSummaryBody"></tbody>
+      </table>
+    </div>
+  </div>
   <div class="g2" style="margin-top:14px">
     <div class="card"><div class="ct"><span data-zh="各部門男女比例" data-en="Gender Ratio by Dept">各部門男女比例</span></div><div id="genderBars"></div></div>
     <div class="card"><div class="ct"><span data-zh="部門出勤率對比" data-en="Dept Att. Rate Comparison">部門出勤率對比</span></div><div class="ch" style="height:200px"><canvas id="cDeptCompare"></canvas></div></div>
@@ -298,10 +369,10 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="frow" style="flex-wrap:wrap;gap:10px;align-items:center">
     <label style="color:#6b7a9e;font-size:12px"><span data-zh="模式" data-en="Mode">模式</span></label>
     <select id="grpMode" onchange="grpModeChange()">
-      <option value="day"><span data-zh="單日" data-en="Day">單日</span></option>
-      <option value="week"><span data-zh="週" data-en="Week">週</span></option>
-      <option value="month" selected><span data-zh="月" data-en="Month">月</span></option>
-      <option value="year"><span data-zh="年" data-en="Year">年</span></option>
+      <option value="day" data-zh="單日" data-en="Day" data-km="ថ្ងៃ">單日</option>
+      <option value="week" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</option>
+      <option value="month" selected data-zh="月" data-en="Month" data-km="ខែ">月</option>
+      <option value="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</option>
     </select>
     <button class="btn btn-g" onclick="navGrp(-1)" style="padding:5px 10px">◀</button>
     <select id="grpSel" onchange="renderGroupAnalysis()" style="min-width:120px"></select>
@@ -338,15 +409,33 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
       <h3 style="font-size:15px"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary">📱 Telegram 摘要</span></h3>
       <button onclick="document.getElementById('tgModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer">✕</button>
     </div>
+    <div class="frow" style="padding:10px;background:#f7f8fc;border:1px solid #e2e6f0;border-radius:8px;margin-bottom:10px">
+      <label style="font-size:11px;color:#6b7a9e" data-zh="摘要期間" data-en="Summary Period" data-km="រយៈពេលសង្ខេប">摘要期間</label>
+      <select id="tgMode" onchange="populateTelegramPeriods()">
+        <option value="daily" data-zh="每日" data-en="Daily" data-km="ប្រចាំថ្ងៃ">每日</option>
+        <option value="weekly" data-zh="每週" data-en="Weekly" data-km="ប្រចាំសប្តាហ៍">每週</option>
+        <option value="monthly" data-zh="每月" data-en="Monthly" data-km="ប្រចាំខែ">每月</option>
+        <option value="yearly" data-zh="每年" data-en="Yearly" data-km="ប្រចាំឆ្នាំ">每年</option>
+      </select>
+      <select id="tgPeriod" onchange="previewTelegramSummary()" style="min-width:135px"></select>
+      <label style="font-size:11px;color:#6b7a9e" data-zh="語言" data-en="Language" data-km="ភាសា">語言</label>
+      <select id="tgLanguage" onchange="previewTelegramSummary()">
+        <option value="both" data-zh="中英雙語" data-en="Chinese + English" data-km="ចិន + អង់គ្លេស">中英雙語</option>
+        <option value="zh" data-zh="中文" data-en="Chinese" data-km="ចិន">中文</option>
+        <option value="en" data-zh="英文" data-en="English" data-km="អង់គ្លេស">英文</option>
+      </select>
+    </div>
+    <div style="font-size:10px;color:#6b7a9e;background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:8px 10px;line-height:1.6" data-zh="月初自動發送上月摘要必須由 GAS 排程執行，頁面關閉後才仍能正常發送；HTML 不會自行在背景發送。" data-en="Automatic prior-month summaries must run from a GAS schedule so they still send while this page is closed. This HTML never sends in the background." data-km="ការផ្ញើសង្ខេបប្រចាំខែដោយស្វ័យប្រវត្តិត្រូវប្រើកាលវិភាគ GAS។">月初自動發送上月摘要必須由 GAS 排程執行，頁面關閉後才仍能正常發送；HTML 不會自行在背景發送。</div>
     <div class="tg-preview" id="tgContent"></div>
     <div style="margin-top:12px;display:flex;gap:8px">
             <button class="btn btn-t" onclick="sendViaTg()" id="btnTgSend"><span data-zh="📤 發送至群組" data-en="📤 Send">📤 發送至群組</span></button>
       <button class="btn btn-t" onclick="copyTg()"><span data-zh="📋 複製到剪貼簿" data-en="📋 Copy">📋 複製到剪貼簿</span></button>
-      <span id="tgCopyOk" style="display:none;color:#10b981;font-size:12px;font-weight:600">✅ 已複製！</span>
+      <span id="tgCopyOk" style="display:none;color:#10b981;font-size:12px;font-weight:600" data-zh="✅ 已複製！" data-en="✅ Copied!" data-km="✅ បានចម្លង!">✅ 已複製！</span>
     </div>
   </div>
 </div>
 
+<div id="tabBusy" class="tab-busy" data-zh="正在整理報表…" data-en="Preparing report…" data-km="កំពុងរៀបចំរបាយការណ៍…">正在整理報表…</div>
 <div id="toasts"></div>
 
 <script>
@@ -354,7 +443,11 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 // VRT Attendance Analytics v5 — sewing_v5 style
 // ═══════════════════════════════════════════════════════════
 const DB_KEY='vrt_att_v5';
-const LS={get:k=>JSON.parse(localStorage.getItem(DB_KEY+'_'+k)||'null'),set:(k,v)=>localStorage.setItem(DB_KEY+'_'+k,JSON.stringify(v))};
+const LS={
+  get:k=>{try{return JSON.parse(localStorage.getItem(DB_KEY+'_'+k)||'null')}catch(e){return null}},
+  set:(k,v)=>{try{localStorage.setItem(DB_KEY+'_'+k,JSON.stringify(v));return true}catch(e){return false}},
+  remove:k=>{try{localStorage.removeItem(DB_KEY+'_'+k);return true}catch(e){return false}}
+};
 function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))return 0;if(n>0&&n<1)return 0;return Math.round(n);}
 
 // ── Data store ──
@@ -364,124 +457,159 @@ let IMPORT_LOG=LS.get('log')||[];
 let DB_META=LS.get('meta')||{updatedAt:'',cloudUpdatedAt:'',version:0,source:'local'};
 function _latestInDB(d){return[...new Set((d||DB).map(r=>r.date).filter(Boolean))].sort().pop()||'';}
 function saveMeta(m){DB_META={...DB_META,...m};LS.set('meta',DB_META);}
-// ── IndexedDB for full attendance data (no 5MB limit) ──
+let DATA_REV=0;
+let DATA_INDEX_REV=-1;
+let DATA_INDEX=null;
+let ACTIVE_TAB='upload';
+let ATT_LIST_GRAIN='month';
+const TAB_RENDER_REV={};
+
+function markDataChanged(){
+  DATA_REV++;
+  DATA_INDEX_REV=-1;
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+}
+function weekStartKey(dateKey){
+  const dt=new Date(dateKey+'T00:00:00Z');
+  const day=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()-day+1);
+  return dt.toISOString().slice(0,10);
+}
+function ensureDataIndex(){
+  if(DATA_INDEX&&DATA_INDEX_REV===DATA_REV)return DATA_INDEX;
+  const byDate=new Map(),grandByDate=new Map(),subtotalsByDate=new Map(),weekDates=new Map(),monthDates=new Map(),yearDates=new Map();
+  DB.forEach(r=>{
+    const d=r?.date;if(!d)return;
+    if(!byDate.has(d))byDate.set(d,[]);
+    byDate.get(d).push(r);
+    if(r.isGrand)grandByDate.set(d,r);
+    if(r.isSubtotal){
+      if(!subtotalsByDate.has(d))subtotalsByDate.set(d,[]);
+      subtotalsByDate.get(d).push(r);
+    }
+  });
+  const dates=[...byDate.keys()].sort();
+  dates.forEach(d=>{
+    const w=weekStartKey(d),m=d.slice(0,7),y=d.slice(0,4);
+    if(!weekDates.has(w))weekDates.set(w,[]);
+    if(!monthDates.has(m))monthDates.set(m,[]);
+    if(!yearDates.has(y))yearDates.set(y,[]);
+    weekDates.get(w).push(d);monthDates.get(m).push(d);yearDates.get(y).push(d);
+  });
+  DATA_INDEX={byDate,grandByDate,subtotalsByDate,weekDates,monthDates,yearDates,dates,weeks:[...weekDates.keys()].sort(),months:[...monthDates.keys()].sort(),years:[...yearDates.keys()].sort()};
+  DATA_INDEX_REV=DATA_REV;
+  return DATA_INDEX;
+}
+function periodDates(mode,key){
+  const idx=ensureDataIndex();
+  if(mode==='day')return idx.byDate.has(key)?[key]:[];
+  if(mode==='month')return[...(idx.monthDates.get(key)||[])];
+  if(mode==='year')return[...(idx.yearDates.get(key)||[])];
+  if(mode==='week')return[...(idx.weekDates.get(key)||[])];
+  return[];
+}
+
+// ── IndexedDB snapshot storage (large and fast; one record instead of 150k writes) ──
 const ATT_IDB_NAME  = 'AC_HRA_Attendance';
-const ATT_IDB_STORE = 'records';
+const ATT_IDB_VERSION=2;
+const ATT_IDB_STORE = 'snapshot';
+const ATT_IDB_LEGACY_STORE='records';
+const ATT_IDB_KEY='database';
+let ATT_IDB_PROMISE=null;
 
 function openAttIDB() {
-  return new Promise((res, rej) => {
-    const req = indexedDB.open(ATT_IDB_NAME, 1);
+  if(ATT_IDB_PROMISE)return ATT_IDB_PROMISE;
+  ATT_IDB_PROMISE=new Promise((res, rej) => {
+    let req;
+    try{req=indexedDB.open(ATT_IDB_NAME,ATT_IDB_VERSION)}catch(e){rej(e);return}
     req.onupgradeneeded = e => {
       const db = e.target.result;
       if (!db.objectStoreNames.contains(ATT_IDB_STORE)) {
-        db.createObjectStore(ATT_IDB_STORE, { keyPath: '_iid', autoIncrement: true });
+        db.createObjectStore(ATT_IDB_STORE);
       }
     };
-    req.onsuccess = e => res(e.target.result);
+    req.onsuccess = e => {
+      const db=e.target.result;
+      db.onversionchange=()=>{db.close();ATT_IDB_PROMISE=null};
+      res(db);
+    };
     req.onerror   = () => rej(req.error);
+    req.onblocked = () => rej(new Error('IndexedDB upgrade blocked'));
   });
+  ATT_IDB_PROMISE=ATT_IDB_PROMISE.catch(e=>{ATT_IDB_PROMISE=null;throw e});
+  return ATT_IDB_PROMISE;
 }
 
 async function saveToIDB(recs) {
-  if (!recs || !recs.length) return 0;
   const db = await openAttIDB();
-  const tx = db.transaction(ATT_IDB_STORE, 'readwrite');
+  const stores=[ATT_IDB_STORE];
+  if(db.objectStoreNames.contains(ATT_IDB_LEGACY_STORE))stores.push(ATT_IDB_LEGACY_STORE);
+  const tx = db.transaction(stores, 'readwrite');
   const os = tx.objectStore(ATT_IDB_STORE);
-  // Clear first
-  await new Promise((res, rej) => { const q = os.clear(); q.onsuccess = res; q.onerror = rej; });
-  for (const r of recs) os.put(r);
+  os.put(recs||[],ATT_IDB_KEY);
+  if(stores.includes(ATT_IDB_LEGACY_STORE))tx.objectStore(ATT_IDB_LEGACY_STORE).clear();
   return new Promise((res, rej) => {
-    tx.oncomplete = () => { db.close(); res(recs.length); };
+    tx.oncomplete = () => { LS.remove('db');res((recs||[]).length); };
     tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error||new Error('IndexedDB save aborted'));
   });
 }
 
 async function loadFromIDB() {
   try {
     const db = await openAttIDB();
-    return await new Promise((res) => {
+    const snapshot=await new Promise((res) => {
       const tx = db.transaction(ATT_IDB_STORE, 'readonly');
-      const q  = tx.objectStore(ATT_IDB_STORE).getAll();
-      q.onsuccess = () => { db.close(); res(q.result || []); };
-      q.onerror   = () => { db.close(); res([]); };
+      const q  = tx.objectStore(ATT_IDB_STORE).get(ATT_IDB_KEY);
+      q.onsuccess = () => res(Array.isArray(q.result)?q.result:[]);
+      q.onerror   = () => res([]);
     });
+    if(snapshot.length)return snapshot;
+    if(db.objectStoreNames.contains(ATT_IDB_LEGACY_STORE)){
+      const legacy=await new Promise(res=>{
+        const tx=db.transaction(ATT_IDB_LEGACY_STORE,'readonly'),q=tx.objectStore(ATT_IDB_LEGACY_STORE).getAll();
+        q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([]);
+      });
+      if(legacy.length){await saveToIDB(legacy);return legacy}
+    }
+    return[];
   } catch(e) { return []; }
 }
 
-// Load from IDB on startup (before cloud auto-sync)
-// ── Smart startup: IDB load → cloud compare → newer wins ──────────
+// Local-only startup. Cloud upload/download is always initiated by the user.
 (async function smartStartup() {
-  // Step 1: Load from IDB (may have more complete data than localStorage)
   try {
     const recs = await loadFromIDB();
     if (recs.length > 0 && recs.length >= DB.length) {
       DB = recs;
       IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
+      markDataChanged();
       updateHeader();
-      console.log('[STARTUP] IDB loaded ' + recs.length + ' records');
+    } else if (!recs.length && DB.length) {
+      await saveToIDB(DB);
+      markDataChanged();
+      updateHeader();
     }
   } catch(e) { console.warn('[STARTUP] IDB load failed:', e); }
-
-  // Step 2: Update debug badge with local info
-  const localTs = DB_META.updatedAt || (IMPORT_LOG.length ? IMPORT_LOG[IMPORT_LOG.length-1] : '');
-  updateSyncBadge(localTs, '確認中…', '—', '確認中…');
-
-  // Step 3: If GAS_URL is set, silently check cloud meta
-  if (!GAS_URL) {
-    updateSyncBadge(localTs, '(無GAS)', '—', '(無GAS)');
-    return;
-  }
-  try {
-    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', {method:'GET',redirect:'follow'});
-    const d1 = await r1.json();
-    if (!d1.ok || !d1.data) { updateSyncBadge(localTs,'','-',''); return; }
-    const cloudTs = d1.data.chunked ? (d1.data.meta?.timestamp||'') : (d1.data.data?.updatedAt||'');
-    const cloudRecs = d1.data.chunked ? (d1.data.meta?.recordCount||0) : (d1.data.data?.recordCount||0);
-
-    // Get sewing cloud meta
-    let sewCloudTs = '';
-    try {
-      const rs = await fetch(GAS_URL+'?action=pull&tool=sewing&meta=1',{method:'GET',redirect:'follow'});
-      const ds = await rs.json();
-      if(ds.ok&&ds.data) sewCloudTs=ds.data.chunked?(ds.data.meta?.timestamp||''):(ds.data.data?.updatedAt||'');
-    } catch(e2) {}
-    const localSewTs = LS.get('sewMeta')?.updatedAt || '';
-    updateSyncBadge(localTs, cloudTs, localSewTs, sewCloudTs);
-
-    // Step 4: If cloud is newer → auto-pull silently (no confirm dialog)
-    // Use exact match — avoids ISO vs date-string format mismatch causing infinite re-pull
-    const lastKnownCloud = DB_META.cloudUpdatedAt || '';
-    if (cloudTs && cloudTs !== lastKnownCloud) {
-      console.log('[STARTUP] Cloud changed:',lastKnownCloud,'→',cloudTs,'pulling...');
-      updateSyncBadge(localTs, cloudTs+'⬇', localSewTs, sewCloudTs);
-      await pullCloud(true);
-    } else {
-      console.log('[STARTUP] Already synced. cloudTs=',cloudTs);
-      updateSyncBadge(localTs, cloudTs, localSewTs, sewCloudTs);
-    }
-  } catch(e) {
-    console.warn('[STARTUP] Cloud check failed:', e.message);
-    updateSyncBadge(localTs, '離線', '—', '離線');
-  }
 })();
 
 
 function saveDB(){
-  // Save recent 90 days to localStorage (fast, for quick load)
-  const cutDate = new Date(Date.now()-90*86400000).toISOString().slice(0,10);
-  try { LS.set('db', DB.filter(r=>(r.date||'')>=cutDate)); } catch(e) {}
+  markDataChanged();
   LS.set('log', IMPORT_LOG);
-  // Save ALL to IndexedDB (persistent, no size limit)
-  saveToIDB(DB).catch(e => console.warn('[IDB save error]', e));
   updateHeader();
-  scheduleAutoSave();
+  return saveToIDB(DB).catch(e=>{
+    console.warn('[IDB save error]', e);
+    toast(T('瀏覽器資料庫無法寫入，請先下載 JSON 備份','Browser database could not be written. Download a JSON backup now.','មិនអាចរក្សាទុកទិន្នន័យបាន'),'err');
+    return 0;
+  });
 }
 function updateHeader(){
   document.getElementById('hRecs').textContent=DB.length;
-  const dates=[...new Set(DB.map(r=>r.date))];
-  document.getElementById('hDays').textContent=dates.length;
-  const sz=JSON.stringify(DB).length;
-  document.getElementById('hSize').textContent=sz>1048576?(sz/1048576).toFixed(1)+'MB':(sz/1024).toFixed(0)+'KB';
+  document.getElementById('hDays').textContent=ensureDataIndex().dates.length;
+  const sample=DB.slice(0,Math.min(DB.length,250));
+  const sz=sample.length?Math.round(JSON.stringify(sample).length/sample.length*DB.length):0;
+  document.getElementById('hSize').textContent=sz>1048576?'~'+(sz/1048576).toFixed(1)+'MB':'~'+(sz/1024).toFixed(0)+'KB';
 }
 // ── Debug Sync Status Badge ──────────────────────────────────────
 // Set DEBUG_MODE=true in console to show sync badge
@@ -504,16 +632,20 @@ function updateSyncBadge(attLocal,attCloud,sewLocal,sewCloud){
 
 // ── calc ──
 function calc(r){const ttl=r.m+r.f,absent=r.al+r.pl+r.sl+r.np+r.bus+r.fl+r.ml,report=ttl-r.resign+r.join+r.ti-r.to,rate=r.att>0&&report>0?r.att/report:null;return{ttl,absent,report,rate};}
-function allDates(){return[...new Set(DB.map(r=>r.date))].filter(d=>d).sort();}
-function allMonths(){return[...new Set(allDates().map(d=>d.slice(0,7)))].sort();}
-function grandForDate(d){return DB.find(r=>r.isGrand&&r.date===d);}
-function rowsForDate(d){return DB.filter(r=>r.date===d);}
-function subtotalsForDate(d){return DB.filter(r=>r.isSubtotal&&r.date===d);}
+function allDates(){return[...ensureDataIndex().dates];}
+function allMonths(){return[...ensureDataIndex().months];}
+function grandForDate(d){return ensureDataIndex().grandByDate.get(d);}
+function rowsForDate(d){return ensureDataIndex().byDate.get(d)||[];}
+function subtotalsForDate(d){return ensureDataIndex().subtotalsByDate.get(d)||[];}
 
 // ═══════ LANGUAGE ═══════
-let LANG='zh';
+let LANG=['zh','en','km'].includes(LS.get('lang'))?LS.get('lang'):'zh';
+function T(zh,en,km){return LANG==='zh'?zh:LANG==='km'?(km||en):en;}
 function setLang(l){
+  if(!['zh','en','km'].includes(l))l='zh';
   LANG=l;
+  LS.set('lang',l);
+  document.documentElement.lang=l==='zh'?'zh-TW':l;
   document.getElementById('lbZh').style.background=l==='zh'?'#2dd4a8':'transparent';
   document.getElementById('lbZh').style.color=l==='zh'?'#0f3027':'#8bc5b5';
   document.getElementById('lbEn').style.background=l==='en'?'#2dd4a8':'transparent';
@@ -522,33 +654,68 @@ function setLang(l){
     document.getElementById('lbKm').style.background=l==='km'?'#2dd4a8':'transparent';
     document.getElementById('lbKm').style.color=l==='km'?'#0f3027':'#8bc5b5';
   }
-  document.querySelectorAll('[data-zh]').forEach(el=>{const v=el.getAttribute('data-'+l);if(v)el.textContent=v;});
+  document.querySelectorAll('[data-zh]').forEach(el=>{
+    const v=el.getAttribute('data-'+l)||el.getAttribute('data-en')||el.getAttribute('data-zh');
+    if(v!=null)el.textContent=v;
+  });
+  document.querySelectorAll('[data-placeholder-zh]').forEach(el=>{
+    el.placeholder=el.getAttribute('data-placeholder-'+l)||el.getAttribute('data-placeholder-en')||el.getAttribute('data-placeholder-zh')||'';
+  });
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+  renderTab(ACTIVE_TAB,true);
 }
 
 // ═══════ TABS ═══════
 function goTab(name,el){
+  ACTIVE_TAB=name;
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
   if(el)el.classList.add('on');
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
-  document.getElementById('sec-'+name).classList.add('on');
-  if(name==='daily'){populateDateSel('dsel');renderDaily();}
-  if(name==='weekly'){populateWeekSel();renderWeekly();}
-  if(name==='monthly'){populateMonthSel();renderMonthly();}
-  if(name==='yearly'){populateYearSel();renderYearly();}
-  if(name==='dept'){populateDateSel('deptSel');renderDept();}
-  if(name==='group')renderGroupAnalysis();
-  if(name==='records')renderRecords();
-  if(name==='sewcmp'){initSewCmp();}
+  const sec=document.getElementById('sec-'+name);
+  if(sec)sec.classList.add('on');
+  renderTab(name);
+}
+function renderTab(name,force){
+  if(name==='upload')return;
+  if(!force&&TAB_RENDER_REV[name]===DATA_REV)return;
+  const busy=document.getElementById('tabBusy');
+  if(busy)busy.classList.add('on');
+  const run=async()=>{
+    try{
+      if(name==='daily'){populateDateSel('dsel');renderDaily();}
+      else if(name==='weekly'){populateWeekSel();renderWeekly();}
+      else if(name==='monthly'){populateMonthSel();renderMonthly();}
+      else if(name==='yearly'){populateYearSel();renderYearly();}
+      else if(name==='dept'){populateDeptPeriodSel();renderDept();}
+      else if(name==='group')renderGroupAnalysis();
+      else if(name==='records')renderRecords();
+      else if(name==='sewcmp')await initSewCmp();
+      TAB_RENDER_REV[name]=DATA_REV;
+    }catch(e){
+      console.error('[renderTab]',name,e);
+      toast(T('報表載入失敗：','Report failed to load: ')+e.message,'err');
+    }finally{if(busy)busy.classList.remove('on');}
+  };
+  (window.requestAnimationFrame||function(cb){setTimeout(cb,0)})(run);
+}
+function renderAll(){
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+  renderTab(ACTIVE_TAB,true);
 }
 
 // ═══════ NAV ═══════
-function populateDateSel(id){const s=document.getElementById(id),d=allDates().reverse(),c=s.value;s.innerHTML=d.map(v=>`<option>${v}</option>`).join('');if(d.includes(c))s.value=c;}
+function fillPeriodSelect(id,values,labelFn){
+  const s=document.getElementById(id);if(!s)return;
+  const current=s.value;
+  s.innerHTML=values.map(v=>`<option value="${v}">${labelFn?labelFn(v):v}</option>`).join('');
+  if(values.includes(current))s.value=current;
+}
+function populateDateSel(id){fillPeriodSelect(id,allDates().reverse());}
 function populateWeekSel(){
-  const dates=allDates(),weeks=new Map();
-  dates.forEach(d=>{const dt=new Date(d),mon=new Date(dt);mon.setDate(mon.getDate()-(mon.getDay()||7)+1);const k=mon.toISOString().slice(0,10);if(!weeks.has(k))weeks.set(k,[]);weeks.get(k).push(d);});
-  const s=document.getElementById('wsel');s.innerHTML=[...weeks.keys()].sort().reverse().map(k=>`<option value="${k}">W ${k}</option>`).join('');}
-function populateMonthSel(){const s=document.getElementById('msel');s.innerHTML=allMonths().reverse().map(m=>`<option>${m}</option>`).join('');}
-function populateYearSel(){const yrs=[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse();const s=document.getElementById('ysel');s.innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');}
+  fillPeriodSelect('wsel',[...ensureDataIndex().weeks].reverse(),v=>'W '+v);
+}
+function populateMonthSel(){fillPeriodSelect('msel',allMonths().reverse());}
+function populateYearSel(){fillPeriodSelect('ysel',[...ensureDataIndex().years].reverse());}
 function nav(selId,dir){const s=document.getElementById(selId),o=[...s.options].map(x=>x.value),i=o.indexOf(s.value),n=i-dir;if(n>=0&&n<o.length){s.value=o[n];}}
 function navDay(d){nav('dsel',d);renderDaily();}
 function navWeek(d){nav('wsel',d);renderWeekly();}
@@ -567,7 +734,7 @@ function sewStats(dates) {
   const ds = Array.isArray(dates) ? dates : [dates];
   let hcSum=0, joinSum=0, resignSum=0, absSum=0, dayCount=0;
   ds.forEach(d => {
-    const rows = DB.filter(r => isSewingLine(r) && r.date===d);
+    const rows = rowsForDate(d).filter(isSewingLine);
     if (!rows.length) return;
     hcSum    += rows.reduce((s,r)=>s+(r.m||0)+(r.f||0), 0);
     joinSum  += rows.reduce((s,r)=>s+(r.join||0), 0);
@@ -586,19 +753,20 @@ function renderDaily(){
   const d=document.getElementById('dsel')?.value;if(!d)return;
   const g=grandForDate(d),rows=rowsForDate(d),subs=subtotalsForDate(d);
   const c=g?calc(g):null;
-  const wday=['日','一','二','三','四','五','六'][new Date(d).getDay()];
-  document.getElementById('dayMeta').textContent=`${d} (${wday}) · ${rows.length} ${LANG==='zh'?'筆':'rows'}`;
+  const dayNo=new Date(d+'T00:00:00Z').getUTCDay();
+  const wday=LANG==='zh'?['日','一','二','三','四','五','六'][dayNo]:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayNo];
+  document.getElementById('dayMeta').textContent=`${d} (${wday}) · ${rows.length} ${T('筆','rows','rows')}`;
 
   // KPIs
   const ttl=c?c.ttl:0,att=g?g.att:0,rate=c?c.rate:null,absent=c?c.absent:0;
   const _sw=sewStats(d);
   document.getElementById('dayKpi').innerHTML=
-    kpiHtml('在職人數 Headcount',ttl,g?`M:${g.m} F:${g.f}`+(_sw.avgHC>0?` | 車組:${_sw.avgHC}`:''):'')+
-    kpiHtml('出勤率 Att.Rate',rate!=null?(rate*100).toFixed(1)+'%':'—',`出勤:${att}`,rateClass(rate||0))+
-    kpiHtml('缺勤 Absent',absent,`ML:${g?g.ml:0}`+(_sw.absSum>0?` 車組:${_sw.absSum}`:''))+
-    kpiHtml('新進 Join',g?g.join:0,_sw.joinSum>0?`車組:${_sw.joinSum}`:'')+
-    kpiHtml('離職 Resign',g?g.resign:0,(g&&ttl>0?'流失率:'+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?' 車組:'+_sw.resignSum:''))+
-    kpiHtml('停工 Idle',g?g.idle:0);
+    kpiHtml(T('在職人數','Headcount','បុគ្គលិក'),ttl,g?`M:${g.m} F:${g.f}`+(_sw.avgHC>0?` | ${T('車縫','Sewing','ដេរ')}:${_sw.avgHC}`:''):'')+
+    kpiHtml(T('出勤率','Attendance Rate','អត្រាវត្តមាន'),rate!=null?(rate*100).toFixed(1)+'%':'—',`${T('出勤','Attendance','វត្តមាន')}:${att}`,rateClass(rate||0))+
+    kpiHtml(T('缺勤','Absence','អវត្តមាន'),absent,`ML:${g?g.ml:0}`+(_sw.absSum>0?` ${T('車縫','Sewing','ដេរ')}:${_sw.absSum}`:''))+
+    kpiHtml(T('新進','Join','ចូលថ្មី'),g?g.join:0,_sw.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_sw.joinSum}`:'')+
+    kpiHtml(T('離職','Resign','លាឈប់'),g?g.resign:0,(g&&ttl>0?T('流失率:','Turnover:','អត្រាចាកចេញ:')+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?` ${T('車縫','Sewing','ដេរ')}:`+_sw.resignSum:''))+
+    kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0);
 
   // Leave pie — smaller with person count labels
   if(g){
@@ -606,14 +774,14 @@ function renderDaily(){
     const ll=['AL','PL','SL','NP','Bus','FL','ML'];
     const lc=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
     // Build labels with counts
-    const labelsWithCount=ll.map((l,i)=>lv[i]>0?`${l}:${lv[i]}人`:l);
+    const labelsWithCount=ll.map((l,i)=>lv[i]>0?`${l}:${lv[i]}`:l);
     mk('cLeave',{type:'doughnut',data:{labels:labelsWithCount,datasets:[{data:lv,backgroundColor:lc,borderWidth:2,borderColor:'#fff'}]},options:{cutout:'50%',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:9},generateLabels:function(chart){return chart.data.labels.map((l,i)=>{const v=chart.data.datasets[0].data[i];return{text:v>0?l:'',fillStyle:lc[i],hidden:v===0,index:i};}).filter(x=>x.text);}}}}}});
   }
   // Dept rate bar
   const zh=LANG==='zh';
-  const deptSubs=DB.filter(r=>r.isSubtotal&&r.date===d&&r.dept&&(r.m+r.f)>0);
+  const deptSubs=subtotalsForDate(d).filter(r=>r.dept&&(r.m+r.f)>0);
   if(deptSubs.length){
-    mk('cDeptRate',{type:'bar',data:{labels:deptSubs.map(r=>(r.sect||r.dept||'').replace(/小計|subtotal/gi,'').trim()||r.dept),datasets:[{label:zh?'出勤率%':'Att.Rate%',data:deptSubs.map(r=>{const c=calc(r);return c.rate!=null?(c.rate*100).toFixed(1):0;}),backgroundColor:deptSubs.map(r=>{const c=calc(r);return c.rate>=0.92?'#10b981':c.rate>=0.85?'#f59e0b':'#ef4444';}),borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{min:70,max:105,ticks:{callback:v=>v+'%'}}}}});
+    mk('cDeptRate',{type:'bar',data:{labels:deptSubs.map(r=>(r.sect||r.dept||'').replace(/小計|subtotal/gi,'').trim()||r.dept),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:deptSubs.map(r=>{const c=calc(r);return c.rate!=null?(c.rate*100).toFixed(1):0;}),backgroundColor:deptSubs.map(r=>{const c=calc(r);return c.rate>=0.92?'#10b981':c.rate>=0.85?'#f59e0b':'#ef4444';}),borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{min:70,max:105,ticks:{callback:v=>v+'%'}}}}});
   }
 
   // Table
@@ -625,7 +793,7 @@ function renderWeekly(){
   const zh=LANG==='zh';
   const wk=document.getElementById('wsel')?.value;if(!wk)return;
   const mon=new Date(wk),sun=new Date(mon);sun.setDate(sun.getDate()+6);
-  const dates=allDates().filter(d=>d>=wk&&d<=sun.toISOString().slice(0,10));
+  const dates=periodDates('week',wk);
   const grands=dates.map(grandForDate).filter(Boolean);
   if(!grands.length){document.getElementById('weekKpi').innerHTML=`<div style="color:#8b95b8">${zh?'本週無資料':'No data this week'}</div>`;return;}
 
@@ -640,30 +808,32 @@ function renderWeekly(){
   const _swW=sewStats(dates);
   const _swWpct=avgTtl>0?Math.round(_swW.avgHC/avgTtl*100):0;
   document.getElementById('weekKpi').innerHTML=
-    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length}${zh?'天':'d'} | 車組:${_swW.avgHC}(${_swWpct}%)`)+
-    kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${zh?'總出勤':'Att'}:${totalAtt}`,rateClass(avgRate||0))+
-    kpiHtml(zh?'總新進':'Total Join',totalJoin,_swW.joinSum>0?`車組:${_swW.joinSum}`:'',totalJoin>0?'good':'')+
-    kpiHtml(zh?'總離職':'Total Resign',totalResign,_swW.resignSum>0?`車組:${_swW.resignSum}`:'',totalResign>0?'bad':'')+
-    kpiHtml(zh?'平均流失率':'Avg Turnover',avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
+    kpiHtml(T('平均在職','Average Headcount','បុគ្គលិកមធ្យម'),avgTtl,`${dates.length} ${T('天','days','ថ្ងៃ')} | ${T('車縫','Sewing','ដេរ')}:${_swW.avgHC} (${_swWpct}%)`)+
+    kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${T('總出勤','Total Attendance','វត្តមានសរុប')}:${totalAtt}`,rateClass(avgRate||0))+
+    kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swW.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.joinSum}`:'',totalJoin>0?'good':'')+
+    kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swW.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.resignSum}`:'',totalResign>0?'bad':'')+
+    kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
 
   // Trend
-  mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:'出勤率%',data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
+  mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
 
   // Join vs Resign
-  mk('cWeekJR',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'新進',data:grands.map(g=>g.join),backgroundColor:'rgba(16,185,129,.7)',borderRadius:4},{label:'離職',data:grands.map(g=>-g.resign),backgroundColor:'rgba(239,68,68,.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
+  mk('cWeekJR',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('新進','Join','ចូលថ្មី'),data:grands.map(g=>g.join),backgroundColor:'rgba(16,185,129,.7)',borderRadius:4},{label:T('離職','Resign','លាឈប់'),data:grands.map(g=>-g.resign),backgroundColor:'rgba(239,68,68,.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
 
   // Leave
   const lSum=grands.reduce((a,g)=>({al:a.al+g.al,pl:a.pl+g.pl,sl:a.sl+g.sl,np:a.np+g.np,bus:a.bus+g.bus,fl:a.fl+g.fl,ml:a.ml+g.ml}),{al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0});
   mk('cWeekLeave',{type:'doughnut',data:{labels:['AL','PL','SL','NP','Bus','FL','ML'],datasets:[{data:[lSum.al,lSum.pl,lSum.sl,lSum.np,lSum.bus,lSum.fl,lSum.ml],backgroundColor:['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'],borderWidth:2,borderColor:'#fff'}]},options:{cutout:'55%',plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
+  renderSectionCards(dates,'weekGrpCards');
 }
 
 // ═══════ MONTHLY ═══════
 function renderMonthly(){
   const zh=LANG==='zh';
   const m=document.getElementById('msel')?.value;if(!m)return;
-  const dates=allDates().filter(d=>d.startsWith(m));
+  const dates=periodDates('month',m);
   const grands=dates.map(grandForDate).filter(Boolean);
-  if(!grands.length){document.getElementById('monthKpi').innerHTML=`<div style="color:#8b95b8">${zh?'本月無資料':'No data this month'}</div>`;return;}
+  renderAttendancePeriodList();
+  if(!grands.length){document.getElementById('monthKpi').innerHTML=`<div style="color:#8b95b8">${T('本月無資料','No data this month','មិនមានទិន្នន័យក្នុងខែនេះ')}</div>`;return;}
 
   const totalRep=grands.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
   const totalAtt=grands.reduce((s,g)=>s+g.att,0);
@@ -676,71 +846,165 @@ function renderMonthly(){
   const _swM=sewStats(dates);
   const _swMpct=avgTtl>0?Math.round(_swM.avgHC/avgTtl*100):0;
   document.getElementById('monthKpi').innerHTML=
-    kpiHtml(zh?'平均在職':'Avg HC',avgTtl,`${dates.length}${zh?'天':'d'} | 車組:${_swM.avgHC}(${_swMpct}%)`)+
-    kpiHtml(zh?'加權出勤率':'Wtd Att.Rate',avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
-    kpiHtml(zh?'總新進':'Total Join',totalJoin,_swM.joinSum>0?`車組:${_swM.joinSum}`:'')+
-    kpiHtml(zh?'總離職':'Total Resign',totalResign,_swM.resignSum>0?`車組:${_swM.resignSum}`:'',totalResign>0?'bad':'')+
-    kpiHtml(zh?'月均流失率':'Avg Turnover',avgTurnover+'%');
+    kpiHtml(T('平均在職','Average Headcount','បុគ្គលិកមធ្យម'),avgTtl,`${dates.length} ${T('天','days','ថ្ងៃ')} | ${T('車縫','Sewing','ដេរ')}:${_swM.avgHC} (${_swMpct}%)`)+
+    kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
+    kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swM.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.joinSum}`:'')+
+    kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swM.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.resignSum}`:'',totalResign>0?'bad':'')+
+    kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%');
 
   // Daily rate trend
-  mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'出勤率%',data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:'目標92%',data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
+  mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:T('目標92%','Target 92%','គោលដៅ 92%'),data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
 
   // Headcount
-  mk('cMonthHead',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'在職',data:grands.map(g=>g.m+g.f),borderColor:'#3b82f6',fill:true,backgroundColor:'rgba(59,130,246,.08)',tension:.3,pointRadius:3},{label:'出勤',data:grands.map(g=>g.att),borderColor:'#10b981',tension:.3,pointRadius:3,borderDash:[4,3]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:350}}}});
+  mk('cMonthHead',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('在職','Headcount','បុគ្គលិក'),data:grands.map(g=>g.m+g.f),borderColor:'#3b82f6',fill:true,backgroundColor:'rgba(59,130,246,.08)',tension:.3,pointRadius:3},{label:T('出勤','Attendance','វត្តមាន'),data:grands.map(g=>g.att),borderColor:'#10b981',tension:.3,pointRadius:3,borderDash:[4,3]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:false}}}});
 
   // Turnover
-  mk('cMonthTurnover',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:'流失率%',data:grands.map(g=>{const t=g.m+g.f;return t>0?(g.resign/t*100).toFixed(3):0;}),backgroundColor:'rgba(239,68,68,.6)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'}}}}});
+  mk('cMonthTurnover',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('流失率%','Turnover%','អត្រាចាកចេញ%'),data:grands.map(g=>{const t=g.m+g.f;return t>0?(g.resign/t*100).toFixed(3):0;}),backgroundColor:'rgba(239,68,68,.6)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'}}}}});
+  renderSectionCards(dates,'monthGrpCards');
+}
+
+function attendancePeriodMetrics(grain,key){
+  const dates=periodDates(grain,key);
+  const grands=dates.map(grandForDate).filter(Boolean);
+  const reports=grands.reduce((sum,g)=>sum+calc(g).report,0);
+  const attendance=grands.reduce((sum,g)=>sum+(g.att||0),0);
+  const absence=grands.reduce((sum,g)=>sum+calc(g).absent,0);
+  const join=grands.reduce((sum,g)=>sum+(g.join||0),0);
+  const resign=grands.reduce((sum,g)=>sum+(g.resign||0),0);
+  const avgHC=grands.length?grands.reduce((sum,g)=>sum+(g.m||0)+(g.f||0),0)/grands.length:0;
+  const avgAttendance=grands.length?attendance/grands.length:0;
+  return{
+    key,days:grands.length,avgHC,avgAttendance,
+    rate:reports>0?attendance/reports:null,
+    absence,join,resign,
+    turnover:avgHC>0?resign/avgHC:null
+  };
+}
+function setAttendanceListGrain(grain){
+  ATT_LIST_GRAIN=grain==='year'?'year':'month';
+  renderAttendancePeriodList();
+}
+function renderAttendancePeriodList(){
+  const body=document.getElementById('attPeriodBody');if(!body)return;
+  const monthBtn=document.getElementById('attListMonthBtn'),yearBtn=document.getElementById('attListYearBtn');
+  if(monthBtn)monthBtn.classList.toggle('on',ATT_LIST_GRAIN==='month');
+  if(yearBtn)yearBtn.classList.toggle('on',ATT_LIST_GRAIN==='year');
+  const keys=(ATT_LIST_GRAIN==='month'?[...ensureDataIndex().months]:[...ensureDataIndex().years]).reverse();
+  const active=ATT_LIST_GRAIN==='month'?document.getElementById('msel')?.value:document.getElementById('ysel')?.value;
+  document.getElementById('attPeriodCount').textContent=T(`${keys.length} 個${ATT_LIST_GRAIN==='month'?'月份':'年度'}`,`${keys.length} ${ATT_LIST_GRAIN==='month'?'months':'years'}`,`${keys.length}`);
+  body.innerHTML=keys.map(key=>{
+    const x=attendancePeriodMetrics(ATT_LIST_GRAIN,key);
+    const rate=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';
+    const turnover=x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%';
+    return`<tr class="${key===active?'active':''}" onclick="jumpAttendancePeriod('${key}')">
+      <td style="text-align:left">${key===active?'◀ ':''}<b>${key}</b></td>
+      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td>
+      <td>${rateBadge(x.rate)}</td><td>${x.absence}</td><td>${x.join}</td><td>${x.resign}</td><td>${turnover}</td>
+    </tr>`;
+  }).join('');
+  if(!keys.length)body.innerHTML=`<tr><td colspan="9">${T('尚無期間資料','No period data','មិនមានទិន្នន័យ')}</td></tr>`;
+}
+function jumpAttendancePeriod(key){
+  if(ATT_LIST_GRAIN==='month'){
+    const sel=document.getElementById('msel');if(sel){sel.value=key;renderMonthly();}
+    return;
+  }
+  const sel=document.getElementById('ysel');if(sel)sel.value=key;
+  const tab=[...document.querySelectorAll('.tab')].find(el=>(el.getAttribute('onclick')||'').includes("'yearly'"));
+  goTab('yearly',tab);
 }
 
 // ═══════ DEPT ═══════
+function populateDeptPeriodSel(){
+  const mode=document.getElementById('deptMode')?.value||'month';
+  const sel=document.getElementById('deptSel');if(!sel)return;
+  const oldMode=sel.dataset.mode,current=sel.value;
+  let values=[];
+  if(mode==='day')values=allDates().reverse();
+  else if(mode==='week')values=[...ensureDataIndex().weeks].reverse();
+  else if(mode==='year')values=[...ensureDataIndex().years].reverse();
+  else values=[...ensureDataIndex().months].reverse();
+  if(oldMode!==mode||sel.options.length!==values.length){
+    fillPeriodSelect('deptSel',values,v=>mode==='week'?'W '+v:v);
+    sel.dataset.mode=mode;
+    if(values.includes(current))sel.value=current;
+  }
+}
+function deptModeChange(){
+  const sel=document.getElementById('deptSel');if(sel)sel.dataset.mode='';
+  populateDeptPeriodSel();
+  renderDept();
+}
+function navDept(dir){nav('deptSel',dir);renderDept();}
 function renderDept(){
-  const d=document.getElementById('deptSel')?.value;if(!d)return;
-  const subs=subtotalsForDate(d);
-  const zh=LANG==='zh';
+  const mode=document.getElementById('deptMode')?.value||'month';
+  const key=document.getElementById('deptSel')?.value;if(!key)return;
+  const dates=periodDates(mode,key);
+  const query=(document.getElementById('deptSearch')?.value||'').trim().toLowerCase();
+  let items=aggregateSections(dates);
+  if(query)items=items.filter(s=>(s.dept+' '+s.name).toLowerCase().includes(query));
+  items.sort((a,b)=>{
+    const ar=a.report>0?a.att/a.report:2,br=b.report>0?b.att/b.report:2;
+    return ar-br||b.report-a.report;
+  });
   const el=document.getElementById('deptCards');
-  el.innerHTML=subs.filter(r=>r.dept).map(r=>{
-    const c=calc(r);const ttl=c.ttl;const rateP=c.rate!=null?(c.rate*100).toFixed(1):0;const ratePct=Math.min(rateP,100);
-    const absentP=ttl>0?((c.absent/ttl)*100).toFixed(0):0;
+  if(!items.length){
+    el.innerHTML=`<div class="card" style="color:#8b95b8">${T('此期間沒有符合的部門／組別資料','No matching department or section data for this period','មិនមានទិន្នន័យត្រូវគ្នា')}</div>`;
+    document.getElementById('deptSummaryBody').innerHTML='';
+    document.getElementById('genderBars').innerHTML='';
+    return;
+  }
+  el.innerHTML=items.slice(0,18).map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const rateP=rate!=null?(rate*100).toFixed(1):'—';
+    const ratePct=rate!=null?Math.min(rate*100,100):0;
+    const avgHC=s.days?Math.round(s.ttl/s.days):0;
+    const avgAtt=s.days?Math.round(s.att/s.days):0;
     return`<div class="card" style="margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><b>${r.dept}</b>${rateBadge(c.rate)}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div><b>${s.name}</b>${s.dept&&s.dept!==s.name?`<div style="font-size:9px;color:#8b95b8;margin-top:2px">${s.dept}</div>`:''}</div>${rateBadge(rate)}
+      </div>
       <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;text-align:center;font-size:10px;color:#6b7a9e;margin-bottom:8px">
-        <div>👥<br><b style="font-size:14px;color:#1e2640">${ttl}</b><br>${zh?'在職':'TTL'}</div>
-        <div>✅<br><b style="font-size:14px;color:#10b981">${r.att}</b><br>${zh?'出勤':'Att'}</div>
-        <div>⚠️<br><b style="font-size:14px;color:#f59e0b">${c.absent}</b><br>${zh?'缺勤':'Abs'}</div>
-        <div>🤰<br><b style="font-size:14px;color:#ec4899">${r.ml}</b><br>ML</div>
-        <div>🟢<br><b style="font-size:14px;color:#10b981">${r.join}</b><br>${zh?'新進':'Join'}</div>
-        <div>🔴<br><b style="font-size:14px;color:#ef4444">${r.resign}</b><br>${zh?'離職':'Res'}</div>
+        <div>👥<br><b style="font-size:14px;color:#1e2640">${avgHC}</b><br>${T('均在職','Avg HC','បុគ្គលិក')}</div>
+        <div>✅<br><b style="font-size:14px;color:#10b981">${avgAtt}</b><br>${T('均出勤','Avg Att','វត្តមាន')}</div>
+        <div>⚠️<br><b style="font-size:14px;color:#f59e0b">${s.absent}</b><br>${T('缺勤','Absence','អវត្តមាន')}</div>
+        <div>🤰<br><b style="font-size:14px;color:#ec4899">${s.ml}</b><br>ML</div>
+        <div>🟢<br><b style="font-size:14px;color:#10b981">${s.join}</b><br>${T('新進','Join','ចូលថ្មី')}</div>
+        <div>🔴<br><b style="font-size:14px;color:#ef4444">${s.resign}</b><br>${T('離職','Resign','លាឈប់')}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#6b7a9e">
-        <span>${zh?'出勤率':'Rate'}</span>
+        <span>${T('出勤率','Rate','អត្រាវត្តមាន')}</span>
         <div style="flex:1;height:8px;background:#e2e6f0;border-radius:4px;overflow:hidden">
-          <div style="height:100%;width:${ratePct}%;background:${c.rate>=0.92?'#10b981':c.rate>=0.85?'#f59e0b':'#ef4444'};border-radius:4px"></div>
+          <div style="height:100%;width:${ratePct}%;background:${rate>=0.92?'#10b981':rate>=0.85?'#f59e0b':'#ef4444'};border-radius:4px"></div>
         </div>
-        <span style="font-weight:700;color:${c.rate>=0.92?'#10b981':'#ef4444'}">${rateP}%</span>
+        <span style="font-weight:700;color:${rate>=0.92?'#10b981':rate>=0.85?'#f59e0b':'#ef4444'}">${rateP}${rateP==='—'?'':'%'}</span>
       </div>
     </div>`;}).join('');
 
-  // Gender bars
-  const gd=subs.filter(r=>r.dept&&!r.dept.includes('管理部+'));
-  document.getElementById('genderBars').innerHTML=gd.map(r=>{const t=r.m+r.f,p=t?r.m/t*100:0;
+  document.getElementById('deptSummaryBody').innerHTML=items.map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const label=s.dept&&s.dept!==s.name?s.dept+' / '+s.name:s.name;
+    return`<tr><td style="text-align:left"><b>${label}</b></td>
+      <td>${s.days?Math.round(s.ttl/s.days):0}</td><td>${s.days?Math.round(s.att/s.days):0}</td>
+      <td>${rateBadge(rate)}</td><td>${s.al}</td><td>${s.np}</td><td>${s.ml}</td><td>${s.join}</td><td>${s.resign}</td></tr>`;
+  }).join('');
+
+  document.getElementById('genderBars').innerHTML=items.slice(0,20).map(s=>{const t=s.m+s.f,p=t?s.m/t*100:0;
+    const label=s.dept&&s.dept!==s.name?s.dept+' / '+s.name:s.name;
     return`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-      <div style="width:140px;font-size:11px;color:#6b7a9e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.dept.split('/')[0]}</div>
+      <div style="width:160px;font-size:11px;color:#6b7a9e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${label}">${label}</div>
       <div style="flex:1;height:14px;border-radius:4px;overflow:hidden;display:flex">
         <div style="width:${p}%;background:#3b82f6"></div><div style="width:${100-p}%;background:#ec4899"></div>
       </div>
-      <div style="font-size:10px;color:#8b95b8;white-space:nowrap">♂${r.m} ♀${r.f}</div>
+      <div style="font-size:10px;color:#8b95b8;white-space:nowrap">♂${s.m} ♀${s.f}</div>
     </div>`;}).join('');
 
-  // Dept comparison bar chart
-  const filteredSubs=subs.filter(r=>r.dept&&r.dept.includes('小計'));
-  if(filteredSubs.length){
+  if(items.length){
+    const chartItems=items.slice(0,24);
     mk('cDeptCompare',{type:'bar',data:{
-      labels:filteredSubs.map(r=>{const s=r.dept.replace(/小計/,'').trim();return s.length>8?s.slice(0,8)+'…':s;}),
-      datasets:[
-        {label:zh?'在職':'TTL',data:filteredSubs.map(r=>r.m+r.f),backgroundColor:'rgba(59,130,246,.5)',borderRadius:3},
-        {label:zh?'出勤':'Att',data:filteredSubs.map(r=>r.att),backgroundColor:'rgba(16,185,129,.7)',borderRadius:3}
-      ]
-    },options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:true}}}});
+      labels:chartItems.map(s=>s.name.length>14?s.name.slice(0,14)+'…':s.name),
+      datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:chartItems.map(s=>s.report>0?+(s.att/s.report*100).toFixed(1):0),backgroundColor:chartItems.map(s=>{const r=s.report?s.att/s.report:0;return r>=.92?'#10b981':r>=.85?'#f59e0b':'#ef4444'}),borderRadius:3}]
+    },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{min:70,max:100,ticks:{callback:v=>v+'%'}}}}});
   }
 }
 
@@ -750,7 +1014,7 @@ function renderRecords(){
   const dates=allDates().reverse();
   let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
   // Show latest 500 rows
-  const show=DB.filter(r=>dates.slice(0,5).includes(r.date)).slice(0,500);
+  const show=dates.slice(0,5).flatMap(rowsForDate).slice(0,500);
   show.forEach(r=>{const c=calc(r);const rc=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
     html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
   html+='</tbody></table>';document.getElementById('recTable').innerHTML=html;
@@ -758,10 +1022,12 @@ function renderRecords(){
 
 // ═══════ ATT TABLE ═══════
 function renderAttTable(rows,date,containerId){
+  const deptH=T('部門','Department','ផ្នែក'),sectH=T('分區','Section','ក្រុម'),lineH=T('組別／職稱','Group / Title','ក្រុម / តួនាទី');
+  const hcH=T('在職','Headcount','បុគ្គលិក'),reportH=T('應到','Expected','ត្រូវមក'),absH=T('缺勤','Absence','អវត្តមាន'),attH=T('出勤','Attendance','វត្តមាន');
   let html=`<table class="dtbl"><thead><tr>
-  <th rowspan="2" style="min-width:120px">部門 Dept.</th><th rowspan="2" style="min-width:100px">分區 Section</th><th rowspan="2" style="min-width:180px">組別/職稱</th>
-  <th colspan="3">在職</th><th>Join</th><th>T-In</th><th>Train</th><th>T-Out</th><th>Resign</th><th>Report</th>
-  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>Idle</th><th>Absent</th><th>Attend</th><th style="background:#14574a;color:#fff">Rate%</th></tr>
+  <th rowspan="2" style="min-width:120px">${deptH}</th><th rowspan="2" style="min-width:100px">${sectH}</th><th rowspan="2" style="min-width:180px">${lineH}</th>
+  <th colspan="3">${hcH}</th><th>${T('新進','Join','ចូលថ្មី')}</th><th>T-In</th><th>${T('培訓','Training','បណ្តុះបណ្តាល')}</th><th>T-Out</th><th>${T('離職','Resign','លាឈប់')}</th><th>${reportH}</th>
+  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>${T('停工','Idle','ផ្អាក')}</th><th>${absH}</th><th>${attH}</th><th style="background:#14574a;color:#fff">${T('出勤率','Rate','អត្រា')}%</th></tr>
   <tr><th>M</th><th>F</th><th>TTL</th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const c=calc(r),rc=c.rate===null?'':c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb',rs=c.rate===null?'—':(c.rate*100).toFixed(1)+'%';
@@ -781,7 +1047,7 @@ function renderYearly(){
 
   // Per-month aggregates
   const mData=months.map(m=>{
-    const dates=allDates().filter(d=>d.startsWith(m));
+    const dates=periodDates('month',m);
     const gs=dates.map(grandForDate).filter(Boolean);
     const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
     const tAtt=gs.reduce((s,g)=>s+g.att,0);
@@ -796,7 +1062,7 @@ function renderYearly(){
   // Year totals
   const yDays=mData.reduce((s,m)=>s+m.days,0);
   const yTtl=Math.round(mData.reduce((s,m)=>s+m.avgTtl,0)/mData.length);
-  const allGs=allDates().filter(d=>d.startsWith(yr)).map(grandForDate).filter(Boolean);
+  const allGs=periodDates('year',yr).map(grandForDate).filter(Boolean);
   const yRep=allGs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
   const yAtt=allGs.reduce((s,g)=>s+g.att,0);
   const yRate=yRep>0?yAtt/yRep:null;
@@ -804,16 +1070,16 @@ function renderYearly(){
   const yR=mData.reduce((s,m)=>s+m.totalR,0);
   const yTurnover=yTtl>0?(yR/yDays/yTtl*100):0;
 
-  const _yrAllDates=allDates().filter(d=>d.startsWith(yr));
+  const _yrAllDates=periodDates('year',yr);
   const _swY=sewStats(_yrAllDates);
   const _swYpct=yTtl>0?Math.round(_swY.avgHC/yTtl*100):0;
   document.getElementById('yearKpi').innerHTML=
-    kpiHtml(zh?'年度天數':'Days',yDays,`${months.length}${zh?'個月':'mo'}`)+
-    kpiHtml(zh?'平均在職':'Avg HC',yTtl,`車組:${_swY.avgHC}(${_swYpct}%)`)+
-    kpiHtml(zh?'加權出勤率':'Wtd Rate',yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
-    kpiHtml(zh?'年度新進':'Year Join',yJ,_swY.joinSum>0?`車組:${_swY.joinSum}`:'',yJ>0?'good':'')+
-    kpiHtml(zh?'年度離職':'Year Resign',yR,_swY.resignSum>0?`車組:${_swY.resignSum}`:'',yR>0?'bad':'')+
-    kpiHtml(zh?'日均流失率':'Avg Turnover',yTurnover.toFixed(3)+'%');
+    kpiHtml(T('年度天數','Days in Year','ថ្ងៃក្នុងឆ្នាំ'),yDays,`${months.length} ${T('個月','months','ខែ')}`)+
+    kpiHtml(T('平均在職','Average Headcount','បុគ្គលិកមធ្យម'),yTtl,`${T('車縫','Sewing','ដេរ')}:${_swY.avgHC} (${_swYpct}%)`)+
+    kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
+    kpiHtml(T('年度新進','Year Join','ចូលថ្មីប្រចាំឆ្នាំ'),yJ,_swY.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.joinSum}`:'',yJ>0?'good':'')+
+    kpiHtml(T('年度離職','Year Resign','លាឈប់ប្រចាំឆ្នាំ'),yR,_swY.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.resignSum}`:'',yR>0?'bad':'')+
+    kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%');
 
   // Monthly rate trend
   mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
@@ -839,124 +1105,118 @@ function renderYearly(){
   ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
 }
 
-// ═══════ TELEGRAM SUMMARY (ZH+EN Bilingual) ═══════
+// ═══════ TELEGRAM SUMMARY — daily / weekly / monthly / yearly ═══════
+function telegramModeKey(mode){return({daily:'day',weekly:'week',monthly:'month',yearly:'year'})[mode]||'month';}
+function telegramPeriodValues(mode){
+  if(mode==='daily')return allDates().reverse();
+  if(mode==='weekly')return[...ensureDataIndex().weeks].reverse();
+  if(mode==='yearly')return[...ensureDataIndex().years].reverse();
+  return[...ensureDataIndex().months].reverse();
+}
+function tgLabel(zh,en,lang){
+  if(lang==='zh')return zh;
+  if(lang==='en')return en;
+  return zh+' / '+en;
+}
+function telegramRateIcon(rate){return rate==null?'':rate>=.95?'🌟':rate>=.90?'✅':rate>=.87?'⚠️':'🔴';}
+function populateTelegramPeriods(preferred){
+  const mode=document.getElementById('tgMode')?.value||'monthly';
+  const values=telegramPeriodValues(mode);
+  const sel=document.getElementById('tgPeriod');
+  const current=preferred||sel?.value;
+  fillPeriodSelect('tgPeriod',values,v=>mode==='weekly'?'W '+v:v);
+  if(values.includes(current))sel.value=current;
+  previewTelegramSummary();
+}
 function genTelegram(mode){
-  let text='';
-  const SEP='─'.repeat(28);
-  const SEP2='═'.repeat(28);
-
-  if(mode==='daily'){
-    const d=document.getElementById('dsel')?.value;if(!d)return;
-    const g=grandForDate(d),c=g?calc(g):null,subs=subtotalsForDate(d);
-    const wday=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(d).getDay()];
-    const wdayzh=['日','一','二','三','四','五','六'][new Date(d).getDay()];
-    const rate=c&&c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';
-    const rateIcon=c&&c.rate!=null?(c.rate>=0.96?'🌟':c.rate>=0.93?'✅':c.rate>=0.90?'⚠️':'🔴'):'';
-    text=`📊 VRT 考勤日報 / Daily Attendance\n${d} (${wdayzh}/${wday})\n${SEP}\n`;
-    text+=`👥 在職/Headcount: ${c?c.ttl:0}  ✅ 出勤/Attend: ${g?g.att:0}\n`;
-    text+=`📈 出勤率/Att.Rate: ${rate} ${rateIcon}\n`;
-    text+=`🟢 新進/Join: ${g?g.join:0}  🔴 離職/Resign: ${g?g.resign:0}  🏭 停工/Idle: ${g?g.idle:0}\n`;
-    text+=`${SEP}\n📋 缺勤/Leave Breakdown:\n`;
-    if(g)text+=`  AL年假:${g.al}  PL事假:${g.pl}  SL病假:${g.sl}  NP曠工:${g.np}\n  Bus出差:${g.bus}  FL特假:${g.fl}  ML產假:${g.ml}\n`;
-    text+=`${SEP}\n📌 部門出勤 / Dept Att.:\n`;
-    subs.filter(r=>r.dept&&r.dept.includes('小計')).forEach(r=>{
-      const c=calc(r);const rp=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';
-      const icon=c.rate!=null?(c.rate>=0.96?'🌟':c.rate>=0.93?'✅':c.rate>=0.90?'⚠️':'🔴'):'';
-      text+=`  ${r.dept.replace(/小計/,'').trim()}: ${r.att}/${c.ttl} ${icon} ${rp}\n`;
-    });
-    // Section analysis
-    const sects=aggregateSections([d]);
-    if(sects.length){
-      text+=`${SEP}\n📊 組別 / Group:\n`;
-      sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const icon=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
-        const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;
-        text+=`  ${s.name}: ${icon} ${rp}${parseFloat(npPct)>=3?' NP⚠️'+npPct+'%':''}\n`;});
-    }
+  let preferred='';
+  if(mode==='group'){
+    const groupMode=document.getElementById('grpMode')?.value||'month';
+    mode=({day:'daily',week:'weekly',month:'monthly',year:'yearly'})[groupMode];
+    preferred=document.getElementById('grpSel')?.value||'';
+  }else{
+    preferred=mode==='daily'?document.getElementById('dsel')?.value:
+      mode==='weekly'?document.getElementById('wsel')?.value:
+      mode==='yearly'?document.getElementById('ysel')?.value:
+      document.getElementById('msel')?.value;
   }
-  else if(mode==='weekly'){
-    const wk=document.getElementById('wsel')?.value;if(!wk)return;
-    const sun=new Date(wk);sun.setDate(sun.getDate()+6);const endD=sun.toISOString().slice(0,10);
-    const dates=allDates().filter(d=>d>=wk&&d<=endD);
-    const gs=dates.map(grandForDate).filter(Boolean);
-    const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
-    const tAtt=gs.reduce((s,g)=>s+g.att,0);
-    const avgR=tRep>0?tAtt/tRep:null;
-    const icon=avgR!=null?(avgR>=0.96?'🌟':avgR>=0.93?'✅':avgR>=0.90?'⚠️':'🔴'):'';
-    text=`📅 VRT 週報 / Weekly Report\n${wk} ~ ${endD}\n${SEP}\n`;
-    text+=`📈 加權出勤率 / Wtd Att.Rate: ${avgR!=null?(avgR*100).toFixed(1)+'%':'—'} ${icon}\n`;
-    text+=`👥 平均在職 / Avg Headcount: ${gs.length?Math.round(gs.reduce((s,g)=>s+(g.m+g.f),0)/gs.length):0}\n`;
-    text+=`🟢 新進/Join: ${gs.reduce((s,g)=>s+g.join,0)}  🔴 離職/Resign: ${gs.reduce((s,g)=>s+g.resign,0)}\n`;
-    text+=`${SEP}\n📋 逐日 / Daily:\n`;
-    dates.forEach(d=>{const g=grandForDate(d);if(!g)return;const c=calc(g);const r=c.rate;const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
-      text+=`  ${d.slice(5)}: ${g.att}/${c.ttl} ${ic} ${r!=null?(r*100).toFixed(1)+'%':'—'}\n`;});
-    const sects=aggregateSections(dates);
-    if(sects.length){
-      text+=`${SEP}\n📊 組別 / Group Breakdown:\n`;
-      sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
-        const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
-        text+=`  ${s.name}: ${ic} ${rp}${parseFloat(npPct)>=3?' NP⚠️':''}${parseFloat(mlPct)>=5?' ML🤰':''}\n`;});
-    }
-  }
-  else if(mode==='monthly'){
-    const m=document.getElementById('msel')?.value;if(!m)return;
-    const dates=allDates().filter(d=>d.startsWith(m));
-    const gs=dates.map(grandForDate).filter(Boolean);
-    const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
-    const tAtt=gs.reduce((s,g)=>s+g.att,0);
-    const avgR=tRep>0?tAtt/tRep:null;
-    const icon=avgR!=null?(avgR>=0.96?'🌟':avgR>=0.93?'✅':avgR>=0.90?'⚠️':'🔴'):'';
-    text=`📆 VRT 月報 / Monthly Report — ${m}\n${SEP}\n`;
-    text+=`📈 加權出勤率 / Wtd Att.Rate: ${avgR!=null?(avgR*100).toFixed(1)+'%':'—'} ${icon}\n`;
-    text+=`📊 ${dates.length} 天 / Days\n`;
-    text+=`🟢 新進/Join: ${gs.reduce((s,g)=>s+g.join,0)}  🔴 離職/Resign: ${gs.reduce((s,g)=>s+g.resign,0)}\n`;
-    const sects=aggregateSections(dates);
-    if(sects.length){
-      text+=`${SEP}\n📊 組別 / Group Breakdown:\n`;
-      sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
-        const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
-        text+=`  ${s.name}: ${ic} ${rp}  AL:${s.report>0?(s.al/s.report*100).toFixed(1):0}% NP:${npPct}%${parseFloat(npPct)>=3?' ⚠️':''} ML:${mlPct}%${parseFloat(mlPct)>=5?' 🤰':''}\n`;});
-    }
-  }
-  else if(mode==='yearly'){
-    const yr=document.getElementById('ysel')?.value;if(!yr)return;
-    const months=allMonths().filter(m=>m.startsWith(yr));
-    const allGs=allDates().filter(d=>d.startsWith(yr)).map(grandForDate).filter(Boolean);
-    const yRep=allGs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
-    const yAtt=allGs.reduce((s,g)=>s+g.att,0);
-    const yRate=yRep>0?yAtt/yRep:null;
-    const icon=yRate!=null?(yRate>=0.96?'🌟':yRate>=0.93?'✅':yRate>=0.90?'⚠️':'🔴'):'';
-    const yJ=allGs.reduce((s,g)=>s+g.join,0),yR=allGs.reduce((s,g)=>s+g.resign,0);
-    text=`📈 VRT 年度報告 / Annual Report — ${yr}\n${SEP2}\n`;
-    text+=`📊 ${allGs.length} 天/${months.length} 月 · Days/Months\n`;
-    text+=`📈 加權出勤率 / Wtd Att.Rate: ${yRate!=null?(yRate*100).toFixed(1)+'%':'—'} ${icon}\n`;
-    text+=`🟢 新進/Join: ${yJ}  🔴 離職/Resign: ${yR}\n`;
-    text+=`${SEP}\n📋 月度明細 / Monthly Detail:\n`;
-    months.forEach(m=>{
-      const ds=allDates().filter(d=>d.startsWith(m));const gs=ds.map(grandForDate).filter(Boolean);
-      const tR=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);const tA=gs.reduce((s,g)=>s+g.att,0);
-      const r=tR>0?tA/tR:null;const j=gs.reduce((s,g)=>s+g.join,0);const re=gs.reduce((s,g)=>s+g.resign,0);
-      const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
-      text+=`  ${m}: ${ic} ${r!=null?(r*100).toFixed(1)+'%':'—'}  J:+${j} R:-${re}\n`;
-    });
-  }
-  else if(mode==='group'){
-    const sel=document.getElementById('grpSel');const mode2=document.getElementById('grpMode')?.value||'month';
-    const label=sel?.options[sel.selectedIndex]?.text||sel?.value||'';
-    const dates=allDates().filter(d=>d.startsWith(sel?.value||''));
-    const sects=aggregateSections(dates);
-    text=`📊 VRT 組別分析 / Group Analysis — ${label}\n${SEP}\n`;
-    sects.forEach(s=>{const r=s.report>0?s.att/s.report:null;const rp=r!=null?(r*100).toFixed(1)+'%':'—';const ic=r!=null?(r>=0.96?'🌟':r>=0.93?'✅':r>=0.90?'⚠️':'🔴'):'';
-      const grade=rateGradeLabel(rateGrade(r),'zh')+'/'+rateGradeLabel(rateGrade(r),'en');
-      const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;const alPct=s.report>0?(s.al/s.report*100).toFixed(1):0;
-      text+=`${ic} ${s.name}: ${rp} [${grade}]\n`;
-      text+=`   AL:${alPct}% NP:${npPct}%${parseFloat(npPct)>=3?' ⚠️':''} ML:${mlPct}%${parseFloat(mlPct)>=5?' 🤰':''}\n`;});
-    text+=`${SEP}\n📌 標準 / Benchmark: 🌟≥96% ✅93% ⚠️90% 🔴<90%\n`;
-  }
-  document.getElementById('tgContent').textContent=text;
+  if(!['daily','weekly','monthly','yearly'].includes(mode))mode='monthly';
+  document.getElementById('tgMode').value=mode;
+  populateTelegramPeriods(preferred);
   document.getElementById('tgModal').style.display='flex';
 }
+function buildTelegramSummary(mode,key,lang){
+  const grain=telegramModeKey(mode);
+  const dates=periodDates(grain,key);
+  const x=attendancePeriodMetrics(grain,key);
+  const grands=dates.map(grandForDate).filter(Boolean);
+  const rateText=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';
+  const title={
+    daily:tgLabel('VRT 考勤日報','VRT Daily Attendance',lang),
+    weekly:tgLabel('VRT 考勤週報','VRT Weekly Attendance',lang),
+    monthly:tgLabel('VRT 考勤月報','VRT Monthly Attendance',lang),
+    yearly:tgLabel('VRT 考勤年報','VRT Annual Attendance',lang)
+  }[mode];
+  let periodLabel=key;
+  if(mode==='weekly'){
+    const end=new Date(key+'T00:00:00Z');end.setUTCDate(end.getUTCDate()+6);
+    periodLabel=key+' ~ '+end.toISOString().slice(0,10);
+  }
+  const sep='─'.repeat(28);
+  let text=`📊 ${title}\n${periodLabel}\n${sep}\n`;
+  text+=`📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)}: ${rateText} ${telegramRateIcon(x.rate)}\n`;
+  text+=`👥 ${tgLabel('平均在職','Average Headcount',lang)}: ${Math.round(x.avgHC)}  ✅ ${tgLabel('平均出勤','Average Attendance',lang)}: ${Math.round(x.avgAttendance)}\n`;
+  text+=`📅 ${tgLabel('資料天數','Days',lang)}: ${x.days}  ⚠️ ${tgLabel('缺勤','Absence',lang)}: ${x.absence}\n`;
+  text+=`🟢 ${tgLabel('新進','Join',lang)}: ${x.join}  🔴 ${tgLabel('離職','Resign',lang)}: ${x.resign}  📉 ${tgLabel('流失率','Turnover',lang)}: ${x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%'}\n`;
 
-function copyTg(){const t=document.getElementById('tgContent').textContent;navigator.clipboard.writeText(t).then(()=>{const ok=document.getElementById('tgCopyOk');ok.style.display='inline';setTimeout(()=>ok.style.display='none',2500);toast('📋 已複製','ok');}).catch(()=>toast('複製失敗','err'));}
+  if(mode==='daily'&&grands[0]){
+    const g=grands[0];
+    text+=`${sep}\n📋 ${tgLabel('假別明細','Leave Breakdown',lang)}\n`;
+    text+=`AL:${g.al||0}  PL:${g.pl||0}  SL:${g.sl||0}  NP:${g.np||0}\nBus:${g.bus||0}  FL:${g.fl||0}  ML:${g.ml||0}  ${tgLabel('停工','Idle',lang)}:${g.idle||0}\n`;
+  }
+  if(mode==='weekly'){
+    text+=`${sep}\n📅 ${tgLabel('每日明細','Daily Detail',lang)}\n`;
+    dates.forEach(d=>{
+      const g=grandForDate(d);if(!g)return;
+      const c=calc(g),rp=c.rate==null?'—':(c.rate*100).toFixed(1)+'%';
+      text+=`${d.slice(5)}  ${telegramRateIcon(c.rate)} ${rp}  ${tgLabel('出勤','Att',lang)}:${g.att||0}\n`;
+    });
+  }
+  if(mode==='yearly'){
+    text+=`${sep}\n📆 ${tgLabel('月度明細','Monthly Detail',lang)}\n`;
+    ensureDataIndex().months.filter(m=>m.startsWith(key)).forEach(m=>{
+      const mx=attendancePeriodMetrics('month',m);
+      text+=`${m}  ${telegramRateIcon(mx.rate)} ${mx.rate==null?'—':(mx.rate*100).toFixed(1)+'%'}  J:+${mx.join} R:-${mx.resign}\n`;
+    });
+  }
+
+  const sections=aggregateSections(dates).sort((a,b)=>{
+    const ar=a.report?a.att/a.report:2,br=b.report?b.att/b.report:2;
+    return ar-br;
+  }).slice(0,12);
+  if(sections.length){
+    text+=`${sep}\n🏢 ${tgLabel('部門／組別重點','Department / Section Highlights',lang)}\n`;
+    sections.forEach(s=>{
+      const rate=s.report?s.att/s.report:null;
+      const label=s.dept&&s.dept!==s.name?s.dept+' / '+s.name:s.name;
+      text+=`${telegramRateIcon(rate)} ${label}: ${rate==null?'—':(rate*100).toFixed(1)+'%'}  NP:${s.np} ML:${s.ml}\n`;
+    });
+  }
+  return text.trim();
+}
+function previewTelegramSummary(){
+  const mode=document.getElementById('tgMode')?.value||'monthly';
+  const key=document.getElementById('tgPeriod')?.value||'';
+  const lang=document.getElementById('tgLanguage')?.value||'both';
+  document.getElementById('tgContent').textContent=key?buildTelegramSummary(mode,key,lang):tgLabel('尚無可用資料','No data available',lang);
+}
+function copyTg(){
+  const t=document.getElementById('tgContent').textContent;
+  navigator.clipboard.writeText(t).then(()=>{
+    const ok=document.getElementById('tgCopyOk');ok.style.display='inline';setTimeout(()=>ok.style.display='none',2500);
+    toast(T('📋 已複製','📋 Copied','📋 បានចម្លង'),'ok');
+  }).catch(()=>toast(T('複製失敗','Copy failed','ចម្លងបរាជ័យ'),'err'));
+}
 
 // ═══════ PARSER — Dynamic column detection (supports 2020+ Excel layouts) ═══════
 // Fallback COL used only if header detection fails
@@ -1341,11 +1601,13 @@ async function doImport(){
   }
 
   pFill.style.width='100%';
-  if(allR.length){DB.push(...allR);saveDB();
-    msg.innerHTML=`✅ ${LANG==='zh'?'成功匯入':'Imported'} <b>${allR.length}</b> ${LANG==='zh'?'筆記錄':'records'}`;msg.style.color='#059669';toast(`✅ 匯入 ${allR.length} 筆`,'ok');
+  if(allR.length){DB=DB.concat(allR);await saveDB();
+    msg.innerHTML=`✅ ${T('成功匯入','Imported','បាននាំចូល')} <b>${allR.length}</b> ${T('筆記錄','records','កំណត់ត្រា')}`;msg.style.color='#059669';toast(`✅ ${T('匯入','Imported','បាននាំចូល')} ${allR.length} ${T('筆','records','កំណត់ត្រា')}`,'ok');
     const ds=[...new Set(allR.map(r=>r.date))].sort();
+    const importedByDate=new Map();
+    allR.forEach(r=>{if(!importedByDate.has(r.date))importedByDate.set(r.date,[]);importedByDate.get(r.date).push(r);});
     document.getElementById('importPreview').style.display='block';
-    document.getElementById('importPreview').innerHTML=`<div class="card"><div class="ct">✅ 新匯入 ${ds.length} 天資料</div><table class="dtbl"><thead><tr><th>日期</th><th>筆數</th><th>Grand TTL</th><th>出勤</th><th>出勤率</th></tr></thead><tbody>${ds.map(d=>{const day=allR.filter(r=>r.date===d);const g=day.find(r=>r.isGrand);const c=g?calc(g):null;return`<tr><td>${d}</td><td>${day.length}</td><td>${g?(g.m+g.f):'—'}</td><td>${g?g.att:'—'}</td><td>${c&&c.rate!=null?'<span class="badge '+(c.rate>=0.92?'bg':'bb')+'">'+(c.rate*100).toFixed(1)+'%</span>':'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
+    document.getElementById('importPreview').innerHTML=`<div class="card"><div class="ct">✅ ${T('新匯入','Imported','បាននាំចូល')} ${ds.length} ${T('天資料','days','ថ្ងៃ')}</div><table class="dtbl"><thead><tr><th>${T('日期','Date','កាលបរិច្ឆេទ')}</th><th>${T('筆數','Rows','កំណត់ត្រា')}</th><th>Grand TTL</th><th>${T('出勤','Attendance','វត្តមាន')}</th><th>${T('出勤率','Attendance Rate','អត្រាវត្តមាន')}</th></tr></thead><tbody>${ds.map(d=>{const day=importedByDate.get(d)||[];const g=day.find(r=>r.isGrand);const c=g?calc(g):null;return`<tr><td>${d}</td><td>${day.length}</td><td>${g?(g.m+g.f):'—'}</td><td>${g?g.att:'—'}</td><td>${c&&c.rate!=null?'<span class="badge '+(c.rate>=0.92?'bg':'bb')+'">'+(c.rate*100).toFixed(1)+'%</span>':'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
     setTimeout(()=>{const tabs=document.querySelectorAll('.tab');tabs.forEach(t=>{if(t.textContent.includes('每日報告')||t.textContent.includes('Daily'))t.click();});},1500);
   }else{msg.innerHTML=allE.length?'❌ '+allE[0]:(LANG==='zh'?'ℹ️ 未識別到新數據（可能都已匯入過）':'ℹ️ No new data found (may already be imported)');msg.style.color=allR.length?'#059669':'#6b7a9e';}
   if(allD.length){const dl=document.getElementById('dedupLog');dl.style.display='block';dl.innerHTML='<b>處理紀錄：</b><br>'+allD.join('<br>');}
@@ -1384,18 +1646,20 @@ function sectName(r){
 function aggregateSections(dates){
   const map={};
   dates.forEach(d=>{
-    DB.filter(r=>r.isSubtotal&&r.date===d).forEach(r=>{
+    subtotalsForDate(d).forEach(r=>{
       const nm=sectName(r);
-      if(!map[nm])map[nm]={name:nm,att:0,ttl:0,report:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0};
+      const dept=(r.dept||'').replace(/小計|subtotal/gi,'').trim();
+      const key=dept+'¦'+nm;
+      if(!map[key])map[key]={name:nm,dept,att:0,ttl:0,report:0,m:0,f:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0};
       const c=calc(r);
-      map[nm].att+=r.att;
-      map[nm].ttl+=(r.m+r.f);
-      map[nm].report+=c.report;
-      map[nm].al+=r.al;map[nm].pl+=r.pl;map[nm].sl+=r.sl;map[nm].np+=r.np;
-      map[nm].bus+=r.bus;map[nm].fl+=r.fl;map[nm].ml+=r.ml;
-      map[nm].join+=r.join;map[nm].resign+=r.resign;
-      map[nm].absent+=c.absent;
-      map[nm].days++;
+      map[key].att+=r.att;
+      map[key].ttl+=(r.m+r.f);map[key].m+=r.m;map[key].f+=r.f;
+      map[key].report+=c.report;
+      map[key].al+=r.al;map[key].pl+=r.pl;map[key].sl+=r.sl;map[key].np+=r.np;
+      map[key].bus+=r.bus;map[key].fl+=r.fl;map[key].ml+=r.ml;
+      map[key].join+=r.join;map[key].resign+=r.resign;
+      map[key].absent+=c.absent;
+      map[key].days++;
     });
   });
   return Object.values(map).filter(s=>s.report>0).sort((a,b)=>b.report-a.report);
@@ -1492,7 +1756,7 @@ function isSewingLine(r){
 function aggregateSewingLines(dates){
   const map={};
   dates.forEach(d=>{
-    DB.filter(r=>isSewingLine(r)&&r.date===d).forEach(r=>{
+    rowsForDate(d).filter(isSewingLine).forEach(r=>{
       // Normalize line name: strip chinese after /
       const raw=r.line||r.sect||'?';
       const nm=raw.replace(/[/／].*/,'').trim().replace(/\s+/,' ');
@@ -1527,22 +1791,19 @@ function renderGroupAnalysis(){
   if(mode==='day'){
     const opts=allDates().reverse();
     if(sel.dataset.mode!=='day'){sel.innerHTML=opts.map(v=>`<option>${v}</option>`).join('');sel.dataset.mode='day';}
-    dates=[sel.value];
+    dates=periodDates('day',sel.value);
   } else if(mode==='week'){
-    const allD=allDates();const weeks=new Map();
-    allD.forEach(d=>{const dt=new Date(d),mon=new Date(dt);mon.setDate(dt.getDate()-(dt.getDay()||7)+1);const k=mon.toISOString().slice(0,10);if(!weeks.has(k))weeks.set(k,[]);weeks.get(k).push(d);});
-    const wks=[...weeks.keys()].sort().reverse();
+    const wks=[...ensureDataIndex().weeks].reverse();
     if(sel.dataset.mode!=='week'){sel.innerHTML=wks.map(k=>`<option value="${k}">W ${k}</option>`).join('');sel.dataset.mode='week';}
-    const wk=sel.value;const sun=new Date(wk);sun.setDate(sun.getDate()+6);
-    dates=allDates().filter(d=>d>=wk&&d<=sun.toISOString().slice(0,10));
+    dates=periodDates('week',sel.value);
   } else if(mode==='year'){
-    const yrs=[...new Set(allDates().map(d=>d.slice(0,4)))].sort().reverse();
+    const yrs=[...ensureDataIndex().years].reverse();
     if(sel.dataset.mode!=='year'){sel.innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');sel.dataset.mode='year';}
-    dates=allDates().filter(d=>d.startsWith(sel.value));
+    dates=periodDates('year',sel.value);
   } else {
     const months=allMonths().reverse();
     if(sel.dataset.mode!=='month'){sel.innerHTML=months.map(m=>`<option>${m}</option>`).join('');sel.dataset.mode='month';}
-    dates=allDates().filter(d=>d.startsWith(sel.value));
+    dates=periodDates('month',sel.value);
   }
 
   const sects=aggregateSections(dates);
@@ -1774,7 +2035,6 @@ const CHUNK_SIZE    = 5000; // records per chunk (sewing=5000 → 68k≈14 chunk
 let GAS_URL     = '';
 let syncStatus  = 'idle';   // idle | syncing | synced | failed | offline
 let lastSyncTs  = null;
-let autoSaveTimer = null;
 let cloudSnap   = null;     // last known cloud snapshot
 
 // ── Init cloud on load ──
@@ -1784,134 +2044,27 @@ let cloudSnap   = null;     // last known cloud snapshot
     document.getElementById('gasUrlInput').value = GAS_URL;
     document.getElementById('btnPush').disabled = false;
     document.getElementById('btnPull').disabled = false;
-    setSyncStatus('idle', '');
-    // Auto-sync on load (sewing style)
-    setTimeout(() => attAutoSync(), 1000);
+    setSyncStatus('idle', T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់ (ធ្វើដោយដៃ)'));
   }
 })();
 
-// ── sewing-style auto sync on page load ──
+// Kept only as a compatibility entry point for older bookmarks/scripts.
+// It intentionally performs no network request: all cloud transfers are manual.
 async function attAutoSync() {
-  if (!GAS_URL) return;
-
-  // Show tip in header (like sewing vcAutoSync)
-  const hdr = document.querySelector('.cloud-bar') || document.querySelector('header') || document.body;
-  const tip = document.createElement('span');
-  tip.id = 'attSyncTip';
-  tip.style.cssText = 'font-size:11px;color:#f59e0b;font-family:monospace;padding:4px 10px;white-space:nowrap';
-  tip.textContent = '☁ 連線雲端中…';
-  document.querySelector('.cloud-bar')?.appendChild(tip);
-
-  try {
-    // Step 1: Get meta
-    const mr = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
-    const md = await mr.json();
-    if (!md.ok || !md.data) {
-      tip.textContent = '☁ 雲端無資料（使用本機）';
-      tip.style.color = '#9ca3af';
-      setTimeout(() => tip.remove(), 3000);
-      return;
-    }
-    const d = md.data;
-    if (d.data === null) {
-      tip.textContent = '☁ 雲端尚無資料';
-      setTimeout(() => tip.remove(), 3000);
-      return;
-    }
-
-    // If local DB already has data, just check version quietly
-    if (DB.length > 0) {
-      const cloudTs  = d.chunked ? (d.meta?.timestamp || '') : (d.data?.updatedAt || '');
-      const localTs  = localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || '';
-      if (cloudTs && localTs && cloudTs <= localTs) {
-        tip.textContent = '☁ 本機已是最新';
-        tip.style.color = '#10b981';
-        setTimeout(() => tip.remove(), 3000);
-        return;
-      }
-    }
-
-    // Pull all chunks
-    let allRecs = [];
-    if (!d.chunked) {
-      allRecs = d.data?.records || d.data?.employees || [];
-      tip.textContent = `☁ 拉取 ${allRecs.length} 筆…`;
-    } else {
-      const meta   = d.meta || {};
-      const total  = meta.totalChunks || 1;
-      const count  = meta.recordCount || 0;
-      tip.textContent = `☁ 拉取中（共 ${total} 批 / ${count} 筆）…`;
-
-      for (let i = 0; i < total; i++) {
-        tip.textContent = `☁ 第 ${i+1}/${total} 批…`;
-        for (let retry = 0; retry < 3; retry++) {
-          try {
-            const cr = await fetch(
-              `${GAS_URL}?action=pull&tool=attendance&chunk=${i}`,
-              { method:'GET', redirect:'follow' }
-            );
-            const cd = await cr.json();
-            if (cd.ok) { allRecs = allRecs.concat(cd.data?.records || cd.records || []); break; }
-          } catch(e) {
-            if (retry === 2) throw e;
-            await new Promise(r => setTimeout(r, 2000));
-          }
-        }
-      }
-    }
-
-    if (!allRecs.length) { tip.remove(); return; }
-
-    // Load into memory
-    DB = allRecs;
-    IMPORT_LOG = [...new Set(allRecs.map(r => r.date).filter(Boolean))];
-
-    // Save to IndexedDB (full data, persistent)
-    try {
-      tip.textContent = '☁ 寫入本機儲存（' + allRecs.length.toLocaleString() + ' 筆）…';
-      await saveToIDB(allRecs);
-      console.log('[IDB] Saved ' + allRecs.length + ' records');
-    } catch(idbErr) { console.warn('[IDB save error]', idbErr); }
-    // Save recent 90 days to localStorage as quick-load backup
-    const cutDate = new Date(Date.now() - 90*86400000).toISOString().slice(0,10);
-    try { LS.set('db', allRecs.filter(r => (r.date||'') >= cutDate)); } catch(e) {}
-    try { LS.set('log', IMPORT_LOG); } catch(e2) {}
-
-    const lastTs = new Date().toISOString();
-    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastTs);
-    setSyncStatus('synced', '已同步 ' + formatTs(lastTs));
-    updateHeader();
-
-    tip.textContent = `☁ 雲端同步完成（${allRecs.length.toLocaleString()} 筆）`;
-    tip.style.color = '#10b981';
-    setTimeout(() => tip.remove(), 5000);
-
-    // Navigate to daily report
-    setTimeout(() => {
-      const t = [...document.querySelectorAll('.tab')].find(x =>
-        x.textContent.includes('每日') || x.textContent.includes('Daily'));
-      if (t) t.click();
-    }, 800);
-
-  } catch(e) {
-    tip.textContent = '☁ 雲端離線，使用本機資料';
-    tip.style.color = '#f59e0b';
-    setTimeout(() => tip.remove(), 4000);
-  }
+  return false;
 }
 
 // ── Save GAS URL ──
 function saveGasUrl() {
   const url = document.getElementById('gasUrlInput').value.trim();
-  if (!url.startsWith('https://')) { toast('❌ 請輸入有效的 GAS URL', 'err'); return; }
+  if (!url.startsWith('https://')) { toast(T('❌ 請輸入有效的 GAS URL','❌ Enter a valid GAS URL','❌ សូមបញ្ចូល GAS URL ត្រឹមត្រូវ'), 'err'); return; }
   GAS_URL = url;
   localStorage.setItem(CLOUD_CFG_KEY + '_url', url);
   document.getElementById('btnPush').disabled = false;
   document.getElementById('btnPull').disabled = false;
   document.getElementById('cloudCfgRow').classList.remove('open');
-  setSyncStatus('idle', '已設定 GAS');
-  toast('✅ GAS URL 已儲存', 'ok');
-  testConnection();
+  setSyncStatus('idle', T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់ (ធ្វើដោយដៃ)'));
+  toast(T('✅ GAS URL 已儲存；不會自動連線','✅ GAS URL saved; no automatic connection','✅ GAS URL បានរក្សាទុក'), 'ok');
 }
 
 function toggleCloudCfg() {
@@ -1922,24 +2075,24 @@ function toggleCloudCfg() {
 
 // ── Connection test ──
 async function testConnection() {
-  if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); return; }
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); return; }
   const btn = document.getElementById('btnTest');
-  if (btn) { btn.textContent = '⏳ 測試中…'; btn.disabled = true; }
-  setSyncStatus('syncing', '連線測試中…');
+  if (btn) { btn.textContent = T('⏳ 測試中…','⏳ Testing…','⏳ កំពុងសាកល្បង…'); btn.disabled = true; }
+  setSyncStatus('syncing', T('連線測試中…','Testing connection…','កំពុងសាកល្បងការតភ្ជាប់…'));
   try {
     const r = await fetch(GAS_URL + '?action=heartbeat', { method:'GET', redirect:'follow' });
     const d = await r.json();
     if (d.ok) {
-      setSyncStatus('synced', 'GAS 連線正常');
-      toast('✅ GAS 連線正常', 'ok');
+      setSyncStatus('synced', T('GAS 連線正常','GAS connection OK','GAS ភ្ជាប់បានល្អ'));
+      toast(T('✅ GAS 連線正常','✅ GAS connection OK','✅ GAS ភ្ជាប់បានល្អ'), 'ok');
     } else {
-      setSyncStatus('failed', 'GAS 回應錯誤');
+      setSyncStatus('failed', T('GAS 回應錯誤','Invalid GAS response','GAS ឆ្លើយតបមិនត្រឹមត្រូវ'));
     }
   } catch(e) {
-    setSyncStatus('offline', '無法連線');
-    toast('❌ 無法連線到 GAS', 'err');
+    setSyncStatus('offline', T('無法連線','Connection unavailable','មិនអាចភ្ជាប់'));
+    toast(T('❌ 無法連線到 GAS','❌ Could not connect to GAS','❌ មិនអាចភ្ជាប់ GAS'), 'err');
   }
-  if (btn) { btn.textContent = '🔌 測試'; btn.disabled = false; }
+  if (btn) { btn.textContent = T('🔌 測試','🔌 Test','🔌 សាកល្បង'); btn.disabled = false; }
 }
 
 // ── Check cloud version vs local ──
@@ -1974,15 +2127,15 @@ function showCloudUpdateBanner(snap) {
 
 // ── PUSH to Cloud ──
 async function pushCloud() {
-  if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); return; }
-  if (!DB.length) { toast('尚無資料可上傳', 'err'); return; }
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
+  if (!DB.length) { toast(T('尚無資料可上傳','No data to upload','គ្មានទិន្នន័យសម្រាប់ផ្ទុកឡើង'), 'err'); return; }
 
   // ── Debug: show what we're about to push ─────────────────────────
   const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
   console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
-  toast('PUSH ATT: records='+DB.length+' latest='+_latestAttDate, 'info');
+  toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+': '+DB.length+' · '+_latestAttDate, 'info');
 
-  setSyncStatus('syncing', '上傳中…');
+  setSyncStatus('syncing', T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…'));
   setProgress(0, true);
   const summary = buildCloudSummary();
   // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
@@ -1996,7 +2149,7 @@ async function pushCloud() {
     for (let i = 0; i < totalChunks; i++) {
       const chunk = DB.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
       setProgress((i / totalChunks) * 100);
-      if (i % 5 === 0) setSyncStatus('syncing', `上傳中… ${i+1}/${totalChunks}`);
+      if (i % 5 === 0) setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
 
       const payload = {
         action      : 'push',
@@ -2034,25 +2187,24 @@ async function pushCloud() {
         if(_nct)saveMeta({cloudUpdatedAt:_nct});
         updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
       }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
-      setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
-      toast(`✅ 上傳成功 — ${DB.length} 筆 / ${totalChunks} 批，latest=${_pushUpdatedAt}`, 'ok');
-      sendTgMsg(`✅ <b>VRT 考勤雲端上傳成功</b>\n📋 記錄數: ${DB.length}\n📦 批次數: ${totalChunks}\n📅 最新日期: ${_pushUpdatedAt}\n⏱ ${formatTs(lastSyncTs)}`);
+      setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
+      toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
     } else {
-      setSyncStatus('failed', '上傳失敗');
-      toast('❌ 部分上傳失敗，請重試', 'err');
+      setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
+      toast(T('❌ 部分上傳失敗，請重試','❌ Upload incomplete. Try again.','❌ ផ្ទុកឡើងមិនពេញលេញ'), 'err');
     }
   } catch(e) {
-    setSyncStatus('offline', '連線失敗');
-    toast('❌ 連線失敗：' + e.message, 'err');
+    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
+    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
   }
   setTimeout(() => setProgress(0, false), 2000);
 }
 
 // ── PULL from Cloud ──
 async function pullCloud(silent) {
-  if (!GAS_URL) { if (!silent) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); } return; }
+  if (!GAS_URL) { if (!silent) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); } return; }
 
-  setSyncStatus('syncing', '拉取中…');
+  setSyncStatus('syncing', T('下載中…','Downloading…','កំពុងទាញយក…'));
   setProgress(0, true);
 
   try {
@@ -2060,10 +2212,10 @@ async function pullCloud(silent) {
     const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
     const d1 = await r1.json();
 
-    if (!d1.ok) { setSyncStatus('failed', '拉取失敗'); toast('❌ 拉取失敗', 'err'); return; }
+    if (!d1.ok) { setSyncStatus('failed', T('下載失敗','Download failed','ទាញយកបរាជ័យ')); toast(T('❌ 下載失敗','❌ Download failed','❌ ទាញយកបរាជ័យ'), 'err'); return; }
     if (!d1.data || d1.data.data === null || d1.data.message === '尚無雲端資料') {
-      setSyncStatus('idle', '雲端尚無資料');
-      if (!silent) toast('☁️ 雲端尚無資料', 'info');
+      setSyncStatus('idle', T('雲端尚無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
+      if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
       setProgress(0, false); return;
     }
 
@@ -2071,7 +2223,11 @@ async function pullCloud(silent) {
     const cloudTs2 = d1.data?.chunked ? (d1.data?.meta?.timestamp||'') : (d1.data?.data?.updatedAt||'');
     if (!silent && DB.length > 0) {
       const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
-      if (!confirm(`雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n拉取後會合併（不重複日期）。\n確定拉取？`)) {
+      if (!confirm(T(
+        `雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n拉取後會以雲端快照取代本機資料，不會產生重複紀錄。\n確定拉取？`,
+        `Cloud has ${cloudRecs} records (${formatTs(cloudTs2)}).\nLocal has ${DB.length} records.\n\nThe cloud snapshot will replace local data, so duplicates are not created.\nContinue?`,
+        `Cloud: ${cloudRecs} / Local: ${DB.length}\nបន្តទាញយក?`
+      ))) {
         setSyncStatus('idle', ''); setProgress(0, false); return;
       }
     }
@@ -2106,8 +2262,8 @@ async function pullCloud(silent) {
     // Step 3: Load pulled data into memory
     // Use sewing approach: full data in memory, only recent 90 days in localStorage
     if (!pullDB.length) {
-      if (!silent) toast('☁️ 雲端尚無資料', 'info');
-      setSyncStatus('idle', '雲端無資料');
+      if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
+      setSyncStatus('idle', T('雲端無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
       setProgress(0, false);
       return;
     }
@@ -2117,22 +2273,20 @@ async function pullCloud(silent) {
 
     // Build IMPORT_LOG from pulled data
     IMPORT_LOG = [...new Set(pullDB.map(r => r.date).filter(Boolean))];
+    markDataChanged();
 
     // Save ALL to IndexedDB (no size limit, persists across page refresh)
     try {
       await saveToIDB(pullDB);
-      toast('💾 已儲存至本機 (' + pullDB.length + ' 筆)', 'ok');
+      toast(`💾 ${T('已儲存至本機','Saved locally','បានរក្សាទុកក្នុងម៉ាស៊ីន')} (${pullDB.length})`, 'ok');
     } catch(idbErr) { console.warn('[IDB]', idbErr); }
-    // Also save recent 90 days to localStorage as quick-load
-    const cutDate = new Date(Date.now() - 90 * 86400000).toISOString().slice(0, 10);
-    try { LS.set('db', pullDB.filter(r => (r.date||'') >= cutDate)); } catch(e) {}
     try { LS.set('log', IMPORT_LOG); } catch(e2) {}
 
     updateHeader();
 
     lastSyncTs = new Date().toISOString();
     localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
-    setSyncStatus('synced', '已同步 ' + formatTs(lastSyncTs));
+    setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
     // Save EXACT cloudTs so next startup !== check won't re-pull
     const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
     const _exactCloudTs = cloudTs2||_cloudMeta?.updatedAt||_cloudMeta?.timestamp||lastSyncTs;
@@ -2141,21 +2295,16 @@ async function pullCloud(silent) {
     updateSyncBadge(_latestInDB(pullDB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
     setProgress(100);
 
-    toast(`✅ 拉取完成 — ${pullDB.length} 筆`, 'ok');
+    toast(`✅ ${T('下載完成','Download complete','ទាញយកជោគជ័យ')} — ${pullDB.length}`, 'ok');
 
     // Re-render all views with new data
     try { renderAll(); } catch(e) { console.warn('[pullCloud] renderAll:', e); }
     // Refresh sewing compare if active
     const sewTab = [...document.querySelectorAll('.tab')].find(x=>x.classList.contains('active')&&x.textContent.includes('車縫'));
     if (sewTab) { try { initSewCmp(); } catch(e2) {} }
-    if (!silent) setTimeout(() => {
-      const t = [...document.querySelectorAll('.tab')].find(x =>
-        x.textContent.includes('每日報告') || x.textContent.includes('Daily'));
-      if (t) t.click();
-    }, 800);
   } catch(e) {
-    setSyncStatus('offline', '連線失敗');
-    toast('❌ 拉取失敗：' + e.message, 'err');
+    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
+    toast(T('❌ 下載失敗：','❌ Download failed: ','❌ ទាញយកបរាជ័យ៖ ')+e.message, 'err');
   }
   setTimeout(() => setProgress(0, false), 2000);
 }
@@ -2176,10 +2325,10 @@ async function sendTgMsg(text) {
 // ── Send via GAS (from Telegram modal) ──
 async function sendViaTg() {
   const text = document.getElementById('tgContent')?.textContent;
-  if (!text) { toast('無內容', 'err'); return; }
-  if (!GAS_URL) { toast('請先設定 GAS URL', 'err'); toggleCloudCfg(); return; }
+  if (!text) { toast(T('無內容','No content','គ្មានខ្លឹមសារ'), 'err'); return; }
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
   const btn = document.getElementById('btnTgSend');
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ 傳送中…'; }
+  if (btn) { btn.disabled = true; btn.textContent = T('⏳ 傳送中…','⏳ Sending…','⏳ កំពុងផ្ញើ…'); }
   try {
     const r = await fetch(GAS_URL, {
       method: 'POST',
@@ -2188,12 +2337,12 @@ async function sendViaTg() {
       body: JSON.stringify({ action: 'telegram', text }),
     });
     const d = await r.json();
-    if (d.ok) { toast('✅ 已發送到 Telegram 群組', 'ok'); }
-    else       { toast('❌ 傳送失敗：' + (d.error || ''), 'err'); }
+    if (d.ok) { toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok'); }
+    else       { toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + (d.error || ''), 'err'); }
   } catch(e) {
-    toast('❌ 連線失敗：' + e.message, 'err');
+    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
   }
-  if (btn) { btn.disabled = false; btn.innerHTML = '<span data-zh="📤 發送至群組" data-en="📤 Send">📤 發送至群組</span>'; }
+  if (btn) { btn.disabled = false; btn.innerHTML = `<span data-zh="📤 發送至群組" data-en="📤 Send to Group" data-km="📤 ផ្ញើទៅក្រុម">${T('📤 發送至群組','📤 Send to Group','📤 ផ្ញើទៅក្រុម')}</span>`; }
 }
 
 // ── Cloud summary for push metadata ──
@@ -2215,13 +2364,9 @@ function buildCloudSummary() {
   };
 }
 
-// ── Auto-save (debounced 45s after each import) ──
+// Compatibility no-op. Imports are saved locally, but cloud upload is always manual.
 function scheduleAutoSave() {
-  clearTimeout(autoSaveTimer);
-  if (!GAS_URL) return;
-  autoSaveTimer = setTimeout(() => {
-    pushCloud();
-  }, 45000);
+  return false;
 }
 
 // ── UI helpers ──
@@ -2232,11 +2377,11 @@ function setSyncStatus(status, label) {
   if (dot) { dot.className = 'cloud-dot ' + status; }
   if (lbl) {
     const statusLabels = {
-      idle    : GAS_URL ? 'GAS 已設定' : '雲端未設定',
-      syncing : '同步中…',
-      synced  : '✅ 已同步',
-      failed  : '❌ 同步失敗',
-      offline : '📴 離線',
+      idle    : GAS_URL ? T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់') : T('雲端未設定（手動同步）','Cloud not configured (manual sync)','Cloud មិនទាន់កំណត់'),
+      syncing : T('同步中…','Syncing…','កំពុងធ្វើសមកាលកម្ម…'),
+      synced  : T('✅ 已同步','✅ Synced','✅ បានធ្វើសមកាលកម្ម'),
+      failed  : T('❌ 同步失敗','❌ Sync failed','❌ បរាជ័យ'),
+      offline : T('📴 離線','📴 Offline','📴 គ្មានអ៊ីនធឺណិត'),
     };
     lbl.textContent = label || statusLabels[status] || status;
   }
@@ -2659,10 +2804,10 @@ async function renderSewCmp() {
   <!-- Period nav -->
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#fff;border:1px solid #e2e6f0;border-radius:10px">
     <div style="display:flex;gap:4px">
-      <button class="btn-sm" id="sc-d" onclick="setSCMode('day',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px;background:#f0fdf8;color:#1a6e5c;font-weight:600">日</button>
-      <button class="btn-sm" id="sc-w" onclick="setSCMode('week',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px">週</button>
-      <button class="btn-sm" id="sc-m" onclick="setSCMode('month',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px">月</button>
-      <button class="btn-sm" id="sc-y" onclick="setSCMode('year',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px">年</button>
+      <button class="btn-sm" id="sc-d" onclick="setSCMode('day',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px;background:#f0fdf8;color:#1a6e5c;font-weight:600" data-zh="日" data-en="Day" data-km="ថ្ងៃ">日</button>
+      <button class="btn-sm" id="sc-w" onclick="setSCMode('week',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</button>
+      <button class="btn-sm" id="sc-m" onclick="setSCMode('month',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px" data-zh="月" data-en="Month" data-km="ខែ">月</button>
+      <button class="btn-sm" id="sc-y" onclick="setSCMode('year',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</button>
     </div>
     <button onclick="navSC(-1)" style="width:30px;height:30px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer;font-size:14px">◀</button>
     <select id="sc-sel" style="font-family:monospace;font-size:12px;border:1px solid #d0d5e8;border-radius:6px;padding:4px 8px;min-width:130px" onchange="renderSewCmp()"></select>
@@ -2670,30 +2815,34 @@ async function renderSewCmp() {
     <select id="sc-line" style="font-size:12px;border:1px solid #d0d5e8;border-radius:6px;padding:4px 8px;min-width:100px" onchange="renderSewCmp()">
       <option value="">— LINE —</option>
     </select>
-    <button onclick="loadSewingIDB(true).then(renderSewCmp)" style="padding:5px 12px;border:1px solid #1a6e5c;border-radius:6px;background:#fff;color:#1a6e5c;cursor:pointer;font-size:12px">🔄 讀取車縫</button>
-    <span id="sc-status" style="font-size:11px;color:#6b7a9e">未讀取車縫 IDB</span>
+    <button onclick="loadSewingIDB(true).then(renderSewCmp)" style="padding:5px 12px;border:1px solid #1a6e5c;border-radius:6px;background:#fff;color:#1a6e5c;cursor:pointer;font-size:12px" data-zh="🔄 讀取車縫" data-en="🔄 Load Sewing" data-km="🔄 អានទិន្នន័យដេរ">🔄 讀取車縫</button>
+    <span id="sc-status" style="font-size:11px;color:#6b7a9e" data-zh="尚未讀取車縫資料" data-en="Sewing data not loaded" data-km="មិនទាន់អានទិន្នន័យដេរ">尚未讀取車縫資料</span>
   </div>
 
   <!-- KPI cards -->
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px">
-    <div class="kpi" style="border-left:4px solid #1a6e5c"><div class="kpi-n" id="sc-att-hc">—</div><div class="kpi-l">出勤 車縫HC<br><small>Att Sewing HC</small></div></div>
-    <div class="kpi" style="border-left:4px solid #0ea5e9"><div class="kpi-n" id="sc-sew-hc">—</div><div class="kpi-l">車縫系統HC<br><small>Sewing Workers</small></div></div>
-    <div class="kpi" style="border-left:4px solid #ef4444"><div class="kpi-n" id="sc-diff">—</div><div class="kpi-l">差異 Diff<br><small>Att − Sewing</small></div></div>
-    <div class="kpi" style="border-left:4px solid #a855f7"><div class="kpi-n" id="sc-match">—</div><div class="kpi-l">匹配率 Match%<br><small>Sewing / Att</small></div></div>
+    <div class="kpi" style="border-left:4px solid #1a6e5c"><div class="kpi-n" id="sc-att-hc">—</div><div class="kpi-l" data-zh="考勤車縫人數" data-en="Attendance Sewing HC" data-km="ចំនួនដេរតាមវត្តមាន">考勤車縫人數</div></div>
+    <div class="kpi" style="border-left:4px solid #0ea5e9"><div class="kpi-n" id="sc-sew-hc">—</div><div class="kpi-l" data-zh="車縫系統人數" data-en="Sewing System HC" data-km="ចំនួនក្នុងប្រព័ន្ធដេរ">車縫系統人數</div></div>
+    <div class="kpi" style="border-left:4px solid #ef4444"><div class="kpi-n" id="sc-diff">—</div><div class="kpi-l" data-zh="差異（考勤－車縫）" data-en="Difference (Attendance − Sewing)" data-km="ភាពខុសគ្នា">差異（考勤－車縫）</div></div>
+    <div class="kpi" style="border-left:4px solid #a855f7"><div class="kpi-n" id="sc-match">—</div><div class="kpi-l" data-zh="匹配率" data-en="Match Rate" data-km="អត្រាផ្គូផ្គង">匹配率</div></div>
   </div>
 
   <!-- Trend chart -->
   <div class="card" style="margin-bottom:12px">
-    <div class="ct">📈 出勤 vs 車縫 趨勢</div>
+    <div class="ct" data-zh="📈 考勤 vs 車縫趨勢" data-en="📈 Attendance vs Sewing Trend" data-km="📈 និន្នាការវត្តមាន vs ដេរ">📈 考勤 vs 車縫趨勢</div>
     <div style="position:relative;height:200px"><canvas id="sc-chart"></canvas></div>
   </div>
 
   <!-- Detail table -->
   <div class="card">
-    <div class="ct" id="sc-tbl-title">各組別比較明細</div>
+    <div class="ct" id="sc-tbl-title" data-zh="各組別比較明細" data-en="Line Comparison Details" data-km="ព័ត៌មានប្រៀបធៀបក្រុម">各組別比較明細</div>
     <div class="twrap" id="sc-table" style="overflow-x:auto"></div>
   </div>
 </div>
 
+<script>
+setLang(LANG);
+setSyncStatus('idle','');
+</script>
 </body>
 </html>
