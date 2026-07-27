@@ -266,8 +266,7 @@ tbody tr:hover{background:#f8fafc}
         <div class="grid grid-cols-2 gap-3">
           <div><label class="text-[11px] font-semibold text-slate-500 uppercase">Tool key</label>
             <input value="onboarding" disabled class="mt-1 w-full text-xs jmono border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-400"></div>
-          <div><label class="text-[11px] font-semibold text-slate-500 uppercase">核可人 Approver ID</label>
-            <input id="s-approver" class="mt-1 w-full text-xs jmono border border-slate-200 rounded-lg px-3 py-2"></div>
+          <div><label class="text-[11px] font-semibold text-slate-500 uppercase">核可人 Approver</label><input type="text" readonly value="由伺服器管理 Managed by server" class="mt-1 w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-400" style="cursor:not-allowed"></div>
         </div>
         <p class="text-[10px] text-slate-400 leading-relaxed">GAS POST 一律以 <code class="jmono">text/plain;charset=utf-8</code> 送出以避開 CORS preflight；Telegram 一律 <code class="jmono">parse_mode:HTML</code>。</p>
       </div></div>
@@ -410,7 +409,7 @@ var K_JOINS='ac_hra_joins', K_RESIGNS='ac_hra_resigns',
     K_DEC='ac_hra_ob_decisions', K_META='ac_hra_ob_meta',
     K_GAS_SHARED='vrt_att_cloud_v1_url', K_GAS_OLD='ac_hra_gas_url';
 var DEFAULT_GAS='https://script.google.com/macros/s/AKfycbya4jZG7YixRmumt9vKA-5Cv92jP8fi_o4toiU-8J2exQCYBhBsLOtN4kX9hoKqzp12/exec';
-var DEFAULT_APPROVER='5026942575';
+var DEFAULT_APPROVER='';   /* 核可人由 GAS 的 APPROVERS 決定，前端不保存 */
 var TOOL='onboarding';
 var CHUNK=2000;
 
@@ -642,7 +641,7 @@ function loadData(){
   try{DEC=JSON.parse(localStorage.getItem(K_DEC)||'{}');}catch(e){DEC={};}
   try{META=JSON.parse(localStorage.getItem(K_META)||'{}');}catch(e){META={};}
   if(!Array.isArray(JOINS))JOINS=[]; if(!Array.isArray(RESIGNS))RESIGNS=[]; if(!Array.isArray(SETTLES))SETTLES=[];
-  if(!SETS.approverId)SETS.approverId=DEFAULT_APPROVER;
+  
   if(!SETS.basis)SETS.basis='avg';
   if(!SETS.hcOverride)SETS.hcOverride={};
   JOINS.forEach(ensureJoinKey); RESIGNS.forEach(ensureResignKey);
@@ -1777,7 +1776,7 @@ function setTgMode(m){
   a.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='summary'?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
   b.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='approval'?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
   el('tg-kind').textContent = m==='approval'
-    ? L('📋 核可請求 — 核可人 '+ (SETS.approverId||DEFAULT_APPROVER),'📋 Approval request — approver '+(SETS.approverId||DEFAULT_APPROVER))
+    ? L('📋 核可請求 — 送出後於群組核可','📋 Approval request — decide in group')
     : L('📄 入離職摘要','📄 Onboarding summary');
   el('tg-note').textContent = m==='approval'
     ? L('核可請求會以 approvalRequest 送至 GAS，帶上勾選狀態與退回原因；Telegram 按鈕核可引擎將於五模組統一實作時上線。',
@@ -1885,7 +1884,7 @@ function previewTg(){
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,_tgScope);
     var sTag=_tgScope==='join'?'J':_tgScope==='resign'?'R':'B';
-    extra='\n\n— — — —\n'+L('核可批次','Batch')+'：OB-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length+'\n'+L('核可人','Approver')+'：'+(SETS.approverId||DEFAULT_APPROVER);
+    extra='\n\n— — — —\n'+L('核可批次','Batch')+'：OB-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
   }
   pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')+extra;
@@ -1901,7 +1900,7 @@ function confirmTg(){
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,scope);
     payload={ action:'approvalRequest', type:'approvalRequest', module:'onboarding', scope:scope,
-      batch:'OB-'+sTag+'-'+p.replace(/-/g,''), period:p, approverId:(SETS.approverId||DEFAULT_APPROVER),
+      batch:'OB-'+sTag+'-'+p.replace(/-/g,''), period:p, 
       count:items.length, items:items, text:r.text,
       requestedBy:'onboarding_v3', requestedAt:nowStamp() };
   }else{
@@ -1920,7 +1919,7 @@ function confirmTg(){
 function renderSets(){
   try{
     el('s-gas').value=SETS.gasUrl||'';
-    el('s-approver').value=SETS.approverId||DEFAULT_APPROVER;
+    
     el('s-basedate').value=SETS.baseDate||'';
     el('s-basehc').value=(SETS.baseHC===undefined||SETS.baseHC===null)?'':SETS.baseHC;
     el('s-basis').value=SETS.basis||'avg';
@@ -1949,7 +1948,7 @@ function setHcOv(m,v){
 }
 function saveSets(){
   SETS.gasUrl=(el('s-gas').value||'').trim();
-  SETS.approverId=(el('s-approver').value||'').trim()||DEFAULT_APPROVER;
+  
   SETS.baseDate=(el('s-basedate').value||'').trim();
   var hc=parseInt(el('s-basehc').value,10);
   SETS.baseHC=isFinite(hc)?hc:'';

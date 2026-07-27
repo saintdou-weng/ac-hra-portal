@@ -302,7 +302,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <div class="panel-body">
             <div class="form-grid">
               <div class="field"><label data-i18n="reminderDays">提前提醒天數</label><input id="setReminderDays" type="number" min="1" max="365" value="45"></div>
-              <div class="field"><label data-i18n="approverTgId">核可者 Telegram ID</label><input id="setApproverId" value="5026942575"></div>
+              <div class="field"><label data-i18n="approverTgId">核可者 Telegram ID</label><input id="setApproverId" type="text" readonly placeholder="由伺服器管理 Managed by server" style="background:#f1f5f9;color:#94a3b8;cursor:not-allowed"></div>
               <div class="field"><label>GAS URL</label><input id="setGasUrl" placeholder="https://script.google.com/macros/s/.../exec"></div>
               <div class="field"><label data-i18n="defaultDepartment">預設部門</label><input id="setDefaultDept" data-i18n-placeholder="unassigned" placeholder="未指定"></div>
               <div class="field full"><label data-i18n="autoReminderStatus">自動提醒狀態</label><div class="notice warn" data-i18n="autoReminderDeferred">前端已準備 45 天三語提醒與略過規則；關閉網頁後的自動排程要等共用 GAS 一次整合後才啟用。</div></div>
@@ -403,7 +403,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="field"><label data-i18n="messageType">訊息類型</label><select id="tgType" onchange="refreshTgPreview()"><option value="summary" data-i18n="summary">摘要</option><option value="approval" data-i18n="approvalRequest">核可申請</option><option value="reminder" data-i18n="expiryReminder">45 天到期提醒</option></select></div>
         <div class="field"><label data-i18n="summaryPeriod">摘要期間</label><select id="tgPeriod" onchange="refreshTgPreview()"><option value="day" data-i18n="daily">每日</option><option value="week" data-i18n="weekly">每周</option><option value="month" data-i18n="monthly">每月</option><option value="year" data-i18n="yearly">每年</option></select></div>
         <div class="field"><label data-i18n="language">語言</label><select id="tgLang" onchange="refreshTgPreview()"><option value="zh" data-i18n="chinese">中文</option><option value="en" data-i18n="english">English</option><option value="both" data-i18n="bilingual">中英雙語</option><option value="all3" data-i18n="trilingual">中英柬三語</option></select></div>
-        <div class="field"><label data-i18n="recipient">核可者 ID</label><input id="tgRecipient" value="5026942575" oninput="refreshTgPreview()"></div>
+        <div class="field"><label data-i18n="recipient">核可者 Approver</label><input id="tgRecipient" type="text" readonly value="" placeholder="由伺服器管理 Managed by server" style="background:#f1f5f9;color:#94a3b8;cursor:not-allowed"></div>
         <div class="field full"><label data-i18n="preview">預覽</label><div class="preview" id="tgPreview"></div></div>
       </div>
     </div>
@@ -518,7 +518,7 @@ function money(v){if(v===''||v==null||Number(v)===0)return '—';return '$'+Numb
 function dayDiff(s,from=new Date()){const d=dateObj(s);if(!d)return Infinity;const a=new Date(from.getFullYear(),from.getMonth(),from.getDate());return Math.round((d-a)/86400000)}
 function defaultState(){return{
   version:APP_VERSION,certificates:[],people:[],requests:[],imports:[],
-  settings:{reminderDays:45,approverTelegramId:'5026942575',defaultDepartment:'',latestRosterRank:0,latestRosterYear:''},
+  settings:{reminderDays:45,approverTelegramId:'',defaultDepartment:'',latestRosterRank:0,latestRosterYear:''},
   updatedAt:new Date().toISOString()
 }}
 function openDb(){return new Promise((resolve,reject)=>{const q=indexedDB.open(DB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(DB_STORE))q.result.createObjectStore(DB_STORE)};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
@@ -896,7 +896,7 @@ async function clearAllData(){
   if(!confirm(tr('confirmClear')))return;STATE=defaultState();selectedCerts.clear();selectedPeople.clear();await persist();renderAll();toast(tr('cleared'))
 }
 function saveSettings(){
-  STATE.settings.reminderDays=Math.max(1,Number(val('setReminderDays'))||45);STATE.settings.approverTelegramId=val('setApproverId')||'5026942575';STATE.settings.defaultDepartment=val('setDefaultDept');
+  STATE.settings.reminderDays=Math.max(1,Number(val('setReminderDays'))||45);STATE.settings.approverTelegramId='';STATE.settings.defaultDepartment=val('setDefaultDept');
   const gas=val('setGasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);
   persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})
 }
@@ -945,7 +945,7 @@ function buildTgText(){
 }
 function refreshTgPreview(){document.getElementById('tgPreview').textContent=buildTgText()}
 function openTelegram(type='summary'){
-  setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');refreshTgPreview();openModal('telegramModal')
+  setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient','');setVal('tgLang',type==='reminder'?'all3':'both');refreshTgPreview();openModal('telegramModal')
 }
 async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
 async function sendTelegram(){
@@ -956,7 +956,7 @@ async function sendTelegram(){
 async function init(){
   showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();
   STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});
-  setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId',STATE.settings.approverTelegramId||'5026942575');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
+  setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId','');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
   applyLang();renderAll();hideLoading()
 }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));

@@ -265,8 +265,7 @@ tbody tr:hover{background:#f8fafc}
         <div class="grid grid-cols-2 gap-3">
           <div><label class="text-[11px] font-semibold text-slate-500 uppercase">Tool key</label>
             <input value="maternity" disabled class="mt-1 w-full text-xs jmono border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-400"></div>
-          <div><label class="text-[11px] font-semibold text-slate-500 uppercase">核可人 Approver ID</label>
-            <input id="s-approver" class="mt-1 w-full text-xs jmono border border-slate-200 rounded-lg px-3 py-2"></div>
+          <div><label class="text-[11px] font-semibold text-slate-500 uppercase">核可人 Approver</label><input type="text" readonly value="由伺服器管理 Managed by server" class="mt-1 w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-400" style="cursor:not-allowed"></div>
         </div>
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">護理費金額 Nursing / 月</label>
           <input id="s-nurfee" type="number" min="0" step="0.5" class="mt-1 w-full text-xs jmono border border-slate-200 rounded-lg px-3 py-2" placeholder="15"></div>
@@ -420,7 +419,7 @@ var K_MAT='vrt_maternity_v1', K_NUR='vrt_nursing_fees_v2',
     K_SETS='ac_hra_mat_settings', K_DEC='ac_hra_mat_decisions', K_META='ac_hra_maternity_meta',
     K_GAS_SHARED='vrt_att_cloud_v1_url', K_GAS_OLD='ac_hra_gas_url';
 var DEFAULT_GAS='https://script.google.com/macros/s/AKfycbya4jZG7YixRmumt9vKA-5Cv92jP8fi_o4toiU-8J2exQCYBhBsLOtN4kX9hoKqzp12/exec';
-var DEFAULT_APPROVER='5026942575';
+var DEFAULT_APPROVER='';   /* 核可人由 GAS 的 APPROVERS 決定，前端不保存 */
 var TOOL='maternity';
 var CHUNK=2000;
 var STATUS={pregnant:['懷孕中','Pregnant'],maternity:['產假中','Maternity'],returned:['已回歸','Returned']};
@@ -597,7 +596,7 @@ function loadData(){
   try{DEC=JSON.parse(localStorage.getItem(K_DEC)||'{}');}catch(e){DEC={};}
   try{META=JSON.parse(localStorage.getItem(K_META)||'{}');}catch(e){META={};}
   if(!Array.isArray(EMP))EMP=[]; if(!Array.isArray(NUR))NUR=[]; if(!Array.isArray(SAL))SAL=[];
-  if(!SETS.approverId)SETS.approverId=DEFAULT_APPROVER;
+  
   if(SETS.nurFee===undefined||SETS.nurFee==='')SETS.nurFee=15;
   EMP.forEach(ensureEmpKey); NUR.forEach(ensureNurKey);
 }
@@ -1453,7 +1452,7 @@ function setTgMode(m){
   _tgMode=m;
   el('tgm-sum').className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='summary'?'bg-white shadow-sm font-semibold text-pink-700':'text-slate-500 font-medium');
   el('tgm-app').className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='approval'?'bg-white shadow-sm font-semibold text-pink-700':'text-slate-500 font-medium');
-  el('tg-kind').textContent=(m==='approval'?L('核可請求 → 核可人','Approval → approver')+' '+(SETS.approverId||DEFAULT_APPROVER):L('摘要通知 → 群組','Summary → group'));
+  el('tg-kind').textContent=(m==='approval'?L('核可請求 → 送出後於群組核可','Approval → decide in group'):L('摘要通知 → 群組','Summary → group'));
   previewTg();
 }
 function setTgScope(s){
@@ -1485,7 +1484,7 @@ function previewTg(){
   var extra='';
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,_tgScope), sTag=_tgScope==='preg'?'P':_tgScope==='mat'?'M':_tgScope==='nur'?'N':'A';
-    extra='\n\n— — — —\n'+L('核可批次','Batch')+'：MAT-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length+'\n'+L('核可人','Approver')+'：'+(SETS.approverId||DEFAULT_APPROVER);
+    extra='\n\n— — — —\n'+L('核可批次','Batch')+'：MAT-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
     el('tg-note').textContent=L('核可請求會送到 GAS，待五模組統一的按鈕核可引擎上線後即可在 Telegram 直接按鈕核可。','Approval request posts to GAS; inline-button approval activates with the unified engine.');
   }else{ el('tg-note').textContent=L('摘要會傳送到群組。','Summary will be sent to the group.'); }
   pv.textContent=(r.text+extra).replace(/<[^>]+>/g,'');
@@ -1500,7 +1499,7 @@ function confirmTg(){
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,scope);
     payload={action:'approvalRequest',type:'approvalRequest',module:'maternity',scope:scope,
-      batch:'MAT-'+sTag+'-'+p.replace(/-/g,''),period:p,approverId:(SETS.approverId||DEFAULT_APPROVER),
+      batch:'MAT-'+sTag+'-'+p.replace(/-/g,''),period:p,
       count:items.length,items:items,text:r.text,requestedBy:'maternity_v2',requestedAt:nowStamp()};
   }else{
     payload={action:'telegram',type:'notify',tool:TOOL,scope:scope,text:r.text};
@@ -1547,12 +1546,12 @@ function saveEmp(){
 /* ═══════════ 設定 ═══════════ */
 function renderSets(){
   el('s-gas').value=SETS.gasUrl||localStorage.getItem(K_GAS_SHARED)||localStorage.getItem(K_GAS_OLD)||'';
-  el('s-approver').value=SETS.approverId||DEFAULT_APPROVER;
+  
   el('s-nurfee').value=(SETS.nurFee!==undefined?SETS.nurFee:15);
 }
 function saveSets(){
   SETS.gasUrl=(el('s-gas').value||'').trim();
-  SETS.approverId=(el('s-approver').value||'').trim()||DEFAULT_APPROVER;
+  
   SETS.nurFee=N(el('s-nurfee').value)||15;
   saveSetsRaw();
   if(SETS.gasUrl){ localStorage.setItem(K_GAS_SHARED,SETS.gasUrl); localStorage.setItem(K_GAS_OLD,SETS.gasUrl); }
