@@ -1118,6 +1118,39 @@ function tgLabel(zh,en,lang){
   if(lang==='en')return en;
   return zh+' / '+en;
 }
+/* ═══ 部門／組別中英對照 ═══
+   摘要的標籤原本就是雙語，但部門／組別名稱是從 Excel 讀進來的原始中文，
+   之前直接輸出 → 這就是「有些只有中文」的來源。這裡逐詞翻譯。 */
+const TG_TERM_EN={
+  '車縫':'Sewing','縫紉':'Sewing','針車':'Sewing','裁剪':'Cutting','裁床':'Cutting',
+  '包裝':'Packing','成品':'Finished Goods','後整':'Finishing','整燙':'Ironing','燙工':'Ironing',
+  '品管':'QC','品保':'QA','檢驗':'Inspection','驗布':'Fabric Inspection',
+  '倉庫':'Warehouse','物料':'Material','裁片':'Cut Parts','原料':'Raw Material',
+  '機修':'Mechanic','維修':'Maintenance','工務':'Facilities','電工':'Electrician',
+  '樣品':'Sample','馬克':'Marker','繡花':'Embroidery','印花':'Printing',
+  '生管':'PC','行政':'Admin','人事':'HR','總務':'GA','保全':'Security','清潔':'Cleaning',
+  '財務':'Finance','會計':'Accounting','採購':'Purchasing','業務':'Merchandising','船務':'Shipping',
+  '組長':'Supervisor','班長':'Line Leader','主管':'Manager','管理':'Management',
+  '其他':'Others','其它':'Others','未分類':'Unclassified','合計':'Total','小計':'Subtotal',
+  '線':'Line','組':'Sec','部':'Dept','課':'Sec','廠':'Plant','間接':'Indirect','直接':'Direct',
+};
+function tgTermEn(s){
+  let out=String(s||''),hit=false;
+  Object.keys(TG_TERM_EN).sort((a,b)=>b.length-a.length).forEach(zh=>{
+    if(out.indexOf(zh)>=0){ out=out.split(zh).join(' '+TG_TERM_EN[zh]+' '); hit=true; }
+  });
+  out=out.replace(/\s+/g,' ').trim();
+  return hit&&out?out:'';
+}
+/* 部門／組別名稱：both 模式輸出「中文 (English)」，查不到就只留原文，不亂翻 */
+function tgName(s,lang){
+  const zh=String(s||'').trim(); if(!zh) return '';
+  if(!/[\u4e00-\u9fff]/.test(zh)) return zh;      // 本來就是英文/代號 → 原樣
+  const en=tgTermEn(zh);
+  if(lang==='zh'||!en) return zh;
+  if(lang==='en') return en;
+  return zh+' ('+en+')';
+}
 function telegramRateIcon(rate){return rate==null?'':rate>=.95?'🌟':rate>=.90?'✅':rate>=.87?'⚠️':'🔴';}
 function populateTelegramPeriods(preferred){
   const mode=document.getElementById('tgMode')?.value||'monthly';
@@ -1198,9 +1231,16 @@ function buildTelegramSummary(mode,key,lang){
     text+=`${sep}\n🏢 ${tgLabel('部門／組別重點','Department / Section Highlights',lang)}\n`;
     sections.forEach(s=>{
       const rate=s.report?s.att/s.report:null;
-      const label=s.dept&&s.dept!==s.name?s.dept+' / '+s.name:s.name;
+      const dn=tgName(s.dept,lang), sn=tgName(s.name,lang);
+      const label=s.dept&&s.dept!==s.name?dn+' / '+sn:sn;
       text+=`${telegramRateIcon(rate)} ${label}: ${rate==null?'—':(rate*100).toFixed(1)+'%'}  NP:${s.np} ML:${s.ml}\n`;
     });
+  }
+  /* 假別代碼圖例：NP／ML 這些代碼英文讀者看不懂，非純中文模式補一行 */
+  if(lang!=='zh'&&/AL:|NP:/.test(text)){
+    text+=`${sep}\n📖 ${tgLabel('假別代碼','Leave Codes',lang)}\n`;
+    text+=`AL ${tgLabel('特休','Annual',lang)} · PL ${tgLabel('事假','Personal',lang)} · SL ${tgLabel('病假','Sick',lang)} · NP ${tgLabel('曠職','No-Pay/Absent',lang)}\n`;
+    text+=`Bus ${tgLabel('公假','Business',lang)} · FL ${tgLabel('喪假','Funeral',lang)} · ML ${tgLabel('產假','Maternity',lang)}\n`;
   }
   return text.trim();
 }
