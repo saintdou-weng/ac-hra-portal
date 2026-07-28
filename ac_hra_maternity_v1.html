@@ -32,6 +32,9 @@ tbody tr:hover{background:#f8fafc}
 .anim{animation:up .25s ease both}
 #toast{transition:all .3s cubic-bezier(.34,1.56,.64,1);transform:translateY(70px);opacity:0;pointer-events:none}
 #toast.show{transform:none;opacity:1;pointer-events:auto}
+.rl{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px}
+.ri{width:100%;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px}
+.ri:focus{outline:none;border-color:#ec4899;box-shadow:0 0 0 3px rgba(236,72,153,.12)}
 .pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;line-height:1.6}
 .row-cur{background:#fdf2f8!important;font-weight:600}
 .rpt-row{cursor:pointer}
@@ -84,7 +87,11 @@ tbody tr:hover{background:#f8fafc}
       <button onclick="exportJSON()" class="text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">⬇ <span class="hidden sm:inline" data-t="exp">匯出</span></button>
       <label class="text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer">⬆ <span class="hidden sm:inline" data-t="imp">還原</span>
         <input type="file" accept=".json" class="hidden" onchange="importJSON(this)"></label>
-      <button onclick="toggleLang()" id="btn-lang" class="text-xs font-semibold px-3 py-1.5 rounded-md bg-pink-50 text-pink-700 border border-pink-200 hover:bg-pink-100 transition">中/EN</button>
+      <div class="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+        <button data-lg="zh" onclick="setLang('zh')" class="lgbtn px-2 py-1.5">繁中</button>
+        <button data-lg="en" onclick="setLang('en')" class="lgbtn px-2 py-1.5 border-l border-slate-200">EN</button>
+        <button data-lg="km" onclick="setLang('km')" class="lgbtn px-2 py-1.5 border-l border-slate-200">ខ្មែរ</button>
+      </div>
     </div>
   </div>
 </header>
@@ -195,6 +202,7 @@ tbody tr:hover{background:#f8fafc}
     <select id="f-nur-dept" onchange="renderNur()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">全部部門 All Dept</option></select>
     <input id="f-nur-q" oninput="renderNur()" placeholder="搜尋工號/姓名 Search" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[140px]">
     <button onclick="resetFilters('nur')" class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺</button>
+    <button onclick="openNur()" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100">＋ 新增 Add</button>
     <span id="nur-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
   <div id="nur-kpi" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
@@ -312,7 +320,7 @@ tbody tr:hover{background:#f8fafc}
       <div><label class="text-[11px] font-semibold text-slate-500">聯絡電話 Phone</label><input id="e-contactPhone" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2"></div>
       <div class="col-span-2"><label class="text-[11px] font-semibold text-slate-500">備註 Remark</label><input id="e-remark" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2"></div>
     </div>
-    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeEmp()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
       <button onclick="saveEmp()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">儲存 Save</button>
     </div>
@@ -321,14 +329,14 @@ tbody tr:hover{background:#f8fafc}
 
 <!-- ══════════ TELEGRAM MODAL ══════════ -->
 <div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style="max-height:88vh">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
       <span class="text-xl">✈️</span>
       <div class="flex-1"><p class="text-sm font-bold text-slate-800">傳送至 Telegram 群組 Send to Telegram</p>
         <p id="tg-kind" class="text-[11px] text-slate-400 mt-0.5">—</p></div>
       <button onclick="closeTg()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
-    <div class="px-5 py-4 space-y-3">
+    <div class="px-5 py-4 space-y-3 overflow-y-auto flex-1" style="min-height:0">
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">傳送模式 Mode</label>
         <div class="mt-1.5 flex bg-slate-100 rounded-lg p-0.5">
           <button id="tgm-sum" onclick="setTgMode('summary')"  class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-pink-700 transition">📄 摘要 Summary</button>
@@ -351,10 +359,10 @@ tbody tr:hover{background:#f8fafc}
       <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
         <input type="checkbox" id="tg-bi" checked onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
-        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
       <p id="tg-note" class="text-[10px] text-slate-400 leading-relaxed"></p>
     </div>
-    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeTg()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
       <button id="tg-send" onclick="confirmTg()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">確認傳送 Send</button>
     </div>
@@ -370,9 +378,39 @@ tbody tr:hover{background:#f8fafc}
       <label class="text-[11px] font-semibold text-slate-500 uppercase">退回原因 Reason</label>
       <textarea id="rj-note" rows="3" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2" placeholder="例：NSSF 號碼缺漏，請 HRA 補齊後再送"></textarea>
     </div>
-    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeReject()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
       <button onclick="confirmReject()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700">確認退回 Reject</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════ 線上新增 / 編輯 護理費 ══════════ -->
+<div id="nur-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col" style="max-height:88vh">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2 shrink-0">
+      <span class="text-xl">💊</span>
+      <div class="flex-1"><p id="nur-title" class="text-sm font-bold text-slate-800">新增護理費 Add Nursing</p>
+        <p class="text-[11px] text-slate-400 mt-0.5">線上建立的記錄同樣可送核可</p></div>
+      <button onclick="closeNur()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 grid grid-cols-2 gap-3 overflow-y-auto flex-1" style="min-height:0">
+      <div><label class="rl">工號 Card *</label><input id="n-cardId" class="ri jmono" inputmode="numeric" list="dl-emp"><datalist id="dl-emp"></datalist></div>
+      <div><label class="rl">姓名 Name *</label><input id="n-name" class="ri"></div>
+      <div><label class="rl">部門 Dept</label><input id="n-dept" class="ri" list="dl-ndept"><datalist id="dl-ndept"></datalist></div>
+      <div><label class="rl">寶寶生日 Baby DOB</label><input id="n-babyDob" type="date" class="ri"></div>
+      <div><label class="rl">起付月 Start</label><input id="n-startMonth" type="date" class="ri"></div>
+      <div><label class="rl">付款月 Pay Month *</label><input id="n-payMonth" type="month" class="ri jmono"></div>
+      <div><label class="rl">第幾個月 Month #</label><input id="n-monthNo" class="ri jmono" placeholder="1-24 或 Last"></div>
+      <div><label class="rl">金額 Amount</label><input id="n-amount" type="number" step="0.01" class="ri jmono" placeholder="15"></div>
+      <div class="col-span-2"><label class="rl">備註 Remark</label><input id="n-remark" class="ri"></div>
+      <p id="nur-warn" class="col-span-2 text-[11px] text-amber-600" style="display:none"></p>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
+      <button id="nur-del" onclick="deleteNur()" class="text-xs font-medium px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600" style="display:none">🗑 刪除</button>
+      <button onclick="closeNur()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
+      <button onclick="saveNurRec()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700">儲存 Save</button>
     </div>
   </div>
 </div>
@@ -395,6 +433,9 @@ tbody tr:hover{background:#f8fafc}
 /* ── HELPERS ── */
 function qs(s){return document.querySelector(s);}
 function el(id){return document.getElementById(id);}
+/* ★ 安全寫入：元素不存在時靜默略過，避免單一元素缺失導致整頁 JS 中止 */
+function setTxt(id,v){ var n=el(id); if(n)n.textContent=v; return !!n; }
+function setHtml(id,v){ var n=el(id); if(n)n.innerHTML=v; return !!n; }
 function p2(n){return(n<10?'0':'')+n;}
 function lds(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -428,7 +469,7 @@ var PALETTE=['#ec4899','#8b5cf6','#0ea5e9','#f59e0b','#10b981','#ef4444','#14b8a
 
 /* ── STATE ── */
 var EMP=[], NUR=[], SAL=[], SETS={}, DEC={}, META={};
-var LANG='zh', TAB='ov', _charts={}, _apprRows=[], _apprSel={}, _tgMode='summary', _tgScope='all', _editEmpId=null;
+var LANG=(function(){try{return localStorage.getItem('ac_hra_lang')||'zh';}catch(e){return 'zh';}})(), TAB='ov', _charts={}, _apprRows=[], _apprSel={}, _tgMode='summary', _tgScope='all', _editEmpId=null;
 var NAV={ ov:{mode:'month',pivot:new Date()}, preg:{mode:'month',pivot:new Date()},
           mat:{mode:'month',pivot:new Date()}, nur:{mode:'month',pivot:new Date()},
           anly:{mode:'year',pivot:new Date()}, appr:{mode:'month',pivot:new Date()} };
@@ -454,15 +495,36 @@ var I18N={
      dim:'Dimension',dimside:'Scope',s_cloud:'Cloud / Telegram',s_about:'Compatibility',
      dz1:'Smart Import',
      dz2:'Drag &amp; drop or click · 4 file types auto-detected<br>Register / Pregnant list / Maternity payment / Nursing',
-     dz3:'No file imported yet. Drop several files at once — type auto-detected, de-duplicated across files by Employee ID.'}
+     dz3:'No file imported yet. Drop several files at once — type auto-detected, de-duplicated across files by Employee ID.'},
+ km:{hdr_title:'មាតុភាព · ថ្លៃថែទាំ',up:'ផ្ទុកឡើង',down:'ទាញយក',exp:'នាំចេញ',imp:'ស្តារ',
+     tab_ov:'ទិដ្ឋភាពរួម',tab_preg:'🤰 មានផ្ទៃពោះ',tab_mat:'🍼 ឈប់សម្រាកលំហែមាតុភាព',tab_nur:'💊 ថ្លៃថែទាំ',
+     tab_anly:'📊 វិភាគ',tab_appr:'អនុម័ត',tab_set:'⚙️ ការកំណត់',
+     k_preg:'🤰 មានផ្ទៃពោះ',k_mat:'🍼 កំពុងឈប់សម្រាក',k_ret:'📅 ត្រឡប់ក្នុង30ថ្ងៃ',k_nurppl:'💊 ទទួលថ្លៃថែទាំ',
+     k_nuramt:'💵 ថ្លៃថែទាំបានបើក',k_total:'👥 សរុប',
+     c_trend:'និន្នាការចុះឈ្មោះ / ថ្លៃថែទាំ',c_status:'ស្ថានភាព',c_rpt:'របាយការណ៍តាមដំណាក់កាល',c_rpt2:'ចុចជួរដើម្បីប្តូរ',
+     c_deptdist:'ចែកតាមផ្នែក',c_edd:'ថ្ងៃកំណត់សម្រាល (60ថ្ងៃ)',c_return:'កាលវិភាគត្រឡប់',
+     c_dim:'ចែកតាមវិមាត្រ',c_mtrend:'និន្នាការប្រចាំខែ',c_dimtbl:'តារាងវិមាត្រ',
+     t_pregdet:'បញ្ជីមានផ្ទៃពោះ',t_matdet:'បញ្ជីលំហែមាតុភាព',t_nurdet:'បញ្ជីថ្លៃថែទាំ',t_appr:'បញ្ជីអនុម័ត',
+     dim:'វិមាត្រ',dimside:'វិសាលភាព',s_cloud:'ពពក / Telegram',s_about:'ភាពត្រូវគ្នា',
+     dz1:'នាំចូលឆ្លាតវៃ',dz2:'អូសទម្លាក់ ឬចុច · ស្គាល់ប្រភេទឯកសារដោយស្វ័យប្រវត្តិ',
+     dz3:'មិនទាន់នាំចូលឯកសារ។ ដកស្ទួនតាមលេខសម្គាល់បុគ្គលិក។'}
 };
 function T(k){var d=I18N[LANG]||I18N.zh;return d[k]!==undefined?d[k]:(I18N.zh[k]||k);}
-function L(zh,en){ return LANG==='en' ? en : zh; }
+function L(zh,en,km){ return LANG==='km'?(km||en):LANG==='en'?en:zh; }
 function BL(zh,en,bi){ return bi ? (zh+' '+en) : (LANG==='en'?en:zh); }
-function toggleLang(){ LANG=(LANG==='zh'?'en':'zh'); applyLang(); renderAll(); }
+function toggleLang(){ setLang(LANG==='zh'?'en':LANG==='en'?'km':'zh'); }
+function setLang(v){
+  LANG=(['zh','en','km'].indexOf(v)>=0)?v:'zh';
+  try{localStorage.setItem('ac_hra_lang',LANG);}catch(e){}
+  applyLang(); rebuildFilterOptions&&rebuildFilterOptions(); renderAll();
+}
 function applyLang(){
   document.querySelectorAll('[data-t]').forEach(function(n){ var v=T(n.getAttribute('data-t')); if(v!=null)n.innerHTML=v; });
-  var b=el('btn-lang'); if(b)b.textContent=LANG==='zh'?'中/EN':'EN/中';
+  document.querySelectorAll('.lgbtn').forEach(function(n){
+    var on=n.getAttribute('data-lg')===LANG;
+    n.className='lgbtn px-2 py-1.5'+(n.previousElementSibling?' border-l border-slate-200':'')+
+      (on?' bg-slate-800 text-white font-semibold':' bg-white text-slate-500 hover:bg-slate-50');
+  });
 }
 
 /* ── DATE / CELL PARSING (時區安全) ── */
@@ -517,6 +579,31 @@ function calcAge(dob,ref){
   if(r<new Date(r.getFullYear(),b.getMonth(),b.getDate()))a--;
   return (a>=0&&a<100)?a:null;
 }
+var PROVINCES=['Banteay Meanchey','Battambang','Kampong Cham','Kampong Chhnang','Kampong Speu',
+ 'Kampong Thom','Kampot','Kandal','Kep','Koh Kong','Kratie','Mondulkiri','Oddar Meanchey','Pailin',
+ 'Phnom Penh','Preah Sihanouk','Sihanoukville','Preah Vihear','Prey Veng','Pursat','Ratanakiri',
+ 'Siem Reap','Stung Treng','Svay Rieng','Takeo','Tbong Khmum'];
+function regionOf(txt){
+  var s=String(txt||''); if(!s)return '';
+  for(var i=0;i<PROVINCES.length;i++){var p=PROVINCES[i];
+    if(new RegExp(p.replace(/\s+/g,'\\s*'),'i').test(s))return p==='Sihanoukville'?'Preah Sihanouk':p;}
+  return '';
+}
+/* 年資：以到職日或登記日推算天數 */
+function tenureDaysOf(r){
+  var start=r.joinDate||r.hireDate||r.registerTime||'';
+  var end=r.returnDate||r.leaveStart||lds(new Date());
+  var d=dayDiff(start,end);
+  return (d!=null&&d>0)?d:0;
+}
+function tenureBandOf(days){
+  var d=+days; if(!isFinite(d)||d<=0)return L('未知','Unknown','មិនស្គាល់');
+  if(d<30)return L('未滿1月','<1mo','<1ខែ'); if(d<90)return L('1-3月','1-3mo','1-3ខែ');
+  if(d<180)return L('3-6月','3-6mo','3-6ខែ'); if(d<365)return L('6-12月','6-12mo','6-12ខែ');
+  if(d<730)return L('1-2年','1-2yr','1-2ឆ្នាំ'); if(d<1825)return L('2-5年','2-5yr','2-5ឆ្នាំ');
+  return L('5年以上','5yr+','>5ឆ្នាំ');
+}
+function saneAge(a){ a=+a; return (isFinite(a)&&a>=15&&a<=70)?a:null; }
 function ageBandOf(a){
   a=+a; if(!isFinite(a)||a<=0)return L('未知','Unknown');
   if(a<20)return '<20'; if(a<25)return '20-24'; if(a<30)return '25-29';
@@ -795,7 +882,13 @@ function parseNursing(wb){
     var hdr=hdrMap(rows[h]);
     var cCard=cIdx(hdr,/card/), cName=cIdx(hdr,/^name/,/name/), cDept=cIdx(hdr,/department|dept/),
         cBaby=cIdx(hdr,/baby|date of birth/), cStart=cIdx(hdr,/start to pay|month.*pay/),
-        cFee=cIdx(hdr,/nursing fee/), cMonthNo=cIdx(hdr,/remarks.*month|month/);
+        cFee=cIdx(hdr,/nursing fee/),
+        /* ★ 月份數欄：先找 remarks-month，且排除 start-to-pay 那種日期欄 */
+        cMonthNo=(function(){
+          for(var i=0;i<hdr.length;i++){ if(/remark/.test(hdr[i])&&/month/.test(hdr[i]))return i; }
+          for(var j=0;j<hdr.length;j++){ if(/month/.test(hdr[j])&&!/start|pay|begin/.test(hdr[j]))return j; }
+          return -1;
+        })();
     if(cCard<0)return;
     for(var i=h+1;i<rows.length;i++){
       var row=rows[i]||[];
@@ -805,7 +898,13 @@ function parseNursing(wb){
       out.push({_k:card+'|'+payMonth,id:'n_'+uid(),cardId:card,name:name,
         dept:cDept>=0?cs(row[cDept]):'',babyDob:cBaby>=0?xdate(row[cBaby]):'',
         startMonth:cStart>=0?xdate(row[cStart]):'',amount:cFee>=0?(N(row[cFee])||fee):fee,
-        payMonth:payMonth,monthNo:cMonthNo>=0?cs(row[cMonthNo]):'',sheetName:sn});
+        payMonth:payMonth,monthNo:(function(){
+          if(cMonthNo<0)return '';
+          var v=cs(row[cMonthNo]);
+          if(/^last$/i.test(v))return 'Last';
+          var n=parseInt(v,10);
+          return (isFinite(n)&&n>=1&&n<=60)?String(n):'';
+        })(),sheetName:sn});
     }
   });
   return {rows:out,warn:warn};
@@ -986,12 +1085,12 @@ function renderOv(){
     var ret30=EMP.filter(function(r){var u=dayDiff(today,r.returnDate);return u!=null&&u>=0&&u<=30;}).length;
     var nurPpl=new Set(Nr.map(function(r){return r.cardId;})).size;
     var nurAmt=Nr.reduce(function(s,r){return s+(+r.amount||0);},0);
-    el('k-preg').textContent=fmt0(preg);
-    el('k-mat').textContent=fmt0(mat);
-    el('k-ret').textContent=fmt0(ret30);
-    el('k-nurppl').textContent=fmt0(nurPpl);
-    el('k-nuramt').textContent='$'+fmt(nurAmt);
-    el('k-total').textContent=fmt0(EMP.length);
+    setTxt('k-preg', fmt0(preg));
+    setTxt('k-mat', fmt0(mat));
+    setTxt('k-ret', fmt0(ret30));
+    setTxt('k-nurppl', fmt0(nurPpl));
+    setTxt('k-nuramt', '$'+fmt(nurAmt));
+    setTxt('k-total', fmt0(EMP.length));
 
     var labels=[],reg=[],nur=[],b=pBounds(st);
     var ms=monthsWithData(); if(b)ms=ms.filter(function(m){return m>=b.s.slice(0,7)&&m<=b.e.slice(0,7);});
@@ -1017,7 +1116,7 @@ function renderOv(){
             datasets:[{data:sk.map(function(k){return sc[k];}),backgroundColor:sk.map(function(k){return STATUS_COLOR[k];}),borderWidth:0}]},
       options:{cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10}}}}}});
 
-    el('ov-report').innerHTML=periodReportHTML('ov')||'<div class="p-4 text-xs text-slate-400">'+L('期間報表僅在「月」或「年」模式顯示。','Period report shows in Month / Year mode only.')+'</div>';
+    setHtml('ov-report', periodReportHTML('ov')||'<div class="p-4 text-xs text-slate-400">'+L('期間報表僅在「月」或「年」模式顯示。','Period report shows in Month / Year mode only.')+'</div>');
   }catch(e){ console.error(e); }
 }
 
@@ -1042,7 +1141,7 @@ function renderPreg(){
     var rows=pregFiltered();
     renderPregKpi(rows);
     rows=rows.slice().sort(function(a,b){return (evDateEmp(b)||'').localeCompare(evDateEmp(a)||'');});
-    el('preg-count').textContent=rows.length+' '+L('筆','rows');
+    setTxt('preg-count', rows.length+' '+L('筆','rows'));
     var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th>'+
       '<th>'+L('線別','Line')+'</th><th>'+L('職務','Position')+'</th><th class="text-right">'+L('年齡','Age')+'</th>'+
       '<th>'+L('預產期','EDD')+'</th><th class="text-right">'+L('距EDD','To EDD')+'</th><th>'+L('狀態','Status')+'</th>'+
@@ -1059,8 +1158,8 @@ function renderPreg(){
         '<td class="jmono text-[10px]">'+esc(r.nssfNo||'—')+'</td><td>'+decBadge(r._k)+'</td>'+
         '<td class="no-print"><button onclick="openEmp(\''+r.id+'\')" class="text-xs text-slate-400 hover:text-pink-600">✏️</button></td></tr>';
     });
-    h+='</tbody></table>'; el('preg-tbl').innerHTML=h;
-    var rp=periodReportHTML('preg'); el('preg-report').style.display=rp?'':'none'; el('preg-report-body').innerHTML=rp;
+    h+='</tbody></table>'; setHtml('preg-tbl', h);
+    var rp=periodReportHTML('preg'); el('preg-report').style.display=rp?'':'none'; setHtml('preg-report-body', rp);
   }catch(e){ console.error(e); }
 }
 function renderPregKpi(rows){
@@ -1071,23 +1170,22 @@ function renderPregKpi(rows){
   var edd30=rows.filter(function(r){var u=dayDiff(today,r.edd);return u!=null&&u>=0&&u<=30;}).length;
   var periods=rows.map(function(r){return +r.pregnantPeriod;}).filter(function(x){return isFinite(x)&&x>0;});
   var avgP=periods.length?(periods.reduce(function(s,x){return s+x;},0)/periods.length).toFixed(1):'—';
-  el('preg-kpi').innerHTML=
-    kpiCard(fmt0(tot),'',L('名冊總數','Total'),'text-slate-700')+
+  setHtml('preg-kpi', kpiCard(fmt0(tot),'',L('名冊總數','Total'),'text-slate-700')+
     kpiCard(fmt0(preg),pctStr(preg,tot),L('懷孕中','Pregnant'),'text-pink-600')+
     kpiCard(fmt0(mat),pctStr(mat,tot),L('產假中','Maternity'),'text-violet-600')+
-    kpiCard(fmt0(edd30),'',L('30天內預產','EDD ≤30d'),'text-rose-600');
+    kpiCard(fmt0(edd30),'',L('30天內預產','EDD ≤30d'),'text-rose-600'));
   var dm={}; rows.forEach(function(r){var d=r.dept||lineOf(r)||'—';dm[d]=(dm[d]||0)+1;});
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});
   var h='<table><thead><tr><th>'+L('部門','Dept')+'</th><th class="text-right">'+L('人數','Count')+'</th><th class="text-right">'+L('佔比','%')+'</th></tr></thead><tbody>';
   if(!dl.length)h+='<tr><td colspan="3" class="text-center text-slate-400 py-6">'+L('無資料','No data')+'</td></tr>';
   dl.forEach(function(d){h+='<tr><td>'+esc(d)+'</td><td class="text-right jmono font-semibold">'+dm[d]+'</td>'+barCell(dm[d],tot,'#ec4899')+'</tr>';});
-  h+='</tbody></table>'; el('preg-dept-bd').innerHTML=h;
+  h+='</tbody></table>'; setHtml('preg-dept-bd', h);
   /* EDD 60 天內 */
   var up=rows.filter(function(r){var u=dayDiff(today,r.edd);return u!=null&&u>=-7&&u<=60;}).sort(function(a,b){return (a.edd||'').localeCompare(b.edd||'');});
   var h2='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th><th>'+L('預產期','EDD')+'</th><th class="text-right">'+L('距今','Days')+'</th></tr></thead><tbody>';
   if(!up.length)h2+='<tr><td colspan="5" class="text-center text-slate-400 py-6">'+L('60天內無預產','None within 60 days')+'</td></tr>';
   up.forEach(function(r){var u=dayDiff(today,r.edd);h2+='<tr><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td><td class="jmono">'+esc(r.edd)+'</td><td class="text-right jmono '+(u<=14?'text-rose-600 font-semibold':'')+'">'+(u<0?u:'+'+u)+'</td></tr>';});
-  h2+='</tbody></table>'; el('preg-edd-bd').innerHTML=h2;
+  h2+='</tbody></table>'; setHtml('preg-edd-bd', h2);
 }
 
 /* ═══════════ 產假 ═══════════ */
@@ -1105,7 +1203,7 @@ function renderMat(){
     var rows=matFiltered();
     renderMatKpi(rows);
     rows=rows.slice().sort(function(a,b){return (a.returnDate||'').localeCompare(b.returnDate||'');});
-    el('mat-count').textContent=rows.length+' '+L('筆','rows');
+    setTxt('mat-count', rows.length+' '+L('筆','rows'));
     var today=lds(new Date());
     var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th>'+
       '<th>'+L('產假開始','Leave Start')+'</th><th>'+L('回歸日','Return')+'</th><th class="text-right">'+L('天數','Days')+'</th>'+
@@ -1122,14 +1220,14 @@ function renderMat(){
         '<td class="text-right jmono '+cls+'">'+(toRet==null?'—':(toRet<0?L('已回歸','done'):'+'+toRet+L('天','d')))+'</td>'+
         '<td>'+statusBadge(r.status)+'</td><td>'+decBadge(r._k)+'</td></tr>';
     });
-    h+='</tbody></table>'; el('mat-tbl').innerHTML=h;
+    h+='</tbody></table>'; setHtml('mat-tbl', h);
     /* 回歸排程 */
     var sched=rows.filter(function(r){return r.returnDate;}).sort(function(a,b){return a.returnDate.localeCompare(b.returnDate);});
     var h2='<table><thead><tr><th>'+L('回歸日','Return')+'</th><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th><th class="text-right">'+L('距今','Days')+'</th></tr></thead><tbody>';
     if(!sched.length)h2+='<tr><td colspan="5" class="text-center text-slate-400 py-6">'+L('無回歸排程','No schedule')+'</td></tr>';
     sched.forEach(function(r){var u=dayDiff(today,r.returnDate);h2+='<tr><td class="jmono">'+esc(r.returnDate)+'</td><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td><td class="text-right jmono '+(u!=null&&u>=0&&u<=14?'text-amber-600 font-semibold':'')+'">'+(u==null?'—':(u<0?u:'+'+u))+'</td></tr>';});
-    h2+='</tbody></table>'; el('mat-return-bd').innerHTML=h2;
-    var rp=periodReportHTML('mat'); el('mat-report').style.display=rp?'':'none'; el('mat-report-body').innerHTML=rp;
+    h2+='</tbody></table>'; setHtml('mat-return-bd', h2);
+    var rp=periodReportHTML('mat'); el('mat-report').style.display=rp?'':'none'; setHtml('mat-report-body', rp);
   }catch(e){ console.error(e); }
 }
 function renderMatKpi(rows){
@@ -1139,11 +1237,10 @@ function renderMatKpi(rows){
   var days=rows.map(function(r){return +r.totalDays;}).filter(function(x){return isFinite(x)&&x>0;});
   var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):90;
   var payTot=rows.reduce(function(s,r){return s+(+r.matAmount||0);},0);
-  el('mat-kpi').innerHTML=
-    kpiCard(fmt0(onLeave),'',L('產假中','On Leave'),'text-violet-600')+
+  setHtml('mat-kpi', kpiCard(fmt0(onLeave),'',L('產假中','On Leave'),'text-violet-600')+
     kpiCard('$'+fmt(payTot),'',L('產假給付合計','Payment Total'),'text-emerald-600')+
     kpiCard(fmt0(ret30),'',L('30天內回歸','Return ≤30d'),'text-amber-600')+
-    kpiCard(fmt0(avgD),L('天','days'),L('平均產假天數','Avg Days'),'text-slate-700');
+    kpiCard(fmt0(avgD),L('天','days'),L('平均產假天數','Avg Days'),'text-slate-700'));
 }
 
 /* ═══════════ 護理費 ═══════════ */
@@ -1161,19 +1258,20 @@ function renderNur(){
     var rows=nurFiltered();
     renderNurKpi(rows);
     rows=rows.slice().sort(function(a,b){return (b.payMonth||'').localeCompare(a.payMonth||'')||(a.cardId||'').localeCompare(b.cardId||'');});
-    el('nur-count').textContent=rows.length+' '+L('筆','rows');
+    setTxt('nur-count', rows.length+' '+L('筆','rows'));
     var h='<table><thead><tr><th>'+L('工號','Card')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th>'+
       '<th>'+L('寶寶生日','Baby DOB')+'</th><th>'+L('起付月','Start')+'</th><th>'+L('付款月','Pay Month')+'</th>'+
-      '<th>'+L('第幾月','Month#')+'</th><th class="text-right">'+L('金額','Amount')+'</th><th>'+L('核可','Appr')+'</th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="9" class="text-center text-slate-400 py-6">'+L('此期間沒有護理費記錄','No nursing records')+'</td></tr>';
+      '<th>'+L('第幾月','Month#')+'</th><th class="text-right">'+L('金額','Amount')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
+    if(!rows.length)h+='<tr><td colspan="10" class="text-center text-slate-400 py-6">'+L('此期間沒有護理費記錄','No nursing records')+'</td></tr>';
     rows.forEach(function(r){
       h+='<tr><td class="jmono">'+esc(r.cardId)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td>'+
         '<td class="jmono text-slate-400">'+esc(r.babyDob||'—')+'</td><td class="jmono text-slate-400">'+esc(r.startMonth||'—')+'</td>'+
         '<td class="jmono">'+esc(r.payMonth)+'</td><td class="jmono">'+esc(r.monthNo||'—')+'</td>'+
-        '<td class="text-right jmono font-semibold">$'+fmt(r.amount)+'</td><td>'+decBadge(r._k)+'</td></tr>';
+        '<td class="text-right jmono font-semibold">$'+fmt(r.amount)+'</td><td>'+decBadge(r._k)+'</td>'+
+        '<td class="no-print"><button onclick="openNur(\''+r.id+'\')" title="編輯 Edit" class="text-xs text-slate-400 hover:text-pink-600">✏️</button></td></tr>';
     });
-    h+='</tbody></table>'; el('nur-tbl').innerHTML=h;
-    var rp=periodReportHTML('nur'); el('nur-report').style.display=rp?'':'none'; el('nur-report-body').innerHTML=rp;
+    h+='</tbody></table>'; setHtml('nur-tbl', h);
+    var rp=periodReportHTML('nur'); el('nur-report').style.display=rp?'':'none'; setHtml('nur-report-body', rp);
   }catch(e){ console.error(e); }
 }
 function renderNurKpi(rows){
@@ -1182,11 +1280,10 @@ function renderNurKpi(rows){
   var totAmt=NUR.reduce(function(s,r){return s+(+r.amount||0);},0);
   var mn=rows.map(function(r){return +r.monthNo;}).filter(function(x){return isFinite(x)&&x>0;});
   var avgMn=mn.length?(mn.reduce(function(s,x){return s+x;},0)/mn.length).toFixed(1):'—';
-  el('nur-kpi').innerHTML=
-    kpiCard(fmt0(rows.length),'',L('本期筆數','Records'),'text-sky-600')+
+  setHtml('nur-kpi', kpiCard(fmt0(rows.length),'',L('本期筆數','Records'),'text-sky-600')+
     kpiCard(fmt0(ppl),'',L('本期人數','People'),'text-pink-600')+
     kpiCard('$'+fmt(amt),'',L('本期金額','Amount'),'text-emerald-600')+
-    kpiCard('$'+fmt(totAmt),'',L('累計金額','Cumulative'),'text-slate-700');
+    kpiCard('$'+fmt(totAmt),'',L('累計金額','Cumulative'),'text-slate-700'));
 }
 
 /* ═══════════ 分析（維度 × 對象） ═══════════ */
@@ -1229,7 +1326,7 @@ function renderAnly(){
     var h='<table><thead><tr><th>'+esc(L('維度','Dimension'))+'（'+esc(dimUse)+'）</th><th class="text-right">'+L('筆數','Count')+'</th><th class="text-right">'+L('佔比','%')+'</th></tr></thead><tbody>';
     if(!keys.length)h+='<tr><td colspan="3" class="text-center text-slate-400 py-6">'+L('此期間無資料','No data')+'</td></tr>';
     keys.forEach(function(k){h+='<tr><td>'+esc(k)+'</td><td class="text-right jmono font-semibold">'+fmt0(m[k])+'</td>'+barCell(m[k],tot,'#8b5cf6')+'</tr>';});
-    h+='</tbody></table>'; el('anly-tbl').innerHTML=h;
+    h+='</tbody></table>'; setHtml('anly-tbl', h);
   }catch(e){ console.error(e); }
 }
 
@@ -1253,7 +1350,7 @@ function renderAppr(){
     _apprRows=apprPool();
     var pending=0; EMP.concat(NUR).forEach(function(r){var d=DEC[r._k];if(!d||!d.d)pending++;});
     var kindLbl={preg:'🤰',mat:'🍼',nur:'💊'};
-    el('appr-count').textContent=_apprRows.length+' '+L('筆','rows');
+    setTxt('appr-count', _apprRows.length+' '+L('筆','rows'));
     var h='<table><thead><tr><th class="no-print"><input type="checkbox" onclick="apprSelectAll(this.checked)"></th>'+
       '<th>'+L('類型','Type')+'</th><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th>'+
       '<th>'+L('資訊','Info')+'</th><th>'+L('狀態','Status')+'</th><th>'+L('原因','Note')+'</th></tr></thead><tbody>';
@@ -1264,7 +1361,7 @@ function renderAppr(){
         '<td>'+(kindLbl[r.kind]||'')+'</td><td class="jmono">'+esc(r.id)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td>'+
         '<td class="text-slate-500">'+esc(r.info)+'</td><td>'+badge+'</td><td class="text-[11px] text-rose-500">'+esc(r.note||'')+'</td></tr>';
     });
-    h+='</tbody></table>'; el('appr-tbl').innerHTML=h;
+    h+='</tbody></table>'; setHtml('appr-tbl', h);
     var b=el('bdg-appr'); if(b){b.textContent=pending;b.style.display=pending?'':'none';}
   }catch(e){ console.error(e); }
 }
@@ -1278,7 +1375,7 @@ function apprMark(dec){
 }
 function openReject(){
   if(!Object.keys(_apprSel).length){ toast(L('請先勾選項目','Select items first'),'warn'); return; }
-  el('rj-count').textContent=Object.keys(_apprSel).length; el('rj-note').value='';
+  setTxt('rj-count', Object.keys(_apprSel).length); el('rj-note').value='';
   var m=el('rj-modal'); m.classList.remove('hidden'); m.classList.add('flex');
 }
 function closeReject(){ var m=el('rj-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
@@ -1314,7 +1411,7 @@ function cloudUpload(){
   if(!recs.length){ toast(L('沒有資料可上傳','Nothing to upload'),'warn'); return; }
   var btn=el('btn-cloud-up'); if(btn)btn.disabled=true;
   var chunks=[]; for(var i=0;i<recs.length;i+=CHUNK)chunks.push(recs.slice(i,i+CHUNK));
-  el('cloud-stat').textContent='☁↑…';
+  setTxt('cloud-stat', '☁↑…');
   var seq=Promise.resolve(),okAll=true;
   chunks.forEach(function(ck,idx){
     seq=seq.then(function(){ return gasPost({action:'push',tool:TOOL,chunk:idx,chunks:chunks.length,records:ck,ts:Date.now()}); })
@@ -1324,14 +1421,14 @@ function cloudUpload(){
     return gasPost({action:'push',tool:TOOL,meta:1,count:recs.length,ts:Date.now(),records:[]});
   }).then(function(){
     META.uploadedAt=nowStamp(); META.count=recs.length; saveMeta();
-    el('cloud-stat').textContent='☁ '+recs.length;
+    setTxt('cloud-stat', '☁ '+recs.length);
     toast(okAll?(L('已上傳','Uploaded')+' '+recs.length+' '+L('筆','rows')):L('上傳部分完成（請重試）','Partial upload'),okAll?'ok':'warn');
-  }).catch(function(e){ toast(L('上傳失敗','Upload failed')+'：'+e.message,'error'); el('cloud-stat').textContent='☁✖'; })
+  }).catch(function(e){ toast(L('上傳失敗','Upload failed')+'：'+e.message,'error'); setTxt('cloud-stat', '☁✖'); })
     .then(function(){ if(btn)btn.disabled=false; });
 }
 function cloudDownload(){
   var btn=el('btn-cloud-down'); if(btn)btn.disabled=true;
-  el('cloud-stat').textContent='☁↓…';
+  setTxt('cloud-stat', '☁↓…');
   gasPost({action:'pull',tool:TOOL,ts:Date.now()}).then(function(data){
     var recs=digRecords(data);
     if(!recs.length){ /* 分塊拉取 fallback */
@@ -1343,7 +1440,7 @@ function cloudDownload(){
     }
     return recs;
   }).then(function(recs){
-    if(!recs||!recs.length){ toast(L('雲端沒有資料','No cloud data'),'warn'); el('cloud-stat').textContent='☁∅'; return; }
+    if(!recs||!recs.length){ toast(L('雲端沒有資料','No cloud data'),'warn'); setTxt('cloud-stat', '☁∅'); return; }
     var emp=[],nur=[],sal=[];
     recs.forEach(function(r){
       var t=(r.type||'').toLowerCase();
@@ -1354,9 +1451,9 @@ function cloudDownload(){
     EMP=emp.map(ensureEmpKey); NUR=nur.map(ensureNurKey); if(sal.length)SAL=sal;
     saveEmp2(); saveNur(); META.downloadedAt=nowStamp(); saveMeta();
     rebuildFilterOptions(); renderAll();
-    el('cloud-stat').textContent='☁ '+recs.length;
+    setTxt('cloud-stat', '☁ '+recs.length);
     toast(L('已下載','Downloaded')+'：🤰 '+EMP.length+' · 💊 '+NUR.length,'ok');
-  }).catch(function(e){ toast(L('下載失敗','Download failed')+'：'+e.message,'error'); el('cloud-stat').textContent='☁✖'; })
+  }).catch(function(e){ toast(L('下載失敗','Download failed')+'：'+e.message,'error'); setTxt('cloud-stat', '☁✖'); })
     .then(function(){ if(btn)btn.disabled=false; });
 }
 function autoSync(){ /* 僅在有 GAS 且有雲端資料時提示，不自動覆蓋 */ }
@@ -1433,10 +1530,39 @@ function buildSummaryText(p,bi,scope){
 function buildApprovalItems(p,scope){
   scope=scope||_tgScope||'all';
   var d=periodData(p), items=[];
-  function pushE(r,kd){var x=DEC[r._k]||{};items.push({key:r._k,kind:kd,id:r.idNo,name:r.name,dept:r.dept,edd:r.edd,returnDate:r.returnDate,status:r.status,decision:x.d||'',note:x.note||''});}
+  function pushE(r,kd){
+    var x=DEC[r._k]||{}, td=tenureDaysOf(r);
+    items.push({key:r._k,kind:kd,id:r.idNo,name:r.name,
+      dept:r.dept||'', group:r.group||lineOf(r), position:r.position||'',
+      gender:r.gender||'F', age:saneAge(r.age)||'', days:td,
+      region:regionOf(r.address||r.remark||''), marital:r.marital||'',
+      period:(evDateEmp(r)||p).slice(0,7),
+      edd:r.edd, returnDate:r.returnDate, status:r.status,
+      amount:+r.matAmount||0,
+      info:kd==='maternity'
+        ? (L('產假','Maternity','មាតុភាព')+' '+(r.totalDays||90)+L('天','d','ថ្ងៃ')+(r.returnDate?(' · '+L('回歸','ret','ត្រឡប់')+' '+r.returnDate):''))
+        : (r.edd?(L('預產','EDD','សម្រាល')+' '+r.edd):''),
+      decision:x.d||'',note:x.note||''});
+  }
   if(scope==='all'||scope==='preg')d.P.forEach(function(r){pushE(r,'pregnant');});
   if(scope==='all'||scope==='mat')d.M.forEach(function(r){pushE(r,'maternity');});
-  if(scope==='all'||scope==='nur')d.Nr.forEach(function(r){var x=DEC[r._k]||{};items.push({key:r._k,kind:'nursing',id:r.cardId,name:r.name,dept:r.dept,payMonth:r.payMonth,amount:r.amount,decision:x.d||'',note:x.note||''});});
+  if(scope==='all'||scope==='nur')d.Nr.forEach(function(r){
+    var x=DEC[r._k]||{};
+    /* ★ 護理費：每人金額 + 從名冊補上年資/性別/部門 */
+    var emp=EMP.filter(function(e){return e.idNo===r.cardId;})[0]||{};
+    var td=emp.idNo?tenureDaysOf(emp):0;
+    /* 護理費特有：寶寶月齡（判斷是否該停發）＋ 已領第幾個月 */
+    var babyMo=r.babyDob?Math.floor((dayDiff(r.babyDob,(r.payMonth||'')+'-01')||0)/30.44):null;
+    items.push({key:r._k,kind:'nursing',id:r.cardId,name:r.name||emp.name||'',
+      dept:r.dept||emp.dept||'', group:emp.group||'', position:emp.position||'',
+      gender:emp.gender||'F', age:saneAge(emp.age)||'', days:td,
+      region:regionOf(emp.address||emp.remark||''),
+      period:r.payMonth, amount:+r.amount||0,
+      info:(r.monthNo?(L('第','Month ','ខែទី')+r.monthNo+L('個月','','')+' · '):'')+
+           (r.babyDob?(L('寶寶','Baby','ទារក')+' '+r.babyDob+
+             (babyMo!=null&&babyMo>=0?('（'+babyMo+L('個月大','mo','ខែ')+'）'):'')):''),
+      decision:x.d||'',note:x.note||''});
+  });
   return items;
 }
 function monthsWithDataTg(){ return monthsWithData(); }
@@ -1452,7 +1578,7 @@ function setTgMode(m){
   _tgMode=m;
   el('tgm-sum').className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='summary'?'bg-white shadow-sm font-semibold text-pink-700':'text-slate-500 font-medium');
   el('tgm-app').className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='approval'?'bg-white shadow-sm font-semibold text-pink-700':'text-slate-500 font-medium');
-  el('tg-kind').textContent=(m==='approval'?L('核可請求 → 送出後於群組核可','Approval → decide in group'):L('摘要通知 → 群組','Summary → group'));
+  setTxt('tg-kind', (m==='approval'?L('核可請求 → 送出後於群組核可','Approval → decide in group'):L('摘要通知 → 群組','Summary → group')));
   previewTg();
 }
 function setTgScope(s){
@@ -1480,13 +1606,13 @@ function previewTg(){
   var pd=el('tg-period'); if(!pd)return;
   var p=pd.value, bi=el('tg-bi').checked;
   var r=buildSummaryText(p,bi,_tgScope), pv=el('tg-preview'), btn=el('tg-send');
-  if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed'; el('tg-note').textContent=''; return; }
+  if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed'; setTxt('tg-note', ''); return; }
   var extra='';
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,_tgScope), sTag=_tgScope==='preg'?'P':_tgScope==='mat'?'M':_tgScope==='nur'?'N':'A';
     extra='\n\n— — — —\n'+L('核可批次','Batch')+'：MAT-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
-    el('tg-note').textContent=L('核可請求會送到 GAS，待五模組統一的按鈕核可引擎上線後即可在 Telegram 直接按鈕核可。','Approval request posts to GAS; inline-button approval activates with the unified engine.');
-  }else{ el('tg-note').textContent=L('摘要會傳送到群組。','Summary will be sent to the group.'); }
+    setTxt('tg-note', L('核可請求會送到 GAS，待五模組統一的按鈕核可引擎上線後即可在 Telegram 直接按鈕核可。','Approval request posts to GAS; inline-button approval activates with the unified engine.'));
+  }else{ setTxt('tg-note', L('摘要會傳送到群組。','Summary will be sent to the group.')); }
   pv.textContent=(r.text+extra).replace(/<[^>]+>/g,'');
   btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700';
 }
@@ -1515,7 +1641,7 @@ function confirmTg(){
 function openEmp(id){
   _editEmpId=id||null;
   var r=id?EMP.filter(function(x){return x.id===id;})[0]:null;
-  el('emp-title').textContent=r?(L('編輯','Edit')+' '+esc(r.name)):L('新增孕婦 Add Pregnant','Add Pregnant');
+  setTxt('emp-title', r?(L('編輯','Edit')+' '+esc(r.name)):L('新增孕婦 Add Pregnant','Add Pregnant'));
   var f=['idNo','name','dept','group','position','status','birthday','edd','registerTime','leaveStart','returnDate','totalDays','nssfNo','contactPhone','remark'];
   f.forEach(function(k){ var n=el('e-'+k); if(!n)return; n.value=r?(r[k]!=null?r[k]:''):(k==='totalDays'?90:(k==='status'?'pregnant':'')); });
   var m=el('emp-modal'); m.classList.remove('hidden'); m.classList.add('flex');
@@ -1593,6 +1719,54 @@ function importJSON(inp){
   fr.readAsText(f); inp.value='';
 }
 
+
+/* ═══════════ 線上操作：護理費 ═══════════ */
+var _nurId=null;
+function openNur(id){
+  _nurId=id||null;
+  var r=id?NUR.filter(function(x){return x.id===id;})[0]:null;
+  setTxt('nur-title', r?(L('編輯護理費','Edit Nursing','កែថ្លៃថែទាំ')):(L('新增護理費','Add Nursing','បន្ថែមថ្លៃថែទាំ')));
+  function fill(id2,vals){var n=el(id2);if(n)n.innerHTML=vals.filter(Boolean).map(function(v){return '<option value="'+esc(v)+'">';}).join('');}
+  fill('dl-emp', uniqSorted(EMP.map(function(e){return e.idNo;})));
+  fill('dl-ndept', uniqSorted(EMP.map(function(e){return e.dept;}).concat(NUR.map(function(x){return x.dept;}))));
+  ['cardId','name','dept','babyDob','startMonth','payMonth','monthNo','amount','remark'].forEach(function(k){
+    var n=el('n-'+k); if(!n)return;
+    n.value = r ? (r[k]!=null?r[k]:'') : (k==='amount'?(SETS.nurFee||15):'');
+  });
+  var d=el('nur-del'); if(d)d.style.display=_nurId?'':'none';
+  var w=el('nur-warn'); if(w){w.style.display='none';w.textContent='';}
+  var m=el('nur-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+}
+function closeNur(){ var m=el('nur-modal'); m.classList.add('hidden'); m.classList.remove('flex'); _nurId=null; }
+function saveNurRec(){
+  var g=function(k){var n=el('n-'+k);return n?String(n.value||'').trim():'';};
+  var card=g('cardId').replace(/\s+/g,''), pm=g('payMonth');
+  var w=el('nur-warn');
+  function bad(m2){ if(w){w.style.display='';w.textContent='⚠️ '+m2;} toast(m2,'warn'); }
+  if(!/^\d{2,6}$/.test(card)) return bad(L('工號需為 2-6 位數字','Card ID must be 2-6 digits','លេខត្រូវជា 2-6 ខ្ទង់'));
+  if(!/^\d{4}-\d{2}$/.test(pm)) return bad(L('請選擇付款月','Pay month is required','សូមជ្រើសខែបង់'));
+  var name=g('name') || (EMP.filter(function(e){return e.idNo===card;})[0]||{}).name || '';
+  if(!name) return bad(L('請輸入姓名','Name is required','សូមបញ្ចូលឈ្មោះ'));
+  var emp=EMP.filter(function(e){return e.idNo===card;})[0]||{};
+  var rec={ _k:card+'|'+pm, id:_nurId||('n_'+uid()), cardId:card, name:name,
+    dept:g('dept')||emp.dept||'', babyDob:g('babyDob'), startMonth:g('startMonth'),
+    payMonth:pm, monthNo:g('monthNo'), amount:parseFloat(g('amount'))||(+SETS.nurFee||15),
+    remark:g('remark'), sheetName:L('線上新增','Online','បញ្ចូលតាមអនឡាញ'), source:'online', updatedAt:nowStamp() };
+  var base=_nurId?NUR.filter(function(x){return x.id!==_nurId;}):NUR;
+  var dup=base.filter(function(x){return x._k===rec._k;})[0];
+  var m2=mergeInto(base,[rec]); NUR=m2.arr;
+  saveNur(); rebuildFilterOptions(); closeNur(); renderAll();
+  toast((dup?L('已更新（同工號同月已存在，覆蓋）','Updated (existing month overwritten)','បានកែ')
+            :L('已新增','Added','បានបន្ថែម'))+'：'+card+' '+name+' '+pm,'ok');
+}
+function deleteNur(){
+  if(!_nurId)return;
+  if(!confirm(L('確定刪除這筆護理費？','Delete this nursing record?','លុបកំណត់ត្រានេះ?')))return;
+  NUR=NUR.filter(function(x){return x.id!==_nurId;});
+  saveNur(); rebuildFilterOptions(); closeNur(); renderAll();
+  toast(L('已刪除','Deleted','បានលុប'),'ok');
+}
+
 /* ═══════════ TABS / 全域渲染 ═══════════ */
 function setTab(t){
   TAB=t;
@@ -1621,24 +1795,52 @@ function renderAll(){
 
 /* ═══════════ ⑤ inline onclick → window ═══════════ */
 Object.assign(window,{
-  onFiles:onFiles,setTab:setTab,toggleLang:toggleLang,
+  onFiles:onFiles,setTab:setTab,toggleLang:toggleLang, setLang:setLang,
   pMode:pMode,pStep:pStep,pPick:pPick,pToday:pToday,pJump:pJump,
   renderPreg:renderPreg,renderMat:renderMat,renderNur:renderNur,renderAnly:renderAnly,renderAppr:renderAppr,
   resetFilters:resetFilters,cloudUpload:cloudUpload,cloudDownload:cloudDownload,
   openTg:openTg,closeTg:closeTg,setTgMode:setTgMode,setTgScope:setTgScope,fillTgPeriods:fillTgPeriods,previewTg:previewTg,confirmTg:confirmTg,
   apprToggle:apprToggle,apprSelectAll:apprSelectAll,apprMark:apprMark,openReject:openReject,closeReject:closeReject,confirmReject:confirmReject,
+  openNur:openNur, closeNur:closeNur, saveNurRec:saveNurRec, deleteNur:deleteNur,
   openEmp:openEmp,closeEmp:closeEmp,saveEmp:saveEmp,saveSets:saveSets,clearAllData:clearAllData,
   exportJSON:exportJSON,importJSON:importJSON
 });
 
 /* ═══════════ INIT ═══════════ */
+/* ★ CDN 健康檢查：網路不穩時仍能用，並明確告知哪個功能受限 */
+function checkCDN(){
+  var miss=[];
+  if(typeof XLSX==='undefined') miss.push({n:'SheetJS',f:L('Excel 匯入/匯出','Excel import/export')});
+  if(typeof Chart==='undefined') miss.push({n:'Chart.js',f:L('圖表','Charts')});
+  var noCss=false;
+  try{
+    var probe=document.createElement('div');
+    probe.className='hidden'; document.body.appendChild(probe);
+    noCss=(getComputedStyle(probe).display!=='none');
+    document.body.removeChild(probe);
+  }catch(e){}
+  if(noCss) miss.push({n:'Tailwind',f:L('版面樣式','Page styling')});
+  if(!miss.length) return true;
+  var bar=document.createElement('div');
+  bar.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#7f1d1d;color:#fff;'+
+    'padding:10px 14px;font-size:12px;line-height:1.6;font-family:sans-serif';
+  bar.innerHTML='⚠️ <b>'+L('部分資源未載入（網路問題）','Some resources failed to load (network)')+'</b><br>'+
+    miss.map(function(m){return '· '+m.n+' → '+m.f+' '+L('暫時無法使用','unavailable');}).join('<br>')+
+    '<br>'+L('其餘功能（資料檢視、核可、雲端）仍可正常使用。連上網後重新整理即可恢復。',
+             'Other features (data, approval, cloud) still work. Refresh once online.')+
+    ' <span onclick="this.parentNode.remove()" style="float:right;cursor:pointer;font-size:16px">×</span>';
+  document.body.appendChild(bar);
+  console.warn('[CDN] 未載入：'+miss.map(function(m){return m.n;}).join(', '));
+  return false;
+}
 function init(){
+  try{ checkCDN(); }catch(e){ console.warn('[checkCDN]',e); }
   loadData();
   applyLang();
   setupDrop();
   rebuildFilterOptions();
   renderSets();
-  if(META.uploadedAt||META.downloadedAt)el('cloud-stat').textContent='☁ '+(META.count||EMP.length+NUR.length);
+  if(META.uploadedAt||META.downloadedAt)setTxt('cloud-stat', '☁ '+(META.count||EMP.length+NUR.length));
   setTab('ov');
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);

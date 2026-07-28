@@ -32,6 +32,9 @@ tbody tr:hover{background:#f8fafc}
 .anim{animation:up .25s ease both}
 #toast{transition:all .3s cubic-bezier(.34,1.56,.64,1);transform:translateY(70px);opacity:0;pointer-events:none}
 #toast.show{transform:none;opacity:1;pointer-events:auto}
+.rl{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px}
+.ri{width:100%;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px}
+.ri:focus{outline:none;border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.12)}
 .pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:10px;font-weight:600;line-height:1.6}
 .row-cur{background:#eff6ff!important;font-weight:600}
 .rpt-row{cursor:pointer}
@@ -84,7 +87,11 @@ tbody tr:hover{background:#f8fafc}
       <button onclick="exportJSON()" class="text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">⬇ <span class="hidden sm:inline" data-t="exp">匯出</span></button>
       <label class="text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition cursor-pointer">⬆ <span class="hidden sm:inline" data-t="imp">還原</span>
         <input type="file" accept=".json" class="hidden" onchange="importJSON(this)"></label>
-      <button onclick="toggleLang()" id="btn-lang" class="text-xs font-semibold px-3 py-1.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 transition">中/EN</button>
+      <div class="flex rounded-md border border-slate-200 overflow-hidden text-xs">
+        <button data-lg="zh" onclick="setLang('zh')" class="lgbtn px-2 py-1.5">繁中</button>
+        <button data-lg="en" onclick="setLang('en')" class="lgbtn px-2 py-1.5 border-l border-slate-200">EN</button>
+        <button data-lg="km" onclick="setLang('km')" class="lgbtn px-2 py-1.5 border-l border-slate-200">ខ្មែរ</button>
+      </div>
     </div>
   </div>
 </header>
@@ -156,6 +163,7 @@ tbody tr:hover{background:#f8fafc}
     <select id="f-join-sec"  onchange="renderJoin()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">全部線別 All Line</option></select>
     <select id="f-join-gen"  onchange="renderJoin()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">性別 Gender</option><option value="F">F</option><option value="M">M</option></select>
     <input id="f-join-q" oninput="renderJoin()" placeholder="搜尋工號/姓名 Search" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[140px]">
+    <button onclick="openRec('join')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">＋ 新增 Add</button>
     <button onclick="resetFilters('join')" class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺</button>
     <span id="join-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -214,7 +222,10 @@ tbody tr:hover{background:#f8fafc}
       <option value="resignType">離職類型 Type</option>
       <option value="gender">性別 Gender</option>
       <option value="ageBand">年齡層 Age Band</option>
-      <option value="tenureBand">在職天數 Tenure Band</option>
+      <option value="tenureBand">年資 Tenure</option>
+      <option value="region">地區 Region</option>
+      <option value="salaryBand">金額級距 Amount Band</option>
+      <option value="marital">婚姻 Marital</option>
     </select>
     <span class="w-px h-5 bg-slate-200"></span>
     <span class="text-xs text-slate-500" data-t="dimside">對象 Scope</span>
@@ -305,14 +316,14 @@ tbody tr:hover{background:#f8fafc}
 
 <!-- ══════════ TELEGRAM MODAL ══════════ -->
 <div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
-  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col" style="max-height:88vh">
     <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
       <span class="text-xl">✈️</span>
       <div class="flex-1"><p class="text-sm font-bold text-slate-800">傳送至 Telegram 群組 Send to Telegram</p>
         <p id="tg-kind" class="text-[11px] text-slate-400 mt-0.5">—</p></div>
       <button onclick="closeTg()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
     </div>
-    <div class="px-5 py-4 space-y-3">
+    <div class="px-5 py-4 space-y-3 overflow-y-auto flex-1" style="min-height:0">
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">傳送模式 Mode</label>
         <div class="mt-1.5 flex bg-slate-100 rounded-lg p-0.5">
           <button id="tgm-sum" onclick="setTgMode('summary')"  class="flex-1 text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-sky-700 transition">📄 摘要 Summary</button>
@@ -334,10 +345,10 @@ tbody tr:hover{background:#f8fafc}
       <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
         <input type="checkbox" id="tg-bi" checked onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
-        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
       <p id="tg-note" class="text-[10px] text-slate-400 leading-relaxed"></p>
     </div>
-    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeTg()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50">取消 Cancel</button>
       <button id="tg-send" onclick="confirmTg()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700">確認傳送 Send</button>
     </div>
@@ -353,9 +364,59 @@ tbody tr:hover{background:#f8fafc}
       <label class="text-[11px] font-semibold text-slate-500 uppercase">退回原因 Reason</label>
       <textarea id="rj-note" rows="3" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2" placeholder="例：離職日期與考勤不符，請 HRA 複核"></textarea>
     </div>
-    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeReject()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
       <button onclick="confirmReject()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700">確認退回 Reject</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════ 線上新增 / 編輯 記錄 ══════════ -->
+<div id="rec-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col" style="max-height:90vh">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2 shrink-0">
+      <span id="rec-icon" class="text-xl">🟢</span>
+      <div class="flex-1"><p id="rec-title" class="text-sm font-bold text-slate-800">新增記錄</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" id="rec-sub">線上建立的記錄同樣可送核可</p></div>
+      <button onclick="closeRec()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 overflow-y-auto flex-1" style="min-height:0">
+      <div class="flex bg-slate-100 rounded-lg p-0.5 mb-4" id="rec-kind-sel">
+        <button id="rk-join"   onclick="setRecKind('join')"   class="flex-1 text-xs px-3 py-1.5 rounded-md transition">🟢 <span data-t="tab_join">入職</span></button>
+        <button id="rk-resign" onclick="setRecKind('resign')" class="flex-1 text-xs px-3 py-1.5 rounded-md transition">🔴 <span data-t="tab_resign">離職</span></button>
+      </div>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <div><label class="rl">工號 ID *</label><input id="r-empId" class="ri jmono" inputmode="numeric"></div>
+        <div><label class="rl">姓名 Name *</label><input id="r-name" class="ri"></div>
+        <div><label class="rl">英文名 Eng</label><input id="r-engName" class="ri"></div>
+        <div><label class="rl">部門 Dept</label><input id="r-dept" class="ri" list="dl-dept"><datalist id="dl-dept"></datalist></div>
+        <div><label class="rl">線別 Line</label><input id="r-section" class="ri" list="dl-sec"><datalist id="dl-sec"></datalist></div>
+        <div><label class="rl">職務 Position</label><input id="r-position" class="ri"></div>
+        <div><label class="rl">性別 Gender</label>
+          <select id="r-gender" class="ri bg-white"><option value="">—</option><option value="F">女 Female</option><option value="M">男 Male</option></select></div>
+        <div><label class="rl">生日 Birthday</label><input id="r-birthday" type="date" class="ri"></div>
+        <div><label class="rl">年齡 Age</label><input id="r-age" type="number" min="15" max="70" class="ri jmono"></div>
+        <div><label class="rl">婚姻 Marital</label>
+          <select id="r-marital" class="ri bg-white"><option value="">—</option><option value="single">單身 Single</option><option value="married">已婚 Married</option><option value="divorced">離婚 Divorced</option></select></div>
+        <div><label class="rl">地區 Region</label><input id="r-region" class="ri" list="dl-prov"><datalist id="dl-prov"></datalist></div>
+        <div><label class="rl">電話 Phone</label><input id="r-phone" class="ri"></div>
+        <div><label class="rl">入職日 Join Date</label><input id="r-joinDate" type="date" class="ri"></div>
+        <div class="rec-resign"><label class="rl">離職日 Resign Date</label><input id="r-resignDate" type="date" class="ri"></div>
+        <div class="rec-resign"><label class="rl">離職類型 Type</label>
+          <select id="r-resignType" class="ri bg-white"><option value="resign">辭職 Resign</option><option value="expel">開除 Expel</option></select></div>
+        <div class="rec-resign"><label class="rl">離職原因 Reason</label><input id="r-reason" class="ri" list="dl-reason" placeholder="例：Have new job"><datalist id="dl-reason"></datalist></div>
+        <div class="rec-resign"><label class="rl">在職天數 Days</label><input id="r-workingDays" type="number" class="ri jmono" placeholder="留空自動計算"></div>
+        <div class="rec-resign"><label class="rl">結算金額 Amount</label><input id="r-amount" type="number" step="0.01" class="ri jmono"></div>
+        <div class="rec-join"><label class="rl">介紹人 Introducer</label><input id="r-introducer" class="ri"></div>
+        <div class="col-span-2 md:col-span-3"><label class="rl">備註 Remark</label><input id="r-remark" class="ri"></div>
+      </div>
+      <p id="rec-warn" class="mt-3 text-[11px] text-amber-600" style="display:none"></p>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
+      <button id="rec-del" onclick="deleteRec()" class="text-xs font-medium px-3 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-600" style="display:none">🗑 刪除</button>
+      <button onclick="closeRec()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600" data-t="btn_cancel">取消 Cancel</button>
+      <button onclick="saveRec()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700" data-t="btn_save">儲存 Save</button>
     </div>
   </div>
 </div>
@@ -383,6 +444,9 @@ tbody tr:hover{background:#f8fafc}
 /* ── HELPERS ─────────────────────────────────────────────── */
 function qs(s){return document.querySelector(s);}
 function el(id){return document.getElementById(id);}
+/* ★ 安全寫入：元素不存在時靜默略過，避免單一元素缺失導致整頁 JS 中止 */
+function setTxt(id,v){ var n=el(id); if(n)n.textContent=v; return !!n; }
+function setHtml(id,v){ var n=el(id); if(n)n.innerHTML=v; return !!n; }
 function p2(n){return(n<10?'0':'')+n;}
 function lds(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -416,12 +480,23 @@ var CHUNK=2000;
 var RESIGN_TYPES={resign:['辭職','Resign'],dismiss:['辭退','Dismiss'],self:['自離','Self resign'],expel:['開除','Expel']};
 var TYPE_COLOR={resign:'#0ea5e9',dismiss:'#f59e0b',self:'#ef4444',expel:'#7c3aed'};
 var REASON_CATS=['Voluntary','Attendance','No Call','Performance','Health','Pregnancy','Family','Relocation','Transfer','Contract End','Dismissal','Salary','Personal','Other'];
-var REASON_ZH={Voluntary:'自願離職',Attendance:'出勤問題','No Call':'曠職未報',Performance:'績效',Health:'健康因素',Pregnancy:'懷孕育兒',Family:'家庭因素',Relocation:'搬遷',Transfer:'調職','Contract End':'合約到期',Dismissal:'辭退開除',Salary:'薪資因素',Personal:'個人因素',Other:'其他'};
+var REASON_ZH={Voluntary:'自願離職',Attendance:'出勤問題','No Call':'曠職未報',Performance:'績效不符',
+  Health:'健康因素',Injury:'工傷',Pregnancy:'懷孕生產',Childcare:'育兒照顧',Family:'家庭因素',
+  'Go Home':'返鄉',Farming:'務農收割','New Job':'另有工作',Study:'就學進修',Marriage:'結婚',
+  'Work Abroad':'出國工作',Relocation:'搬遷距離',Transfer:'調職','Contract End':'合約到期',
+  Dismissal:'辭退開除',Discipline:'紀律違規',Salary:'薪資因素',Probation:'試用未過',
+  Personal:'個人因素',Other:'其他'};
+var REASON_KM={Voluntary:'លាឈប់ដោយស្ម័គ្រចិត្ត',Attendance:'បញ្ហាវត្តមាន','No Call':'អវត្តមានគ្មានច្បាប់',
+  Performance:'សមត្ថភាព',Health:'សុខភាព',Injury:'របួស',Pregnancy:'មានផ្ទៃពោះ',Childcare:'មើលថែកូន',
+  Family:'គ្រួសារ','Go Home':'ត្រឡប់ស្រុក',Farming:'ធ្វើស្រែ','New Job':'ការងារថ្មី',Study:'សិក្សា',
+  Marriage:'រៀបការ','Work Abroad':'ទៅធ្វើការក្រៅប្រទេស',Relocation:'ផ្លាស់ទីលំនៅ',Transfer:'ផ្ទេរ',
+  'Contract End':'ផុតកិច្ចសន្យា',Dismissal:'បញ្ឈប់',Discipline:'វិន័យ',Salary:'ប្រាក់ខែ',
+  Probation:'សាកល្បងមិនជាប់',Personal:'ផ្ទាល់ខ្លួន',Other:'ផ្សេងៗ'};
 var PALETTE=['#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1','#84cc16','#06b6d4','#d946ef','#64748b','#a855f7'];
 
 /* ── STATE ───────────────────────────────────────────────── */
 var JOINS=[], RESIGNS=[], SETTLES=[], SETS={}, DEC={}, META={};
-var LANG='zh', TAB='ov', _charts={}, _apprRows=[], _apprSel={}, _tgMode='summary', _tgScope='both', _tgFrom='header';
+var LANG=(function(){try{return localStorage.getItem('ac_hra_lang')||'zh';}catch(e){return 'zh';}})(), TAB='ov', _charts={}, _apprRows=[], _apprSel={}, _tgMode='summary', _tgScope='both', _tgFrom='header';
 /* ⑥ 每個分頁自己的期間 state */
 var NAV={ ov:{mode:'month',pivot:new Date()},
           join:{mode:'month',pivot:new Date()},
@@ -452,18 +527,40 @@ var I18N={
      s_cloud:'Cloud / Telegram',s_hc:'Headcount Baseline',s_ov:'Monthly HC Override',s_about:'Compatibility',
      dz1:'Smart Import',
      dz2:'Drag &amp; drop or click · file type auto-detected<br>Join___Resign_*.xlsx (master) / Resigned.xlsx (settlement)',
-     dz3:'No file imported yet. Drop several files at once — type is auto-detected from sheet titles and records are de-duplicated across files by Employee ID.'}
+     dz3:'No file imported yet. Drop several files at once — type is auto-detected from sheet titles and records are de-duplicated across files by Employee ID.'},
+ km:{hdr_title:'ចូល/ចេញពីការងារ',up:'ផ្ទុកឡើង',down:'ទាញយក',exp:'នាំចេញ',imp:'ស្តារ',
+     tab_ov:'ទិដ្ឋភាពរួម',tab_join:'🟢 ចូលធ្វើការ',tab_resign:'🔴 ចេញពីការងារ',tab_settle:'💰 បញ្ជីទូទាត់',
+     tab_anly:'📊 វិភាគ',tab_appr:'អនុម័ត',tab_set:'⚙️ ការកំណត់',tab_imp:'📥 នាំចូល',tab_odd:'⚠️ មិនប្រក្រតី',
+     k_join:'🟢 ចូលធ្វើការ',k_resign:'🔴 ចេញពីការងារ',k_hc:'👥 បុគ្គលិកសរុប',k_to:'📉 អត្រាចេញ',k_ten:'⏱ រយៈពេលមធ្យម',
+     c_trend:'និន្នាការចូល/ចេញ',c_type:'ប្រភេទចេញ',c_rpt:'របាយការណ៍តាមដំណាក់កាល',c_rpt2:'ចុចជួរដើម្បីប្តូរ',
+     c_reasondist:'ចែកតាមមូលហេតុ',c_deptten:'ផ្នែក / អាយុការងារ',c_deptdist:'ផ្នែក / ខ្សែ',c_refdist:'អ្នកណែនាំ',
+     t_joindet:'បញ្ជីចូលធ្វើការ',t_resdet:'បញ្ជីចេញពីការងារ',t_settle:'បញ្ជីទូទាត់',t_appr:'បញ្ជីអនុម័ត',
+     dim:'វិមាត្រ',dimside:'វិសាលភាព',s_cloud:'ពពក / Telegram',s_about:'ភាពត្រូវគ្នា',
+     dz1:'នាំចូលឆ្លាតវៃ',dz2:'អូសទម្លាក់ ឬចុច · ប្រភេទឯកសារស្គាល់ដោយស្វ័យប្រវត្តិ',
+     dz3:'មិនទាន់នាំចូលឯកសារ។ អាចទម្លាក់ច្រើនឯកសារក្នុងពេលតែមួយ។',
+     k_net:'⚖️ សុទ្ធ',c_dim:'ចែកតាមវិមាត្រ',c_to:'អត្រាចេញតាមខែ',c_dimtbl:'តារាងវិមាត្រ',
+     c_totbl:'តារាងអត្រាចេញ',s_hc:'បុគ្គលិកមូលដ្ឋាន',s_ov:'កែតម្រូវដោយដៃ'}
 };
 function T(k){var d=I18N[LANG]||I18N.zh;return d[k]!==undefined?d[k]:(I18N.zh[k]||k);}
-function L(zh,en){ return LANG==='en' ? en : zh; }
+function L(zh,en,km){ return LANG==='km'?(km||en):LANG==='en'?en:zh; }
 /* 雙語輸出（Telegram 用） */
-function BL(zh,en,bi){ return bi ? (zh+' '+en) : (LANG==='en'?en:zh); }
-function toggleLang(){ LANG = (LANG==='zh'?'en':'zh'); applyLang(); renderAll(); }
+function BL(zh,en,km,bi){
+  /* 相容舊呼叫 BL(zh,en,bi)：第三參數若為布林即視為 bi */
+  if(typeof km==='boolean'){ bi=km; km=''; }
+  if(bi) return zh+' '+en;
+  return LANG==='km' ? (km||en) : LANG==='en' ? en : zh;
+}
+function L3(zh,en,km){ return LANG==='km'?(km||en):LANG==='en'?en:zh; }
+function toggleLang(){ setLang(LANG==='zh'?'en':LANG==='en'?'km':'zh'); }
+function setLang(v){
+  LANG=(['zh','en','km'].indexOf(v)>=0)?v:'zh';
+  try{localStorage.setItem('ac_hra_lang',LANG);}catch(e){}
+  applyLang(); renderAll();
+}
 function applyLang(){
   document.querySelectorAll('[data-t]').forEach(function(n){
     var v=T(n.getAttribute('data-t')); if(v!=null) n.innerHTML=v;
   });
-  var b=el('btn-lang'); if(b) b.textContent = LANG==='zh' ? '中/EN' : 'EN/中';
 }
 
 /* ── DATE / CELL PARSING (③ 時區安全) ────────────────────── */
@@ -688,24 +785,69 @@ function lineOf(r){
 }
 function reasonCatOf(raw){
   var s=String(raw||'').toLowerCase(); if(!s)return '';
-  if(/no ?call|no ?show|np ?\d|曠職|absent/.test(s))return 'No Call';
-  if(/pregn|matern|child ?care|childcare|baby|懷孕|育兒|產/.test(s))return 'Pregnancy';
-  if(/health|sick|illness|病/.test(s))return 'Health';
-  if(/new job|have new job|another job|新工作/.test(s))return 'Voluntary';
-  if(/family|go ?home|hometown|家庭|回家|老家/.test(s))return 'Family';
-  if(/attend|late|出勤|遲到/.test(s))return 'Attendance';
-  if(/perform|skill|績效|技術/.test(s))return 'Performance';
-  if(/reloc|move|搬|distance|far/.test(s))return 'Relocation';
-  if(/transfer|調職/.test(s))return 'Transfer';
-  if(/contract|合約|expire/.test(s))return 'Contract End';
-  if(/dismiss|expel|fired|辭退|開除/.test(s))return 'Dismissal';
-  if(/salar|wage|pay|薪/.test(s))return 'Salary';
-  if(/personal|個人|study|學/.test(s))return 'Personal';
-  if(/voluntar|resign|辭職/.test(s))return 'Voluntary';
+  /* 細分類：先比對具體樣式，最後才落到概括類 */
+  if(/no ?call|no ?show|np ?\d|曠職|absent without/.test(s))return 'No Call';
+  if(/pregn|matern|懷孕|產假/.test(s))return 'Pregnancy';
+  if(/child ?care|childcare|baby|take care.*child|育兒|顧小孩/.test(s))return 'Childcare';
+  if(/health|sick|illness|病|不適/.test(s))return 'Health';
+  if(/accident|injur|工傷|受傷/.test(s))return 'Injury';
+  if(/new job|have new job|another job|better job|新工作|跳槽/.test(s))return 'New Job';
+  if(/study|school|學業|讀書|上學/.test(s))return 'Study';
+  if(/go ?home|hometown|return.*province|回鄉|老家|返鄉/.test(s))return 'Go Home';
+  if(/family|家庭|家人/.test(s))return 'Family';
+  if(/farm|harvest|農|收割/.test(s))return 'Farming';
+  if(/attend|late|absent|出勤|遲到/.test(s))return 'Attendance';
+  if(/perform|skill|quality|績效|技術|品質/.test(s))return 'Performance';
+  if(/discipl|violat|fight|steal|紀律|違規|打架|偷/.test(s))return 'Discipline';
+  if(/reloc|move|搬家|distance|far|太遠/.test(s))return 'Relocation';
+  if(/transfer|調職|轉調/.test(s))return 'Transfer';
+  if(/contract|合約|expire|到期/.test(s))return 'Contract End';
+  if(/dismiss|expel|fired|terminate|辭退|開除|解僱/.test(s))return 'Dismissal';
+  if(/salar|wage|pay|low income|薪資|工資|薪水/.test(s))return 'Salary';
+  if(/probation|試用/.test(s))return 'Probation';
+  if(/marriage|married|結婚/.test(s))return 'Marriage';
+  if(/abroad|oversea|thailand|korea|出國|國外/.test(s))return 'Work Abroad';
+  if(/personal|個人/.test(s))return 'Personal';
+  if(/staff go|go\s*$|left|離開/.test(s))return 'Voluntary';
+  if(/voluntar|resign|辭職|自願/.test(s))return 'Voluntary';
   return 'Other';
 }
+var PROVINCES=['Banteay Meanchey','Battambang','Kampong Cham','Kampong Chhnang','Kampong Speu',
+ 'Kampong Thom','Kampot','Kandal','Kep','Koh Kong','Kratie','Mondulkiri','Oddar Meanchey','Pailin',
+ 'Phnom Penh','Preah Sihanouk','Sihanoukville','Preah Vihear','Prey Veng','Pursat','Ratanakiri',
+ 'Siem Reap','Stung Treng','Svay Rieng','Takeo','Tbong Khmum'];
+function regionOf(txt){
+  var s=String(txt||''); if(!s)return '';
+  for(var i=0;i<PROVINCES.length;i++){
+    var p=PROVINCES[i];
+    if(new RegExp(p.replace(/\s+/g,'\\s*'),'i').test(s)) return p==='Sihanoukville'?'Preah Sihanouk':p;
+  }
+  return '';
+}
+function tenureBandOf(days){
+  var d=+days; if(!isFinite(d)||d<=0)return L('未知','Unknown');
+  if(d<30)return L('未滿1月','<1mo'); if(d<90)return L('1-3月','1-3mo');
+  if(d<180)return L('3-6月','3-6mo'); if(d<365)return L('6-12月','6-12mo');
+  if(d<730)return L('1-2年','1-2yr'); if(d<1825)return L('2-5年','2-5yr');
+  return L('5年以上','5yr+');
+}
+function maritalOf(v){
+  var s=String(v||'').toLowerCase(); if(!s)return '';
+  if(/married|已婚/.test(s))return L('已婚','Married');
+  if(/single|未婚|單身/.test(s))return L('單身','Single');
+  if(/divorc|離婚/.test(s))return L('離婚','Divorced');
+  return '';
+}
+function salaryBandOf(v){
+  var n=+v; if(!isFinite(n)||n<=0)return L('無金額','No amount');
+  if(n<50)return '<$50'; if(n<100)return '$50-99'; if(n<150)return '$100-149';
+  if(n<200)return '$150-199'; if(n<300)return '$200-299'; if(n<500)return '$300-499';
+  return '$500+';
+}
+/* 年齡合理性：工廠員工 15-70 歲，超出視為資料有誤 */
+function saneAge(a){ a=+a; return (isFinite(a)&&a>=15&&a<=70)?a:null; }
 function ageBandOf(a){
-  a=+a; if(!isFinite(a)||a<=0)return L('未知','Unknown');
+  a=saneAge(a); if(a==null)return L('未知','Unknown');
   if(a<20)return '<20'; if(a<25)return '20-24'; if(a<30)return '25-29';
   if(a<35)return '30-34'; if(a<40)return '35-39'; if(a<45)return '40-44';
   if(a<50)return '45-49'; return '50+';
@@ -1216,23 +1358,23 @@ function periodReportHTML(key){
 function renderOv(){
   try{
     var st=NAV.ov, J=joinsIn(st), R=resignsIn(st), b=pBounds(st);
-    el('k-join').textContent=fmt0(J.length);
-    el('k-resign').textContent=fmt0(R.length);
+    setTxt('k-join', fmt0(J.length));
+    setTxt('k-resign', fmt0(R.length));
     var net=J.length-R.length;
     var kn=el('k-net'); kn.textContent=(net>0?'+':'')+fmt0(net);
     kn.className='v '+(net>=0?'text-emerald-600':'text-rose-600');
     var endDate=b?b.e:(allDates().slice(-1)[0]||lds(new Date()));
     var hc=hcAt(endDate), bi=baseInfo();
-    el('k-hc').textContent=bi.est?L('未設基準','no base'):fmt0(hc);
+    setTxt('k-hc', bi.est?L('未設基準','no base'):fmt0(hc));
     /* 流動率：期間內離職數 ÷ 期間平均在職人數 */
     var openDate=b?lds(new Date(new Date(b.s+'T00:00:00').getTime()-86400000)):'';
     var den;
     if(!b){ den=NaN; }
     else{ var o=hcAt(openDate), c=hcAt(b.e); den=(SETS.basis==='open')?o:(o+c)/2; }
     var rate=(den>0)?R.length/den:NaN;
-    el('k-to').textContent=(bi.est||!isFinite(rate))?'—':pct(rate);
+    setTxt('k-to', (bi.est||!isFinite(rate))?'—':pct(rate));
     var avgD=R.length?Math.round(R.reduce(function(s,r){return s+(+r.workingDays||0);},0)/R.length):0;
-    el('k-ten').textContent=R.length?fmt0(avgD):'—';
+    setTxt('k-ten', R.length?fmt0(avgD):'—');
 
     /* 趨勢圖 */
     var labels=[],jd=[],rd=[];
@@ -1263,8 +1405,8 @@ function renderOv(){
             datasets:[{data:tk.map(function(k){return tc[k];}),backgroundColor:tk.map(function(k){return TYPE_COLOR[k];}),borderWidth:0}]},
       options:{cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10}}}}}});
 
-    el('ov-report').innerHTML=periodReportHTML('ov')||
-      '<div class="p-4 text-xs text-slate-400">'+L('期間報表僅在「月」或「年」模式顯示。','Period report shows in Month / Year mode only.')+'</div>';
+    setHtml('ov-report', periodReportHTML('ov')||
+      '<div class="p-4 text-xs text-slate-400">'+L('期間報表僅在「月」或「年」模式顯示。','Period report shows in Month / Year mode only.')+'</div>');
   }catch(e){ console.error(e); }
 }
 
@@ -1313,26 +1455,25 @@ function renderJoinKpi(rows){
   var ns=tot-sew;
   var m=rows.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=rows.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
-  el('join-kpi').innerHTML=
-    kpiCard(fmt0(tot),tot?(L('車縫','Sew')+' '+sew+' / '+L('非車縫','Non')+' '+ns):'',L('入職總數','Total Joins'),'text-emerald-600')+
+  setHtml('join-kpi', kpiCard(fmt0(tot),tot?(L('車縫','Sew')+' '+sew+' / '+L('非車縫','Non')+' '+ns):'',L('入職總數','Total Joins'),'text-emerald-600')+
     kpiCard(fmt0(sew),pctStr(sew,tot),L('車縫入職','Sewing Join'),'text-sky-600')+
     kpiCard(fmt0(ns),pctStr(ns,tot),L('非車縫入職','Non-Sewing'),'text-slate-600')+
     kpiCard(fmt0(m),pctStr(m,tot),L('男','Male'),'text-slate-700')+
-    kpiCard(fmt0(f),pctStr(f,tot),L('女','Female'),'text-rose-500');
+    kpiCard(fmt0(f),pctStr(f,tot),L('女','Female'),'text-rose-500'));
   /* 部門/線別分佈 */
   var dm={}; rows.forEach(function(r){ var d=lineOf(r); dm[d]=(dm[d]||0)+1; });
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});
   var h='<table><thead><tr><th>'+L('部門/線別','Dept/Line')+'</th><th class="text-right">'+L('人數','Count')+'</th><th class="text-right">'+L('佔比','%')+'</th></tr></thead><tbody>';
   if(!dl.length)h+='<tr><td colspan="3" class="text-center text-slate-400 py-6">'+L('無資料','No data')+'</td></tr>';
   dl.forEach(function(d){ h+='<tr><td>'+esc(d)+'</td><td class="text-right jmono font-semibold">'+dm[d]+'</td>'+barCell(dm[d],tot,'#10b981')+'</tr>'; });
-  h+='</tbody></table>'; el('join-dept-bd').innerHTML=h;
+  h+='</tbody></table>'; setHtml('join-dept-bd', h);
   /* 介紹人統計 */
   var rm={}; rows.forEach(function(r){ var k=(r.introducer||'').trim()||L('未填','—'); rm[k]=(rm[k]||0)+1; });
   var rl=Object.keys(rm).sort(function(a,b){return rm[b]-rm[a];});
   var h2='<table><thead><tr><th>'+L('介紹人','Introducer')+'</th><th class="text-right">'+L('人數','Count')+'</th><th class="text-right">'+L('佔比','%')+'</th></tr></thead><tbody>';
   if(!rl.length)h2+='<tr><td colspan="3" class="text-center text-slate-400 py-6">'+L('無資料','No data')+'</td></tr>';
   rl.forEach(function(k){ h2+='<tr><td>'+esc(k)+'</td><td class="text-right jmono font-semibold">'+rm[k]+'</td>'+barCell(rm[k],tot,'#6366f1')+'</tr>'; });
-  h2+='</tbody></table>'; el('join-ref-bd').innerHTML=h2;
+  h2+='</tbody></table>'; setHtml('join-ref-bd', h2);
 }
 function renderResignKpi(rows){
   var tot=rows.length;
@@ -1340,12 +1481,11 @@ function renderResignKpi(rows){
   var ns=tot-sew;
   var m=rows.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=rows.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
-  el('res-kpi').innerHTML=
-    kpiCard(fmt0(tot),tot?(L('車縫','Sew')+' '+sew+' / '+L('非車縫','Non')+' '+ns):'',L('離職總數','Total Resigns'),'text-rose-600')+
+  setHtml('res-kpi', kpiCard(fmt0(tot),tot?(L('車縫','Sew')+' '+sew+' / '+L('非車縫','Non')+' '+ns):'',L('離職總數','Total Resigns'),'text-rose-600')+
     kpiCard(fmt0(sew),pctStr(sew,tot),L('車縫離職','Sewing Resign'),'text-amber-600')+
     kpiCard(fmt0(ns),pctStr(ns,tot),L('非車縫離職','Non-Sewing'),'text-slate-600')+
     kpiCard(fmt0(m),pctStr(m,tot),L('男','Male'),'text-slate-700')+
-    kpiCard(fmt0(f),pctStr(f,tot),L('女','Female'),'text-rose-500');
+    kpiCard(fmt0(f),pctStr(f,tot),L('女','Female'),'text-rose-500'));
   /* 離職原因分佈 */
   var cm={}; rows.forEach(function(r){
     var raw=(r.reasonCat&&r.reasonCat!=='Other')?r.reasonCat:((r.reason||'').trim()||r.reasonCat||'—');
@@ -1358,7 +1498,7 @@ function renderResignKpi(rows){
     var lab=REASON_ZH[c]?L(REASON_ZH[c]+' / '+c,c):c;
     h+='<tr><td><span class="pill bg-slate-100 text-slate-600">'+esc(lab)+'</span></td><td class="text-right jmono font-semibold">'+cm[c]+'</td>'+barCell(cm[c],tot,'#ef4444')+'</tr>';
   });
-  h+='</tbody></table>'; el('res-reason-bd').innerHTML=h;
+  h+='</tbody></table>'; setHtml('res-reason-bd', h);
   /* 部門 / 年資分佈 */
   var dm={}; rows.forEach(function(r){ var d=r.dept||'—'; if(!dm[d])dm[d]={n:0,days:0,dn:0}; dm[d].n++; if(+r.workingDays>0){dm[d].days+=+r.workingDays;dm[d].dn++;} });
   var dl=Object.keys(dm).sort(function(a,b){return dm[b].n-dm[a].n;});
@@ -1368,7 +1508,7 @@ function renderResignKpi(rows){
     var v=dm[d], yr=v.dn?(Math.round(v.days/v.dn/365*10)/10):0;
     h2+='<tr><td>'+esc(d)+'</td><td class="text-right jmono font-semibold">'+v.n+'</td><td class="text-right jmono">'+yr+L(' 年','y')+'</td></tr>';
   });
-  h2+='</tbody></table>'; el('res-dept-bd').innerHTML=h2;
+  h2+='</tbody></table>'; setHtml('res-dept-bd', h2);
 }
 
 /* ═══════════ 入職明細 ═══════════ */
@@ -1377,23 +1517,24 @@ function renderJoin(){
     var rows=joinFiltered();
     renderJoinKpi(rows);
     rows=rows.slice().sort(function(a,b){ return (b.joinDate||'').localeCompare(a.joinDate||'')||(a.empId||'').localeCompare(b.empId||''); });
-    el('join-count').textContent=rows.length+' '+L('筆','rows');
+    setTxt('join-count', rows.length+' '+L('筆','rows'));
     var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('入職日','Join Date')+'</th>'+
       '<th>'+L('部門','Dept')+'</th><th>'+L('線別','Section')+'</th><th>'+L('職務','Position')+'</th>'+
       '<th>'+L('性別','Gender')+'</th><th class="text-right">'+L('年齡','Age')+'</th><th>'+L('介紹人','Referrer')+'</th>'+
-      '<th>'+L('電話','Tel')+'</th><th>'+L('核可','Appr')+'</th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="11" class="text-center text-slate-400 py-6">'+L('此期間沒有入職記錄','No join records in this period')+'</td></tr>';
+      '<th>'+L('電話','Tel')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
+    if(!rows.length)h+='<tr><td colspan="12" class="text-center text-slate-400 py-6">'+L('此期間沒有入職記錄','No join records in this period')+'</td></tr>';
     rows.forEach(function(r){
       h+='<tr><td class="jmono">'+esc(r.empId)+'</td><td>'+esc(r.name)+'</td><td class="jmono">'+esc(r.joinDate)+'</td>'+
         '<td>'+esc(r.dept)+'</td><td>'+esc(r.section)+'</td><td>'+esc(r.position)+'</td>'+
         '<td class="jmono">'+esc(r.gender)+'</td><td class="text-right jmono">'+esc(r.age)+'</td>'+
-        '<td>'+esc(r.introducer)+'</td><td class="jmono">'+esc(r.tel)+'</td><td>'+decBadge(r._k)+'</td></tr>';
+        '<td>'+esc(r.introducer)+'</td><td class="jmono">'+esc(r.tel)+'</td><td>'+decBadge(r._k)+'</td>'+
+        '<td class="no-print"><button onclick="openRec(\'join\',\''+r.id+'\')" title="編輯 Edit" class="text-xs text-slate-400 hover:text-emerald-600">✏️</button></td></tr>';
     });
     h+='</tbody></table>';
-    el('join-tbl').innerHTML=h;
+    setHtml('join-tbl', h);
     var rp=periodReportHTML('join');
     el('join-report').style.display=rp?'':'none';
-    el('join-report-body').innerHTML=rp;
+    setHtml('join-report-body', rp);
   }catch(e){ console.error(e); }
 }
 
@@ -1414,13 +1555,13 @@ function renderResign(){
     var rows=resignFiltered();
     renderResignKpi(rows);
     rows=rows.slice().sort(function(a,b){ return (b.resignDate||'').localeCompare(a.resignDate||'')||(a.empId||'').localeCompare(b.empId||''); });
-    el('res-count').textContent=rows.length+' '+L('筆','rows');
+    setTxt('res-count', rows.length+' '+L('筆','rows'));
     var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('離職日','Resign Date')+'</th>'+
       '<th>'+L('到職日','Join Date')+'</th><th>'+L('部門/線別','Dept/Line')+'</th><th>'+L('職務','Position')+'</th>'+
       '<th>'+L('性別','G')+'</th><th class="text-right">'+L('年齡','Age')+'</th><th>'+L('類型','Type')+'</th>'+
       '<th class="text-right">'+L('在職天數','Days')+'</th><th>'+L('原因','Reason')+'</th>'+
-      '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('核可','Appr')+'</th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="13" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
+      '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
+    if(!rows.length)h+='<tr><td colspan="14" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
     rows.forEach(function(r){
       var amt=r.hasSettlement?('💵 '+fmt(r.amount)):'<span class="text-slate-300">—</span>';
       var rea=r.reasonCat?('<span class="pill bg-slate-100 text-slate-600">'+esc(L(REASON_ZH[r.reasonCat]||r.reasonCat,r.reasonCat))+'</span> <span class="text-slate-400 text-[10px]">'+esc(r.reason||'')+'</span>')
@@ -1430,13 +1571,14 @@ function renderResign(){
         '<td>'+esc(r.dept)+'</td><td>'+esc(r.position)+'</td><td class="jmono">'+esc(r.gender)+'</td>'+
         '<td class="text-right jmono">'+esc(r.age)+'</td><td>'+typeBadge(r.resignType||'resign')+'</td>'+
         '<td class="text-right jmono">'+fmt0(r.workingDays||0)+'</td><td>'+rea+'</td>'+
-        '<td class="text-right jmono">'+amt+'</td><td>'+decBadge(r._k)+'</td></tr>';
+        '<td class="text-right jmono">'+amt+'</td><td>'+decBadge(r._k)+'</td>'+
+        '<td class="no-print"><button onclick="openRec(\'resign\',\''+r.id+'\')" title="編輯 Edit" class="text-xs text-slate-400 hover:text-rose-600">✏️</button></td></tr>';
     });
     h+='</tbody></table>';
-    el('res-tbl').innerHTML=h;
+    setHtml('res-tbl', h);
     var rp=periodReportHTML('resign');
     el('res-report').style.display=rp?'':'none';
-    el('res-report-body').innerHTML=rp;
+    setHtml('res-report-body', rp);
     renderSettles();
   }catch(e){ console.error(e); }
 }
@@ -1455,18 +1597,21 @@ function renderSettles(){
       '<td class="text-right jmono">'+fmt(s.transport)+'</td><td class="text-[10px]">'+esc(s.remarks)+'</td><td>'+m+'</td></tr>';
   });
   h+='</tbody></table>';
-  el('settle-tbl').innerHTML=h;
+  setHtml('settle-tbl', h);
 }
 
 /* ═══════════ 流動分析 ═══════════ */
-var RESIGN_ONLY_DIMS={reasonCat:1,resignType:1,tenureBand:1};
+var RESIGN_ONLY_DIMS={reasonCat:1,resignType:1,tenureBand:1,salaryBand:1};
 function dimValue(r,dim,kind){
   if(dim==='dept')      return r.dept||L('未分類','Unassigned');
   if(dim==='line')      return lineOf(r);
   if(dim==='position')  return r.position||L('未分類','Unassigned');
-  if(dim==='gender')    return r.gender||L('未知','Unknown');
+  if(dim==='gender')    return (r.gender||'').toUpperCase()==='M'?L('男','Male'):(r.gender||'').toUpperCase()==='F'?L('女','Female'):L('未填','—');
   if(dim==='ageBand')   return ageBandOf(r.age);
+  if(dim==='region')    return regionOf(r.remark||r.region||'')||L('未填','—');
+  if(dim==='marital')   return maritalOf(r.marital)||L('未填','—');
   if(kind!=='resign')   return null;
+  if(dim==='salaryBand')return salaryBandOf(r.amount);
   if(dim==='reasonCat') return L(REASON_ZH[r.reasonCat]||r.reasonCat||'Other', r.reasonCat||'Other');
   if(dim==='resignType'){var d=RESIGN_TYPES[r.resignType||'resign']||['其他','Other'];return L(d[0],d[1]);}
   if(dim==='tenureBand')return tenureBandOf(r.workingDays);
@@ -1510,7 +1655,7 @@ function renderAnly(){
       (side!=='join'?'<td class="text-right jmono">'+fmt0(totR)+'</td><td class="text-right jmono">100%</td><td></td>':'')+
       (side==='both'&&!resignOnly?'<td class="text-right jmono">'+((totJ-totR)>0?'+':'')+fmt0(totJ-totR)+'</td>':'')+
       '</tr></tfoot></table>';
-    el('anly-tbl').innerHTML=h;
+    setHtml('anly-tbl', h);
 
     var top=keys.slice(0,14);
     var ds=[];
@@ -1534,8 +1679,8 @@ function renderAnly(){
 
     /* 月度流動率表 */
     var bi=baseInfo();
-    el('to-basis-note').textContent = (SETS.basis==='open'?L('分母＝月初在職','denominator = opening HC'):L('分母＝(月初+月末)/2','denominator = (open+close)/2'))
-      + (bi.est?' · '+L('未設基準人數，數值為推估','no baseline set — estimated'):'');
+    setTxt('to-basis-note', (SETS.basis==='open'?L('分母＝月初在職','denominator = opening HC'):L('分母＝(月初+月末)/2','denominator = (open+close)/2'))
+      + (bi.est?' · '+L('未設基準人數，數值為推估','no baseline set — estimated'):''));
     var th='<table><thead><tr><th>'+L('月份','Month')+'</th><th class="text-right">'+L('入職','Join')+'</th><th class="text-right">'+L('離職','Resign')+'</th>'+
       '<th class="text-right">'+L('月初','Opening')+'</th><th class="text-right">'+L('月末','Closing')+'</th><th class="text-right">'+L('平均在職','Avg HC')+'</th>'+
       '<th class="text-right">'+L('流動率','Turnover')+'</th><th></th></tr></thead><tbody>';
@@ -1552,7 +1697,7 @@ function renderAnly(){
         '<td class="text-[10px] text-slate-400">'+(t.manual?L('手動','manual'):(t.est?L('推估','est.'):''))+'</td></tr>';
     });
     th+='</tbody></table>';
-    el('to-tbl').innerHTML=th;
+    setHtml('to-tbl', th);
   }catch(e){ console.error(e); }
 }
 
@@ -1577,7 +1722,7 @@ function renderAppr(){
     resignsIn(st).forEach(function(r){ if(!(DEC[r._k]&&DEC[r._k].d))pend++; });
     joinsIn(st).forEach(function(r){ if(!(DEC[r._k]&&DEC[r._k].d))pend++; });
     var bd=el('bdg-appr'); bd.textContent=pend; bd.style.display=pend?'':'none';
-    el('appr-count').textContent=_apprRows.length+' '+L('筆','rows')+' · '+L('已選','selected')+' '+Object.keys(_apprSel).filter(function(k){return _apprSel[k];}).length;
+    setTxt('appr-count', _apprRows.length+' '+L('筆','rows')+' · '+L('已選','selected')+' '+Object.keys(_apprSel).filter(function(k){return _apprSel[k];}).length);
     var h='<table><thead><tr><th style="width:34px"></th><th>'+L('類別','Kind')+'</th><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th>'+
       '<th>'+L('日期','Date')+'</th><th>'+L('部門','Dept')+'</th><th>'+L('職務/類型','Pos/Type')+'</th>'+
       '<th>'+L('狀態','Status')+'</th><th>'+L('退回原因','Note')+'</th></tr></thead><tbody>';
@@ -1591,7 +1736,7 @@ function renderAppr(){
         '<td>'+decBadge(x.key)+'</td><td class="text-[10px] text-slate-500">'+esc(d.note||'')+'</td></tr>';
     });
     h+='</tbody></table>';
-    el('appr-tbl').innerHTML=h;
+    setHtml('appr-tbl', h);
   }catch(e){ console.error(e); }
 }
 function apprToggle(k,v){ if(v)_apprSel[k]=1; else delete _apprSel[k]; renderAppr(); }
@@ -1610,7 +1755,7 @@ function apprMark(d,note){
 }
 function openReject(){
   if(!apprSelected().length){ toast(L('請先勾選項目','Select rows first'),'warn'); return; }
-  el('rj-count').textContent=apprSelected().length;
+  setTxt('rj-count', apprSelected().length);
   el('rj-note').value='';
   var m=el('rj-modal'); m.classList.remove('hidden'); m.classList.add('flex');
 }
@@ -1654,7 +1799,7 @@ function cloudUpload(){
   }
   seq.then(function(){
     META.cloudUpdatedAt=summary.updatedAt; META.updatedAt=summary.updatedAt; saveMeta();
-    el('cloud-stat').textContent='☁ '+summary.updatedAt;
+    setTxt('cloud-stat', '☁ '+summary.updatedAt);
     toast('☁↑ '+L('已上傳','Uploaded')+' '+sent+' '+L('筆','records'),'ok');
   }).catch(function(e){
     toast(L('上傳失敗：','Upload failed: ')+e.message,'error');
@@ -1709,7 +1854,7 @@ function cloudDownload(silent){
     if(!recs||!recs.length){ if(!silent)toast(L('雲端尚無資料','No cloud data'),'warn'); return; }
     applyCloud(recs,silent);
     META.cloudUpdatedAt=nowStamp(); saveMeta();
-    el('cloud-stat').textContent='☁ '+META.cloudUpdatedAt;
+    setTxt('cloud-stat', '☁ '+META.cloudUpdatedAt);
   }).catch(function(e){
     if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');
   }).then(function(){
@@ -1724,7 +1869,7 @@ function autoSync(){
       var info=(d&&d.data)||{};
       var ts=(info.meta&&info.meta.timestamp)||(info.data&&info.data.updatedAt)||d.updatedAt||'';
       if(ts && ts!==META.cloudUpdatedAt){ cloudDownload(true); }
-      if(ts) el('cloud-stat').textContent='☁ '+ts;
+      if(ts) setTxt('cloud-stat', '☁ '+ts);
     }).catch(function(){});
   }catch(e){}
 }
@@ -1775,13 +1920,13 @@ function setTgMode(m){
   var a=el('tgm-sum'), b=el('tgm-app');
   a.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='summary'?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
   b.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='approval'?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
-  el('tg-kind').textContent = m==='approval'
+  setTxt('tg-kind', m==='approval'
     ? L('📋 核可請求 — 送出後於群組核可','📋 Approval request — decide in group')
-    : L('📄 入離職摘要','📄 Onboarding summary');
-  el('tg-note').textContent = m==='approval'
+    : L('📄 入離職摘要','📄 Onboarding summary'));
+  setTxt('tg-note', m==='approval'
     ? L('核可請求會以 approvalRequest 送至 GAS，帶上勾選狀態與退回原因；Telegram 按鈕核可引擎將於五模組統一實作時上線。',
         'Approval request is sent to GAS as approvalRequest with decisions and notes. The Telegram button engine will be delivered in the unified approval release.')
-    : L('摘要僅發送文字訊息至群組。','Summary sends a plain message to the group.');
+    : L('摘要僅發送文字訊息至群組。','Summary sends a plain message to the group.'));
   previewTg();
 }
 function periodData(p){
@@ -1795,10 +1940,10 @@ function joinBlock(J,bi){
   var m=J.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=J.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
   var dm={}; J.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
-  var t='🟢 <b>'+esc(BL('入職','Joins',bi))+'：'+J.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing',bi))+' '+sew+'）'):'')+'\n';
-  t+='· '+esc(BL('男','Male',bi))+' '+m+' · '+esc(BL('女','Female',bi))+' '+f+'\n';
+  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+'：'+J.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing',bi))+' '+sew+'）'):'')+'\n';
+  t+='· '+esc(BL('男','Male','ប្រុស',bi))+' '+m+' · '+esc(BL('女','Female','ស្រី',bi))+' '+f+'\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
-  if(dl.length){ t+='<b>'+esc(BL('入職部門 Top','Top join depts',bi))+'</b>\n'; dl.forEach(function(k){ t+='· '+esc(k)+'：'+dm[k]+'\n'; }); }
+  if(dl.length){ t+='<b>'+esc(BL('入職部門','By department','តាមផ្នែក',bi))+'</b>\n'; dl.forEach(function(k){ t+='· '+esc(k)+'：'+dm[k]+'\n'; }); }
   return t;
 }
 function resignBlock(R,p,bi){
@@ -1806,20 +1951,48 @@ function resignBlock(R,p,bi){
   var m=R.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=R.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
   var tc={}; R.forEach(function(r){var k=r.resignType||'resign';tc[k]=(tc[k]||0)+1;});
-  var dm={}; R.forEach(function(r){var k=r.dept||'—';dm[k]=(dm[k]||0)+1;});
+  /* ★ 部門明細：人數 + 結算金額 */
+  var dm={}; R.forEach(function(r){
+    var k=r.dept||'—'; if(!dm[k])dm[k]={n:0,amt:0};
+    dm[k].n++; dm[k].amt+=(+r.amount||0);
+  });
   var rc={}; R.forEach(function(r){var k=r.reasonCat||'Other';rc[k]=(rc[k]||0)+1;});
   var to=(p.length===7)?turnoverOf(p):null;
-  var avgD=R.length?Math.round(R.reduce(function(s,r){return s+(+r.workingDays||0);},0)/R.length):0;
-  var t='🔴 <b>'+esc(BL('離職','Resigns',bi))+'：'+R.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing',bi))+' '+sew+'）'):'')+'\n';
-  t+='· '+esc(BL('男','Male',bi))+' '+m+' · '+esc(BL('女','Female',bi))+' '+f+'\n';
-  if(to&&isFinite(to.rate)) t+='📉 '+esc(BL('流動率','Turnover',bi))+'：<b>'+pct(to.rate)+'</b>'+(to.est?'（'+esc(BL('推估','est.',bi))+'）':'')+'\n';
-  if(R.length) t+='⏱ '+esc(BL('平均在職天數','Avg tenure',bi))+'：'+avgD+'\n';
-  t+='<b>'+esc(BL('離職類型','By type',bi))+'</b>\n';
-  Object.keys(RESIGN_TYPES).forEach(function(k){ if(tc[k]) t+='· '+esc(BL(RESIGN_TYPES[k][0],RESIGN_TYPES[k][1],bi))+'：'+tc[k]+'\n'; });
-  var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
-  if(dl.length){ t+='<b>'+esc(BL('離職部門 Top','Top resign depts',bi))+'</b>\n'; dl.forEach(function(k){ t+='· '+esc(k)+'：'+dm[k]+'\n'; }); }
-  var rl=Object.keys(rc).sort(function(a,b){return rc[b]-rc[a];}).slice(0,5);
-  if(rl.length){ t+='<b>'+esc(BL('離職原因 Top','Top reasons',bi))+'</b>\n'; rl.forEach(function(k){ t+='· '+esc(BL(REASON_ZH[k]||k,k,bi))+'：'+rc[k]+'\n'; }); }
+  var days=R.map(function(r){return +r.workingDays||0;}).filter(function(x){return x>0;});
+  var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):0;
+  /* ★ 結算金額合計 */
+  var amtRows=R.filter(function(r){return (+r.amount||0)>0;});
+  var totAmt=amtRows.reduce(function(s,r){return s+(+r.amount||0);},0);
+
+  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+'：'+R.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing','ដេរ',bi))+' '+sew+'）'):'')+'\n';
+  if(m||f) t+='· '+esc(BL('男','Male','ប្រុស',bi))+' '+m+' · '+esc(BL('女','Female','ស្រី',bi))+' '+f+'\n';
+  /* ★ 結算金額 */
+  if(totAmt>0){
+    t+='💵 '+esc(BL('結算金額','Settlement','ប្រាក់សរុប',bi))+'：<b>$'+fmt(totAmt)+'</b>';
+    t+='（'+amtRows.length+'/'+R.length+' '+esc(BL('筆','recs','ធាតុ',bi))+'）\n';
+    t+='· '+esc(BL('平均','Avg','មធ្យម',bi))+' $'+fmt(totAmt/amtRows.length)+'\n';
+  }
+  if(to&&isFinite(to.rate)) t+='📉 '+esc(BL('流動率','Turnover','អត្រាចេញ',bi))+'：<b>'+pct(to.rate)+'</b>'+(to.est?'（'+esc(BL('推估','est.','ប៉ាន់',bi))+'）':'')+'\n';
+  if(avgD) t+='⏱ '+esc(BL('平均在職天數','Avg tenure','រយៈពេលមធ្យម',bi))+'：'+avgD+'\n';
+  t+='<b>'+esc(BL('離職類型','By type','តាមប្រភេទ',bi))+'</b>\n';
+  Object.keys(RESIGN_TYPES).forEach(function(k){ if(tc[k]) t+='· '+esc(BL(RESIGN_TYPES[k][0],RESIGN_TYPES[k][1],'',bi))+'：'+tc[k]+'\n'; });
+  /* ★ 部門明細帶金額 */
+  var dl=Object.keys(dm).sort(function(a,b){return dm[b].n-dm[a].n;}).slice(0,10);
+  if(dl.length){
+    t+='<b>'+esc(BL('離職部門','By department','តាមផ្នែក',bi))+'</b>\n';
+    dl.forEach(function(k){
+      t+='· '+esc(k)+'：'+dm[k].n+' '+esc(BL('人','staff','នាក់',bi));
+      if(dm[k].amt>0) t+=' · <b>$'+fmt(dm[k].amt)+'</b>';
+      t+='\n';
+    });
+  }
+  var rl=Object.keys(rc).sort(function(a,b){return rc[b]-rc[a];}).slice(0,8);
+  if(rl.length){
+    t+='<b>'+esc(BL('離職原因','By reason','តាមមូលហេតុ',bi))+'</b>\n';
+    rl.forEach(function(k){
+      t+='· '+esc(BL(REASON_ZH[k]||k,k,REASON_KM[k]||'',bi))+'：'+rc[k]+'\n';
+    });
+  }
   return t;
 }
 /* scope: 'join' | 'resign' | 'both' */
@@ -1829,13 +2002,13 @@ function buildSummaryText(p,bi,scope){
   var need = scope==='join'?J.length : scope==='resign'?R.length : (J.length+R.length);
   if(!need) return {err:L('此期間'+(scope==='join'?'沒有入職':scope==='resign'?'沒有離職':'')+'資料',
                           'No '+(scope==='join'?'join ':scope==='resign'?'resign ':'')+'data for this period')};
-  var head = scope==='join'?'🟢 <b>'+esc(BL('入職月報','Join Report',bi))+'</b>'
-           : scope==='resign'?'🔴 <b>'+esc(BL('離職月報','Resign Report',bi))+'</b>'
-           : '👥 <b>'+esc(BL('入離職月報','Onboarding & Turnover',bi))+'</b>';
-  var t=head+'\n📅 '+esc(BL('期間','Period',bi))+'：'+esc(p)+'\n🏭 VRT Sihanoukville\n'+HR;
+  var head = scope==='join'?'🟢 <b>'+esc(BL('入職月報','Join Report','របាយការណ៍ចូលធ្វើការ',bi))+'</b>'
+           : scope==='resign'?'🔴 <b>'+esc(BL('離職月報','Resign Report','របាយការណ៍ចេញពីការងារ',bi))+'</b>'
+           : '👥 <b>'+esc(BL('入離職月報','Onboarding & Turnover','ចូល/ចេញពីការងារ',bi))+'</b>';
+  var t=head+'\n📅 '+esc(BL('期間','Period','ដំណាក់កាល',bi))+'：'+esc(p)+'\n🏭 VRT Sihanoukville\n'+HR;
   if(scope==='both'){
-    t+='🟢 '+esc(BL('入職','Joins',bi))+'：<b>'+J.length+'</b>　🔴 '+esc(BL('離職','Resigns',bi))+'：<b>'+R.length+'</b>\n';
-    t+='⚖️ '+esc(BL('淨增減','Net',bi))+'：<b>'+((J.length-R.length)>0?'+':'')+(J.length-R.length)+'</b>\n'+HR;
+    t+='🟢 '+esc(BL('入職','Joins','ចូល',bi))+'：<b>'+J.length+'</b>　🔴 '+esc(BL('離職','Resigns','ចេញ',bi))+'：<b>'+R.length+'</b>\n';
+    t+='⚖️ '+esc(BL('淨增減','Net','សុទ្ធ',bi))+'：<b>'+((J.length-R.length)>0?'+':'')+(J.length-R.length)+'</b>\n'+HR;
     t+=joinBlock(J,bi)+HR+resignBlock(R,p,bi);
   }else if(scope==='join'){
     t+=joinBlock(J,bi);
@@ -1843,7 +2016,9 @@ function buildSummaryText(p,bi,scope){
     t+=resignBlock(R,p,bi);
   }
   var st=apprStats(p,scope);
-  t+=HR+'✔ '+esc(BL('已核可','Approved',bi))+' '+st.ok+' · ✖ '+esc(BL('已退回','Rejected',bi))+' '+st.no+' · ⏳ '+esc(BL('待核可','Pending',bi))+' '+st.pend+'\n';
+  t+=HR+'✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' '+st.ok+' · ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' '+st.no+' · ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' '+st.pend+'\n';
+  /* ★ 核算聲明（三語） */
+  t+='<i>'+esc(BL('以上人數與金額已經系統核算','Headcount and amounts verified by system','ចំនួន និងទឹកប្រាក់ត្រូវបានផ្ទៀងផ្ទាត់',bi))+'</i>\n';
   t+='<i>'+esc(nowStamp())+' · AC HRA Onboarding v3</i>';
   return {text:t};
 }
@@ -1861,14 +2036,23 @@ function buildApprovalItems(p,scope){
   var d=periodData(p), items=[];
   if(scope!=='join') d.R.forEach(function(r){
     var x=DEC[r._k]||{};
-    items.push({key:r._k,kind:'resign',id:r.empId,name:r.name,dept:r.dept,
-      date:r.resignDate,type:r.resignType,days:r.workingDays,reason:r.reasonCat||r.reason,
-      amount:r.amount||0,decision:x.d||'',note:x.note||''});
+    items.push({key:r._k,kind:'resign',id:r.empId,name:r.name,
+      dept:r.dept||'', group:lineOf(r), position:r.position||'',
+      gender:r.gender||'', age:saneAge(r.age)||'', days:+r.workingDays||0,
+      region:regionOf(r.remark||r.region||''), marital:r.marital||'',
+      period:(r.resignDate||p).slice(0,7), date:r.resignDate, type:r.resignType,
+      info:(REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||''),
+      reason:r.reasonCat||r.reason, amount:+r.amount||0,
+      decision:x.d||'',note:x.note||''});
   });
   if(scope!=='resign') d.J.forEach(function(r){
     var x=DEC[r._k]||{};
-    items.push({key:r._k,kind:'join',id:r.empId,name:r.name,dept:r.dept,
-      date:r.joinDate,position:r.position,decision:x.d||'',note:x.note||''});
+    items.push({key:r._k,kind:'join',id:r.empId,name:r.name,
+      dept:r.dept||'', group:lineOf(r), position:r.position||'',
+      gender:r.gender||'', age:saneAge(r.age)||'', days:0,
+      region:regionOf(r.remark||r.region||''), marital:r.marital||'',
+      period:(r.joinDate||p).slice(0,7), date:r.joinDate,
+      info:r.position||'', amount:0, decision:x.d||'',note:x.note||''});
   });
   return items;
 }
@@ -1937,7 +2121,7 @@ function renderSets(){
         'class="w-full text-xs jmono border border-slate-200 rounded px-2 py-1"></td></tr>';
     });
     h+='</tbody></table>';
-    el('hc-tbl').innerHTML=h;
+    setHtml('hc-tbl', h);
   }catch(e){ console.error(e); }
 }
 function setHcOv(m,v){
@@ -1962,7 +2146,7 @@ function clearAllData(){
   if(!confirm(L('確定要清除所有入離職與結算資料？此動作無法復原。','Clear ALL onboarding data? This cannot be undone.')))return;
   JOINS=[]; RESIGNS=[]; SETTLES=[]; DEC={}; _apprSel={};
   saveJoins(); saveResigns(); saveSettles(); saveDec();
-  el('import-report').innerHTML='<span class="text-slate-400">'+T('dz3')+'</span>';
+  setHtml('import-report', '<span class="text-slate-400">'+T('dz3')+'</span>');
   rebuildFilterOptions(); renderAll();
   toast(L('已清除','Cleared'),'ok');
 }
@@ -2012,9 +2196,111 @@ function renderAll(){
   }catch(e){ console.error(e); }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   線上操作：新增 / 編輯 / 刪除記錄
+   線上建立的資料與 Excel 匯入完全同源，一樣可勾選送核可
+   ═══════════════════════════════════════════════════════════════ */
+var _recKind='join', _recId=null;
+
+function setRecKind(k){
+  _recKind = (k==='resign')?'resign':'join';
+  var bj=el('rk-join'), br=el('rk-resign');
+  if(bj) bj.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(_recKind==='join'?'bg-white shadow-sm font-semibold text-emerald-700':'text-slate-500');
+  if(br) br.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(_recKind==='resign'?'bg-white shadow-sm font-semibold text-rose-700':'text-slate-500');
+  document.querySelectorAll('.rec-resign').forEach(function(n){ n.style.display=(_recKind==='resign')?'':'none'; });
+  document.querySelectorAll('.rec-join').forEach(function(n){ n.style.display=(_recKind==='join')?'':'none'; });
+  setTxt('rec-icon', _recKind==='join'?'🟢':'🔴');
+  setTxt('rec-title', (_recId?L('編輯','Edit','កែ'):L('新增','New','បន្ថែម'))+' '+
+    (_recKind==='join'?L('入職記錄','Join Record','កំណត់ត្រាចូល'):L('離職記錄','Resign Record','កំណត់ត្រាចេញ')));
+}
+function fillDatalists(){
+  function fill(id,vals){ var n=el(id); if(!n)return;
+    n.innerHTML=vals.filter(Boolean).map(function(v){return '<option value="'+esc(v)+'">';}).join(''); }
+  var all=JOINS.concat(RESIGNS);
+  fill('dl-dept', uniqSorted(all.map(function(r){return r.dept;})));
+  fill('dl-sec',  uniqSorted(all.map(function(r){return r.section;})));
+  fill('dl-prov', PROVINCES);
+  fill('dl-reason', uniqSorted(RESIGNS.map(function(r){return r.reason;})).slice(0,60));
+}
+function openRec(kind,id){
+  _recId=id||null;
+  fillDatalists();
+  var r=null;
+  if(id){
+    r=JOINS.filter(function(x){return x.id===id;})[0];
+    if(r)kind='join';
+    else { r=RESIGNS.filter(function(x){return x.id===id;})[0]; if(r)kind='resign'; }
+  }
+  setRecKind(kind||'join');
+  var sel=el('rec-kind-sel'); if(sel)sel.style.display=_recId?'none':'';
+  var del=el('rec-del'); if(del)del.style.display=_recId?'':'none';
+  ['empId','name','engName','dept','section','position','gender','birthday','age','marital',
+   'region','phone','joinDate','resignDate','resignType','reason','workingDays','amount','introducer','remark']
+  .forEach(function(k){
+    var n=el('r-'+k); if(!n)return;
+    var v=r?(r[k]!=null?r[k]:''):'';
+    if(k==='region'&&r)v=r.region||regionOf(r.remark||'')||'';
+    if(k==='resignType'&&!r)v='resign';
+    n.value=v;
+  });
+  var w=el('rec-warn'); if(w){w.style.display='none';w.textContent='';}
+  var m=el('rec-modal'); if(m){m.classList.remove('hidden');m.classList.add('flex');}
+}
+function closeRec(){ var m=el('rec-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} _recId=null; }
+function saveRec(){
+  var g=function(k){ var n=el('r-'+k); return n?String(n.value||'').trim():''; };
+  var empId=g('empId').replace(/\s+/g,''), name=g('name'), w=el('rec-warn');
+  function bad(msg){ if(w){w.style.display='';w.textContent='⚠️ '+msg;} toast(msg,'warn'); return false; }
+  if(!/^\d{2,6}$/.test(empId)) return bad(L('工號需為 2-6 位數字','Employee ID must be 2-6 digits','លេខសម្គាល់ត្រូវជាលេខ 2-6 ខ្ទង់'));
+  if(!name) return bad(L('請輸入姓名','Name is required','សូមបញ្ចូលឈ្មោះ'));
+  var isJoin=(_recKind==='join');
+  var mainDate=isJoin?g('joinDate'):g('resignDate');
+  if(!mainDate) return bad(isJoin?L('請輸入入職日','Join date is required','សូមបញ្ចូលថ្ងៃចូល')
+                                 :L('請輸入離職日','Resign date is required','សូមបញ្ចូលថ្ងៃចេញ'));
+  var days=parseInt(g('workingDays'),10);
+  if(!isJoin&&(!isFinite(days)||days<=0)&&g('joinDate')){
+    var dd=dayDiff(g('joinDate'),g('resignDate')); if(dd!=null&&dd>0)days=dd;
+  }
+  var age=parseInt(g('age'),10);
+  if((!isFinite(age)||age<=0)&&g('birthday')){ var a=calcAge(g('birthday'),mainDate); if(a!=null)age=a; }
+  var base={ empId:empId,name:name,engName:g('engName'),dept:g('dept'),section:g('section'),
+    position:g('position'),gender:g('gender'),birthday:g('birthday'),
+    age:(isFinite(age)&&age>0)?age:'',marital:g('marital'),region:g('region'),
+    tel:g('phone'),phone:g('phone'),remark:g('remark'),source:'online',updatedAt:nowStamp() };
+  if(isJoin){
+    var jr=Object.assign({},base,{ _k:'J|'+empId+'|'+g('joinDate'), id:_recId||('j_'+uid()),
+      joinDate:g('joinDate'), introducer:g('introducer') });
+    JOINS=mergeInto(_recId?JOINS.filter(function(x){return x.id!==_recId;}):JOINS,[jr]).arr;
+  }else{
+    var rr=Object.assign({},base,{ _k:'R|'+empId+'|'+g('resignDate'), id:_recId||('r_'+uid()),
+      joinDate:g('joinDate'), resignDate:g('resignDate'),
+      resignType:g('resignType')||'resign', reason:g('reason'),
+      reasonCat:reasonCatOf(g('reason')||g('remark')),
+      workingDays:(isFinite(days)&&days>0)?days:0,
+      amount:parseFloat(g('amount'))||0,
+      hasSettlement:(parseFloat(g('amount'))||0)>0 });
+    RESIGNS=mergeInto(_recId?RESIGNS.filter(function(x){return x.id!==_recId;}):RESIGNS,[rr]).arr;
+  }
+  saveJoins(); saveResigns();
+  rebuildFilterOptions(); closeRec(); renderAll();
+  toast((_recId?L('已更新','Updated','បានកែ'):L('已新增','Added','បានបន្ថែម'))+'：'+empId+' '+name+
+        ' · '+L('可於核可分頁送審','ready for approval','អាចដាក់ស្នើអនុម័ត'),'ok');
+  return true;
+}
+function deleteRec(){
+  if(!_recId)return;
+  if(!confirm(L('確定刪除這筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
+  JOINS=JOINS.filter(function(x){return x.id!==_recId;});
+  RESIGNS=RESIGNS.filter(function(x){return x.id!==_recId;});
+  saveJoins(); saveResigns(); rebuildFilterOptions(); closeRec(); renderAll();
+  toast(L('已刪除','Deleted','បានលុប'),'ok');
+}
+
 /* ═══════════ ⑤ inline onclick 必須掛 window ═══════════ */
 Object.assign(window,{
-  onFiles:onFiles, setTab:setTab, toggleLang:toggleLang,
+  openRec:openRec, closeRec:closeRec, saveRec:saveRec, deleteRec:deleteRec, setRecKind:setRecKind,
+  onFiles:onFiles, setTab:setTab, toggleLang:toggleLang, setLang:setLang,
   pMode:pMode, pStep:pStep, pPick:pPick, pToday:pToday, pJump:pJump,
   renderJoin:renderJoin, renderResign:renderResign, renderAnly:renderAnly, renderAppr:renderAppr,
   resetFilters:resetFilters,
@@ -2028,14 +2314,41 @@ Object.assign(window,{
 });
 
 /* ═══════════ INIT ═══════════ */
+/* ★ CDN 健康檢查：網路不穩時仍能用，並明確告知哪個功能受限 */
+function checkCDN(){
+  var miss=[];
+  if(typeof XLSX==='undefined') miss.push({n:'SheetJS',f:L('Excel 匯入/匯出','Excel import/export')});
+  if(typeof Chart==='undefined') miss.push({n:'Chart.js',f:L('圖表','Charts')});
+  var noCss=false;
+  try{
+    var probe=document.createElement('div');
+    probe.className='hidden'; document.body.appendChild(probe);
+    noCss=(getComputedStyle(probe).display!=='none');
+    document.body.removeChild(probe);
+  }catch(e){}
+  if(noCss) miss.push({n:'Tailwind',f:L('版面樣式','Page styling')});
+  if(!miss.length) return true;
+  var bar=document.createElement('div');
+  bar.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#7f1d1d;color:#fff;'+
+    'padding:10px 14px;font-size:12px;line-height:1.6;font-family:sans-serif';
+  bar.innerHTML='⚠️ <b>'+L('部分資源未載入（網路問題）','Some resources failed to load (network)')+'</b><br>'+
+    miss.map(function(m){return '· '+m.n+' → '+m.f+' '+L('暫時無法使用','unavailable');}).join('<br>')+
+    '<br>'+L('其餘功能（資料檢視、核可、雲端）仍可正常使用。連上網後重新整理即可恢復。',
+             'Other features (data, approval, cloud) still work. Refresh once online.')+
+    ' <span onclick="this.parentNode.remove()" style="float:right;cursor:pointer;font-size:16px">×</span>';
+  document.body.appendChild(bar);
+  console.warn('[CDN] 未載入：'+miss.map(function(m){return m.n;}).join(', '));
+  return false;
+}
 function init(){
+  try{ checkCDN(); }catch(e){ console.warn('[checkCDN]',e); }
   try{
     loadData();
     applyLang();
     setupDrop();
     rebuildFilterOptions();
     setTab('ov');
-    if(META.updatedAt) el('cloud-stat').textContent='☁ '+(META.cloudUpdatedAt||META.updatedAt);
+    if(META.updatedAt) setTxt('cloud-stat', '☁ '+(META.cloudUpdatedAt||META.updatedAt));
     autoSync();
   }catch(e){ console.error(e); toast('初始化錯誤：'+e.message,'error'); }
 }

@@ -333,6 +333,9 @@ const RAW={
   conts:   'vrt_dashConts',
   probs:   'vrt_dashProbs',
   recruit: 'ac_hra_manpower_recruit',
+  nursing: 'vrt_nursing_fees_v2',      // ★ 護理費（原本未接）
+  decMat:  'ac_hra_mat_decisions',     // ★ 產假核可決定
+  decOnb:  'ac_hra_ob_decisions',     // ★ 入離職核可決定
 };
 // Export keys (optional, used for sewing IDB data only)
 const CK_SEW='ac_complete_att_sewcmp';
@@ -515,6 +518,13 @@ function renderUnified(skipPbar){
     const matRaw=_ls(RAW.mat)||{};   // vrt_maternity_v1
     const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
     const rcRaw=_arr(RAW.recruit)||[];
+    /* ★ 護理費 + 核可狀態 */
+    const nurRaw=_arr(RAW.nursing)||[];
+    const decMat=_ls(RAW.decMat)||{};
+    const decOnb=_ls(RAW.decOnb)||{};
+    st.nursing=nurRaw;
+    st.decisions=Object.assign({},decMat,decOnb);
+    console.log('[uni] nursing:',nurRaw.length,'decisions:',Object.keys(st.decisions).length);
 
     // Build periods from attendance (largest dataset)
     const attDates=attRaw.map(r=>r.date).filter(Boolean);
@@ -791,11 +801,32 @@ function renderAM(skipPbar){
     const allDepts=new Set([...Object.keys(lineML),...Object.keys(matByDept)]);
     const byLine=[...allDepts].map(dept=>({dept,portal:matByDept[dept]||0,attML:lineML[dept]||0,diff:(matByDept[dept]||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
 
+    /* ★ 護理費（原本完全沒接） */
+    const nurAll=_arr(RAW.nursing)||[];
+    const nurF=nurAll.filter(r=>{
+      if(!r.payMonth)return false;
+      const p=periodLabel(st)||'';
+      if(st.mode==='month')return r.payMonth===(st.periods&&st.periods[st.idx||0]||r.payMonth);
+      if(st.mode==='year') return String(r.payMonth).slice(0,4)===String(st.periods&&st.periods[st.idx||0]||'').slice(0,4);
+      return true;
+    });
+    const nurUse=nurF.length?nurF:nurAll;
+    const nurAmt=nurUse.reduce((s,r)=>s+(+r.amount||0),0);
+    const nurPpl=new Set(nurUse.map(r=>r.cardId)).size;
+    /* ★ 核可狀態 */
+    const DEC=Object.assign({},_ls(RAW.decMat)||{},_ls(RAW.decOnb)||{});
+    let dOk=0,dNo=0;
+    Object.keys(DEC).forEach(k=>{const d=DEC[k];if(!d||!d.d)return;d.d==='ok'?dOk++:dNo++;});
+    const pendAll=Math.max(0,(matEmps.length+nurAll.length)-(dOk+dNo));
+
     const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
     if(kEl)kEl.innerHTML=[
       {l:'Portal 產假 (系統)',v:matEmps.length>0?portalMat:'⚠ 無資料',c:'rd'},
       {l:'出勤 ML假(期間)',v:attML,c:'gd'},
       {l:'差異 (Portal-ML)',v:matEmps.length>0?(portalMat-attML>=0?'+':'')+(portalMat-attML):'—',c:portalMat===attML?'gn':'rd'},
+      {l:'💊 護理費人數',v:nurPpl||'—',c:'bl'},
+      {l:'💵 護理費金額',v:nurAmt?('$'+nurAmt.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})):'—',c:'gn'},
+      {l:'✅ 已核可 / ⏳ 待核',v:dOk+' / '+pendAll,c:pendAll?'rd':'gn'},
     ].map(k=>`<div class="kpi ${k.c}"><div class="kl">${k.l}</div><div class="kv">${k.v}</div></div>`).join('');
     if(cEl)cEl.innerHTML=`<div class="exp-info">Portal 產假: ${portalMat} · 出勤ML: ${attML} · 期間: ${periodLabel(st)}</div>
     <div class="utable"><table><thead><tr style="background:var(--navy);color:#fff">
