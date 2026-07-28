@@ -2034,18 +2034,32 @@ function fillTgPeriods(){
   sel.value=want;
   previewTg();
 }
+/* 送出鈕的樣式／文字跟著模式走 —— 兩種模式送出的東西完全不同，
+   按鈕上不寫清楚就會像這次一樣，以為送了核可其實送的是摘要 */
+var TG_BTN_CLS_SUM='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition';
+var TG_BTN_CLS_APP='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition';
+function syncTgSendBtn(){
+  var btn=el('tg-send'); if(!btn)return;
+  var app=(_tgMode==='approval');
+  btn.textContent = app ? L('📋 送出核可請求 Send for Approval','📋 Send for Approval')
+                        : L('📄 傳送摘要 Send Summary','📄 Send Summary');
+  if(!btn.disabled) btn.className = app?TG_BTN_CLS_APP:TG_BTN_CLS_SUM;
+}
 function setTgMode(m){
   _tgMode=m;
+  var app=(m==='approval');
   var a=el('tgm-sum'), b=el('tgm-app');
-  a.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='summary'?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
-  b.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='approval'?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
-  setTxt('tg-kind', m==='approval'
-    ? L('📋 核可請求 — 送出後於群組核可','📋 Approval request — decide in group')
-    : L('📄 入離職摘要','📄 Onboarding summary'));
-  setTxt('tg-note', m==='approval'
-    ? L('核可請求會以 approvalRequest 送至 GAS，帶上勾選狀態與退回原因；Telegram 按鈕核可引擎將於五模組統一實作時上線。',
-        'Approval request is sent to GAS as approvalRequest with decisions and notes. The Telegram button engine will be delivered in the unified approval release.')
-    : L('摘要僅發送文字訊息至群組。','Summary sends a plain message to the group.'));
+  a.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(!app?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
+  b.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+( app?'bg-white shadow-sm font-semibold text-amber-700':'text-slate-500 font-medium');
+  setTxt('tg-kind', app
+    ? L('📋 核可請求 — 群組會出現逐筆 ✅／✕ 按鈕','📋 Approval request — per-item ✅/✕ buttons appear in the group')
+    : L('📄 入離職摘要 — 純文字，群組沒有核可按鈕','📄 Onboarding summary — plain text, no approval buttons'));
+  setTxt('tg-note', app
+    ? L('送出後由 GAS 建立核可批次，群組訊息會帶編號按鈕；同一批資料重送會命中原批次，不會產生第二則訊息。',
+        'GAS creates an approval batch; the group message carries numbered buttons. Re-sending identical data hits the same batch instead of posting again.')
+    : L('摘要只是通知，不會產生核可批次，群組不會有按鈕。要核可請切到上面的「核可 Approval」。',
+        'Summary is a notification only — no batch, no buttons. Switch to "Approval" above to request approval.'));
+  syncTgSendBtn();
   previewTg();
 }
 function periodData(p){
@@ -2191,7 +2205,7 @@ function previewTg(){
   }
   pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')+extra;
-  btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition';
+  btn.disabled=false; syncTgSendBtn();
 }
 function confirmTg(){
   var btn=el('tg-send'), oldHtml=btn.innerHTML;
@@ -2226,7 +2240,7 @@ function confirmTg(){
   }
 
   btn.disabled=true; btn.textContent=L('傳送中…','Sending…');
-  var unlock=function(){ btn.disabled=false; btn.innerHTML=oldHtml; };   /* innerHTML 才保得住雙語 span */
+  var unlock=function(){ btn.disabled=false; btn.innerHTML=oldHtml; syncTgSendBtn(); };
 
   gasPost(payload).then(function(res){
     /* ★ 用 text() 不用 json()：GAS 出錯時回的是 HTML 錯誤頁，
@@ -2460,7 +2474,7 @@ Object.assign(window,{
   renderJoin:renderJoin, renderResign:renderResign, renderAnly:renderAnly, renderAppr:renderAppr,
   resetFilters:resetFilters,
   cloudUpload:cloudUpload, cloudDownload:cloudDownload,
-  openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods,
+  openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods, syncTgSendBtn:syncTgSendBtn,
   previewTg:previewTg, confirmTg:confirmTg,
   apprToggle:apprToggle, apprSelectAll:apprSelectAll, apprMark:apprMark,
   openReject:openReject, closeReject:closeReject, confirmReject:confirmReject,
