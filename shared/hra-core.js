@@ -278,6 +278,145 @@ function expiryState(expiry, opts) {
   return { key:'ok', label:'', cls:'ok', days:d };
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ⑤ 通用分析維度（所有模組一體適用）
+   入離職 / 產假 / 護理費 / 合約 / 試用期 都用同一套分群邏輯，
+   這樣跨模組比對時口徑一致，分析才看得出問題點與費用發生處。
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── 年資分群（依在職天數） ── */
+function tenureBand(days) {
+  var d = +days;
+  if (!isFinite(d) || d <= 0) return L('未知', 'Unknown', 'មិនស្គាល់');
+  if (d < 30)  return L('未滿1月', '<1 mo',   '<1ខែ');
+  if (d < 90)  return L('1-3月',   '1-3 mo',  '1-3ខែ');
+  if (d < 180) return L('3-6月',   '3-6 mo',  '3-6ខែ');
+  if (d < 365) return L('6-12月',  '6-12 mo', '6-12ខែ');
+  if (d < 730) return L('1-2年',   '1-2 yr',  '1-2ឆ្នាំ');
+  if (d < 1825)return L('2-5年',   '2-5 yr',  '2-5ឆ្នាំ');
+  return L('5年以上', '5 yr+', '>5ឆ្នាំ');
+}
+/* 年資（年），供排序與平均 */
+function tenureYears(days) { var d = +days; return isFinite(d) && d > 0 ? Math.round(d / 365 * 10) / 10 : 0; }
+
+/* ── 年齡分群 ── */
+function ageBand(a) {
+  a = +a;
+  if (!isFinite(a) || a <= 0) return L('未知', 'Unknown', 'មិនស្គាល់');
+  if (a < 20) return '<20';
+  if (a < 25) return '20-24';
+  if (a < 30) return '25-29';
+  if (a < 35) return '30-34';
+  if (a < 40) return '35-39';
+  if (a < 45) return '40-44';
+  if (a < 50) return '45-49';
+  return '50+';
+}
+
+/* ── 性別 ── */
+function genderOf(v) {
+  var s = String(v || '').trim().toUpperCase();
+  if (/^M|MALE|男|ប្រុស/.test(s)) return 'M';
+  if (/^F|FEMALE|女|ស្រី/.test(s)) return 'F';
+  return '';
+}
+function genderLabel(g) {
+  return g === 'M' ? L('男','Male','ប្រុស') : g === 'F' ? L('女','Female','ស្រី') : L('未填','—','—');
+}
+
+/* ── 婚姻狀況 ── */
+function maritalOf(v) {
+  var s = String(v || '').trim().toLowerCase();
+  if (!s) return '';
+  if (/married|已婚|រៀបការ/.test(s))  return 'married';
+  if (/single|未婚|單身|នៅលីវ/.test(s)) return 'single';
+  if (/divorc|離婚/.test(s))            return 'divorced';
+  if (/widow|喪偶/.test(s))             return 'widowed';
+  return '';
+}
+function maritalLabel(m) {
+  return m === 'married'  ? L('已婚','Married','រៀបការ')
+       : m === 'single'   ? L('單身','Single','នៅលីវ')
+       : m === 'divorced' ? L('離婚','Divorced','លែងលះ')
+       : m === 'widowed'  ? L('喪偶','Widowed','មេម៉ាយ')
+       : L('未填','—','—');
+}
+
+/* ── 地區（柬埔寨省份，可從備註/地址自動辨識） ── */
+var PROVINCES = ['Banteay Meanchey','Battambang','Kampong Cham','Kampong Chhnang','Kampong Speu',
+  'Kampong Thom','Kampot','Kandal','Kep','Koh Kong','Kratie','Mondulkiri','Oddar Meanchey',
+  'Pailin','Phnom Penh','Preah Sihanouk','Sihanoukville','Preah Vihear','Prey Veng','Pursat',
+  'Ratanakiri','Siem Reap','Stung Treng','Svay Rieng','Takeo','Tbong Khmum'];
+function regionOf(text) {
+  var s = String(text || '');
+  if (!s) return '';
+  for (var i = 0; i < PROVINCES.length; i++) {
+    var p = PROVINCES[i];
+    if (new RegExp(p.replace(/\s+/g, '\\s*'), 'i').test(s)) {
+      return p === 'Sihanoukville' ? 'Preah Sihanouk' : p;
+    }
+  }
+  return '';
+}
+
+/* ── 薪資 / 金額分群 ── */
+function salaryBand(v) {
+  var n = +v;
+  if (!isFinite(n) || n <= 0) return L('無金額','No amount','គ្មាន');
+  if (n < 50)  return '<$50';
+  if (n < 100) return '$50-99';
+  if (n < 150) return '$100-149';
+  if (n < 200) return '$150-199';
+  if (n < 300) return '$200-299';
+  if (n < 500) return '$300-499';
+  return '$500+';
+}
+
+/* ── 維度註冊表：模組只要指定 key，就能取得標籤與分群函式 ──
+   用法： HRA.DIMS.tenure.of(row)  /  HRA.DIMS.tenure.label()          */
+var DIMS = {
+  dept    : { label:function(){return L('部門','Department','ផ្នែក');},      of:function(r){ return r.dept || L('未分類','Unassigned','មិនកំណត់'); } },
+  line    : { label:function(){return L('線別/組別','Line / Group','ខ្សែ');}, of:function(r){ return r.group || r.line || r.section || r.dept || L('未分類','Unassigned','មិនកំណត់'); } },
+  position: { label:function(){return L('職稱','Position','តំណែង');},        of:function(r){ return r.position || L('未填','—','—'); } },
+  gender  : { label:function(){return L('性別','Gender','ភេទ');},            of:function(r){ return genderLabel(genderOf(r.gender)); } },
+  ageBand : { label:function(){return L('年齡層','Age Band','ក្រុមអាយុ');},   of:function(r){ return ageBand(r.age); } },
+  tenure  : { label:function(){return L('年資','Tenure','អាយុការងារ');},      of:function(r){ return tenureBand(r.workingDays || r.days || r.tenureDays); } },
+  region  : { label:function(){return L('地區','Region','តំបន់');},           of:function(r){ return regionOf(r.region || r.province || r.remark || r.address) || L('未填','—','—'); } },
+  salary  : { label:function(){return L('金額級距','Amount Band','កម្រិតទឹកប្រាក់');}, of:function(r){ return salaryBand(r.amount || r.salary || r.basicSalary); } },
+  marital : { label:function(){return L('婚姻','Marital','ស្ថានភាពគ្រួសារ');}, of:function(r){ return maritalLabel(maritalOf(r.marital || r.maritalStatus)); } },
+  reason  : { label:function(){return L('原因','Reason','មូលហេតុ');},         of:function(r){ return r.reasonLabel || r.reasonCat || r.reason || L('未填','—','—'); } },
+  status  : { label:function(){return L('狀態','Status','ស្ថានភាព');},        of:function(r){ return r.statusLabel || r.status || '—'; } },
+};
+/* 給下拉選單用：[{key,label}] */
+function dimOptions(keys) {
+  return (keys || Object.keys(DIMS)).filter(function (k) { return DIMS[k]; })
+    .map(function (k) { return { key:k, label: DIMS[k].label() }; });
+}
+/* 依維度分群並統計：回傳 [{key,n,amount,male,female,avgDays,pct}] */
+function groupBy(rows, dimKey, opts) {
+  opts = opts || {};
+  var dim = DIMS[dimKey] || DIMS.dept, m = {}, tot = rows.length;
+  rows.forEach(function (r) {
+    var k = dim.of(r) || '—';
+    if (!m[k]) m[k] = { key:k, n:0, amount:0, male:0, female:0, days:0, dn:0 };
+    var g = m[k];
+    g.n++;
+    g.amount += (+r.amount || +r.matAmount || 0);
+    var gd = genderOf(r.gender);
+    if (gd === 'M') g.male++; else if (gd === 'F') g.female++;
+    var d = +(r.workingDays || r.days || 0);
+    if (d > 0) { g.days += d; g.dn++; }
+  });
+  return Object.keys(m).map(function (k) {
+    var g = m[k];
+    g.avgDays = g.dn ? Math.round(g.days / g.dn) : 0;
+    g.avgYears = tenureYears(g.avgDays);
+    g.pct = tot ? Math.round(g.n / tot * 100) : 0;
+    return g;
+  }).sort(function (a, b) { return (opts.byAmount ? (b.amount - a.amount) : (b.n - a.n)) || (b.amount - a.amount); });
+}
+
 G.HRA = {
   /* i18n */
   t:t, L:L, lang:lang, setLang:setLang, apply:apply, toggleHTML:toggleHTML, extend:extend, DICT:DICT,
@@ -286,7 +425,13 @@ G.HRA = {
   /* 期間 / 日期 */
   p2:p2, lds:lds, addMonths:addMonths, xdate:xdate, dayDiff:dayDiff, today:today,
   /* 到期 */
-  expiryState:expiryState
+  expiryState:expiryState,
+  /* ⑤ 通用分析維度 */
+  DIMS:DIMS, dimOptions:dimOptions, groupBy:groupBy,
+  tenureBand:tenureBand, tenureYears:tenureYears, ageBand:ageBand,
+  genderOf:genderOf, genderLabel:genderLabel,
+  maritalOf:maritalOf, maritalLabel:maritalLabel,
+  regionOf:regionOf, salaryBand:salaryBand, PROVINCES:PROVINCES
 };
 /* 舊碼相容：HRA.I18N.xxx 仍可用 */
 G.HRA.I18N = { t:t, apply:apply, setLang:setLang, toggleHTML:toggleHTML, get _lang(){ return _lang; } };
