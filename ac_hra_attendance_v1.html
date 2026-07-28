@@ -1,0 +1,2888 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VRT 考勤分析系統 v2</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Noto Sans TC","Inter",sans-serif;background:#f0f2f7;color:#1e2640;font-size:13px}
+.header{background:linear-gradient(135deg,#0f3027,#1a5c4a);padding:13px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.logo{width:35px;height:35px;background:linear-gradient(135deg,#2dd4a8,#1a6e5c);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;flex-shrink:0}
+.h-title{font-size:16px;font-weight:600;color:#fff}
+.h-sub{font-size:11px;color:#8bc5b5;margin-top:1px}
+.h-stats{margin-left:auto;display:flex;gap:18px}
+.hstat{text-align:right}
+.hstat-v{font-size:17px;font-weight:700;color:#5eead4;font-family:monospace}
+.hstat-l{font-size:10px;color:#8bc5b5}
+.tabs{background:#fff;border-bottom:2px solid #e2e6f0;display:flex;padding:0 20px;overflow-x:auto;gap:0}
+.tab{padding:12px 15px;font-size:13px;cursor:pointer;color:#6b7a9e;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;font-weight:500;transition:all .15s;user-select:none}
+.tab:hover{color:#1a6e5c;background:#f0fdf8}
+.tab.on{color:#1a6e5c;border-bottom-color:#1a6e5c;background:#f0fdf8}
+.sec{display:none;padding:18px 20px}
+.sec.on{display:block}
+.card{background:#fff;border:1px solid #e2e6f0;border-radius:10px;padding:16px;margin-bottom:14px;box-shadow:0 1px 4px rgba(30,38,64,.05)}
+.ct{font-size:11px;font-weight:700;color:#6b7a9e;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;display:flex;align-items:center;gap:7px}
+.ct::before{content:'';width:3px;height:11px;background:#1a6e5c;border-radius:2px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.kpi-strip{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;margin-bottom:14px}
+.kpi{background:#fff;border:1px solid #e2e6f0;border-radius:8px;padding:11px;text-align:center;box-shadow:0 1px 3px rgba(30,38,64,.04)}
+.kpi-n{font-size:24px;font-weight:700;font-family:monospace;line-height:1;color:#1e2640}
+.kpi-u{font-size:11px;color:#6b7a9e;margin-left:2px;font-weight:400}
+.kpi-l{font-size:10px;color:#6b7a9e;margin-top:4px}
+.kpi-sub{font-size:9px;color:#8b95b8;margin-top:2px}
+.kpi.good{border-left:3px solid #10b981}.kpi.warn{border-left:3px solid #f59e0b}.kpi.bad{border-left:3px solid #ef4444}
+.drop{border:3px dashed #c5c9d8;border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;position:relative;background:#fafbfc}
+.drop:hover,.drop.drag{border-color:#1a6e5c;background:#f0fdf8}
+.drop.done{border-color:#10b981;border-style:solid;background:#ecfdf5}
+.drop input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:all .15s}
+.btn-p{background:#1a6e5c;color:#fff}.btn-p:hover{background:#14574a}
+.btn-g{background:#fff;color:#4a5578;border:1px solid #d0d5e8}.btn-g:hover{background:#f7f8fc}
+.btn-d{background:#ef4444;color:#fff}.btn-d:hover{background:#dc2626}
+.btn-t{background:#0088cc;color:#fff}.btn-t:hover{background:#006da3}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.frow{display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;border-radius:6px;font-size:13px;font-family:inherit;cursor:pointer}
+.badge{display:inline-flex;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:700}
+.bg{background:#d1fae5;color:#065f46}.bw{background:#fef3c7;color:#92400e}.bb{background:#fee2e2;color:#991b1b}.bi{background:#dbeafe;color:#1e40af}
+/* Table */
+.dtbl{width:100%;border-collapse:collapse;font-size:11px}
+.dtbl th,.dtbl td{border:1px solid #e2e6f0;padding:5px 8px;text-align:center;white-space:nowrap}
+.dtbl th{background:#e8f4f1;color:#1a6e5c;font-weight:700;font-size:10px;position:sticky;top:0;z-index:2}
+.dtbl .dept-cell{text-align:left;font-weight:700;color:#1a6e5c;background:#e8f4f1;min-width:120px}
+.dtbl .sect-cell{text-align:left;color:#2d8fb8;background:#f0f8ff;min-width:100px}
+.dtbl .line-cell{text-align:left;min-width:180px}
+.dtbl .sub td{background:#d5f5e3;font-weight:700;color:#1e8449}
+.dtbl .grand td{background:#a9dfbf;font-weight:700;color:#14573a;font-size:12px}
+.dtbl .ml-h{background:#fde8e8!important}
+.dtbl .idle-h{background:#eceff1!important;color:#607d8b!important}
+.rg{color:#10b981;font-weight:700}.rw{color:#f59e0b;font-weight:700}.rb{color:#ef4444;font-weight:700}
+.twrap{overflow-x:auto;max-height:600px;overflow-y:auto;border:1px solid #e2e6f0;border-radius:8px}
+/* Chart */
+.ch{position:relative}
+.ch canvas{width:100%!important}
+/* File list */
+.fl-item{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid #eef0f6;font-size:13px}
+.tips{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.tip{border-radius:8px;padding:12px;border:1px solid;font-size:12px;line-height:1.8}
+/* Toast */
+#toasts{position:fixed;bottom:18px;right:18px;z-index:999;display:flex;flex-direction:column;gap:7px}
+.toast{background:#fff;border:1px solid #e2e6f0;border-radius:8px;padding:10px 15px;font-size:12px;box-shadow:0 4px 12px rgba(0,0,0,.12);animation:sUp .25s}
+.toast-ok{border-left:3px solid #10b981}.toast-err{border-left:3px solid #ef4444}.toast-info{border-left:3px solid #3b82f6}
+@keyframes sUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+/* Tg preview */
+.tg-preview{background:#1e2640;color:#e2e6f0;border-radius:10px;padding:16px;font-family:monospace;font-size:12px;line-height:1.8;white-space:pre-wrap;max-height:400px;overflow-y:auto;margin-top:12px}
+.period-list-table{min-width:880px}
+.period-list-table tbody tr{cursor:pointer}
+.period-list-table tbody tr:hover td{background:#f0fdf8}
+.period-list-table tr.active td{background:#e0f2fe;color:#075985;font-weight:700}
+.period-list-table th:first-child,.period-list-table td:first-child{position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 0 #e2e6f0}
+.period-list-table thead th:first-child{z-index:3;background:#e8f4f1}
+.period-list-table tr.active td:first-child{background:#e0f2fe}
+.segmented{display:inline-flex;border:1px solid #d0d5e8;border-radius:7px;overflow:hidden;background:#fff}
+.segmented button{border:0;border-right:1px solid #d0d5e8;background:#fff;color:#6b7a9e;padding:6px 11px;font-size:11px;font-weight:700;cursor:pointer}
+.segmented button:last-child{border-right:0}.segmented button.on{background:#1a6e5c;color:#fff}
+.analysis-table{min-width:760px}
+.tab-busy{position:fixed;right:16px;top:124px;z-index:120;background:#1e2640;color:#fff;border-radius:999px;padding:6px 11px;font-size:10px;box-shadow:0 4px 12px rgba(0,0,0,.18);display:none}
+.tab-busy.on{display:block}
+@media(max-width:900px){.g2,.g3,.tips{grid-template-columns:1fr}.kpi-strip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:600px){.h-stats .hstat{display:none}.kpi-strip{grid-template-columns:repeat(2,1fr)}.sec{padding:12px 10px}.tabs,.cloud-bar,.cloud-cfg-row{padding-left:10px;padding-right:10px}}
+
+/* ── Cloud Sync Bar ── */
+.cloud-bar{background:#fff;border-bottom:2px solid #e2e6f0;padding:7px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-height:40px}
+.cloud-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;background:#9ca3af;transition:background .3s}
+.cloud-dot.synced{background:#10b981;box-shadow:0 0 6px #10b981}
+.cloud-dot.syncing{background:#f59e0b;animation:pulse .8s infinite}
+.cloud-dot.failed{background:#ef4444;box-shadow:0 0 5px #ef4444}
+.cloud-dot.offline{background:#9ca3af}
+.cloud-lbl{font-size:11px;color:#6b7a9e;font-weight:600}
+.cloud-ts{font-size:10px;color:#9ca3af;font-family:monospace}
+.cloud-btns{display:flex;gap:6px;margin-left:auto}
+.btn-cloud{padding:5px 12px;border-radius:5px;font-size:11px;font-weight:700;cursor:pointer;border:none;font-family:inherit;transition:.15s;display:inline-flex;align-items:center;gap:4px}
+.btn-push{background:#1a6e5c;color:#fff}.btn-push:hover{background:#14574a}
+.btn-pull{background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd}.btn-pull:hover{background:#bae6fd}
+.btn-cfg{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb}.btn-cfg:hover{background:#e5e7eb}
+.cloud-cfg-row{background:#f7f8fc;border-bottom:1px solid #e2e6f0;padding:8px 20px;display:none;align-items:center;gap:8px;flex-wrap:wrap}
+.cloud-cfg-row.open{display:flex}
+.cloud-cfg-row input{flex:1;min-width:240px;border:1px solid #d0d5e8;border-radius:6px;padding:5px 10px;font-size:12px;font-family:monospace;outline:none;color:#1e2640}
+.cloud-cfg-row input:focus{border-color:#1a6e5c}
+.cloud-prog{height:3px;background:#e2e6f0;position:relative;overflow:hidden;display:none}
+.cloud-prog.active{display:block}
+.cloud-prog-fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#1a6e5c,#2dd4a8);width:0%;transition:width .25s}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+/* Cloud status badge in header */
+.hstat.cloud-stat .hstat-v{font-size:12px;cursor:pointer}
+
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">VRT</div>
+  <div><div class="h-title" data-zh="考勤分析系統" data-en="Attendance Analytics" data-km="ប្រព័ន្ធវិភាគវត្តមាន">考勤分析系統</div><div class="h-sub">ATTENDANCE ANALYTICS · v2</div></div>
+  <div class="h-stats">
+    <div class="hstat"><div class="hstat-v" id="hRecs">0</div><div class="hstat-l" data-zh="總記錄" data-en="Records">總記錄</div></div>
+    <div class="hstat"><div class="hstat-v" id="hDays">0</div><div class="hstat-l" data-zh="天數" data-en="Days">天數</div></div>
+    <div class="hstat"><div class="hstat-v" id="hSize" style="font-size:12px">-</div><div class="hstat-l" data-zh="儲存" data-en="Storage">儲存</div></div>
+    <div style="display:flex;border:1px solid rgba(255,255,255,.3);border-radius:5px;overflow:hidden;margin-left:8px">
+      <button onclick="setLang('zh')" class="lbtn lbtn-on" id="lbZh" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:#2dd4a8;color:#0f3027">中文</button>
+      <button onclick="setLang('en')" class="lbtn" id="lbEn" style="padding:3px 10px;font-size:11px;font-weight:700;border:none;cursor:pointer;background:transparent;color:#8bc5b5">EN</button>
+      <button onclick="setLang('km')" class="lbtn" id="lbKm" style="padding:3px 10px;font-size:10px;font-weight:700;border:none;cursor:pointer;background:transparent;color:#8bc5b5">ខ្មែរ</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══ CLOUD SYNC BAR ══ -->
+<div class="cloud-bar">
+  <div class="cloud-dot" id="cloudDot"></div>
+  <span class="cloud-lbl" id="cloudLbl" data-zh="雲端未設定（僅手動同步）" data-en="Cloud not configured (manual sync only)" data-km="Cloud មិនទាន់កំណត់ (ធ្វើដោយដៃ)">雲端未設定（僅手動同步）</span>
+  <span class="cloud-ts" id="cloudTs"></span>
+  <span class="cloud-ts" data-zh="不會自動上傳或下載" data-en="No automatic upload or download" data-km="មិនផ្ទុកឡើង ឬទាញយកដោយស្វ័យប្រវត្តិ">不會自動上傳或下載</span>
+  <div class="cloud-btns">
+    <button class="btn-cloud btn-push" onclick="pushCloud()" id="btnPush" disabled title="上傳至雲端 Push to Cloud" style="font-size:15px;padding:4px 9px">☁↑</button>
+    <button class="btn-cloud btn-pull" onclick="pullCloud()" id="btnPull" disabled title="從雲端拉取 Pull from Cloud" style="font-size:15px;padding:4px 9px">☁↓</button>
+    <button class="btn-cloud btn-cfg"  onclick="toggleCloudCfg()" title="設定 GAS URL / Configure GAS URL">⚙</button>
+  </div>
+</div>
+<div class="cloud-cfg-row" id="cloudCfgRow">
+  <label style="font-size:11px;font-weight:700;color:#6b7a9e;white-space:nowrap">GAS URL</label>
+  <input id="gasUrlInput" type="text" placeholder="https://script.google.com/macros/s/…/exec" />
+  <button class="btn-cloud btn-push" onclick="saveGasUrl()"><span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+  <button class="btn-cloud btn-cfg"  onclick="testConnection()" id="btnTest"><span data-zh="🔌 測試" data-en="🔌 Test" data-km="🔌 សាកល្បង">🔌 測試</span></button>
+</div>
+<div class="cloud-prog" id="cloudProg"><div class="cloud-prog-fill" id="cloudProgFill"></div></div>
+
+<div class="tabs">
+  <div class="tab on" onclick="goTab('upload',this)">📥 <span data-zh="上傳考勤" data-en="Import">上傳考勤</span></div>
+  <div class="tab" onclick="goTab('daily',this)">📊 <span data-zh="每日報告" data-en="Daily">每日報告</span></div>
+  <div class="tab" onclick="goTab('weekly',this)">📅 <span data-zh="週統計" data-en="Weekly">週統計</span></div>
+  <div class="tab" onclick="goTab('monthly',this)">📆 <span data-zh="月／年列表" data-en="Monthly / Yearly" data-km="ប្រចាំខែ / ឆ្នាំ">月／年列表</span></div>
+  <div class="tab" onclick="goTab('yearly',this)">📈 <span data-zh="年度分析" data-en="Yearly">年度分析</span></div>
+  <div class="tab" onclick="goTab('dept',this)">🏢 <span data-zh="部門分析" data-en="Dept">部門分析</span></div>
+  <div class="tab" onclick="goTab('group',this)">📊 <span data-zh="組別分析" data-en="Group">組別分析</span></div>
+  <div class="tab" onclick="goTab('records',this)">📋 <span data-zh="所有記錄" data-en="Records">所有記錄</span></div>
+  <div class="tab" onclick="goTab('sewcmp',this)">🔵 <span data-zh="出勤×車縫" data-en="Att×Sewing">出勤×車縫</span></div>
+</div>
+
+<!-- ══ UPLOAD ══ -->
+<div class="sec on" id="sec-upload">
+  <div class="card">
+    <div class="ct"><span data-zh="📧 拖放考勤 Excel 或 Email 檔案" data-en="📧 Drop Attendance File Here">📧 拖放考勤 Excel 或 Email 檔案</span></div>
+    <div class="tips">
+      <div class="tip" style="background:#f0fdf4;border-color:#bbf7d0" data-zh="✅ 每日更新：只需拖入最新一封 .msg／.eml；系統會跳過已匯入日期，只解析新增日期。" data-en="✅ Daily update: Drop only the latest .msg/.eml. Imported dates are skipped and only new dates are parsed." data-km="✅ បច្ចុប្បន្នភាពប្រចាំថ្ងៃ៖ ដាក់តែឯកសារចុងក្រោយ។">✅ 每日更新：只需拖入最新一封 .msg／.eml；系統會跳過已匯入日期，只解析新增日期。</div>
+      <div class="tip" style="background:#f0f9ff;border-color:#bae6fd" data-zh="📊 Excel 匯入：直接拖入 .xlsx；每天一個 Sheet，系統會讀取日期並自動防重複。" data-en="📊 Excel import: Drop the .xlsx directly. Each day is one sheet; dates are detected and duplicates are prevented." data-km="📊 នាំចូល Excel៖ ដាក់ឯកសារ .xlsx ដោយផ្ទាល់។">📊 Excel 匯入：直接拖入 .xlsx；每天一個 Sheet，系統會讀取日期並自動防重複。</div>
+      <div class="tip" style="background:#fff1f2;border-color:#fca5a5" data-zh="⚠️ 請勿同時拖入多封 .msg；每封都含先前日期，多封一起掃描會造成明顯卡頓。" data-en="⚠️ Do not drop several .msg files together. Each contains earlier dates, so rescanning them causes major delays." data-km="⚠️ កុំដាក់ឯកសារ .msg ច្រើនក្នុងពេលតែមួយ។">⚠️ 請勿同時拖入多封 .msg；每封都含先前日期，多封一起掃描會造成明顯卡頓。</div>
+    </div>
+    <div class="drop" id="dz" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="dzDrop(event)">
+      <input type="file" multiple accept=".xlsx,.xls,.eml,.msg" onchange="dzSelect(event)">
+      <div style="font-size:36px;margin-bottom:10px">📥</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:4px" data-zh="拖放考勤檔案到這裡" data-en="Drop attendance files here" data-km="ដាក់ឯកសារវត្តមាននៅទីនេះ">拖放考勤檔案到這裡</div>
+      <div style="font-size:12px;color:#6b7a9e" data-zh=".eml／.msg 自動提取附件 · .xlsx 解析所有 Sheet · 防重複匯入" data-en="Extract attachments from .eml/.msg · Read all .xlsx sheets · Prevent duplicate imports" data-km="ទាញឯកសារភ្ជាប់ និងការពារទិន្នន័យស្ទួន">.eml／.msg 自動提取附件 · .xlsx 解析所有 Sheet · 防重複匯入</div>
+    </div>
+    <div id="fileList" style="margin-top:10px"></div>
+    <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-p" id="btnImport" onclick="doImport()" disabled><span data-zh="🔍 解析匯入" data-en="🔍 Import">🔍 解析匯入</span></button>
+      <button class="btn btn-g" onclick="clearFiles()"><span data-zh="清除列表" data-en="Clear">清除列表</span></button>
+      <label style="font-size:11px;color:#6b7a9e;display:flex;align-items:center;gap:4px;cursor:pointer" title="勾選後會覆蓋已匯入日期的資料（重新解析）">
+        <input type="checkbox" id="chkOverwrite"> <span data-zh="覆蓋已匯入日期" data-en="Replace imported dates" data-km="ជំនួសកាលបរិច្ឆេទដែលបាននាំចូល">覆蓋已匯入日期</span>
+      </label>
+      <span id="importMsg" style="font-size:13px"></span>
+    </div>
+    <div id="progressBar" style="display:none;margin-top:10px">
+      <div style="background:#e2e6f0;border-radius:4px;height:8px;overflow:hidden"><div id="progressFill" style="height:100%;background:linear-gradient(90deg,#1a6e5c,#2dd4a8);width:0%;transition:width .2s"></div></div>
+      <div id="progressText" style="font-size:11px;color:#6b7a9e;margin-top:4px"></div>
+    </div>
+    </div>
+    <div id="dedupLog" style="display:none;background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:11px;color:#92400e;max-height:120px;overflow-y:auto"></div>
+    <div id="importPreview" style="display:none;margin-top:12px"></div>
+  </div>
+  <details style="margin-top:14px">
+    <summary style="cursor:pointer;user-select:none;padding:10px 14px;background:#f7f8fc;border:1px solid #e2e6f0;border-radius:8px;font-size:13px;font-weight:700;color:#6b7a9e;list-style:none;display:flex;align-items:center;gap:6px">
+      <span>⚙</span> <span data-zh="資料管理 / 備份還原" data-en="Data Management">資料管理 / 備份還原</span>
+      <span style="margin-left:auto;font-size:11px;color:#9ca3af" data-zh="點擊展開" data-en="Click to expand">點擊展開</span>
+    </summary>
+    <div class="card" style="border-top-left-radius:0;border-top-right-radius:0;border-top:none;margin-top:0">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-g" onclick="backupJSON()"><span data-zh="📦 備份 JSON" data-en="📦 Backup JSON">📦 備份 JSON</span></button>
+        <button class="btn btn-g" onclick="document.getElementById('restoreFile').click()"><span data-zh="📂 還原 JSON" data-en="📂 Restore JSON">📂 還原 JSON</span></button>
+        <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="restoreJSON(event)">
+        <button class="btn btn-g" onclick="exportAllCSV()"><span data-zh="⬇ CSV" data-en="⬇ CSV">⬇ 匯出 CSV</span></button>
+        <button class="btn btn-d" onclick="clearAllData()" style="margin-left:auto"><span data-zh="🗑 清除所有資料" data-en="🗑 Clear All">🗑 清除所有資料</span></button>
+      </div>
+    </div>
+  </details>
+</div>
+
+<!-- ══ DAILY ══ -->
+<div class="sec" id="sec-daily">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navDay(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e" data-zh="日期" data-en="Date" data-km="កាលបរិច្ឆេទ">日期</label>
+    <select id="dsel" onchange="renderDaily()"></select>
+    <button class="btn btn-g" onclick="navDay(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <span id="dayMeta" style="font-size:12px;color:#8b95b8;margin-left:auto"></span>
+    <button class="btn btn-t" onclick="genTelegram('daily')"><span data-zh='📱 Telegram 摘要' data-en='📱 Telegram'>📱 Telegram 摘要</span></button>
+    <button class="btn btn-g" onclick="exportDayExcel()">⬇ Excel</button>
+  </div>
+  <div id="dayKpi" class="kpi-strip"></div>
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card"><div class="ct"><span data-zh="假別佔比" data-en="Leave Types">假別佔比</span></div><div class="ch" style="height:150px"><canvas id="cLeave"></canvas></div></div>
+    <div class="card"><div class="ct"><span data-zh="部門出勤率" data-en="Dept Att.Rate">部門出勤率</span></div><div class="ch" style="height:150px"><canvas id="cDeptRate"></canvas></div></div>
+  </div>
+  <div class="card"><div class="ct" data-zh="考勤日報表" data-en="Daily Attendance Report" data-km="របាយការណ៍វត្តមានប្រចាំថ្ងៃ">考勤日報表</div><div class="twrap" id="dayTable"></div></div>
+</div>
+
+<!-- ══ WEEKLY ══ -->
+<div class="sec" id="sec-weekly">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navWeek(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e" data-zh="週次" data-en="Week" data-km="សប្តាហ៍">週次</label>
+    <select id="wsel" onchange="renderWeekly()"></select>
+    <button class="btn btn-g" onclick="navWeek(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('weekly')" style="margin-left:auto"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary" data-km="📱 សេចក្តីសង្ខេប Telegram">📱 Telegram 摘要</span></button>
+  </div>
+  <div id="weekKpi" class="kpi-strip"></div>
+  <div class="card"><div class="ct" data-zh="週內逐日出勤率趨勢" data-en="Daily Attendance Rate During the Week" data-km="អត្រាវត្តមានប្រចាំថ្ងៃក្នុងសប្តាហ៍">週內逐日出勤率趨勢</div><div class="ch" style="height:240px"><canvas id="cWeekTrend"></canvas></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct" data-zh="新進 vs 離職" data-en="Join vs Resign" data-km="ចូលថ្មី vs លាឈប់">新進 vs 離職</div><div class="ch" style="height:200px"><canvas id="cWeekJR"></canvas></div></div>
+    <div class="card"><div class="ct" data-zh="假別分布" data-en="Leave Type Distribution" data-km="ការបែងចែកប្រភេទឈប់">假別分布</div><div class="ch" style="height:200px"><canvas id="cWeekLeave"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:4px">
+    <div class="ct"><span data-zh="各組出勤率 (週)" data-en="Section Att. Rate (Week)">各組出勤率 (週)</span></div>
+    <div id="weekGrpCards" class="g3" style="gap:10px"></div>
+  </div>
+</div>
+
+<!-- ══ MONTHLY ══ -->
+<div class="sec" id="sec-monthly">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navMonth(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e" data-zh="月份" data-en="Month" data-km="ខែ">月份</label>
+    <select id="msel" onchange="renderMonthly()"></select>
+    <button class="btn btn-g" onclick="navMonth(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('monthly')" style="margin-left:auto"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary" data-km="📱 សេចក្តីសង្ខេប Telegram">📱 Telegram 摘要</span></button>
+  </div>
+  <div id="monthKpi" class="kpi-strip"></div>
+  <div class="card">
+    <div style="display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;margin-bottom:10px">
+      <div class="ct" style="margin-bottom:0" data-zh="期間考勤報表" data-en="Period Attendance Report" data-km="របាយការណ៍វត្តមានតាមរយៈពេល">期間考勤報表</div>
+      <div style="display:flex;align-items:center;gap:9px;flex-wrap:wrap">
+        <div class="segmented">
+          <button id="attListMonthBtn" class="on" onclick="setAttendanceListGrain('month')" data-zh="月報" data-en="Monthly" data-km="ប្រចាំខែ">月報</button>
+          <button id="attListYearBtn" onclick="setAttendanceListGrain('year')" data-zh="年報" data-en="Yearly" data-km="ប្រចាំឆ្នាំ">年報</button>
+        </div>
+        <span id="attPeriodCount" style="font-size:10px;color:#8b95b8"></span>
+      </div>
+    </div>
+    <div class="twrap" style="max-height:360px">
+      <table class="dtbl period-list-table">
+        <thead><tr>
+          <th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th>
+          <th data-zh="天數" data-en="Days" data-km="ថ្ងៃ">天數</th>
+          <th data-zh="平均在職" data-en="Avg Headcount" data-km="បុគ្គលិកមធ្យម">平均在職</th>
+          <th data-zh="平均出勤" data-en="Avg Attendance" data-km="វត្តមានមធ្យម">平均出勤</th>
+          <th data-zh="出勤率" data-en="Attendance Rate" data-km="អត្រាវត្តមាន">出勤率</th>
+          <th data-zh="缺勤" data-en="Absence" data-km="អវត្តមាន">缺勤</th>
+          <th data-zh="新進" data-en="Join" data-km="ចូលថ្មី">新進</th>
+          <th data-zh="離職" data-en="Resign" data-km="លាឈប់">離職</th>
+          <th data-zh="流失率" data-en="Turnover" data-km="អត្រាចាកចេញ">流失率</th>
+        </tr></thead>
+        <tbody id="attPeriodBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="ct"><span data-zh="各組出勤率 (月)" data-en="Section Att. Rate (Month)">各組出勤率 (月)</span></div>
+    <div id="monthGrpCards" class="g3" style="gap:10px"></div>
+  </div>
+  <div class="card"><div class="ct" data-zh="月內出勤率趨勢" data-en="Attendance Rate During the Month" data-km="អត្រាវត្តមានក្នុងខែ">月內出勤率趨勢</div><div class="ch" style="height:260px"><canvas id="cMonthTrend"></canvas></div></div>
+  <div class="g2">
+    <div class="card"><div class="ct" data-zh="人數變動（在職／出勤）" data-en="Headcount Change (Headcount / Attendance)" data-km="ការប្រែប្រួលចំនួនបុគ្គលិក">人數變動（在職／出勤）</div><div class="ch" style="height:220px"><canvas id="cMonthHead"></canvas></div></div>
+    <div class="card"><div class="ct" data-zh="流失率趨勢" data-en="Turnover Trend" data-km="និន្នាការចាកចេញ">流失率趨勢</div><div class="ch" style="height:220px"><canvas id="cMonthTurnover"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ══ DEPT ══ -->
+<div class="sec" id="sec-yearly">
+  <div class="frow">
+    <button class="btn btn-g" onclick="navYear(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <label style="color:#6b7a9e"><span data-zh="年度" data-en="Year">年度</span></label>
+    <select id="ysel" onchange="renderYearly()"></select>
+    <button class="btn btn-g" onclick="navYear(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('yearly')" style="margin-left:auto"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary" data-km="📱 សេចក្តីសង្ខេប Telegram">📱 Telegram 摘要</span></button>
+  </div>
+  <div id="yearKpi" class="kpi-strip"></div>
+  <div class="card"><div class="ct"><span data-zh="月度出勤率走勢" data-en="Monthly Att. Rate Trend">月度出勤率走勢</span></div><div class="ch" style="height:280px"><canvas id="cYearRate"></canvas></div></div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card"><div class="ct"><span data-zh="月度人數變動" data-en="Monthly Headcount">月度人數變動</span></div><div class="ch" style="height:240px"><canvas id="cYearHead"></canvas></div></div>
+    <div class="card"><div class="ct"><span data-zh="月度流失率" data-en="Monthly Turnover Rate">月度流失率</span></div><div class="ch" style="height:240px"><canvas id="cYearTurnover"></canvas></div></div>
+  </div>
+  <div class="card" style="margin-top:14px"><div class="ct"><span data-zh="新進 vs 離職 月度對比" data-en="Join vs Resign Monthly">新進 vs 離職 月度對比</span></div><div class="ch" style="height:220px"><canvas id="cYearJR"></canvas></div></div>
+</div>
+
+<!-- ══ DEPT ══ -->
+<div class="sec" id="sec-dept">
+  <div class="frow">
+    <label style="color:#6b7a9e" data-zh="期間模式" data-en="Period Mode" data-km="របៀបរយៈពេល">期間模式</label>
+    <select id="deptMode" onchange="deptModeChange()">
+      <option value="day" data-zh="單日" data-en="Day" data-km="ថ្ងៃ">單日</option>
+      <option value="week" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</option>
+      <option value="month" selected data-zh="月" data-en="Month" data-km="ខែ">月</option>
+      <option value="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</option>
+    </select>
+    <button class="btn btn-g" onclick="navDept(-1)" style="padding:6px 12px;font-size:16px">◀</button>
+    <select id="deptSel" onchange="renderDept()"></select>
+    <button class="btn btn-g" onclick="navDept(1)" style="padding:6px 12px;font-size:16px">▶</button>
+    <input id="deptSearch" oninput="renderDept()" style="min-width:190px;border:1px solid #d0d5e8;border-radius:6px;padding:7px 10px" data-placeholder-zh="搜尋部門／組別" data-placeholder-en="Search department / section" placeholder="搜尋部門／組別">
+  </div>
+  <div id="deptCards"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="ct" data-zh="部門／組別排名明細" data-en="Department / Section Ranking" data-km="ចំណាត់ថ្នាក់ផ្នែក / ក្រុម">部門／組別排名明細</div>
+    <div class="twrap" style="max-height:420px">
+      <table class="dtbl analysis-table">
+        <thead><tr>
+          <th data-zh="部門／組別" data-en="Department / Section" data-km="ផ្នែក / ក្រុម">部門／組別</th>
+          <th data-zh="平均在職" data-en="Avg Headcount" data-km="បុគ្គលិកមធ្យម">平均在職</th>
+          <th data-zh="平均出勤" data-en="Avg Attendance" data-km="វត្តមានមធ្យម">平均出勤</th>
+          <th data-zh="出勤率" data-en="Attendance Rate" data-km="អត្រាវត្តមាន">出勤率</th>
+          <th>AL</th><th>NP</th><th>ML</th>
+          <th data-zh="新進" data-en="Join" data-km="ចូលថ្មី">新進</th>
+          <th data-zh="離職" data-en="Resign" data-km="លាឈប់">離職</th>
+        </tr></thead>
+        <tbody id="deptSummaryBody"></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="g2" style="margin-top:14px">
+    <div class="card"><div class="ct"><span data-zh="各部門男女比例" data-en="Gender Ratio by Dept">各部門男女比例</span></div><div id="genderBars"></div></div>
+    <div class="card"><div class="ct"><span data-zh="部門出勤率對比" data-en="Dept Att. Rate Comparison">部門出勤率對比</span></div><div class="ch" style="height:200px"><canvas id="cDeptCompare"></canvas></div></div>
+  </div>
+</div>
+
+<!-- ══ GROUP ══ -->
+<div class="sec" id="sec-group">
+  <div class="frow" style="flex-wrap:wrap;gap:10px;align-items:center">
+    <label style="color:#6b7a9e;font-size:12px"><span data-zh="模式" data-en="Mode">模式</span></label>
+    <select id="grpMode" onchange="grpModeChange()">
+      <option value="day" data-zh="單日" data-en="Day" data-km="ថ្ងៃ">單日</option>
+      <option value="week" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</option>
+      <option value="month" selected data-zh="月" data-en="Month" data-km="ខែ">月</option>
+      <option value="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</option>
+    </select>
+    <button class="btn btn-g" onclick="navGrp(-1)" style="padding:5px 10px">◀</button>
+    <select id="grpSel" onchange="renderGroupAnalysis()" style="min-width:120px"></select>
+    <button class="btn btn-g" onclick="navGrp(1)" style="padding:5px 10px">▶</button>
+    <button class="btn btn-t" onclick="genTelegram('group')" style="margin-left:auto">📱 Telegram</button>
+  </div>
+  <div id="grpAlerts" style="margin-bottom:10px"></div>
+  <div id="grpCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-bottom:14px"></div>
+  <!-- Sewing Line Detail Section -->
+  <div id="sewingSection" style="display:none;margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><span data-zh="車縫各組詳細分析" data-en="Sewing Line Detail">🧵 車縫各組詳細分析 / Sewing Line Detail</span></div>
+      <div id="sewingCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:12px"></div>
+      <div style="overflow-x:auto"><table id="sewingTable" style="width:100%;border-collapse:collapse;font-size:11px"></table></div>
+    </div>
+  </div>
+  <div class="g2">
+    <div class="card"><div class="ct"><span data-zh="各組出勤率對比" data-en="Section Att. Rate">各組出勤率對比</span></div><div style="position:relative;height:260px"><canvas id="cGrpRate"></canvas></div></div>
+    <div class="card"><div class="ct"><span data-zh="各組假別佔比" data-en="Leave Type Breakdown">各組假別佔比</span></div><div id="grpLeaveTable" style="overflow-x:auto"></div></div>
+  </div>
+</div>
+
+<!-- ══ RECORDS ══ -->
+<div class="sec" id="sec-records">
+  <div class="frow"><span style="font-size:13px;color:#6b7a9e" id="recInfo"></span>
+    <button class="btn btn-g" onclick="exportAllCSV()" style="margin-left:auto">⬇ CSV</button></div>
+  <div class="twrap" id="recTable"></div>
+</div>
+
+<!-- Telegram modal -->
+<div id="tgModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:12px;padding:24px;width:560px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,.15)">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="font-size:15px"><span data-zh="📱 Telegram 摘要" data-en="📱 Telegram Summary">📱 Telegram 摘要</span></h3>
+      <button onclick="document.getElementById('tgModal').style.display='none'" style="background:none;border:none;font-size:22px;cursor:pointer">✕</button>
+    </div>
+    <div class="frow" style="padding:10px;background:#f7f8fc;border:1px solid #e2e6f0;border-radius:8px;margin-bottom:10px">
+      <label style="font-size:11px;color:#6b7a9e" data-zh="摘要期間" data-en="Summary Period" data-km="រយៈពេលសង្ខេប">摘要期間</label>
+      <select id="tgMode" onchange="populateTelegramPeriods()">
+        <option value="daily" data-zh="每日" data-en="Daily" data-km="ប្រចាំថ្ងៃ">每日</option>
+        <option value="weekly" data-zh="每週" data-en="Weekly" data-km="ប្រចាំសប្តាហ៍">每週</option>
+        <option value="monthly" data-zh="每月" data-en="Monthly" data-km="ប្រចាំខែ">每月</option>
+        <option value="yearly" data-zh="每年" data-en="Yearly" data-km="ប្រចាំឆ្នាំ">每年</option>
+      </select>
+      <select id="tgPeriod" onchange="previewTelegramSummary()" style="min-width:135px"></select>
+      <label style="font-size:11px;color:#6b7a9e" data-zh="語言" data-en="Language" data-km="ភាសា">語言</label>
+      <select id="tgLanguage" onchange="previewTelegramSummary()">
+        <option value="both" data-zh="中英雙語" data-en="Chinese + English" data-km="ចិន + អង់គ្លេស">中英雙語</option>
+        <option value="zh" data-zh="中文" data-en="Chinese" data-km="ចិន">中文</option>
+        <option value="en" data-zh="英文" data-en="English" data-km="អង់គ្លេស">英文</option>
+      </select>
+    </div>
+    <div style="font-size:10px;color:#6b7a9e;background:#f0f9ff;border:1px solid #bae6fd;border-radius:7px;padding:8px 10px;line-height:1.6" data-zh="月初自動發送上月摘要必須由 GAS 排程執行，頁面關閉後才仍能正常發送；HTML 不會自行在背景發送。" data-en="Automatic prior-month summaries must run from a GAS schedule so they still send while this page is closed. This HTML never sends in the background." data-km="ការផ្ញើសង្ខេបប្រចាំខែដោយស្វ័យប្រវត្តិត្រូវប្រើកាលវិភាគ GAS។">月初自動發送上月摘要必須由 GAS 排程執行，頁面關閉後才仍能正常發送；HTML 不會自行在背景發送。</div>
+    <div class="tg-preview" id="tgContent"></div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+            <button class="btn btn-t" onclick="sendViaTg()" id="btnTgSend"><span data-zh="📤 發送至群組" data-en="📤 Send">📤 發送至群組</span></button>
+      <button class="btn btn-t" onclick="copyTg()"><span data-zh="📋 複製到剪貼簿" data-en="📋 Copy">📋 複製到剪貼簿</span></button>
+      <span id="tgCopyOk" style="display:none;color:#10b981;font-size:12px;font-weight:600" data-zh="✅ 已複製！" data-en="✅ Copied!" data-km="✅ បានចម្លង!">✅ 已複製！</span>
+    </div>
+  </div>
+</div>
+
+<div id="tabBusy" class="tab-busy" data-zh="正在整理報表…" data-en="Preparing report…" data-km="កំពុងរៀបចំរបាយការណ៍…">正在整理報表…</div>
+<div id="toasts"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// VRT Attendance Analytics v5 — sewing_v5 style
+// ═══════════════════════════════════════════════════════════
+const DB_KEY='vrt_att_v5';
+const LS={
+  get:k=>{try{return JSON.parse(localStorage.getItem(DB_KEY+'_'+k)||'null')}catch(e){return null}},
+  set:(k,v)=>{try{localStorage.setItem(DB_KEY+'_'+k,JSON.stringify(v));return true}catch(e){return false}},
+  remove:k=>{try{localStorage.removeItem(DB_KEY+'_'+k);return true}catch(e){return false}}
+};
+function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))return 0;if(n>0&&n<1)return 0;return Math.round(n);}
+
+// ── Data store ──
+let DB=LS.get('db')||[];// Array of parsed row objects
+let IMPORT_LOG=LS.get('log')||[];
+// DB_META — tracks source, version, updatedAt for cloud vs local comparison
+let DB_META=LS.get('meta')||{updatedAt:'',cloudUpdatedAt:'',version:0,source:'local'};
+function _latestInDB(d){return[...new Set((d||DB).map(r=>r.date).filter(Boolean))].sort().pop()||'';}
+function saveMeta(m){DB_META={...DB_META,...m};LS.set('meta',DB_META);}
+let DATA_REV=0;
+let DATA_INDEX_REV=-1;
+let DATA_INDEX=null;
+let ACTIVE_TAB='upload';
+let ATT_LIST_GRAIN='month';
+const TAB_RENDER_REV={};
+
+function markDataChanged(){
+  DATA_REV++;
+  DATA_INDEX_REV=-1;
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+}
+function weekStartKey(dateKey){
+  const dt=new Date(dateKey+'T00:00:00Z');
+  const day=dt.getUTCDay()||7;
+  dt.setUTCDate(dt.getUTCDate()-day+1);
+  return dt.toISOString().slice(0,10);
+}
+function ensureDataIndex(){
+  if(DATA_INDEX&&DATA_INDEX_REV===DATA_REV)return DATA_INDEX;
+  const byDate=new Map(),grandByDate=new Map(),subtotalsByDate=new Map(),weekDates=new Map(),monthDates=new Map(),yearDates=new Map();
+  DB.forEach(r=>{
+    const d=r?.date;if(!d)return;
+    if(!byDate.has(d))byDate.set(d,[]);
+    byDate.get(d).push(r);
+    if(r.isGrand)grandByDate.set(d,r);
+    if(r.isSubtotal){
+      if(!subtotalsByDate.has(d))subtotalsByDate.set(d,[]);
+      subtotalsByDate.get(d).push(r);
+    }
+  });
+  const dates=[...byDate.keys()].sort();
+  dates.forEach(d=>{
+    const w=weekStartKey(d),m=d.slice(0,7),y=d.slice(0,4);
+    if(!weekDates.has(w))weekDates.set(w,[]);
+    if(!monthDates.has(m))monthDates.set(m,[]);
+    if(!yearDates.has(y))yearDates.set(y,[]);
+    weekDates.get(w).push(d);monthDates.get(m).push(d);yearDates.get(y).push(d);
+  });
+  DATA_INDEX={byDate,grandByDate,subtotalsByDate,weekDates,monthDates,yearDates,dates,weeks:[...weekDates.keys()].sort(),months:[...monthDates.keys()].sort(),years:[...yearDates.keys()].sort()};
+  DATA_INDEX_REV=DATA_REV;
+  return DATA_INDEX;
+}
+function periodDates(mode,key){
+  const idx=ensureDataIndex();
+  if(mode==='day')return idx.byDate.has(key)?[key]:[];
+  if(mode==='month')return[...(idx.monthDates.get(key)||[])];
+  if(mode==='year')return[...(idx.yearDates.get(key)||[])];
+  if(mode==='week')return[...(idx.weekDates.get(key)||[])];
+  return[];
+}
+
+// ── IndexedDB snapshot storage (large and fast; one record instead of 150k writes) ──
+const ATT_IDB_NAME  = 'AC_HRA_Attendance';
+const ATT_IDB_VERSION=2;
+const ATT_IDB_STORE = 'snapshot';
+const ATT_IDB_LEGACY_STORE='records';
+const ATT_IDB_KEY='database';
+let ATT_IDB_PROMISE=null;
+
+function openAttIDB() {
+  if(ATT_IDB_PROMISE)return ATT_IDB_PROMISE;
+  ATT_IDB_PROMISE=new Promise((res, rej) => {
+    let req;
+    try{req=indexedDB.open(ATT_IDB_NAME,ATT_IDB_VERSION)}catch(e){rej(e);return}
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(ATT_IDB_STORE)) {
+        db.createObjectStore(ATT_IDB_STORE);
+      }
+    };
+    req.onsuccess = e => {
+      const db=e.target.result;
+      db.onversionchange=()=>{db.close();ATT_IDB_PROMISE=null};
+      res(db);
+    };
+    req.onerror   = () => rej(req.error);
+    req.onblocked = () => rej(new Error('IndexedDB upgrade blocked'));
+  });
+  ATT_IDB_PROMISE=ATT_IDB_PROMISE.catch(e=>{ATT_IDB_PROMISE=null;throw e});
+  return ATT_IDB_PROMISE;
+}
+
+async function saveToIDB(recs) {
+  const db = await openAttIDB();
+  const stores=[ATT_IDB_STORE];
+  if(db.objectStoreNames.contains(ATT_IDB_LEGACY_STORE))stores.push(ATT_IDB_LEGACY_STORE);
+  const tx = db.transaction(stores, 'readwrite');
+  const os = tx.objectStore(ATT_IDB_STORE);
+  os.put(recs||[],ATT_IDB_KEY);
+  if(stores.includes(ATT_IDB_LEGACY_STORE))tx.objectStore(ATT_IDB_LEGACY_STORE).clear();
+  return new Promise((res, rej) => {
+    tx.oncomplete = () => { LS.remove('db');res((recs||[]).length); };
+    tx.onerror    = () => rej(tx.error);
+    tx.onabort    = () => rej(tx.error||new Error('IndexedDB save aborted'));
+  });
+}
+
+async function loadFromIDB() {
+  try {
+    const db = await openAttIDB();
+    const snapshot=await new Promise((res) => {
+      const tx = db.transaction(ATT_IDB_STORE, 'readonly');
+      const q  = tx.objectStore(ATT_IDB_STORE).get(ATT_IDB_KEY);
+      q.onsuccess = () => res(Array.isArray(q.result)?q.result:[]);
+      q.onerror   = () => res([]);
+    });
+    if(snapshot.length)return snapshot;
+    if(db.objectStoreNames.contains(ATT_IDB_LEGACY_STORE)){
+      const legacy=await new Promise(res=>{
+        const tx=db.transaction(ATT_IDB_LEGACY_STORE,'readonly'),q=tx.objectStore(ATT_IDB_LEGACY_STORE).getAll();
+        q.onsuccess=()=>res(q.result||[]);q.onerror=()=>res([]);
+      });
+      if(legacy.length){await saveToIDB(legacy);return legacy}
+    }
+    return[];
+  } catch(e) { return []; }
+}
+
+// Local-only startup. Cloud upload/download is always initiated by the user.
+(async function smartStartup() {
+  try {
+    const recs = await loadFromIDB();
+    if (recs.length > 0 && recs.length >= DB.length) {
+      DB = recs;
+      IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
+      markDataChanged();
+      updateHeader();
+    } else if (!recs.length && DB.length) {
+      await saveToIDB(DB);
+      markDataChanged();
+      updateHeader();
+    }
+  } catch(e) { console.warn('[STARTUP] IDB load failed:', e); }
+})();
+
+
+function saveDB(){
+  markDataChanged();
+  LS.set('log', IMPORT_LOG);
+  updateHeader();
+  return saveToIDB(DB).catch(e=>{
+    console.warn('[IDB save error]', e);
+    toast(T('瀏覽器資料庫無法寫入，請先下載 JSON 備份','Browser database could not be written. Download a JSON backup now.','មិនអាចរក្សាទុកទិន្នន័យបាន'),'err');
+    return 0;
+  });
+}
+function updateHeader(){
+  document.getElementById('hRecs').textContent=DB.length;
+  document.getElementById('hDays').textContent=ensureDataIndex().dates.length;
+  const sample=DB.slice(0,Math.min(DB.length,250));
+  const sz=sample.length?Math.round(JSON.stringify(sample).length/sample.length*DB.length):0;
+  document.getElementById('hSize').textContent=sz>1048576?'~'+(sz/1048576).toFixed(1)+'MB':'~'+(sz/1024).toFixed(0)+'KB';
+}
+// ── Debug Sync Status Badge ──────────────────────────────────────
+// Set DEBUG_MODE=true in console to show sync badge
+let DEBUG_MODE=false;
+function updateSyncBadge(attLocal,attCloud,sewLocal,sewCloud){
+  if(!DEBUG_MODE){const el=document.getElementById('sync-badge');if(el)el.style.display='none';return;}
+  let el=document.getElementById('sync-badge');
+  if(!el){
+    el=document.createElement('div');
+    el.id='sync-badge';
+    el.style.cssText='position:fixed;bottom:12px;right:12px;background:rgba(30,58,95,.92);color:#fff;font-size:10px;font-family:monospace;padding:6px 10px;border-radius:6px;z-index:9999;line-height:1.6;max-width:200px;pointer-events:none';
+    document.body.appendChild(el);
+  }
+  const _d=s=>s?String(s).slice(0,10):'—';
+  const _ok=(l,c)=>l&&c&&l>=c?'✅':'⚠';
+  el.innerHTML=
+    `ATT: ${_ok(attLocal,attCloud)} local=${_d(attLocal)} cloud=${_d(attCloud)}<br>`+
+    `SEW: ${_ok(sewLocal,sewCloud)} local=${_d(sewLocal)} cloud=${_d(sewCloud)}`;
+}
+
+// ── calc ──
+function calc(r){const ttl=r.m+r.f,absent=r.al+r.pl+r.sl+r.np+r.bus+r.fl+r.ml,report=ttl-r.resign+r.join+r.ti-r.to,rate=r.att>0&&report>0?r.att/report:null;return{ttl,absent,report,rate};}
+function allDates(){return[...ensureDataIndex().dates];}
+function allMonths(){return[...ensureDataIndex().months];}
+function grandForDate(d){return ensureDataIndex().grandByDate.get(d);}
+function rowsForDate(d){return ensureDataIndex().byDate.get(d)||[];}
+function subtotalsForDate(d){return ensureDataIndex().subtotalsByDate.get(d)||[];}
+
+// ═══════ LANGUAGE ═══════
+let LANG=['zh','en','km'].includes(LS.get('lang'))?LS.get('lang'):'zh';
+function T(zh,en,km){return LANG==='zh'?zh:LANG==='km'?(km||en):en;}
+function setLang(l){
+  if(!['zh','en','km'].includes(l))l='zh';
+  LANG=l;
+  LS.set('lang',l);
+  document.documentElement.lang=l==='zh'?'zh-TW':l;
+  document.getElementById('lbZh').style.background=l==='zh'?'#2dd4a8':'transparent';
+  document.getElementById('lbZh').style.color=l==='zh'?'#0f3027':'#8bc5b5';
+  document.getElementById('lbEn').style.background=l==='en'?'#2dd4a8':'transparent';
+  document.getElementById('lbEn').style.color=l==='en'?'#0f3027':'#8bc5b5';
+  if(document.getElementById('lbKm')){
+    document.getElementById('lbKm').style.background=l==='km'?'#2dd4a8':'transparent';
+    document.getElementById('lbKm').style.color=l==='km'?'#0f3027':'#8bc5b5';
+  }
+  document.querySelectorAll('[data-zh]').forEach(el=>{
+    const v=el.getAttribute('data-'+l)||el.getAttribute('data-en')||el.getAttribute('data-zh');
+    if(v!=null)el.textContent=v;
+  });
+  document.querySelectorAll('[data-placeholder-zh]').forEach(el=>{
+    el.placeholder=el.getAttribute('data-placeholder-'+l)||el.getAttribute('data-placeholder-en')||el.getAttribute('data-placeholder-zh')||'';
+  });
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+  renderTab(ACTIVE_TAB,true);
+}
+
+// ═══════ TABS ═══════
+function goTab(name,el){
+  ACTIVE_TAB=name;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  if(el)el.classList.add('on');
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  const sec=document.getElementById('sec-'+name);
+  if(sec)sec.classList.add('on');
+  renderTab(name);
+}
+function renderTab(name,force){
+  if(name==='upload')return;
+  if(!force&&TAB_RENDER_REV[name]===DATA_REV)return;
+  const busy=document.getElementById('tabBusy');
+  if(busy)busy.classList.add('on');
+  const run=async()=>{
+    try{
+      if(name==='daily'){populateDateSel('dsel');renderDaily();}
+      else if(name==='weekly'){populateWeekSel();renderWeekly();}
+      else if(name==='monthly'){populateMonthSel();renderMonthly();}
+      else if(name==='yearly'){populateYearSel();renderYearly();}
+      else if(name==='dept'){populateDeptPeriodSel();renderDept();}
+      else if(name==='group')renderGroupAnalysis();
+      else if(name==='records')renderRecords();
+      else if(name==='sewcmp')await initSewCmp();
+      TAB_RENDER_REV[name]=DATA_REV;
+    }catch(e){
+      console.error('[renderTab]',name,e);
+      toast(T('報表載入失敗：','Report failed to load: ')+e.message,'err');
+    }finally{if(busy)busy.classList.remove('on');}
+  };
+  (window.requestAnimationFrame||function(cb){setTimeout(cb,0)})(run);
+}
+function renderAll(){
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+  renderTab(ACTIVE_TAB,true);
+}
+
+// ═══════ NAV ═══════
+function fillPeriodSelect(id,values,labelFn){
+  const s=document.getElementById(id);if(!s)return;
+  const current=s.value;
+  s.innerHTML=values.map(v=>`<option value="${v}">${labelFn?labelFn(v):v}</option>`).join('');
+  if(values.includes(current))s.value=current;
+}
+function populateDateSel(id){fillPeriodSelect(id,allDates().reverse());}
+function populateWeekSel(){
+  fillPeriodSelect('wsel',[...ensureDataIndex().weeks].reverse(),v=>'W '+v);
+}
+function populateMonthSel(){fillPeriodSelect('msel',allMonths().reverse());}
+function populateYearSel(){fillPeriodSelect('ysel',[...ensureDataIndex().years].reverse());}
+function nav(selId,dir){const s=document.getElementById(selId),o=[...s.options].map(x=>x.value),i=o.indexOf(s.value),n=i-dir;if(n>=0&&n<o.length){s.value=o[n];}}
+function navDay(d){nav('dsel',d);renderDaily();}
+function navWeek(d){nav('wsel',d);renderWeekly();}
+function navMonth(d){nav('msel',d);renderMonthly();}
+function navYear(d){nav('ysel',d);renderYearly();}
+
+// ═══════ KPI BUILDER ═══════
+function kpiHtml(label,value,sub,cls){return`<div class="kpi ${cls||''}"><div class="kpi-n">${value}</div><div class="kpi-l">${label}</div>${sub?'<div class="kpi-sub">'+sub+'</div>':''}</div>`;}
+function rateClass(r){return r>=0.92?'good':r>=0.85?'warn':'bad';}
+function rateBadge(r){if(r==null)return'—';const p=(r*100).toFixed(1)+'%';return`<span class="badge ${r>=0.92?'bg':r>=0.85?'bw':'bb'}">${p}</span>`;}
+
+
+// ── 車縫組統計 helper ─────────────────────────
+// dates: string (single day) or array of date strings
+function sewStats(dates) {
+  const ds = Array.isArray(dates) ? dates : [dates];
+  let hcSum=0, joinSum=0, resignSum=0, absSum=0, dayCount=0;
+  ds.forEach(d => {
+    const rows = rowsForDate(d).filter(isSewingLine);
+    if (!rows.length) return;
+    hcSum    += rows.reduce((s,r)=>s+(r.m||0)+(r.f||0), 0);
+    joinSum  += rows.reduce((s,r)=>s+(r.join||0), 0);
+    resignSum+= rows.reduce((s,r)=>s+(r.resign||0), 0);
+    absSum   += rows.reduce((s,r)=>s+(r.al||0)+(r.pl||0)+(r.sl||0)+(r.np||0)+(r.bus||0)+(r.fl||0)+(r.ml||0), 0);
+    dayCount++;
+  });
+  const avgHC = dayCount>0 ? Math.round(hcSum/dayCount) : 0;
+  return {avgHC, hcSum, joinSum, resignSum, absSum, dayCount};
+}
+
+// ═══════ DAILY ═══════
+const CH={};function mk(id,cfg){if(CH[id])CH[id].destroy();const el=document.getElementById(id);if(!el)return;CH[id]=new Chart(el,cfg);}
+
+function renderDaily(){
+  const d=document.getElementById('dsel')?.value;if(!d)return;
+  const g=grandForDate(d),rows=rowsForDate(d),subs=subtotalsForDate(d);
+  const c=g?calc(g):null;
+  const dayNo=new Date(d+'T00:00:00Z').getUTCDay();
+  const wday=LANG==='zh'?['日','一','二','三','四','五','六'][dayNo]:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayNo];
+  document.getElementById('dayMeta').textContent=`${d} (${wday}) · ${rows.length} ${T('筆','rows','rows')}`;
+
+  // KPIs
+  const ttl=c?c.ttl:0,att=g?g.att:0,rate=c?c.rate:null,absent=c?c.absent:0;
+  const _sw=sewStats(d);
+  document.getElementById('dayKpi').innerHTML=
+    kpiHtml(T('在職人數','Headcount','បុគ្គលិក'),ttl,g?`M:${g.m} F:${g.f}`+(_sw.avgHC>0?` | ${T('車縫','Sewing','ដេរ')}:${_sw.avgHC}`:''):'')+
+    kpiHtml(T('出勤率','Attendance Rate','អត្រាវត្តមាន'),rate!=null?(rate*100).toFixed(1)+'%':'—',`${T('出勤','Attendance','វត្តមាន')}:${att}`,rateClass(rate||0))+
+    kpiHtml(T('缺勤','Absence','អវត្តមាន'),absent,`ML:${g?g.ml:0}`+(_sw.absSum>0?` ${T('車縫','Sewing','ដេរ')}:${_sw.absSum}`:''))+
+    kpiHtml(T('新進','Join','ចូលថ្មី'),g?g.join:0,_sw.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_sw.joinSum}`:'')+
+    kpiHtml(T('離職','Resign','លាឈប់'),g?g.resign:0,(g&&ttl>0?T('流失率:','Turnover:','អត្រាចាកចេញ:')+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?` ${T('車縫','Sewing','ដេរ')}:`+_sw.resignSum:''))+
+    kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0);
+
+  // Leave pie — smaller with person count labels
+  if(g){
+    const lv=[g.al,g.pl,g.sl,g.np,g.bus,g.fl,g.ml];
+    const ll=['AL','PL','SL','NP','Bus','FL','ML'];
+    const lc=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
+    // Build labels with counts
+    const labelsWithCount=ll.map((l,i)=>lv[i]>0?`${l}:${lv[i]}`:l);
+    mk('cLeave',{type:'doughnut',data:{labels:labelsWithCount,datasets:[{data:lv,backgroundColor:lc,borderWidth:2,borderColor:'#fff'}]},options:{cutout:'50%',responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:9},generateLabels:function(chart){return chart.data.labels.map((l,i)=>{const v=chart.data.datasets[0].data[i];return{text:v>0?l:'',fillStyle:lc[i],hidden:v===0,index:i};}).filter(x=>x.text);}}}}}});
+  }
+  // Dept rate bar
+  const zh=LANG==='zh';
+  const deptSubs=subtotalsForDate(d).filter(r=>r.dept&&(r.m+r.f)>0);
+  if(deptSubs.length){
+    mk('cDeptRate',{type:'bar',data:{labels:deptSubs.map(r=>(r.sect||r.dept||'').replace(/小計|subtotal/gi,'').trim()||r.dept),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:deptSubs.map(r=>{const c=calc(r);return c.rate!=null?(c.rate*100).toFixed(1):0;}),backgroundColor:deptSubs.map(r=>{const c=calc(r);return c.rate>=0.92?'#10b981':c.rate>=0.85?'#f59e0b':'#ef4444';}),borderRadius:4}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{min:70,max:105,ticks:{callback:v=>v+'%'}}}}});
+  }
+
+  // Table
+  renderAttTable(rows,d,'dayTable');
+}
+
+// ═══════ WEEKLY ═══════
+function renderWeekly(){
+  const zh=LANG==='zh';
+  const wk=document.getElementById('wsel')?.value;if(!wk)return;
+  const mon=new Date(wk),sun=new Date(mon);sun.setDate(sun.getDate()+6);
+  const dates=periodDates('week',wk);
+  const grands=dates.map(grandForDate).filter(Boolean);
+  if(!grands.length){document.getElementById('weekKpi').innerHTML=`<div style="color:#8b95b8">${zh?'本週無資料':'No data this week'}</div>`;return;}
+
+  // Weighted avg rate
+  const totalRep=grands.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+  const totalAtt=grands.reduce((s,g)=>s+g.att,0);
+  const avgRate=totalRep>0?totalAtt/totalRep:null;
+  const totalJoin=grands.reduce((s,g)=>s+g.join,0);
+  const totalResign=grands.reduce((s,g)=>s+g.resign,0);
+  const avgTtl=Math.round(grands.reduce((s,g)=>s+(g.m+g.f),0)/grands.length);
+
+  const _swW=sewStats(dates);
+  const _swWpct=avgTtl>0?Math.round(_swW.avgHC/avgTtl*100):0;
+  document.getElementById('weekKpi').innerHTML=
+    kpiHtml(T('平均在職','Average Headcount','បុគ្គលិកមធ្យម'),avgTtl,`${dates.length} ${T('天','days','ថ្ងៃ')} | ${T('車縫','Sewing','ដេរ')}:${_swW.avgHC} (${_swWpct}%)`)+
+    kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${T('總出勤','Total Attendance','វត្តមានសរុប')}:${totalAtt}`,rateClass(avgRate||0))+
+    kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swW.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.joinSum}`:'',totalJoin>0?'good':'')+
+    kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swW.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.resignSum}`:'',totalResign>0?'bad':'')+
+    kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
+
+  // Trend
+  mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
+
+  // Join vs Resign
+  mk('cWeekJR',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('新進','Join','ចូលថ្មី'),data:grands.map(g=>g.join),backgroundColor:'rgba(16,185,129,.7)',borderRadius:4},{label:T('離職','Resign','លាឈប់'),data:grands.map(g=>-g.resign),backgroundColor:'rgba(239,68,68,.7)',borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:true,labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
+
+  // Leave
+  const lSum=grands.reduce((a,g)=>({al:a.al+g.al,pl:a.pl+g.pl,sl:a.sl+g.sl,np:a.np+g.np,bus:a.bus+g.bus,fl:a.fl+g.fl,ml:a.ml+g.ml}),{al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0});
+  mk('cWeekLeave',{type:'doughnut',data:{labels:['AL','PL','SL','NP','Bus','FL','ML'],datasets:[{data:[lSum.al,lSum.pl,lSum.sl,lSum.np,lSum.bus,lSum.fl,lSum.ml],backgroundColor:['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'],borderWidth:2,borderColor:'#fff'}]},options:{cutout:'55%',plugins:{legend:{position:'right',labels:{font:{size:10}}}}}});
+  renderSectionCards(dates,'weekGrpCards');
+}
+
+// ═══════ MONTHLY ═══════
+function renderMonthly(){
+  const zh=LANG==='zh';
+  const m=document.getElementById('msel')?.value;if(!m)return;
+  const dates=periodDates('month',m);
+  const grands=dates.map(grandForDate).filter(Boolean);
+  renderAttendancePeriodList();
+  if(!grands.length){document.getElementById('monthKpi').innerHTML=`<div style="color:#8b95b8">${T('本月無資料','No data this month','មិនមានទិន្នន័យក្នុងខែនេះ')}</div>`;return;}
+
+  const totalRep=grands.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+  const totalAtt=grands.reduce((s,g)=>s+g.att,0);
+  const avgRate=totalRep>0?totalAtt/totalRep:null;
+  const totalJoin=grands.reduce((s,g)=>s+g.join,0);
+  const totalResign=grands.reduce((s,g)=>s+g.resign,0);
+  const avgTtl=Math.round(grands.reduce((s,g)=>s+(g.m+g.f),0)/grands.length);
+  const avgTurnover=avgTtl>0?(totalResign/grands.length/avgTtl*100).toFixed(2):'0';
+
+  const _swM=sewStats(dates);
+  const _swMpct=avgTtl>0?Math.round(_swM.avgHC/avgTtl*100):0;
+  document.getElementById('monthKpi').innerHTML=
+    kpiHtml(T('平均在職','Average Headcount','បុគ្គលិកមធ្យម'),avgTtl,`${dates.length} ${T('天','days','ថ្ងៃ')} | ${T('車縫','Sewing','ដេរ')}:${_swM.avgHC} (${_swMpct}%)`)+
+    kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
+    kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swM.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.joinSum}`:'')+
+    kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swM.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.resignSum}`:'',totalResign>0?'bad':'')+
+    kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%');
+
+  // Daily rate trend
+  mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:T('目標92%','Target 92%','គោលដៅ 92%'),data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
+
+  // Headcount
+  mk('cMonthHead',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('在職','Headcount','បុគ្គលិក'),data:grands.map(g=>g.m+g.f),borderColor:'#3b82f6',fill:true,backgroundColor:'rgba(59,130,246,.08)',tension:.3,pointRadius:3},{label:T('出勤','Attendance','វត្តមាន'),data:grands.map(g=>g.att),borderColor:'#10b981',tension:.3,pointRadius:3,borderDash:[4,3]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:false}}}});
+
+  // Turnover
+  mk('cMonthTurnover',{type:'bar',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('流失率%','Turnover%','អត្រាចាកចេញ%'),data:grands.map(g=>{const t=g.m+g.f;return t>0?(g.resign/t*100).toFixed(3):0;}),backgroundColor:'rgba(239,68,68,.6)',borderRadius:3}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'}}}}});
+  renderSectionCards(dates,'monthGrpCards');
+}
+
+function attendancePeriodMetrics(grain,key){
+  const dates=periodDates(grain,key);
+  const grands=dates.map(grandForDate).filter(Boolean);
+  const reports=grands.reduce((sum,g)=>sum+calc(g).report,0);
+  const attendance=grands.reduce((sum,g)=>sum+(g.att||0),0);
+  const absence=grands.reduce((sum,g)=>sum+calc(g).absent,0);
+  const join=grands.reduce((sum,g)=>sum+(g.join||0),0);
+  const resign=grands.reduce((sum,g)=>sum+(g.resign||0),0);
+  const avgHC=grands.length?grands.reduce((sum,g)=>sum+(g.m||0)+(g.f||0),0)/grands.length:0;
+  const avgAttendance=grands.length?attendance/grands.length:0;
+  return{
+    key,days:grands.length,avgHC,avgAttendance,
+    rate:reports>0?attendance/reports:null,
+    absence,join,resign,
+    turnover:avgHC>0?resign/avgHC:null
+  };
+}
+function setAttendanceListGrain(grain){
+  ATT_LIST_GRAIN=grain==='year'?'year':'month';
+  renderAttendancePeriodList();
+}
+function renderAttendancePeriodList(){
+  const body=document.getElementById('attPeriodBody');if(!body)return;
+  const monthBtn=document.getElementById('attListMonthBtn'),yearBtn=document.getElementById('attListYearBtn');
+  if(monthBtn)monthBtn.classList.toggle('on',ATT_LIST_GRAIN==='month');
+  if(yearBtn)yearBtn.classList.toggle('on',ATT_LIST_GRAIN==='year');
+  const keys=(ATT_LIST_GRAIN==='month'?[...ensureDataIndex().months]:[...ensureDataIndex().years]).reverse();
+  const active=ATT_LIST_GRAIN==='month'?document.getElementById('msel')?.value:document.getElementById('ysel')?.value;
+  document.getElementById('attPeriodCount').textContent=T(`${keys.length} 個${ATT_LIST_GRAIN==='month'?'月份':'年度'}`,`${keys.length} ${ATT_LIST_GRAIN==='month'?'months':'years'}`,`${keys.length}`);
+  body.innerHTML=keys.map(key=>{
+    const x=attendancePeriodMetrics(ATT_LIST_GRAIN,key);
+    const rate=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';
+    const turnover=x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%';
+    return`<tr class="${key===active?'active':''}" onclick="jumpAttendancePeriod('${key}')">
+      <td style="text-align:left">${key===active?'◀ ':''}<b>${key}</b></td>
+      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td>
+      <td>${rateBadge(x.rate)}</td><td>${x.absence}</td><td>${x.join}</td><td>${x.resign}</td><td>${turnover}</td>
+    </tr>`;
+  }).join('');
+  if(!keys.length)body.innerHTML=`<tr><td colspan="9">${T('尚無期間資料','No period data','មិនមានទិន្នន័យ')}</td></tr>`;
+}
+function jumpAttendancePeriod(key){
+  if(ATT_LIST_GRAIN==='month'){
+    const sel=document.getElementById('msel');if(sel){sel.value=key;renderMonthly();}
+    return;
+  }
+  const sel=document.getElementById('ysel');if(sel)sel.value=key;
+  const tab=[...document.querySelectorAll('.tab')].find(el=>(el.getAttribute('onclick')||'').includes("'yearly'"));
+  goTab('yearly',tab);
+}
+
+// ═══════ DEPT ═══════
+function populateDeptPeriodSel(){
+  const mode=document.getElementById('deptMode')?.value||'month';
+  const sel=document.getElementById('deptSel');if(!sel)return;
+  const oldMode=sel.dataset.mode,current=sel.value;
+  let values=[];
+  if(mode==='day')values=allDates().reverse();
+  else if(mode==='week')values=[...ensureDataIndex().weeks].reverse();
+  else if(mode==='year')values=[...ensureDataIndex().years].reverse();
+  else values=[...ensureDataIndex().months].reverse();
+  if(oldMode!==mode||sel.options.length!==values.length){
+    fillPeriodSelect('deptSel',values,v=>mode==='week'?'W '+v:v);
+    sel.dataset.mode=mode;
+    if(values.includes(current))sel.value=current;
+  }
+}
+function deptModeChange(){
+  const sel=document.getElementById('deptSel');if(sel)sel.dataset.mode='';
+  populateDeptPeriodSel();
+  renderDept();
+}
+function navDept(dir){nav('deptSel',dir);renderDept();}
+function renderDept(){
+  const mode=document.getElementById('deptMode')?.value||'month';
+  const key=document.getElementById('deptSel')?.value;if(!key)return;
+  const dates=periodDates(mode,key);
+  const query=(document.getElementById('deptSearch')?.value||'').trim().toLowerCase();
+  let items=aggregateSections(dates);
+  if(query)items=items.filter(s=>(s.dept+' '+s.name).toLowerCase().includes(query));
+  items.sort((a,b)=>{
+    const ar=a.report>0?a.att/a.report:2,br=b.report>0?b.att/b.report:2;
+    return ar-br||b.report-a.report;
+  });
+  const el=document.getElementById('deptCards');
+  if(!items.length){
+    el.innerHTML=`<div class="card" style="color:#8b95b8">${T('此期間沒有符合的部門／組別資料','No matching department or section data for this period','មិនមានទិន្នន័យត្រូវគ្នា')}</div>`;
+    document.getElementById('deptSummaryBody').innerHTML='';
+    document.getElementById('genderBars').innerHTML='';
+    return;
+  }
+  el.innerHTML=items.slice(0,18).map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const rateP=rate!=null?(rate*100).toFixed(1):'—';
+    const ratePct=rate!=null?Math.min(rate*100,100):0;
+    const avgHC=s.days?Math.round(s.ttl/s.days):0;
+    const avgAtt=s.days?Math.round(s.att/s.days):0;
+    return`<div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div><b>${s.name}</b>${s.dept&&s.dept!==s.name?`<div style="font-size:9px;color:#8b95b8;margin-top:2px">${s.dept}</div>`:''}</div>${rateBadge(rate)}
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;text-align:center;font-size:10px;color:#6b7a9e;margin-bottom:8px">
+        <div>👥<br><b style="font-size:14px;color:#1e2640">${avgHC}</b><br>${T('均在職','Avg HC','បុគ្គលិក')}</div>
+        <div>✅<br><b style="font-size:14px;color:#10b981">${avgAtt}</b><br>${T('均出勤','Avg Att','វត្តមាន')}</div>
+        <div>⚠️<br><b style="font-size:14px;color:#f59e0b">${s.absent}</b><br>${T('缺勤','Absence','អវត្តមាន')}</div>
+        <div>🤰<br><b style="font-size:14px;color:#ec4899">${s.ml}</b><br>ML</div>
+        <div>🟢<br><b style="font-size:14px;color:#10b981">${s.join}</b><br>${T('新進','Join','ចូលថ្មី')}</div>
+        <div>🔴<br><b style="font-size:14px;color:#ef4444">${s.resign}</b><br>${T('離職','Resign','លាឈប់')}</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;font-size:10px;color:#6b7a9e">
+        <span>${T('出勤率','Rate','អត្រាវត្តមាន')}</span>
+        <div style="flex:1;height:8px;background:#e2e6f0;border-radius:4px;overflow:hidden">
+          <div style="height:100%;width:${ratePct}%;background:${rate>=0.92?'#10b981':rate>=0.85?'#f59e0b':'#ef4444'};border-radius:4px"></div>
+        </div>
+        <span style="font-weight:700;color:${rate>=0.92?'#10b981':rate>=0.85?'#f59e0b':'#ef4444'}">${rateP}${rateP==='—'?'':'%'}</span>
+      </div>
+    </div>`;}).join('');
+
+  document.getElementById('deptSummaryBody').innerHTML=items.map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const label=s.dept&&s.dept!==s.name?s.dept+' / '+s.name:s.name;
+    return`<tr><td style="text-align:left"><b>${label}</b></td>
+      <td>${s.days?Math.round(s.ttl/s.days):0}</td><td>${s.days?Math.round(s.att/s.days):0}</td>
+      <td>${rateBadge(rate)}</td><td>${s.al}</td><td>${s.np}</td><td>${s.ml}</td><td>${s.join}</td><td>${s.resign}</td></tr>`;
+  }).join('');
+
+  document.getElementById('genderBars').innerHTML=items.slice(0,20).map(s=>{const t=s.m+s.f,p=t?s.m/t*100:0;
+    const label=s.dept&&s.dept!==s.name?s.dept+' / '+s.name:s.name;
+    return`<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:160px;font-size:11px;color:#6b7a9e;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${label}">${label}</div>
+      <div style="flex:1;height:14px;border-radius:4px;overflow:hidden;display:flex">
+        <div style="width:${p}%;background:#3b82f6"></div><div style="width:${100-p}%;background:#ec4899"></div>
+      </div>
+      <div style="font-size:10px;color:#8b95b8;white-space:nowrap">♂${s.m} ♀${s.f}</div>
+    </div>`;}).join('');
+
+  if(items.length){
+    const chartItems=items.slice(0,24);
+    mk('cDeptCompare',{type:'bar',data:{
+      labels:chartItems.map(s=>s.name.length>14?s.name.slice(0,14)+'…':s.name),
+      datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:chartItems.map(s=>s.report>0?+(s.att/s.report*100).toFixed(1):0),backgroundColor:chartItems.map(s=>{const r=s.report?s.att/s.report:0;return r>=.92?'#10b981':r>=.85?'#f59e0b':'#ef4444'}),borderRadius:3}]
+    },options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{min:70,max:100,ticks:{callback:v=>v+'%'}}}}});
+  }
+}
+
+// ═══════ RECORDS ═══════
+function renderRecords(){
+  const zh_r=LANG==='zh';document.getElementById('recInfo').textContent=zh_r?`共 ${DB.length} 筆記錄，${allDates().length} 天`:`${DB.length} records · ${allDates().length} days`;
+  const dates=allDates().reverse();
+  let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
+  // Show latest 500 rows
+  const show=dates.slice(0,5).flatMap(rowsForDate).slice(0,500);
+  show.forEach(r=>{const c=calc(r);const rc=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
+    html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
+  html+='</tbody></table>';document.getElementById('recTable').innerHTML=html;
+}
+
+// ═══════ ATT TABLE ═══════
+function renderAttTable(rows,date,containerId){
+  const deptH=T('部門','Department','ផ្នែក'),sectH=T('分區','Section','ក្រុម'),lineH=T('組別／職稱','Group / Title','ក្រុម / តួនាទី');
+  const hcH=T('在職','Headcount','បុគ្គលិក'),reportH=T('應到','Expected','ត្រូវមក'),absH=T('缺勤','Absence','អវត្តមាន'),attH=T('出勤','Attendance','វត្តមាន');
+  let html=`<table class="dtbl"><thead><tr>
+  <th rowspan="2" style="min-width:120px">${deptH}</th><th rowspan="2" style="min-width:100px">${sectH}</th><th rowspan="2" style="min-width:180px">${lineH}</th>
+  <th colspan="3">${hcH}</th><th>${T('新進','Join','ចូលថ្មី')}</th><th>T-In</th><th>${T('培訓','Training','បណ្តុះបណ្តាល')}</th><th>T-Out</th><th>${T('離職','Resign','លាឈប់')}</th><th>${reportH}</th>
+  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>${T('停工','Idle','ផ្អាក')}</th><th>${absH}</th><th>${attH}</th><th style="background:#14574a;color:#fff">${T('出勤率','Rate','អត្រា')}%</th></tr>
+  <tr><th>M</th><th>F</th><th>TTL</th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    const c=calc(r),rc=c.rate===null?'':c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb',rs=c.rate===null?'—':(c.rate*100).toFixed(1)+'%';
+    const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
+    html+=`<tr class="${cls}"><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td>
+    <td>${r.m}</td><td>${r.f}</td><td><b>${c.ttl}</b></td><td>${r.join}</td><td>${r.ti}</td><td>${r.tr}</td><td>${r.to}</td><td>${r.resign}</td><td>${c.report}</td>
+    <td>${r.al}</td><td>${r.pl}</td><td>${r.sl}</td><td>${r.np}</td><td>${r.bus}</td><td>${r.fl}</td><td class="${r.ml>0?'ml-h':''}">${r.ml}</td><td class="${r.idle>0?'idle-h':''}">${r.idle}</td><td>${c.absent}</td><td><b>${r.att}</b></td><td class="${rc}"><b>${rs}</b></td></tr>`;});
+  html+='</tbody></table>';document.getElementById(containerId).innerHTML=html;
+}
+
+// ═══════ YEARLY ═══════
+function renderYearly(){
+  const zh=LANG==='zh';
+  const yr=document.getElementById('ysel')?.value;if(!yr)return;
+  const months=allMonths().filter(m=>m.startsWith(yr));
+  if(!months.length){document.getElementById('yearKpi').innerHTML=`<div style="color:#8b95b8">${zh?'無資料':'No data'}</div>`;return;}
+
+  // Per-month aggregates
+  const mData=months.map(m=>{
+    const dates=periodDates('month',m);
+    const gs=dates.map(grandForDate).filter(Boolean);
+    const tRep=gs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+    const tAtt=gs.reduce((s,g)=>s+g.att,0);
+    const avgRate=tRep>0?tAtt/tRep:null;
+    const avgTtl=gs.length?Math.round(gs.reduce((s,g)=>s+(g.m+g.f),0)/gs.length):0;
+    const totalJ=gs.reduce((s,g)=>s+g.join,0);
+    const totalR=gs.reduce((s,g)=>s+g.resign,0);
+    const turnover=avgTtl>0?(totalR/gs.length/avgTtl*100):0;
+    return{month:m,days:dates.length,avgRate,avgTtl,totalAtt:tAtt,totalJ,totalR,turnover};
+  });
+
+  // Year totals
+  const yDays=mData.reduce((s,m)=>s+m.days,0);
+  const yTtl=Math.round(mData.reduce((s,m)=>s+m.avgTtl,0)/mData.length);
+  const allGs=periodDates('year',yr).map(grandForDate).filter(Boolean);
+  const yRep=allGs.reduce((s,g)=>{const c=calc(g);return s+c.report;},0);
+  const yAtt=allGs.reduce((s,g)=>s+g.att,0);
+  const yRate=yRep>0?yAtt/yRep:null;
+  const yJ=mData.reduce((s,m)=>s+m.totalJ,0);
+  const yR=mData.reduce((s,m)=>s+m.totalR,0);
+  const yTurnover=yTtl>0?(yR/yDays/yTtl*100):0;
+
+  const _yrAllDates=periodDates('year',yr);
+  const _swY=sewStats(_yrAllDates);
+  const _swYpct=yTtl>0?Math.round(_swY.avgHC/yTtl*100):0;
+  document.getElementById('yearKpi').innerHTML=
+    kpiHtml(T('年度天數','Days in Year','ថ្ងៃក្នុងឆ្នាំ'),yDays,`${months.length} ${T('個月','months','ខែ')}`)+
+    kpiHtml(T('平均在職','Average Headcount','បុគ្គលិកមធ្យម'),yTtl,`${T('車縫','Sewing','ដេរ')}:${_swY.avgHC} (${_swYpct}%)`)+
+    kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
+    kpiHtml(T('年度新進','Year Join','ចូលថ្មីប្រចាំឆ្នាំ'),yJ,_swY.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.joinSum}`:'',yJ>0?'good':'')+
+    kpiHtml(T('年度離職','Year Resign','លាឈប់ប្រចាំឆ្នាំ'),yR,_swY.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.resignSum}`:'',yR>0?'bad':'')+
+    kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%');
+
+  // Monthly rate trend
+  mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'出勤率%':'Rate%',data:mData.map(m=>m.avgRate!=null?(m.avgRate*100).toFixed(1):null),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.06)',tension:.3,fill:true,pointRadius:6,pointBackgroundColor:'#1a6e5c'},
+    {label:zh?'目標92%':'Target 92%',data:months.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:11}}}}}});
+
+  // Monthly headcount
+  mk('cYearHead',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'平均在職':'Avg HC',data:mData.map(m=>m.avgTtl),backgroundColor:'rgba(59,130,246,.5)',borderRadius:4},
+    {label:zh?'月總出勤':'Total Att',data:mData.map(m=>m.totalAtt),backgroundColor:'rgba(16,185,129,.5)',borderRadius:4,hidden:true}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{beginAtZero:false}}}});
+
+  // Monthly turnover
+  mk('cYearTurnover',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'月均流失率%':'Turnover%',data:mData.map(m=>m.turnover.toFixed(3)),backgroundColor:mData.map(m=>m.turnover>1?'rgba(239,68,68,.7)':'rgba(245,158,11,.5)'),borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>v+'%'}}}}});
+
+  // Join vs Resign
+  mk('cYearJR',{type:'bar',data:{labels:months.map(m=>m.slice(5)),datasets:[
+    {label:zh?'新進':'Join',data:mData.map(m=>m.totalJ),backgroundColor:'rgba(16,185,129,.7)',borderRadius:4},
+    {label:zh?'離職':'Resign',data:mData.map(m=>-m.totalR),backgroundColor:'rgba(239,68,68,.7)',borderRadius:4}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{ticks:{callback:v=>Math.abs(v)}}}}});
+}
+
+// ═══════ TELEGRAM SUMMARY — daily / weekly / monthly / yearly ═══════
+function telegramModeKey(mode){return({daily:'day',weekly:'week',monthly:'month',yearly:'year'})[mode]||'month';}
+function telegramPeriodValues(mode){
+  if(mode==='daily')return allDates().reverse();
+  if(mode==='weekly')return[...ensureDataIndex().weeks].reverse();
+  if(mode==='yearly')return[...ensureDataIndex().years].reverse();
+  return[...ensureDataIndex().months].reverse();
+}
+function tgLabel(zh,en,lang){
+  if(lang==='zh')return zh;
+  if(lang==='en')return en;
+  return zh+' / '+en;
+}
+/* ═══ 部門／組別中英對照 ═══
+   摘要的標籤原本就是雙語，但部門／組別名稱是從 Excel 讀進來的原始中文，
+   之前直接輸出 → 這就是「有些只有中文」的來源。這裡逐詞翻譯。 */
+const TG_TERM_EN={
+  '車縫':'Sewing','縫紉':'Sewing','針車':'Sewing','裁剪':'Cutting','裁床':'Cutting',
+  '包裝':'Packing','成品':'Finished Goods','後整':'Finishing','整燙':'Ironing','燙工':'Ironing',
+  '品管':'QC','品保':'QA','檢驗':'Inspection','驗布':'Fabric Inspection',
+  '倉庫':'Warehouse','物料':'Material','裁片':'Cut Parts','原料':'Raw Material',
+  '機修':'Mechanic','維修':'Maintenance','工務':'Facilities','電工':'Electrician',
+  '樣品':'Sample','馬克':'Marker','繡花':'Embroidery','印花':'Printing',
+  '生管':'PC','行政':'Admin','人事':'HR','總務':'GA','保全':'Security','清潔':'Cleaning',
+  '財務':'Finance','會計':'Accounting','採購':'Purchasing','業務':'Merchandising','船務':'Shipping',
+  '組長':'Supervisor','班長':'Line Leader','主管':'Manager','管理':'Management',
+  '其他':'Others','其它':'Others','未分類':'Unclassified','合計':'Total','小計':'Subtotal',
+  '線':'Line','組':'Sec','部':'Dept','課':'Sec','廠':'Plant','間接':'Indirect','直接':'Direct',
+};
+function tgTermEn(s){
+  let out=String(s||''),hit=false;
+  Object.keys(TG_TERM_EN).sort((a,b)=>b.length-a.length).forEach(zh=>{
+    if(out.indexOf(zh)>=0){ out=out.split(zh).join(' '+TG_TERM_EN[zh]+' '); hit=true; }
+  });
+  out=out.replace(/\s+/g,' ').trim();
+  return hit&&out?out:'';
+}
+/* 部門／組別名稱：both 模式輸出「中文 (English)」，查不到就只留原文，不亂翻 */
+function tgName(s,lang){
+  const zh=String(s||'').trim(); if(!zh) return '';
+  if(!/[\u4e00-\u9fff]/.test(zh)) return zh;      // 本來就是英文/代號 → 原樣
+  const en=tgTermEn(zh);
+  if(lang==='zh'||!en) return zh;
+  if(lang==='en') return en;
+  return zh+' ('+en+')';
+}
+function telegramRateIcon(rate){return rate==null?'':rate>=.95?'🌟':rate>=.90?'✅':rate>=.87?'⚠️':'🔴';}
+function populateTelegramPeriods(preferred){
+  const mode=document.getElementById('tgMode')?.value||'monthly';
+  const values=telegramPeriodValues(mode);
+  const sel=document.getElementById('tgPeriod');
+  const current=preferred||sel?.value;
+  fillPeriodSelect('tgPeriod',values,v=>mode==='weekly'?'W '+v:v);
+  if(values.includes(current))sel.value=current;
+  previewTelegramSummary();
+}
+function genTelegram(mode){
+  let preferred='';
+  if(mode==='group'){
+    const groupMode=document.getElementById('grpMode')?.value||'month';
+    mode=({day:'daily',week:'weekly',month:'monthly',year:'yearly'})[groupMode];
+    preferred=document.getElementById('grpSel')?.value||'';
+  }else{
+    preferred=mode==='daily'?document.getElementById('dsel')?.value:
+      mode==='weekly'?document.getElementById('wsel')?.value:
+      mode==='yearly'?document.getElementById('ysel')?.value:
+      document.getElementById('msel')?.value;
+  }
+  if(!['daily','weekly','monthly','yearly'].includes(mode))mode='monthly';
+  document.getElementById('tgMode').value=mode;
+  populateTelegramPeriods(preferred);
+  document.getElementById('tgModal').style.display='flex';
+}
+function buildTelegramSummary(mode,key,lang){
+  const grain=telegramModeKey(mode);
+  const dates=periodDates(grain,key);
+  const x=attendancePeriodMetrics(grain,key);
+  const grands=dates.map(grandForDate).filter(Boolean);
+  const rateText=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';
+  const title={
+    daily:tgLabel('VRT 考勤日報','VRT Daily Attendance',lang),
+    weekly:tgLabel('VRT 考勤週報','VRT Weekly Attendance',lang),
+    monthly:tgLabel('VRT 考勤月報','VRT Monthly Attendance',lang),
+    yearly:tgLabel('VRT 考勤年報','VRT Annual Attendance',lang)
+  }[mode];
+  let periodLabel=key;
+  if(mode==='weekly'){
+    const end=new Date(key+'T00:00:00Z');end.setUTCDate(end.getUTCDate()+6);
+    periodLabel=key+' ~ '+end.toISOString().slice(0,10);
+  }
+  const sep='─'.repeat(28);
+  let text=`📊 ${title}\n${periodLabel}\n${sep}\n`;
+  text+=`📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)}: ${rateText} ${telegramRateIcon(x.rate)}\n`;
+  text+=`👥 ${tgLabel('平均在職','Average Headcount',lang)}: ${Math.round(x.avgHC)}  ✅ ${tgLabel('平均出勤','Average Attendance',lang)}: ${Math.round(x.avgAttendance)}\n`;
+  text+=`📅 ${tgLabel('資料天數','Days',lang)}: ${x.days}  ⚠️ ${tgLabel('缺勤','Absence',lang)}: ${x.absence}\n`;
+  text+=`🟢 ${tgLabel('新進','Join',lang)}: ${x.join}  🔴 ${tgLabel('離職','Resign',lang)}: ${x.resign}  📉 ${tgLabel('流失率','Turnover',lang)}: ${x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%'}\n`;
+
+  if(mode==='daily'&&grands[0]){
+    const g=grands[0];
+    text+=`${sep}\n📋 ${tgLabel('假別明細','Leave Breakdown',lang)}\n`;
+    text+=`AL:${g.al||0}  PL:${g.pl||0}  SL:${g.sl||0}  NP:${g.np||0}\nBus:${g.bus||0}  FL:${g.fl||0}  ML:${g.ml||0}  ${tgLabel('停工','Idle',lang)}:${g.idle||0}\n`;
+  }
+  if(mode==='weekly'){
+    text+=`${sep}\n📅 ${tgLabel('每日明細','Daily Detail',lang)}\n`;
+    dates.forEach(d=>{
+      const g=grandForDate(d);if(!g)return;
+      const c=calc(g),rp=c.rate==null?'—':(c.rate*100).toFixed(1)+'%';
+      text+=`${d.slice(5)}  ${telegramRateIcon(c.rate)} ${rp}  ${tgLabel('出勤','Att',lang)}:${g.att||0}\n`;
+    });
+  }
+  if(mode==='yearly'){
+    text+=`${sep}\n📆 ${tgLabel('月度明細','Monthly Detail',lang)}\n`;
+    ensureDataIndex().months.filter(m=>m.startsWith(key)).forEach(m=>{
+      const mx=attendancePeriodMetrics('month',m);
+      text+=`${m}  ${telegramRateIcon(mx.rate)} ${mx.rate==null?'—':(mx.rate*100).toFixed(1)+'%'}  J:+${mx.join} R:-${mx.resign}\n`;
+    });
+  }
+
+  const sections=aggregateSections(dates).sort((a,b)=>{
+    const ar=a.report?a.att/a.report:2,br=b.report?b.att/b.report:2;
+    return ar-br;
+  }).slice(0,12);
+  if(sections.length){
+    text+=`${sep}\n🏢 ${tgLabel('部門／組別重點','Department / Section Highlights',lang)}\n`;
+    sections.forEach(s=>{
+      const rate=s.report?s.att/s.report:null;
+      const dn=tgName(s.dept,lang), sn=tgName(s.name,lang);
+      const label=s.dept&&s.dept!==s.name?dn+' / '+sn:sn;
+      text+=`${telegramRateIcon(rate)} ${label}: ${rate==null?'—':(rate*100).toFixed(1)+'%'}  NP:${s.np} ML:${s.ml}\n`;
+    });
+  }
+  /* 假別代碼圖例：NP／ML 這些代碼英文讀者看不懂，非純中文模式補一行 */
+  if(lang!=='zh'&&/AL:|NP:/.test(text)){
+    text+=`${sep}\n📖 ${tgLabel('假別代碼','Leave Codes',lang)}\n`;
+    text+=`AL ${tgLabel('特休','Annual',lang)} · PL ${tgLabel('事假','Personal',lang)} · SL ${tgLabel('病假','Sick',lang)} · NP ${tgLabel('曠職','No-Pay/Absent',lang)}\n`;
+    text+=`Bus ${tgLabel('公假','Business',lang)} · FL ${tgLabel('喪假','Funeral',lang)} · ML ${tgLabel('產假','Maternity',lang)}\n`;
+  }
+  return text.trim();
+}
+function previewTelegramSummary(){
+  const mode=document.getElementById('tgMode')?.value||'monthly';
+  const key=document.getElementById('tgPeriod')?.value||'';
+  const lang=document.getElementById('tgLanguage')?.value||'both';
+  document.getElementById('tgContent').textContent=key?buildTelegramSummary(mode,key,lang):tgLabel('尚無可用資料','No data available',lang);
+}
+function copyTg(){
+  const t=document.getElementById('tgContent').textContent;
+  navigator.clipboard.writeText(t).then(()=>{
+    const ok=document.getElementById('tgCopyOk');ok.style.display='inline';setTimeout(()=>ok.style.display='none',2500);
+    toast(T('📋 已複製','📋 Copied','📋 បានចម្លង'),'ok');
+  }).catch(()=>toast(T('複製失敗','Copy failed','ចម្លងបរាជ័យ'),'err'));
+}
+
+// ═══════ PARSER — Dynamic column detection (supports 2020+ Excel layouts) ═══════
+// Fallback COL used only if header detection fails
+const COL_FALLBACK={dept:1,sect:2,line:3,m:4,f:5,ttl:6,join:7,ti:8,tr:9,to:10,resign:11,report:12,al:13,pl:14,sl:15,np:16,bus:17,fl:18,ml:19,absTotal:20,att:21,rate:22,idle:23};
+
+// Cell normalizer: strips newlines, collapse spaces, lowercase for matching
+function normCell(c){return String(c||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
+
+// Header keyword matchers — use loose substring matching to handle multi-line/long headers
+const COL_MATCHERS={
+  dept: c=>/^(部門|dept\.?|department)/i.test(c),
+  sect: c=>/^(分區|section|sect\.?)/i.test(c),
+  line: c=>/^(組別|組别|line$|職稱|title|group$)/i.test(c),
+  m:    c=>/^(男\/?m|^m$)/i.test(c),
+  f:    c=>/^(女\/?f|^f$)/i.test(c),
+  join: c=>/新進|新进|newly.join|^join/i.test(c),
+  ti:   c=>/^(t[-\s]?in|trans.?in|transfer.?in)/i.test(c),
+  tr:   c=>/^(train|培訓|受訓)/i.test(c),
+  to:   c=>/^(t[-\s]?out|trans.?out|transfer.?out)/i.test(c),
+  resign:c=>/^(resign|離職|辭職|本日離職)|本日離職/i.test(c),
+  // Report: "應到人數" or "number of report" but NOT 缺勤人數
+  report:c=>/應到|number.of.rep|report.num/i.test(c)&&!/缺勤|absent/i.test(c),
+  al:   c=>/年假|\bal\b/i.test(c),
+  pl:   c=>/事假|\bpl\b/i.test(c),
+  sl:   c=>/病假|\bsl\b/i.test(c),
+  np:   c=>/曠工|\bnp\b/i.test(c),
+  bus:  c=>/出差|\bbus\b/i.test(c)&&!/業務|加班/.test(c),
+  fl:   c=>/特假|\bfl\b/i.test(c),
+  ml:   c=>/產假|maternity|\bml\b/i.test(c)&&!/出勤率|rate/i.test(c),
+  idle: c=>/停工|suspend|\bidle\b/i.test(c),
+  // att: "出勤人數/Actual Attend" - MUST contain 出勤 or attend but NOT 出勤率/rate
+  att:  c=>((/出勤.{0,8}人數|actual.{0,5}attend/i.test(c))||(/^att\.?$/i.test(c)))&&!/率|rate/i.test(c),
+  rate: c=>/出勤率|attendance.rate|rate%/i.test(c),
+};
+
+function buildColMap(headerRows){
+  const map={};
+  for(const[key,matcher] of Object.entries(COL_MATCHERS)){
+    outer:for(const row of headerRows){
+      const cells=(row||[]).map(c=>normCell(c));
+      for(let ci=0;ci<cells.length;ci++){
+        if(cells[ci]&&matcher(cells[ci])){map[key]=ci;break outer;}
+      }
+    }
+  }
+  if(map.dept==null)map.dept=1;
+  if(map.sect==null)map.sect=2;
+  if(map.line==null)map.line=3;
+  return map;
+}
+
+function findHeaderRow(data){
+  for(let r=0;r<Math.min(10,data.length);r++){
+    const row=(data[r]||[]).map(c=>String(c||'').trim());
+    const hasM=row.some(c=>/^(男\/m|m)$/i.test(c));
+    const hasF=row.some(c=>/^(女\/f|f)$/i.test(c));
+    if(hasM&&hasF)return r;
+  }
+  return 4;
+}
+
+function normDept(d){
+  if(!d) return d;
+  // 2026/04 onwards: 行政管理部 → 行政中心
+  return d.replace(/行政管理部?/g,'行政中心').replace(/Admin(?:istration)?\s*(?:Dept\.?|Department)?/gi,'Admin Center');
+}
+function parseSheet(data,dateStr){
+  const rows=[];
+  const hdrIdx=findHeaderRow(data);
+  // Scan up to 2 rows for merged headers (row hdrIdx-1 might have "Attend" label above)
+  const hdrRows=[data[hdrIdx]||[]];
+  if(hdrIdx>0)hdrRows.unshift(data[hdrIdx-1]||[]);
+  if(hdrIdx+1<data.length)hdrRows.push(data[hdrIdx+1]||[]);
+  const dynCOL=buildColMap(hdrRows);
+  // Merge: dynamic wins, fallback fills gaps
+  const COL=Object.assign({},COL_FALLBACK,dynCOL);
+
+  const start=hdrIdx+1;
+  const gn=(row,key)=>{
+    const i=COL[key];
+    if(i==null||i>=(row||[]).length)return 0;
+    const v=row[i];if(v==null||v==='')return 0;
+    const n=Number(v);
+    if(!isFinite(n)||n<0)return 0;
+    if(key!=='rate'&&n>0&&n<1)return 0;
+    return Math.round(n);
+  };
+  const gs=(row,key)=>{const i=COL[key];if(i==null||i>=(row||[]).length)return'';return String(row[i]||'').trim();};
+
+  for(let r=start;r<data.length;r++){
+    const row=data[r];if(!row||row.length<4)continue;
+    const dept=gs(row,'dept'),sect=gs(row,'sect'),line=gs(row,'line');
+    if(line.match(/attendance/i)&&line.match(/20\d{2}/))break;
+    if(line.includes('部門/dept'))break;
+    const combined=(dept+' '+sect+' '+line).toLowerCase();
+    const isGrand=combined.includes('總人數');
+    const isSubtotal=!isGrand&&combined.includes('小計');
+    const m=gn(row,'m'),f=gn(row,'f');
+    if(!dept&&!sect&&!line&&m===0&&f===0&&!isSubtotal&&!isGrand)continue;
+    rows.push({date:dateStr,dept:normDept(dept),sect:normDept(sect),line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),isSubtotal,isGrand});
+    if(isGrand)break;
+  }
+  return rows;
+}
+
+// Fast date check: uses SHEET NAME as day + Date: cell for year/month
+// This avoids timezone issues: sheet name "06" is always day 6 regardless of timezone
+function quickDateCheck(wb,sheetName){
+  const ws=wb.Sheets[sheetName];if(!ws)return null;
+
+  // Helper: parse Excel date value timezone-safe
+  // Always use the DATE: cell for YEAR+MONTH, sheet name for DAY
+  function excelDateToYearMonth(nv){
+    if(nv instanceof Date){
+      // Use UTC components (XLSX cellDates:true stores as UTC midnight of that date)
+      // But some timezones shift this - so try both UTC and local, prefer UTC
+      const utcY=nv.getUTCFullYear(),utcM=nv.getUTCMonth()+1,utcD=nv.getUTCDate();
+      const locY=nv.getFullYear(),locM=nv.getMonth()+1,locD=nv.getDate();
+      // If UTC and local differ by 1 day, local is likely correct (cellDates stores local midnight)
+      // Return ONLY year+month (day will come from sheet name)
+      if(utcY>=2000) return {y:locY,m:locM}; // use local year+month
+      return null;
+    }
+    if(typeof nv==='number'&&nv>40000&&nv<60000){
+      const d=new Date(Math.round((nv-25569)*86400)*1000);
+      if(d.getUTCFullYear()<2000)return null;
+      return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1};
+    }
+    const s=String(nv||'');
+    const match=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
+    if(match&&+match[1]>=2000) return {y:+match[1],m:+match[2]};
+    return null;
+  }
+
+  // Step 1: Try to use sheet name as DAY (most reliable — no timezone issue)
+  // Sheet name is "06", "07", "31" etc.
+  const snDay = parseInt(sheetName, 10);
+  const snIsDay = !isNaN(snDay) && snDay>=1 && snDay<=31 && /^\d{1,2}$/.test(sheetName.trim());
+
+  // Step 2: Find Date: cell for year+month
+  let ym = null;
+  for(let R=0;R<6&&!ym;R++){
+    for(let C=0;C<30&&!ym;C++){
+      const addr=XLSX.utils.encode_cell({r:R,c:C});
+      const cell=ws[addr];if(!cell)continue;
+      const v=String(cell.v||'').trim();
+      if(!/^date:?$/i.test(v))continue;
+      for(let off=1;off<=3;off++){
+        const nAddr=XLSX.utils.encode_cell({r:R,c:C+off});
+        const nCell=ws[nAddr];if(!nCell)continue;
+        ym=excelDateToYearMonth(nCell.v);
+        if(ym)break;
+      }
+    }
+  }
+
+  // Step 3: Also scan first 10 rows for any date-like text (e.g. "2026.4.6 attendance")
+  if(!ym){
+    for(let R=0;R<10&&!ym;R++){
+      for(let C=0;C<10&&!ym;C++){
+        const addr=XLSX.utils.encode_cell({r:R,c:C});
+        const cell=ws[addr];if(!cell)continue;
+        const s=String(cell.v||'');
+        const m=s.match(/(20\d{2})[.\/\-](0?[1-9]|1[0-2])[.\/\-](\d{1,2})/);
+        if(m&&+m[1]>=2000){ym={y:+m[1],m:+m[2],d:+m[3]};}
+      }
+    }
+  }
+
+  if(!ym)return null;
+
+  // Step 4: Determine the day
+  let day;
+  if(snIsDay){
+    // Sheet name is the most reliable day source — no timezone risk
+    day=snDay;
+  } else if(ym.d){
+    day=ym.d;
+  } else {
+    return null;
+  }
+
+  const dateStr=`${ym.y}-${String(ym.m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+  // Validate it's a real date
+  const check=new Date(dateStr);
+  if(isNaN(check.getTime())||check.getUTCFullYear()<2000)return null;
+  return dateStr;
+}
+
+// Async workbook parser — yields between sheets to prevent UI freeze
+async function parseWorkbook(wb, progressFn, overwrite){
+  const results=[],dedupLog=[],newDates=[],skippedDates=[];
+  const total=wb.SheetNames.length;
+
+  // ── Phase 0: 全本共識年月掃描（防止單一 sheet 年月被誤讀）──
+  // 例：sheet '01' 的 2026-05-01 有時被解成 2026-04-01（序號邊界問題）
+  // 解法：先掃全部 sheet 取共識年月，再逐一校正衝突者
+  const _ymMap={};
+  for(const sn of wb.SheetNames){
+    const ds=quickDateCheck(wb,sn);
+    if(ds&&/^\d{4}-\d{2}-\d{2}$/.test(ds)){
+      const ym=ds.slice(0,7);
+      if(+ym.slice(0,4)>=2020) _ymMap[ym]=(_ymMap[ym]||0)+1;
+    }
+  }
+  // 找最多票的年月（排除很舊的年份，如 template sheet 的 2020-03）
+  let _consensusYM=null,_maxVote=0;
+  for(const[ym,cnt] of Object.entries(_ymMap)){
+    if(cnt>_maxVote){_consensusYM=ym;_maxVote=cnt;}
+  }
+
+  // Phase 1: Quick scan all sheets for dates (fast — only reads cells directly, no full decode)
+  const sheetDates=[];
+  for(const sn of wb.SheetNames){
+    let dateStr=quickDateCheck(wb,sn);
+    // ── 共識校正：若年月與共識不同，嘗試用共識年月+原日期替換 ──
+    if(dateStr&&_consensusYM&&dateStr.slice(0,7)!==_consensusYM){
+      const day=dateStr.slice(8); // DD
+      const candidate=_consensusYM+'-'+day;
+      const chk=new Date(candidate);
+      if(!isNaN(chk)&&chk.getUTCFullYear()>=2020){
+        console.log('[DateConsensus] sheet',sn,':',dateStr,'→',candidate,'(consensus',_consensusYM+')');
+        dateStr=candidate;
+      }
+    }
+    const alreadyHave=dateStr&&IMPORT_LOG.includes(dateStr);
+    sheetDates.push({sn,dateStr,alreadyHave});
+  }
+
+  // Phase 2: Only fully parse sheets with NEW dates (or all if overwrite=true)
+  let processed=0;
+  for(const{sn,dateStr,alreadyHave} of sheetDates){
+    processed++;
+    if(progressFn)progressFn(processed,total,sn,dateStr);
+
+    if(!dateStr){continue;}// Skip template/summary sheets
+
+    if(alreadyHave&&!overwrite){
+      skippedDates.push(dateStr);
+      continue;// ★ Key optimization: skip without full parse
+    }
+
+    // If overwrite mode, remove existing data for this date first
+    if(alreadyHave&&overwrite){
+      DB=DB.filter(r=>r.date!==dateStr);
+      IMPORT_LOG=IMPORT_LOG.filter(d=>d!==dateStr);
+    }
+
+    // Full parse only for new/updated dates
+    const ws=wb.Sheets[sn];if(!ws)continue;
+    const data=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    const parsed=parseSheet(data,dateStr);
+    if(parsed.length>0){
+      results.push(...parsed);
+      IMPORT_LOG.push(dateStr);
+      newDates.push(dateStr);
+    }
+
+    // Yield to UI every 2 sheets
+    if(processed%2===0)await new Promise(r=>setTimeout(r,0));
+  }
+
+  if(skippedDates.length)dedupLog.push(`⏭ 跳過 ${skippedDates.length} 個已匯入日期`);
+  return{results,dedupLog,newDates,skippedDates};
+}
+
+// ═══════ .eml / .msg extractors ═══════
+async function extractEML(file){const text=await file.text();const results=[];const bRe=/boundary=["']?([^"'\r\n;\s]+)["']?/gi;const bs=[];let bm;while((bm=bRe.exec(text))!==null)bs.push(bm[1]);
+  for(const b of[...new Set(bs)]){for(const p of text.split('--'+b)){if(!/filename[^"'\r\n]*\.xlsx?/i.test(p)&&!/content-type:[^\r\n]*(spreadsheet|excel)/i.test(p))continue;let fn='att.xlsx';const fm=p.match(/filename[^"'\r\n;]*?["']?([^"'\r\n;]+\.xlsx?)["']?/i);if(fm)fn=fm[1].trim();const bm=p.match(/\r?\n\r?\n([\s\S]+?)(?:--|\s*$)/);if(!bm)continue;const b64=bm[1].replace(/[\r\n\s]/g,'');if(b64.length<100)continue;try{const bin=atob(b64);const by=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)by[i]=bin.charCodeAt(i);if(by[0]===0x50&&by[1]===0x4B)results.push({name:fn.split(/[/\\]/).pop(),data:by});}catch(e){}}}return results;}
+
+async function extractMSG(file){
+  const buf=await file.arrayBuffer();
+  const results=[];
+
+  // ── Method A: OLE/CFB walk (proper MSG parsing via XLSX.CFB) ──
+  try{
+    const cfb=XLSX.CFB.read(new Uint8Array(buf),{type:'array'});
+    const attachStorages=[...new Set(
+      cfb.FileIndex
+        .filter(e=>e.name&&e.name.startsWith('__attach_version1.0'))
+        .map(e=>e.name)
+    )];
+    for(const storageName of attachStorages){
+      const streamNames=['__substg1.0_37010102','AttachDataW','__substg1.0_3701000D'];
+      for(const sn of streamNames){
+        const entry=cfb.FileIndex.find(e=>e.name===sn&&e.storage===storageName);
+        if(!entry||!entry.content||entry.content.length<50)continue;
+        const bytes=entry.content;
+        const m0=bytes[0],m1=bytes[1];
+        const isXlsx=m0===0x50&&m1===0x4B;
+        const isXls =m0===0xD0&&m1===0xCF;
+        if(!isXlsx&&!isXls)continue;
+        try{
+          const wb=XLSX.read(bytes,{type:'array',cellDates:true});
+          if(wb.SheetNames.length>0){results.push({name:`att_cfb_${results.length}.${isXlsx?'xlsx':'xls'}`,data:bytes,wb});break;}
+        }catch(e){}
+      }
+    }
+    if(results.length)return results;
+  }catch(e){}
+
+  // ── Method B: Brute-force PK scan fallback ──
+  const all=new Uint8Array(buf);const r16=(b,o)=>b[o]|(b[o+1]<<8);let sf=0;
+  while(sf<all.length-4){
+    let pk=-1;
+    for(let i=sf;i<all.length-3;i++){
+      if(all[i]===0x50&&all[i+1]===0x4B&&all[i+2]===0x03&&all[i+3]===0x04){pk=i;break;}
+      if((i-sf)%524288===0&&i>sf)await new Promise(r=>setTimeout(r,0));
+    }
+    if(pk===-1)break;
+    let end=-1;const lim=Math.min(pk+128*1024*1024,all.length-21);
+    for(let j=pk+22;j<lim;j++){if(all[j]===0x50&&all[j+1]===0x4B&&all[j+2]===0x05&&all[j+3]===0x06){end=j+22+r16(all,j+20);break;}}
+    if(end>pk+50){const zd=all.slice(pk,end);try{const wb=XLSX.read(zd,{type:'array',cellDates:true});if(wb.SheetNames.length>0){results.push({name:`att_pk_${results.length}.xlsx`,data:zd,wb});sf=end;continue;}}catch(e){}}
+    sf=pk+4;
+  }
+  return results;
+}
+
+// ═══════ FILE HANDLING ═══════
+let pendingFiles=[];
+function dzDrop(e){e.preventDefault();document.getElementById('dz').classList.remove('drag');addFiles(e.dataTransfer.files);}
+function dzSelect(e){addFiles(e.target.files);}
+function addFiles(fs){Array.from(fs).forEach(f=>{if(!pendingFiles.find(x=>x.name===f.name&&x.size===f.size))pendingFiles.push(f);});renderFL();document.getElementById('btnImport').disabled=!pendingFiles.length;}
+function clearFiles(){pendingFiles=[];renderFL();document.getElementById('btnImport').disabled=true;document.getElementById('dedupLog').style.display='none';document.getElementById('importPreview').style.display='none';}
+function renderFL(){const el=document.getElementById('fileList'),dz=document.getElementById('dz');if(!pendingFiles.length){el.innerHTML='';dz.classList.remove('done');return;}dz.classList.add('done');
+  el.innerHTML=pendingFiles.map((f,i)=>{const e=/\.(eml|msg)$/i.test(f.name);return`<div class="fl-item"><span style="color:${e?'#7c3aed':'#059669'}">${e?'📧':'📊'} ${f.name}</span><button onclick="pendingFiles.splice(${i},1);renderFL();document.getElementById('btnImport').disabled=!pendingFiles.length;" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:18px">×</button></div>`;}).join('');}
+
+async function doImport(){
+  const btn=document.getElementById('btnImport'),msg=document.getElementById('importMsg');
+  const overwrite=document.getElementById('chkOverwrite').checked;
+  const pBar=document.getElementById('progressBar'),pFill=document.getElementById('progressFill'),pText=document.getElementById('progressText');
+
+  // Warn if multiple .msg files
+  const msgCount=pendingFiles.filter(f=>/\.msg$/i.test(f.name)).length;
+  if(msgCount>1){
+    if(!confirm(`⚠️ 你選了 ${msgCount} 個 .msg 檔案。\n\n每封 .msg 都包含整月所有日期的 Sheet，\n一次拖多封會重複掃描。\n\n建議：只拖最新那封 .msg！\n\n確定要繼續嗎？`))return;
+  }
+
+  btn.disabled=true;msg.innerHTML=`<b>${LANG==='zh'?'提取附件中...':'Extracting...'}</b>`;msg.style.color='#6b7a9e';
+  pBar.style.display='block';pFill.style.width='0%';
+  const allR=[],allE=[],allD=[];
+  const totalFiles=pendingFiles.length;
+
+  const progress=(i,total,sn,dateStr)=>{
+    const pct=Math.round(i/total*100);
+    pFill.style.width=pct+'%';
+    const skip=dateStr&&IMPORT_LOG.includes(dateStr)&&!overwrite?'⏭ 已存在':'🔍 解析';
+    pText.textContent=`Sheet ${i}/${total}：${sn} → ${dateStr||'(模板)'} ${skip}`;
+    msg.innerHTML=`Sheet ${i}/${total}：<b>${sn}</b> → ${dateStr||'(跳過)'} ${skip}`;
+  };
+
+  for(let fi=0;fi<pendingFiles.length;fi++){
+    const f=pendingFiles[fi];
+    const ext=f.name.split('.').pop().toLowerCase();
+    msg.innerHTML=`📄 檔案 ${fi+1}/${totalFiles}：<b>${f.name}</b> 提取中...`;
+    pFill.style.width='0%';
+    await new Promise(r=>setTimeout(r,0));// yield to render
+
+    try{
+      if(ext==='eml'){
+        const at=await extractEML(f);
+        if(!at.length){allE.push(f.name+': 無附件');continue;}
+        for(const a of at){try{const wb=XLSX.read(a.data,{type:'array',cellDates:true});const{results,dedupLog}=await parseWorkbook(wb,progress,overwrite);allR.push(...results);allD.push(...dedupLog);}catch(e){allE.push(a.name+': '+e.message);}}
+      }else if(ext==='msg'){
+        const at=await extractMSG(f);
+        if(!at.length){allE.push(f.name+': 無法提取（建議改用 .eml）');continue;}
+        for(const a of at){try{const wb=a.wb||XLSX.read(a.data,{type:'array',cellDates:true});
+          msg.innerHTML=`📧 <b>${f.name}</b> → ${wb.SheetNames.length} 個 Sheet，快速掃描日期中...`;
+          await new Promise(r=>setTimeout(r,0));
+          const{results,dedupLog,newDates,skippedDates}=await parseWorkbook(wb,progress,overwrite);
+          allR.push(...results);allD.push(...dedupLog);
+          if(newDates.length)allD.push(`✅ 新增日期: ${newDates.join(', ')}`);
+        }catch(e){allE.push(f.name+': '+e.message);}}
+      }else{
+        const buf=await f.arrayBuffer();const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true});
+        msg.innerHTML=`📊 <b>${f.name}</b> → ${wb.SheetNames.length} 個 Sheet`;
+        await new Promise(r=>setTimeout(r,0));
+        const{results,dedupLog,newDates}=await parseWorkbook(wb,progress,overwrite);allR.push(...results);allD.push(...dedupLog);
+        if(newDates.length)allD.push(`✅ 新增日期: ${newDates.join(', ')}`);
+      }
+    }catch(e){allE.push(f.name+': '+e.message);}
+  }
+
+  pFill.style.width='100%';
+  if(allR.length){DB=DB.concat(allR);await saveDB();
+    msg.innerHTML=`✅ ${T('成功匯入','Imported','បាននាំចូល')} <b>${allR.length}</b> ${T('筆記錄','records','កំណត់ត្រា')}`;msg.style.color='#059669';toast(`✅ ${T('匯入','Imported','បាននាំចូល')} ${allR.length} ${T('筆','records','កំណត់ត្រា')}`,'ok');
+    const ds=[...new Set(allR.map(r=>r.date))].sort();
+    const importedByDate=new Map();
+    allR.forEach(r=>{if(!importedByDate.has(r.date))importedByDate.set(r.date,[]);importedByDate.get(r.date).push(r);});
+    document.getElementById('importPreview').style.display='block';
+    document.getElementById('importPreview').innerHTML=`<div class="card"><div class="ct">✅ ${T('新匯入','Imported','បាននាំចូល')} ${ds.length} ${T('天資料','days','ថ្ងៃ')}</div><table class="dtbl"><thead><tr><th>${T('日期','Date','កាលបរិច្ឆេទ')}</th><th>${T('筆數','Rows','កំណត់ត្រា')}</th><th>Grand TTL</th><th>${T('出勤','Attendance','វត្តមាន')}</th><th>${T('出勤率','Attendance Rate','អត្រាវត្តមាន')}</th></tr></thead><tbody>${ds.map(d=>{const day=importedByDate.get(d)||[];const g=day.find(r=>r.isGrand);const c=g?calc(g):null;return`<tr><td>${d}</td><td>${day.length}</td><td>${g?(g.m+g.f):'—'}</td><td>${g?g.att:'—'}</td><td>${c&&c.rate!=null?'<span class="badge '+(c.rate>=0.92?'bg':'bb')+'">'+(c.rate*100).toFixed(1)+'%</span>':'—'}</td></tr>`;}).join('')}</tbody></table></div>`;
+    setTimeout(()=>{const tabs=document.querySelectorAll('.tab');tabs.forEach(t=>{if(t.textContent.includes('每日報告')||t.textContent.includes('Daily'))t.click();});},1500);
+  }else{msg.innerHTML=allE.length?'❌ '+allE[0]:(LANG==='zh'?'ℹ️ 未識別到新數據（可能都已匯入過）':'ℹ️ No new data found (may already be imported)');msg.style.color=allR.length?'#059669':'#6b7a9e';}
+  if(allD.length){const dl=document.getElementById('dedupLog');dl.style.display='block';dl.innerHTML='<b>處理紀錄：</b><br>'+allD.join('<br>');}
+  if(allE.length&&allR.length)toast('⚠️ 部分錯誤','err');
+  btn.disabled=false;
+  setTimeout(()=>{pBar.style.display='none';},3000);
+}
+
+// ═══════ RATING THRESHOLDS ═══════
+// 96%+ = excellent, 93-96% = good, 90-93% = below, <90% = poor
+function rateGrade(r){
+  if(r==null)return null;
+  if(r>=0.95)return'excellent';  // ≥95% 優良
+  if(r>=0.90)return'good';       // 90-94% 正常
+  if(r>=0.87)return'below';      // 87-89% 偏低
+  return'poor';                  // <87% 嚴重偏低
+}
+function rateGradeStyle(g){
+  const map={excellent:{bg:'#d1fae5',border:'#059669',text:'#065f46',icon:'🌟'},good:{bg:'#e0f2fe',border:'#0ea5e9',text:'#0c4a6e',icon:'✅'},below:{bg:'#fef3c7',border:'#f59e0b',text:'#92400e',icon:'⚠️'},poor:{bg:'#fee2e2',border:'#ef4444',text:'#991b1b',icon:'🔴'}};
+  return map[g]||{bg:'#f3f4f6',border:'#9ca3af',text:'#6b7280',icon:'—'};
+}
+function rateGradeLabel(g,lang){
+  const zh={excellent:'優良 ≥95%',good:'正常 90–95%',below:'偏低 87–90%',poor:'嚴重偏低 <87%'};
+  const en={excellent:'Excellent ≥95%',good:'Normal 90–95%',below:'Below 87–90%',poor:'Poor <87%'};
+  return lang==='en'?(en[g]||'—'):(zh[g]||'—');
+}
+
+// ═══════ SECTION HELPERS ═══════
+// Extract section name from subtotal row (removes 小計 suffix)
+function sectName(r){
+  const raw=(r.sect||r.dept||'').replace(/小計|subtotal/gi,'').trim();
+  return raw||'(其他)';
+}
+
+// Aggregate subtotal rows across multiple dates by section name
+function aggregateSections(dates){
+  const map={};
+  dates.forEach(d=>{
+    subtotalsForDate(d).forEach(r=>{
+      const nm=sectName(r);
+      const dept=(r.dept||'').replace(/小計|subtotal/gi,'').trim();
+      const key=dept+'¦'+nm;
+      if(!map[key])map[key]={name:nm,dept,att:0,ttl:0,report:0,m:0,f:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0};
+      const c=calc(r);
+      map[key].att+=r.att;
+      map[key].ttl+=(r.m+r.f);map[key].m+=r.m;map[key].f+=r.f;
+      map[key].report+=c.report;
+      map[key].al+=r.al;map[key].pl+=r.pl;map[key].sl+=r.sl;map[key].np+=r.np;
+      map[key].bus+=r.bus;map[key].fl+=r.fl;map[key].ml+=r.ml;
+      map[key].join+=r.join;map[key].resign+=r.resign;
+      map[key].absent+=c.absent;
+      map[key].days++;
+    });
+  });
+  return Object.values(map).filter(s=>s.report>0).sort((a,b)=>b.report-a.report);
+}
+
+// ═══════ SECTION BREAKDOWN MINI-CARDS (used in weekly/monthly) ═══════
+function renderSectionCards(dates,containerId){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const sects=aggregateSections(dates);
+  if(!sects.length){el.innerHTML='<div style="color:#8b95b8;font-size:12px;padding:8px">無分區資料</div>';return;}
+  const zh=LANG==='zh';
+  el.innerHTML=sects.map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const g=rateGrade(rate);
+    const st=rateGradeStyle(g);
+    const rateP=rate!=null?(rate*100).toFixed(1):'—';
+    const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;
+    const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
+    const alPct=s.report>0?(s.al/s.report*100).toFixed(1):0;
+    const alertNP=parseFloat(npPct)>=3?'🔴':'';
+    const alertML=parseFloat(mlPct)>=5?'🤰':'';
+    return`<div style="border:1px solid ${st.border};border-left:4px solid ${st.border};border-radius:8px;padding:11px;background:${st.bg}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px">
+        <div style="font-size:12px;font-weight:700;color:${st.text}">${s.name}</div>
+        <div style="font-size:11px;font-weight:700;color:${st.text}">${st.icon} ${rateP}%</div>
+      </div>
+      <div style="height:6px;background:#e2e6f0;border-radius:3px;margin-bottom:7px;overflow:hidden">
+        <div style="height:100%;width:${Math.min(parseFloat(rateP)||0,100)}%;background:${st.border};border-radius:3px"></div>
+      </div>
+      <div style="font-size:10px;color:${st.text};font-weight:600;margin-bottom:5px">${rateGradeLabel(g,zh?'zh':'en')}</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;font-size:9px;color:#6b7a9e">
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#1e2640">${alPct}%</div>AL</div>
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#ef4444">${npPct}% ${alertNP}</div>NP</div>
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#ec4899">${mlPct}% ${alertML}</div>ML</div>
+        <div style="background:rgba(0,0,0,.04);border-radius:4px;padding:3px;text-align:center"><div style="font-weight:700;color:#1e2640">${s.report>0?(s.absent/s.report*100).toFixed(1):0}%</div>${zh?'缺勤':'Abs'}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════ GROUP ANALYSIS TAB ═══════
+// Nav helper for group selector
+function navGrp(dir){
+  const sel=document.getElementById('grpSel');
+  const opts=[...sel.options].map(o=>o.value);
+  const i=opts.indexOf(sel.value);
+  const n=i-dir;// reverse order so -1=newer, +1=older
+  if(n>=0&&n<opts.length){sel.value=opts[n];renderGroupAnalysis();}
+}
+function grpModeChange(){
+  const sel=document.getElementById('grpSel');
+  sel.dataset.mode='';// force repopulate
+  renderGroupAnalysis();
+}
+
+// ─── Sewing line detector: rows with line names like L1/A1/Line1/車縫 1組 etc ───
+// Detect individual Sewing production line rows
+// Supports multiple year formats:
+//   2020-2023: "Garment Line A1 /成衣1組", "Apron A1 /圍裙1組" (A/B factory)
+//   2024-2025: "Line 1", "Line 01", "L1", "L2" abbreviated format
+function isSewingLine(r){
+  if(r.isSubtotal||r.isGrand) return false;
+  const line=(r.line||'').trim();
+  const sect=(r.sect||'');
+  const lineLo=line.toLowerCase();
+  const sectLo=sect.toLowerCase();
+  const ttl=(r.m||0)+(r.f||0);
+  if(ttl<1) return false;// must have at least 1 worker (even 1-person lines)
+
+  // ── Hard exclusion: these are definitely NOT sewing production lines ──
+  if(/cutting|裁剪|qc|品管|quality.control|packing|包裝|成品|finishing|warehouse|倉庫|mechanic|機修|sample|樣品|marker|馬克|supervisor|組長|班長|line.leader|team.leader|leader|inspector|檢驗|pc|生管|ie|admin|行政|hr|ga|electrician|工務|others|其它|其他|cutter/i.test(lineLo)) return false;
+  if(/cutting|裁剪|qc|packing|包裝|warehouse|倉庫|mechanic|機修|sample|樣品|marker|品管/i.test(sectLo)) return false;
+
+  // ── Positive match — any of the following ──
+
+  // 2020-2023: "Garment Line A1", "Garment  Line A22", "Garment Line A1 /成衣1組"
+  if(/garment\s+(line\s*)?[a-z]?\d+/i.test(lineLo)) return true;
+  // 2020-2023: "Apron A1 /圍裙1組", "Apron A10" (must start with Apron + letter+digit)
+  if(/^apron\s+[a-z]\d+/i.test(lineLo)) return true;
+  // Chinese: "成衣1組", "圍裙3組"
+  if(/^(成衣|圍裙)\s*\d+\s*組/.test(line)) return true;
+  // 2024-2025: "Line 1", "Line 01", "Line1" (strip /chinese suffix first)
+  if(/^line\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim())) return true;
+  // 2024-2025 abbreviated: "L1", "L2", "L01", "L 1", "L 01"
+  if(/^l\s*0*\d+$/i.test(line.replace(/\s*[/／].*$/,'').trim())) return true;
+
+  // Fallback: sect explicitly says sewing AND line has any digit (covers merged-cell empty-sect rows)
+  if(/sewing|garment|apron|車縫|成衣|圍裙/i.test(sectLo) && /\d/.test(line)) return true;
+
+  return false;
+}
+
+function aggregateSewingLines(dates){
+  const map={};
+  dates.forEach(d=>{
+    rowsForDate(d).filter(isSewingLine).forEach(r=>{
+      // Normalize line name: strip chinese after /
+      const raw=r.line||r.sect||'?';
+      const nm=raw.replace(/[/／].*/,'').trim().replace(/\s+/,' ');
+      if(!map[nm])map[nm]={name:nm,sect:r.sect,dept:r.dept,att:0,ttl:0,report:0,
+        al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0,attDays:0};
+      const c=calc(r);
+      const ttl=(r.m||0)+(r.f||0);
+      // Use att if available; otherwise estimate as report - absent
+      const absTotal=(r.al||0)+(r.pl||0)+(r.sl||0)+(r.np||0)+(r.bus||0)+(r.fl||0)+(r.ml||0);
+      const attEst=r.att>0?r.att:(c.report>absTotal?c.report-absTotal:c.report);
+      map[nm].att+=attEst;
+      map[nm].ttl+=ttl;
+      map[nm].report+=c.report||ttl;
+      map[nm].al+=r.al||0; map[nm].pl+=r.pl||0; map[nm].sl+=r.sl||0;
+      map[nm].np+=r.np||0; map[nm].bus+=r.bus||0; map[nm].fl+=r.fl||0;
+      map[nm].ml+=r.ml||0; map[nm].join+=r.join||0; map[nm].resign+=r.resign||0;
+      map[nm].absent+=absTotal; map[nm].days++;
+      if(r.att>0) map[nm].attDays++;
+    });
+  });
+  return Object.values(map)
+    .filter(s=>s.ttl>0)
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+}
+
+function renderGroupAnalysis(){
+  const mode=document.getElementById('grpMode')?.value||'month';
+  const sel=document.getElementById('grpSel');
+
+  // Populate selector based on mode
+  let dates=[];
+  if(mode==='day'){
+    const opts=allDates().reverse();
+    if(sel.dataset.mode!=='day'){sel.innerHTML=opts.map(v=>`<option>${v}</option>`).join('');sel.dataset.mode='day';}
+    dates=periodDates('day',sel.value);
+  } else if(mode==='week'){
+    const wks=[...ensureDataIndex().weeks].reverse();
+    if(sel.dataset.mode!=='week'){sel.innerHTML=wks.map(k=>`<option value="${k}">W ${k}</option>`).join('');sel.dataset.mode='week';}
+    dates=periodDates('week',sel.value);
+  } else if(mode==='year'){
+    const yrs=[...ensureDataIndex().years].reverse();
+    if(sel.dataset.mode!=='year'){sel.innerHTML=yrs.map(y=>`<option>${y}</option>`).join('');sel.dataset.mode='year';}
+    dates=periodDates('year',sel.value);
+  } else {
+    const months=allMonths().reverse();
+    if(sel.dataset.mode!=='month'){sel.innerHTML=months.map(m=>`<option>${m}</option>`).join('');sel.dataset.mode='month';}
+    dates=periodDates('month',sel.value);
+  }
+
+  const sects=aggregateSections(dates);
+  const alertsEl=document.getElementById('grpAlerts');
+  const cardsEl=document.getElementById('grpCards');
+  if(!sects.length){alertsEl.innerHTML='';cardsEl.innerHTML='<div style="color:#8b95b8;padding:20px">此期間無分區資料</div>';return;}
+
+  const zh=LANG==='zh';
+
+  // ── Auto-commentary alerts ──
+  const poor=sects.filter(s=>rateGrade(s.report>0?s.att/s.report:null)==='poor');
+  const below=sects.filter(s=>rateGrade(s.report>0?s.att/s.report:null)==='below');
+  const excellent=sects.filter(s=>rateGrade(s.report>0?s.att/s.report:null)==='excellent');
+  const npHigh=sects.filter(s=>s.report>0&&s.np/s.report>=0.03);
+  const mlHigh=sects.filter(s=>s.report>0&&s.ml/s.report>=0.05);
+
+  let alerts='';
+  poor.forEach(s=>{const r=(s.att/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fee2e2;border:1px solid #fca5a5;border-left:4px solid #ef4444;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#991b1b">
+      🔴 <b>${s.name}</b> ${zh?'出勤率':'Att. Rate'} <b>${r}%</b> — ${zh?'嚴重偏低（低於 87%，需立即關注）':'Critical — below 87%, immediate attention required'}</div>`;});
+  below.forEach(s=>{const r=(s.att/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fef3c7;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#92400e">
+      ⚠️ <b>${s.name}</b> ${zh?'出勤率':'Att. Rate'} <b>${r}%</b> — ${zh?'偏低（87–90%，建議追蹤）':'Below target (87–90%), follow-up advised'}</div>`;});
+  excellent.forEach(s=>{const r=(s.att/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#d1fae5;border:1px solid #6ee7b7;border-left:4px solid #10b981;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#065f46">
+      🌟 <b>${s.name}</b> ${zh?'出勤率':'Att. Rate'} <b>${r}%</b> — ${zh?'優良（≥95%）':'Excellent (≥95%)'}</div>`;});
+  npHigh.forEach(s=>{const p=(s.np/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fff1f2;border:1px solid #fca5a5;border-left:4px solid #dc2626;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#991b1b">
+      🔴 <b>${s.name}</b> ${zh?'曠工率':'Absence (NP)'} <b>${p}%</b> — ${zh?'偏高（>3%，需關注）':'High absence rate (>3%)'}</div>`;});
+  mlHigh.forEach(s=>{const p=(s.ml/s.report*100).toFixed(1);
+    alerts+=`<div style="background:#fdf2f8;border:1px solid #f9a8d4;border-left:4px solid #ec4899;border-radius:7px;padding:9px 13px;margin-bottom:7px;font-size:12px;color:#9d174d">
+      🤰 <b>${s.name}</b> ${zh?'產假佔比':'Maternity (ML)'} <b>${p}%</b> — ${zh?'偏高（>5%）':'High ratio (>5%)'}</div>`;});
+  if(!alerts)alerts=`<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:7px;padding:9px 13px;font-size:12px;color:#065f46">✅ ${zh?'所有組別出勤率均在正常範圍（90–95%）':'All sections within normal range (90–95%)'}</div>`;
+  alertsEl.innerHTML=alerts;
+
+  // ── Big group cards ──
+  cardsEl.innerHTML=sects.map(s=>{
+    const rate=s.report>0?s.att/s.report:null;
+    const g=rateGrade(rate);const st=rateGradeStyle(g);
+    const rateP=rate!=null?(rate*100).toFixed(1):'—';
+    const lv=[s.al,s.pl,s.sl,s.np,s.bus,s.fl,s.ml];
+    const lNames=['AL','PL','SL','NP','Bus','FL','ML'];
+    const lColors=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
+    const lTotal=lv.reduce((a,b)=>a+b,0);
+    const leaveBar=lTotal>0?lv.map((v,i)=>`<div style="height:100%;width:${v/lTotal*100}%;background:${lColors[i]};display:inline-block" title="${lNames[i]}:${v}人"></div>`).join(''):'';
+    const lDetails=lv.map((v,i)=>v>0?`<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:${lColors[i]}22;color:${lColors[i]}">${lNames[i]}:${(s.report>0?v/s.report*100:0).toFixed(1)}%</span>`:'').filter(Boolean).join(' ');
+    // Threshold reference line display
+    const thresholds=[{t:0.95,label:'95%',color:'#059669'},{t:0.90,label:'90%',color:'#0ea5e9'},{t:0.87,label:'87%',color:'#f59e0b'}];
+    const tLines=thresholds.map(th=>{const passed=rate!=null&&rate>=th.t;return`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:${passed?th.color+'22':'#f3f4f6'};color:${passed?th.color:'#9ca3af'};font-weight:600">${th.label}${passed?' ✓':''}</span>`;}).join(' ');
+    return`<div style="border:1px solid ${st.border};border-top:4px solid ${st.border};border-radius:10px;padding:14px;background:#fff">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;color:#1e2640">${s.name}</div>
+        <div style="font-size:11px;font-weight:700;padding:3px 8px;border-radius:5px;background:${st.bg};color:${st.text}">${st.icon} ${rateP}%</div>
+      </div>
+      <div style="height:10px;background:#e2e6f0;border-radius:5px;overflow:hidden;margin-bottom:6px">
+        <div style="height:100%;width:${Math.min(parseFloat(rateP)||0,100)}%;background:${st.border};border-radius:5px;transition:width .3s"></div>
+      </div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px">${tLines}</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;font-size:10px;text-align:center;margin-bottom:10px">
+        <div style="background:#f7f8fc;border-radius:5px;padding:5px"><div style="font-size:14px;font-weight:700;color:#1e2640">${s.report>0?Math.round(s.ttl/s.days):0}</div><div style="color:#6b7a9e">${zh?'均在職':'Avg HC'}</div></div>
+        <div style="background:#f7f8fc;border-radius:5px;padding:5px"><div style="font-size:14px;font-weight:700;color:#10b981">${s.report>0?Math.round(s.att/s.days):0}</div><div style="color:#6b7a9e">${zh?'均出勤':'Avg Att'}</div></div>
+        <div style="background:#f7f8fc;border-radius:5px;padding:5px"><div style="font-size:14px;font-weight:700;color:#f59e0b">${s.report>0?Math.round(s.absent/s.days):0}</div><div style="color:#6b7a9e">${zh?'均缺勤':'Avg Abs'}</div></div>
+      </div>
+      ${lTotal>0?`<div style="font-size:10px;color:#6b7a9e;margin-bottom:4px">${zh?'假別分布：':'Leave breakdown:'}</div>
+      <div style="height:8px;border-radius:4px;overflow:hidden;background:#f3f4f6;display:flex;margin-bottom:5px">${leaveBar}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:3px">${lDetails}</div>`:''}
+    </div>`;
+  }).join('');
+
+  // ── Sewing Line Detail Section ──
+  // Debug: type window._sewDbg=true in console then re-render to see line data
+  if(window._sewDbg){
+    const cands=DB.filter(r=>!r.isSubtotal&&!r.isGrand&&dates.includes(r.date));
+    console.table(cands.slice(0,30).map(r=>({dept:r.dept,sect:r.sect,line:r.line,m:r.m,f:r.f,att:r.att})));
+    console.log('[SewDebug] sewingLines found:',sewingLines.length,sewingLines.map(s=>s.name));
+  }
+  const sewingLines=aggregateSewingLines(dates);
+  const sewingSec=document.getElementById('sewingSection');
+  if(sewingLines.length>=2){
+    sewingSec.style.display='block';
+    // Mini line cards (sewing_v5 style)
+    document.getElementById('sewingCards').innerHTML=sewingLines.map(s=>{
+      const rate=s.report>0?s.att/s.report:null;
+      const g2=rateGrade(rate);const st2=rateGradeStyle(g2);
+      const rp=rate!=null?(rate*100).toFixed(1):'—';
+      const npPct=s.report>0?(s.np/s.report*100).toFixed(1):0;
+      const alPct=s.report>0?(s.al/s.report*100).toFixed(1):0;
+      const mlPct=s.report>0?(s.ml/s.report*100).toFixed(1):0;
+      const avgHC=s.days>0?Math.round(s.ttl/s.days):0;
+      const secLabel=s.sect?s.sect.replace(/\(.*\)/,'').replace(/Sewing\s*/i,'').trim():'';
+      return`<div style="border:1px solid ${st2.border};border-top:4px solid ${st2.border};border-radius:10px;padding:12px;background:#fff;min-width:150px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <span style="font-size:13px;font-weight:700;color:#1e2640">${s.name}</span>
+          ${secLabel?`<span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#e0f2fe;color:#0369a1;font-weight:700">${secLabel}</span>`:''}
+        </div>
+        <div style="font-size:22px;font-weight:700;font-family:monospace;color:${st2.text};padding:4px 9px;background:${st2.bg};border-radius:8px;display:inline-block;margin-bottom:7px">${rp}%</div>
+        <div style="font-size:9px;color:${st2.text};margin-bottom:8px">${st2.icon} ${rateGradeLabel(g2,zh?'zh':'en')}</div>
+        <div style="height:6px;background:#e2e6f0;border-radius:3px;margin-bottom:8px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(parseFloat(rp)||0,100)}%;background:${st2.border};border-radius:3px"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:10px">
+          <div style="background:#f7f8fc;border-radius:5px;padding:5px;text-align:center">
+            <div style="font-size:15px;font-weight:700;color:#1e2640">${avgHC}</div>
+            <div style="color:#6b7a9e">${zh?'均在職':'Avg HC'}</div>
+          </div>
+          <div style="background:#f7f8fc;border-radius:5px;padding:5px;text-align:center">
+            <div style="font-size:15px;font-weight:700;color:#f59e0b">${s.days>0?Math.round(s.absent/s.days):0}</div>
+            <div style="color:#6b7a9e">${zh?'均缺勤':'Avg Abs'}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:3px;margin-top:7px">
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:#fef3c722;color:#92400e">AL ${alPct}%</span>
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;${parseFloat(npPct)>=3?'background:#fee2e2;color:#991b1b;font-weight:700':'background:#f3f4f6;color:#6b7280'}">NP ${npPct}%${parseFloat(npPct)>=3?' ⚠️':''}</span>
+          <span style="font-size:9px;padding:1px 5px;border-radius:3px;${parseFloat(mlPct)>=5?'background:#fdf2f8;color:#9d174d;font-weight:700':'background:#f3f4f6;color:#6b7280'}">ML ${mlPct}%${parseFloat(mlPct)>=5?' 🤰':''}</span>
+        </div>
+      </div>`;
+    }).join('');
+    // Detailed table
+    const hdr2=`<thead><tr style="background:#1a6e5c;color:#fff">
+      <th style="text-align:left;padding:6px 10px;font-size:11px">${zh?'組別/線別':'Line'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'Section':'Section'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'均在職':'Avg HC'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'出勤率':'Att.Rate'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'評等':'Grade'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">AL%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">PL%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">SL%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">NP%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">ML%</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'新進':'Join'}</th>
+      <th style="padding:6px 8px;text-align:center;font-size:11px">${zh?'離職':'Resign'}</th>
+    </tr></thead>`;
+    const tbody2=sewingLines.map((s,i)=>{
+      const rate=s.report>0?s.att/s.report:null;
+      const g2=rateGrade(rate);const st2=rateGradeStyle(g2);
+      const rp=rate!=null?(rate*100).toFixed(1)+'%':'—';
+      const pct=f=>s.report>0?(s[f]/s.report*100).toFixed(1):0;
+      const npP=parseFloat(pct('np')),mlP=parseFloat(pct('ml')),alP=parseFloat(pct('al'));
+      const bg=i%2===0?'#fff':'#f7fbf9';
+      const secClean=(s.sect||'').replace(/\(.*\)/,'').replace(/Sewing\s*/i,'').trim();
+      return`<tr style="background:${bg}">
+        <td style="padding:6px 10px;font-weight:700;color:#1e2640;font-size:12px">${s.name}</td>
+        <td style="padding:6px 8px;text-align:center;color:#0369a1;font-size:11px">${secClean||'—'}</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace">${s.days>0?Math.round(s.ttl/s.days):0}</td>
+        <td style="padding:6px 8px;text-align:center;font-weight:700;color:${st2.text};font-family:monospace">${rp}</td>
+        <td style="padding:6px 8px;text-align:center"><span style="font-size:10px;padding:2px 7px;border-radius:4px;background:${st2.bg};color:${st2.text};font-weight:600">${st2.icon} ${rateGradeLabel(g2,zh?'zh':'en')}</span></td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;${alP>=5?'color:#d97706;font-weight:700':'color:#4a5578'}">${pct('al')}%</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;color:#4a5578">${pct('pl')}%</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;color:#4a5578">${pct('sl')}%</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;${npP>=3?'background:#fee2e2;color:#991b1b;font-weight:700':'color:#4a5578'}">${pct('np')}%${npP>=3?' ⚠️':''}</td>
+        <td style="padding:6px 8px;text-align:center;font-family:monospace;${mlP>=5?'color:#ec4899;font-weight:700':'color:#4a5578'}">${pct('ml')}%${mlP>=5?' 🤰':''}</td>
+        <td style="padding:6px 8px;text-align:center;color:#10b981;font-weight:600">+${s.join}</td>
+        <td style="padding:6px 8px;text-align:center;${s.resign>0?'color:#ef4444;font-weight:700':'color:#4a5578'}">${s.resign>0?'🔴 ':''}-${s.resign}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('sewingTable').innerHTML=hdr2+'<tbody>'+tbody2+'</tbody>';
+  } else {
+    sewingSec.style.display='none';
+  }
+
+  // ── Rate comparison bar chart ──
+  const labels=sects.map(s=>s.name.length>8?s.name.slice(0,8)+'…':s.name);
+  const rateVals=sects.map(s=>s.report>0?(s.att/s.report*100).toFixed(1):0);
+  const bgColors=sects.map(s=>{const r=s.report>0?s.att/s.report:0;return r>=0.95?'#059669':r>=0.90?'#0ea5e9':r>=0.87?'#f59e0b':'#ef4444';});
+  mk('cGrpRate',{type:'bar',data:{labels,datasets:[
+    {label:zh?'出勤率%':'Att. Rate %',data:rateVals,backgroundColor:bgColors,borderRadius:5},
+    {label:'95%',data:labels.map(()=>95),type:'line',borderColor:'#059669',borderDash:[4,3],pointRadius:0,borderWidth:1.5},
+    {label:'90%',data:labels.map(()=>90),type:'line',borderColor:'#0ea5e9',borderDash:[4,3],pointRadius:0,borderWidth:1.5},
+    {label:'87%',data:labels.map(()=>87),type:'line',borderColor:'#f59e0b',borderDash:[4,3],pointRadius:0,borderWidth:1.5}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:70,max:102,ticks:{callback:v=>v+'%'}}}}});
+
+  // ── Leave breakdown table ──
+  const leaveHdr=['AL','PL','SL','NP','Bus','FL','ML'];
+  let tbl=`<table style="width:100%;border-collapse:collapse;font-size:11px">
+    <thead><tr><th style="text-align:left;padding:5px 8px;background:#f7f8fc;color:#6b7a9e">${zh?'組別':'Section'}</th>${leaveHdr.map(h=>`<th style="padding:5px 6px;background:#f7f8fc;color:#6b7a9e;text-align:center">${h}</th>`).join('')}</tr></thead><tbody>`;
+  sects.forEach((s,i)=>{
+    const bg=i%2===0?'#fff':'#fafbfc';
+    const lv=[s.al,s.pl,s.sl,s.np,s.bus,s.fl,s.ml];
+    const lColors=['#f59e0b','#3b82f6','#ef4444','#991b1b','#7c3aed','#0d9488','#ec4899'];
+    tbl+=`<tr style="background:${bg}"><td style="padding:5px 8px;font-weight:600;color:#1e2640">${s.name}</td>`;
+    lv.forEach((v,j)=>{const pct=s.report>0?(v/s.report*100).toFixed(1):'0';const hi=(j===3&&parseFloat(pct)>=3)||(j===6&&parseFloat(pct)>=5);
+      tbl+=`<td style="padding:5px 6px;text-align:center;${hi?'background:#fee2e2;color:#991b1b;font-weight:700':'color:#4a5578'}">${pct}%</td>`;});
+    tbl+=`</tr>`;
+  });
+  tbl+='</tbody></table>';
+  document.getElementById('grpLeaveTable').innerHTML=tbl;
+}
+
+// ═══════ BACKUP / RESTORE ═══════
+function backupJSON(){const data={db:DB,log:IMPORT_LOG,ts:new Date().toISOString()};const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vrt_att_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('📦 已備份','ok');}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB();toast('🗑 已清除','ok');}
+function exportAllCSV(){if(!DB.length){toast('無資料','err');return;}
+  const h=['date','dept','sect','line','m','f','ttl','join','resign','report','al','pl','sl','np','bus','fl','ml','idle','absent','att','rate','isSubtotal','isGrand'];
+  const rows=DB.map(r=>{const c=calc(r);return[r.date,r.dept,r.sect,r.line,r.m,r.f,c.ttl,r.join,r.resign,c.report,r.al,r.pl,r.sl,r.np,r.bus,r.fl,r.ml,r.idle,c.absent,r.att,c.rate!=null?(c.rate*100).toFixed(1):'',r.isSubtotal?'Y':'',r.isGrand?'Y':''].map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',');});
+  const csv='\uFEFF'+[h.join(','),...rows].join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=`vrt_att_all_${new Date().toISOString().slice(0,10)}.csv`;a.click();toast('⬇ CSV','ok');}
+
+function exportDayExcel(){
+  const d=document.getElementById('dsel')?.value;if(!d)return;
+  const rows=rowsForDate(d),wb=XLSX.utils.book_new();
+  const hdr=['部門','分區','組別','M','F','TTL','Join','T-In','Train','T-Out','Resign','Report','AL','PL','SL','NP','Bus','FL','ML','Idle','Absent','Attend','Rate%'];
+  const aoa=[['Vantage River Textiles'],['考勤日報表','','','','','','','','','','','','Date:',d],hdr];
+  rows.forEach(r=>{const c=calc(r);aoa.push([r.dept,r.sect,r.line,r.m,r.f,c.ttl,r.join,r.ti,r.tr,r.to,r.resign,c.report,r.al,r.pl,r.sl,r.np,r.bus,r.fl,r.ml,r.idle,c.absent,r.att,c.rate!=null?parseFloat((c.rate*100).toFixed(1)):null]);});
+  const ws=XLSX.utils.aoa_to_sheet(aoa);ws['!cols']=[{wch:28},{wch:22},{wch:35},...Array(20).fill({wch:8})];
+  // Apply cell styles
+  const rng=XLSX.utils.decode_range(ws['!ref']||'A1');
+  for(let R=0;R<=rng.e.r;R++){for(let C=0;C<=rng.e.c;C++){const a=XLSX.utils.encode_cell({r:R,c:C});if(!ws[a])ws[a]={t:'z',v:''};if(!ws[a].s)ws[a].s={};
+    if(R<=1)ws[a].s={fill:{fgColor:{rgb:'1A6E5C'}},font:{color:{rgb:'FFFFFF'},bold:true}};
+    else if(R===2)ws[a].s={fill:{fgColor:{rgb:'E8F4F1'}},font:{bold:true,color:{rgb:'1A6E5C'}}};
+    else{const di=R-3;if(di>=0&&di<rows.length){const row=rows[di];
+      if(row.isGrand)ws[a].s={fill:{fgColor:{rgb:'A9DFBF'}},font:{bold:true}};
+      else if(row.isSubtotal)ws[a].s={fill:{fgColor:{rgb:'D5F5E3'}},font:{bold:true}};
+      if(C===18&&row.ml>0)ws[a].s.fill={fgColor:{rgb:'FDE8E8'}};
+      if(C===22&&ws[a].v!=null){const v=ws[a].v;ws[a].s.font={color:{rgb:v>=92?'1E8449':v>=85?'D68910':'C0392B'},bold:true};}}}}}
+  XLSX.utils.book_append_sheet(wb,ws,'日報');XLSX.writeFile(wb,`VRT_Attendance_${d}.xlsx`);toast('🟢 Excel 已下載','ok');}
+
+// ═══════ UTILS ═══════
+function toast(m,t='info'){const e=document.createElement('div');e.className=`toast toast-${t}`;e.textContent=m;document.getElementById('toasts').appendChild(e);setTimeout(()=>e.remove(),4000);}
+
+// ═══════ INIT ═══════
+updateHeader();
+
+// ═══════════════════════════════════════════════════════════════════
+// CLOUD SYNC LAYER — VRT HR CloudSync v1
+// ═══════════════════════════════════════════════════════════════════
+const CLOUD_CFG_KEY = 'vrt_att_cloud_v1';
+const CHUNK_SIZE    = 5000; // records per chunk (sewing=5000 → 68k≈14 chunks)
+let GAS_URL     = '';
+let syncStatus  = 'idle';   // idle | syncing | synced | failed | offline
+let lastSyncTs  = null;
+let cloudSnap   = null;     // last known cloud snapshot
+
+// ── Init cloud on load ──
+(function initCloud() {
+  GAS_URL = localStorage.getItem(CLOUD_CFG_KEY + '_url') || '';
+  if (GAS_URL) {
+    document.getElementById('gasUrlInput').value = GAS_URL;
+    document.getElementById('btnPush').disabled = false;
+    document.getElementById('btnPull').disabled = false;
+    setSyncStatus('idle', T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់ (ធ្វើដោយដៃ)'));
+  }
+})();
+
+// Kept only as a compatibility entry point for older bookmarks/scripts.
+// It intentionally performs no network request: all cloud transfers are manual.
+async function attAutoSync() {
+  return false;
+}
+
+// ── Save GAS URL ──
+function saveGasUrl() {
+  const url = document.getElementById('gasUrlInput').value.trim();
+  if (!url.startsWith('https://')) { toast(T('❌ 請輸入有效的 GAS URL','❌ Enter a valid GAS URL','❌ សូមបញ្ចូល GAS URL ត្រឹមត្រូវ'), 'err'); return; }
+  GAS_URL = url;
+  localStorage.setItem(CLOUD_CFG_KEY + '_url', url);
+  document.getElementById('btnPush').disabled = false;
+  document.getElementById('btnPull').disabled = false;
+  document.getElementById('cloudCfgRow').classList.remove('open');
+  setSyncStatus('idle', T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់ (ធ្វើដោយដៃ)'));
+  toast(T('✅ GAS URL 已儲存；不會自動連線','✅ GAS URL saved; no automatic connection','✅ GAS URL បានរក្សាទុក'), 'ok');
+}
+
+function toggleCloudCfg() {
+  const row = document.getElementById('cloudCfgRow');
+  row.classList.toggle('open');
+  if (GAS_URL) document.getElementById('gasUrlInput').value = GAS_URL;
+}
+
+// ── Connection test ──
+async function testConnection() {
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); return; }
+  const btn = document.getElementById('btnTest');
+  if (btn) { btn.textContent = T('⏳ 測試中…','⏳ Testing…','⏳ កំពុងសាកល្បង…'); btn.disabled = true; }
+  setSyncStatus('syncing', T('連線測試中…','Testing connection…','កំពុងសាកល្បងការតភ្ជាប់…'));
+  try {
+    const r = await fetch(GAS_URL + '?action=heartbeat', { method:'GET', redirect:'follow' });
+    const d = await r.json();
+    if (d.ok) {
+      setSyncStatus('synced', T('GAS 連線正常','GAS connection OK','GAS ភ្ជាប់បានល្អ'));
+      toast(T('✅ GAS 連線正常','✅ GAS connection OK','✅ GAS ភ្ជាប់បានល្អ'), 'ok');
+    } else {
+      setSyncStatus('failed', T('GAS 回應錯誤','Invalid GAS response','GAS ឆ្លើយតបមិនត្រឹមត្រូវ'));
+    }
+  } catch(e) {
+    setSyncStatus('offline', T('無法連線','Connection unavailable','មិនអាចភ្ជាប់'));
+    toast(T('❌ 無法連線到 GAS','❌ Could not connect to GAS','❌ មិនអាចភ្ជាប់ GAS'), 'err');
+  }
+  if (btn) { btn.textContent = T('🔌 測試','🔌 Test','🔌 សាកល្បង'); btn.disabled = false; }
+}
+
+// ── Check cloud version vs local ──
+async function checkCloudVersion() {
+  if (!GAS_URL || !DB.length) return;
+  try {
+    const r = await fetch(GAS_URL + '?action=status', { method:'GET', redirect:'follow' });
+    const d = await r.json();
+    if (!d.ok || !d.attendance) return;
+    cloudSnap = d.attendance;
+    const cloudTs = new Date(d.attendance.timestamp);
+    const localTs = new Date(localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || 0);
+    if (cloudTs > localTs && d.attendance.recordCount > DB.length) {
+      // Cloud is newer — show banner
+      showCloudUpdateBanner(d.attendance);
+    }
+    setSyncStatus('synced', '');
+    document.getElementById('cloudTs').textContent = formatTs(d.attendance.timestamp);
+  } catch(e) {}
+}
+
+function showCloudUpdateBanner(snap) {
+  const existing = document.getElementById('cloudUpdateBanner');
+  if (existing) return;
+  const div = document.createElement('div');
+  div.id = 'cloudUpdateBanner';
+  div.style.cssText = 'background:#fffbeb;border:1px solid #fcd34d;border-radius:8px;padding:10px 15px;margin:10px 20px;font-size:12px;color:#92400e;display:flex;align-items:center;gap:10px;flex-wrap:wrap';
+  div.innerHTML = `☁️ <b>雲端有更新資料</b> — ${snap.recordCount} 筆 (${formatTs(snap.timestamp)})<button class="btn btn-cloud btn-pull" style="padding:4px 12px;font-size:11px" onclick="pullCloud(false);this.parentElement.remove()">⬇ 立即拉取</button><button style="background:none;border:none;cursor:pointer;color:#9ca3af;margin-left:auto" onclick="this.parentElement.remove()">✕</button>`;
+  const tabs = document.querySelector('.tabs');
+  if (tabs) tabs.parentNode.insertBefore(div, tabs);
+}
+
+// ── PUSH to Cloud ──
+async function pushCloud() {
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
+  if (!DB.length) { toast(T('尚無資料可上傳','No data to upload','គ្មានទិន្នន័យសម្រាប់ផ្ទុកឡើង'), 'err'); return; }
+
+  // ── Debug: show what we're about to push ─────────────────────────
+  const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
+  console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
+  toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+': '+DB.length+' · '+_latestAttDate, 'info');
+
+  setSyncStatus('syncing', T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…'));
+  setProgress(0, true);
+  const summary = buildCloudSummary();
+  // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
+  const _PUSH_CHUNK = Math.min(CHUNK_SIZE, 3000); // 3000 records ≈ 700KB per chunk
+  const totalChunks = Math.ceil(DB.length / _PUSH_CHUNK);
+  let allOk = true;
+  // Include updatedAt = latest date in DB (not push timestamp)
+  const _pushUpdatedAt = _latestAttDate || new Date().toISOString().slice(0,10);
+
+  try {
+    for (let i = 0; i < totalChunks; i++) {
+      const chunk = DB.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
+      setProgress((i / totalChunks) * 100);
+      if (i % 5 === 0) setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
+
+      const payload = {
+        action      : 'push',
+        tool        : 'attendance',
+        chunk       : i,
+        totalChunks,
+        records     : chunk,
+        recordCount : DB.length,
+        updatedAt   : _pushUpdatedAt,   // ← latest DATE in records, not push timestamp
+        importLog   : i === 0 ? IMPORT_LOG : [],  // only send importLog in first chunk
+        summary     : i === 0 ? summary : {},
+        pushedBy    : 'attendance_cloud_v1',
+      };
+
+      const r = await fetch(GAS_URL, {
+        method      : 'POST',
+        redirect    : 'follow',
+        headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
+        body        : JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!d.ok) { allOk = false; break; }
+    }
+
+    setProgress(100);
+    if (allOk) {
+      lastSyncTs = new Date().toISOString();
+      localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
+      saveMeta({updatedAt: _pushUpdatedAt, source:'cloud'});
+      // Re-fetch cloud meta to sync cloudUpdatedAt (so next startup won't re-pull)
+      try{
+        const _mr=await fetch(GAS_URL+'?action=pull&tool=attendance&meta=1',{method:'GET',redirect:'follow'});
+        const _md=await _mr.json();
+        const _nct=_md.data?.chunked?(_md.data?.meta?.timestamp||''):(_md.data?.data?.updatedAt||'');
+        if(_nct)saveMeta({cloudUpdatedAt:_nct});
+        updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
+      }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
+      setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
+      toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
+    } else {
+      setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
+      toast(T('❌ 部分上傳失敗，請重試','❌ Upload incomplete. Try again.','❌ ផ្ទុកឡើងមិនពេញលេញ'), 'err');
+    }
+  } catch(e) {
+    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
+    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
+  }
+  setTimeout(() => setProgress(0, false), 2000);
+}
+
+// ── PULL from Cloud ──
+async function pullCloud(silent) {
+  if (!GAS_URL) { if (!silent) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); } return; }
+
+  setSyncStatus('syncing', T('下載中…','Downloading…','កំពុងទាញយក…'));
+  setProgress(0, true);
+
+  try {
+    // Step 1: Get meta
+    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
+    const d1 = await r1.json();
+
+    if (!d1.ok) { setSyncStatus('failed', T('下載失敗','Download failed','ទាញយកបរាជ័យ')); toast(T('❌ 下載失敗','❌ Download failed','❌ ទាញយកបរាជ័យ'), 'err'); return; }
+    if (!d1.data || d1.data.data === null || d1.data.message === '尚無雲端資料') {
+      setSyncStatus('idle', T('雲端尚無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
+      if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
+      setProgress(0, false); return;
+    }
+
+    // Step 2: Confirm only if manual pull (not silent auto-sync)
+    const cloudTs2 = d1.data?.chunked ? (d1.data?.meta?.timestamp||'') : (d1.data?.data?.updatedAt||'');
+    if (!silent && DB.length > 0) {
+      const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
+      if (!confirm(T(
+        `雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n拉取後會以雲端快照取代本機資料，不會產生重複紀錄。\n確定拉取？`,
+        `Cloud has ${cloudRecs} records (${formatTs(cloudTs2)}).\nLocal has ${DB.length} records.\n\nThe cloud snapshot will replace local data, so duplicates are not created.\nContinue?`,
+        `Cloud: ${cloudRecs} / Local: ${DB.length}\nបន្តទាញយក?`
+      ))) {
+        setSyncStatus('idle', ''); setProgress(0, false); return;
+      }
+    }
+
+    let pullDB    = [];
+    let pullLog   = [];
+    let recordCount = 0;
+
+    if (!d1.data?.chunked) {
+      // Non-chunked: d1.data.data = the pushed payload object
+      const payload = d1.data?.data || {};
+      pullDB  = payload.records || payload.employees || [];
+      pullLog = payload.importLog || [];
+      recordCount = pullDB.length;
+      setProgress(100);
+    } else {
+      // Chunked
+      const meta   = d1.data?.meta || {};
+      const chunks = meta.totalChunks || 1;
+      pullLog = meta.importLog || [];
+      recordCount = meta.recordCount || 0;
+
+      for (let i = 0; i < chunks; i++) {
+        setProgress((i / chunks) * 80);
+        const r = await fetch(`${GAS_URL}?action=pull&tool=attendance&chunk=${i}`, { method:'GET', redirect:'follow' });
+        const d = await r.json();
+        pullDB.push(...(d.data?.records || d.records || []));
+      }
+      setProgress(90);
+    }
+
+    // Step 3: Load pulled data into memory
+    // Use sewing approach: full data in memory, only recent 90 days in localStorage
+    if (!pullDB.length) {
+      if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
+      setSyncStatus('idle', T('雲端無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
+      setProgress(0, false);
+      return;
+    }
+
+    // Load ALL records into memory
+    DB = pullDB;
+
+    // Build IMPORT_LOG from pulled data
+    IMPORT_LOG = [...new Set(pullDB.map(r => r.date).filter(Boolean))];
+    markDataChanged();
+
+    // Save ALL to IndexedDB (no size limit, persists across page refresh)
+    try {
+      await saveToIDB(pullDB);
+      toast(`💾 ${T('已儲存至本機','Saved locally','បានរក្សាទុកក្នុងម៉ាស៊ីន')} (${pullDB.length})`, 'ok');
+    } catch(idbErr) { console.warn('[IDB]', idbErr); }
+    try { LS.set('log', IMPORT_LOG); } catch(e2) {}
+
+    updateHeader();
+
+    lastSyncTs = new Date().toISOString();
+    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
+    setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
+    // Save EXACT cloudTs so next startup !== check won't re-pull
+    const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
+    const _exactCloudTs = cloudTs2||_cloudMeta?.updatedAt||_cloudMeta?.timestamp||lastSyncTs;
+    saveMeta({cloudUpdatedAt:_exactCloudTs, updatedAt:_latestInDB(pullDB), source:'cloud'});
+    console.log('[pullCloud] saved cloudUpdatedAt='+_exactCloudTs);
+    updateSyncBadge(_latestInDB(pullDB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
+    setProgress(100);
+
+    toast(`✅ ${T('下載完成','Download complete','ទាញយកជោគជ័យ')} — ${pullDB.length}`, 'ok');
+
+    // Re-render all views with new data
+    try { renderAll(); } catch(e) { console.warn('[pullCloud] renderAll:', e); }
+    // Refresh sewing compare if active
+    const sewTab = [...document.querySelectorAll('.tab')].find(x=>x.classList.contains('active')&&x.textContent.includes('車縫'));
+    if (sewTab) { try { initSewCmp(); } catch(e2) {} }
+  } catch(e) {
+    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
+    toast(T('❌ 下載失敗：','❌ Download failed: ','❌ ទាញយកបរាជ័យ៖ ')+e.message, 'err');
+  }
+  setTimeout(() => setProgress(0, false), 2000);
+}
+
+// ── Send Telegram via GAS (CORS bypass) ──
+async function sendTgMsg(text) {
+  if (!GAS_URL) return;
+  try {
+    await fetch(GAS_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'telegram', text }),
+    });
+  } catch(e) { console.warn('sendTgMsg error:', e); }
+}
+
+// ── Send via GAS (from Telegram modal) ──
+async function sendViaTg() {
+  const text = document.getElementById('tgContent')?.textContent;
+  if (!text) { toast(T('無內容','No content','គ្មានខ្លឹមសារ'), 'err'); return; }
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
+  const btn = document.getElementById('btnTgSend');
+  if (btn) { btn.disabled = true; btn.textContent = T('⏳ 傳送中…','⏳ Sending…','⏳ កំពុងផ្ញើ…'); }
+  try {
+    const r = await fetch(GAS_URL, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'telegram', text }),
+    });
+    const d = await r.json();
+    if (d.ok) { toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok'); }
+    else       { toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + (d.error || ''), 'err'); }
+  } catch(e) {
+    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
+  }
+  if (btn) { btn.disabled = false; btn.innerHTML = `<span data-zh="📤 發送至群組" data-en="📤 Send to Group" data-km="📤 ផ្ញើទៅក្រុម">${T('📤 發送至群組','📤 Send to Group','📤 ផ្ញើទៅក្រុម')}</span>`; }
+}
+
+// ── Cloud summary for push metadata ──
+function buildCloudSummary() {
+  const dates  = allDates();
+  const grands = dates.map(grandForDate).filter(Boolean);
+  const totalRep = grands.reduce((s,g) => { const c = calc(g); return s + c.report; }, 0);
+  const totalAtt = grands.reduce((s,g) => s + g.att, 0);
+  const avgRate  = totalRep > 0 ? (totalAtt / totalRep * 100).toFixed(1) + '%' : '—';
+  const totalJoin   = grands.reduce((s,g) => s + g.join, 0);
+  const totalResign = grands.reduce((s,g) => s + g.resign, 0);
+  return {
+    recordCount : DB.length,
+    latestDate  : dates[dates.length - 1] || '',
+    totalDays   : dates.length,
+    avgRate,
+    totalJoin,
+    totalResign,
+  };
+}
+
+// Compatibility no-op. Imports are saved locally, but cloud upload is always manual.
+function scheduleAutoSave() {
+  return false;
+}
+
+// ── UI helpers ──
+function setSyncStatus(status, label) {
+  syncStatus = status;
+  const dot = document.getElementById('cloudDot');
+  const lbl = document.getElementById('cloudLbl');
+  if (dot) { dot.className = 'cloud-dot ' + status; }
+  if (lbl) {
+    const statusLabels = {
+      idle    : GAS_URL ? T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់') : T('雲端未設定（手動同步）','Cloud not configured (manual sync)','Cloud មិនទាន់កំណត់'),
+      syncing : T('同步中…','Syncing…','កំពុងធ្វើសមកាលកម្ម…'),
+      synced  : T('✅ 已同步','✅ Synced','✅ បានធ្វើសមកាលកម្ម'),
+      failed  : T('❌ 同步失敗','❌ Sync failed','❌ បរាជ័យ'),
+      offline : T('📴 離線','📴 Offline','📴 គ្មានអ៊ីនធឺណិត'),
+    };
+    lbl.textContent = label || statusLabels[status] || status;
+  }
+}
+
+function setProgress(pct, show) {
+  const bar  = document.getElementById('cloudProg');
+  const fill = document.getElementById('cloudProgFill');
+  if (!bar || !fill) return;
+  if (show !== undefined) bar.classList[show ? 'add' : 'remove']('active');
+  fill.style.width = pct + '%';
+}
+
+function formatTs(ts) {
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleString('zh-TW', { timeZone: 'Asia/Phnom_Penh', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }); }
+  catch(e) { return ts.slice(0, 16); }
+}
+
+// ── Override saveDB to trigger auto-push ──
+const _saveDB_orig = saveDB;
+// (Already patched below to call scheduleAutoSave)
+
+
+// ══════════════════════════════════════════════════════════
+// ATT × SEWING COMPARE  (Spec: Attendance is Master)
+// Reads SewingCloudProd IDB and compares to Attendance DB
+// ══════════════════════════════════════════════════════════
+let SEW_IDB_DATA = null;   // null = not loaded
+let SC_MODE = 'day';       // day|week|month|year
+let SC_PERIODS = [];       // list of period keys
+
+// ── Read sewing IDB ──────────────────────────────────────
+// ── Save sewing meta when loaded from cloud ──────────────────
+function saveSewMeta(updatedAt){LS.set('sewMeta',{updatedAt});}
+
+async function loadSewingIDB(force) {
+  if (SEW_IDB_DATA !== null && !force) return SEW_IDB_DATA;
+  const attempts = [
+    {db:'SewingCloudProd', store:'cloud_records'},
+    {db:'SewingProd',      store:'cloud_records'},
+    {db:'SewingProd',      store:'records'},
+  ];
+  for (const {db, store} of attempts) {
+    try {
+      const rows = await new Promise(res => {
+        const req = indexedDB.open(db);
+        req.onerror = () => res([]);
+        req.onsuccess = e => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains(store)) { d.close(); res([]); return; }
+          const all = [];
+          try {
+            const cur = d.transaction(store,'readonly').objectStore(store).openCursor();
+            cur.onsuccess = ev => {
+              if (ev.target.result) { all.push(ev.target.result.value); ev.target.result.continue(); }
+              else { d.close(); res(all); }
+            };
+            cur.onerror = () => { d.close(); res([]); };
+          } catch(ex) { d.close(); res([]); }
+        };
+      });
+      if (rows.length) {
+        SEW_IDB_DATA = rows;
+        const el = document.getElementById('sc-status');
+        if (el) el.textContent = `車縫 ${rows.length} 筆已讀取`;
+        return rows;
+      }
+    } catch(e) {}
+  }
+  SEW_IDB_DATA = [];
+  const el = document.getElementById('sc-status');
+  if (el) el.textContent = '車縫 IDB 無資料';
+  return [];
+}
+
+// ── Normalise line name ──────────────────────────────────
+// ── isSewingLineByName: checks only by name, no m+f>0 requirement ──
+function isSewingLineByName(r) {
+  if (!r || r.isSubtotal || r.isGrand) return false;
+  // Get raw line name — use String() to safely handle numeric values
+  const raw = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
+  if (!raw) return false;
+  const n = raw.replace(/[\s_\-]+/g,'').toUpperCase();
+  // Hard-exclude non-sewing departments
+  if (/^(QC|QUALITY|PACK|PACKING|CUT|CUTTING|ADMIN|WH|WAREHOUSE|FINISH|FINISHING|SAMPLE|MECHANIC|PRESS|PRESSING|MARKER|INSPECT)/.test(n)) return false;
+  // Positive: normSCLine now handles bare digits too ("12"→"LINE12")
+  if (isSCLine(normSCLine(raw))) return true;
+  // Extra: sewing keyword + digit (e.g. "車縫1組")
+  if (/sewing|stitching|縫|車縫/i.test(raw) && /\d/.test(raw)) return true;
+  return false;
+}
+
+function normSCLine(s) {
+  const n = String(s||'').replace(/[\s_-]+/g,'').toUpperCase();
+  let m;
+  if (m=n.match(/^(?:LINE|L)0*(\d{1,2})$/)) return 'LINE'+m[1];
+  if (m=n.match(/^[AB]0*(\d{1,2})$/))        return 'LINE'+m[1];
+  if (m=n.match(/^(?:APRON|GARMENT)0*(\d{1,2})$/)) return 'LINE'+m[1];
+  // Bare digit 1-30 → attendance stores sewing lines as "12" not "LINE12"
+  if (m=n.match(/^0*(\d{1,2})$/)) { const num=+m[1]; if(num>=1&&num<=30) return 'LINE'+num; }
+  return n;
+}
+
+function isSCLine(lineId) {
+  return /^LINE(\d{1,2})$/.test(lineId) && +lineId.replace('LINE','')>=1 && +lineId.replace('LINE','')<=30;
+}
+
+// ── Period key helpers ───────────────────────────────────
+function scPeriodKey(dateStr) {
+  if (!dateStr) return '';
+  if (SC_MODE==='day')   return dateStr.slice(0,10);
+  if (SC_MODE==='week') {
+    const d=new Date(dateStr), jan=new Date(d.getFullYear(),0,1);
+    const w=Math.ceil(((d-jan)/86400000+jan.getDay()+1)/7);
+    return `${d.getFullYear()}-W${String(w).padStart(2,'0')}`;
+  }
+  if (SC_MODE==='month') return dateStr.slice(0,7);
+  if (SC_MODE==='year')  return dateStr.slice(0,4);
+  return dateStr.slice(0,10);
+}
+
+function scPeriodLabel(key) {
+  if (!key) return '—';
+  if (SC_MODE==='day')   return key;
+  if (SC_MODE==='week')  return key;
+  if (SC_MODE==='month') return key.slice(5)+'月 '+key.slice(0,4);
+  if (SC_MODE==='year')  return key+'年';
+  return key;
+}
+
+// ── Populate period selector from Attendance data ─────────
+function scPopulateSel() {
+  // Attendance is master: use attendance dates only
+  const dates = allDates();  // from existing att DB
+  const periods = [...new Set(dates.map(scPeriodKey))].sort().reverse();
+  SC_PERIODS = periods;
+  const sel = document.getElementById('sc-sel');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = periods.map(p => `<option value="${p}">${scPeriodLabel(p)}</option>`).join('');
+  if (cur && periods.includes(cur)) sel.value = cur;
+}
+
+function setSCMode(m, btn) {
+  SC_MODE = m;
+  ['sc-d','sc-w','sc-m','sc-y'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.background = id.endsWith(m[0]) ? '#f0fdf8' : '#fff';
+    if (el) el.style.color = id.endsWith(m[0]) ? '#1a6e5c' : '';
+    if (el) el.style.fontWeight = id.endsWith(m[0]) ? '600' : '400';
+  });
+  scPopulateSel();
+  renderSewCmp();
+}
+
+function navSC(dir) {
+  const sel = document.getElementById('sc-sel');
+  const opts = [...sel.options].map(o => o.value);
+  const i = opts.indexOf(sel.value);
+  const ni = i - dir;
+  if (ni >= 0 && ni < opts.length) { sel.value = opts[ni]; renderSewCmp(); }
+}
+
+// ── Init ─────────────────────────────────────────────────
+function initSewCmp() {
+  scPopulateSel();
+  // Populate LINE filter from attendance (Attendance = Master)
+  const lines = [...new Set(DB.filter(r=>isSewingLineByName(r)).map(r=>{const rf=String(r.line||'').trim()||String(r.sect||'').trim()||String(r.group||'');return normSCLine(rf);}).filter(l=>isSCLine(l)))].sort((a,b)=>{
+    const na=+a.replace('LINE',''), nb=+b.replace('LINE','');return na-nb;
+  });
+  const lSel = document.getElementById('sc-line');
+  if (lSel) {
+    lSel.innerHTML = '<option value="">— LINE —</option>' + lines.map(l=>`<option value="${l}">${l}</option>`).join('');
+  }
+  loadSewingIDB().then(renderSewCmp);
+}
+
+// ── Main render ───────────────────────────────────────────
+async function renderSewCmp() {
+  const _st = txt => { const el=document.getElementById('sc-status'); if(el) el.textContent=txt; };
+  try {
+    // 1. Load sewing IDB first (async, lets DOM paint)
+    const sew = await loadSewingIDB();
+
+    const period = document.getElementById('sc-sel')?.value;
+    const lineFilter = document.getElementById('sc-line')?.value || '';
+    if (!period) { _st('請選擇期間'); return; }
+
+    // Helper: convert any date format to YYYY-MM-DD using LOCAL time (avoids UTC timezone shift)
+    const toDateStr = d => {
+      if (!d) return '';
+      if (d instanceof Date) {
+        const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${dd}`;
+      }
+      const s = String(d);
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+      const p = new Date(s);
+      if (!isNaN(p)) { const y=p.getFullYear(),m=String(p.getMonth()+1).padStart(2,'0'),dd=String(p.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;}
+      return s.slice(0,10);
+    };
+
+    // 2. Build period-check function — avoids ALL date format mismatch issues
+    // Instead of datesSet, use scPeriodKey directly on each record (O(n) single pass, no nested loop)
+    const inPeriod = d => {
+      if (!d) return false;
+      return scPeriodKey(toDateStr(d)) === period;
+    };
+
+    // Quick sanity check: how many DB records are in this period?
+    await new Promise(r => setTimeout(r, 0));
+    _st(`▶ 掃描考勤中 …`);
+    await new Promise(r => setTimeout(r, 0));
+
+    // 3. Build attMap: lineId → {hcSum, days, join, resign}
+    // Debug counters per filter stage
+    let _f0=0,_f1=0,_f2=0,_f3=0,_f4=0,_f5=0;
+    const _sampleDate = DB.length ? String(DB[0].date).slice(0,30) : 'empty';
+    const attMap = {};
+    let attRowCount = 0;
+    DB.forEach(r => {
+      _f0++;
+      if (!inPeriod(r.date)) return; _f1++;
+      if (r.isSubtotal || r.isGrand) return; _f2++;
+      // Strip slash suffix FIRST: "LINE 12/車縫12" → "LINE 12" (same as aggregateSewingLines)
+      const rawFull = String(r.line||'').trim() || String(r.sect||'').trim() || String(r.group||'').trim();
+      const raw = rawFull.replace(/[/／].*/,'').trim();
+      if (!raw) return; _f3++;
+
+      // ── Step 1: Sewing detection using isSewingLine logic ──
+      const isSewMatch = isSewingLine(r);  // reuse proven function directly
+      if (!isSewMatch) return; _f4++;
+
+      // ── Step 2: Extract LINE_N — raw is now clean (slash stripped) ──
+      let lid = normSCLine(raw);
+      if (!isSCLine(lid)) {
+        // Number extraction fallback
+        const digits = raw.replace(/[^\d]/g,'');
+        if (digits) { const num = +digits.slice(-2); if (num>=1&&num<=30) lid='LINE'+num; }
+      }
+      if (!isSCLine(lid)) return; _f5++;
+      if (lineFilter && lid !== lineFilter) return;
+      if (!attMap[lid]) attMap[lid] = {hcSum:0, days:new Set(), join:0, resign:0};
+      const mf = (+r.m||0)+(+r.f||0);
+      attMap[lid].hcSum += mf > 0 ? mf : (+r.att||0);
+      attMap[lid].days.add(toDateStr(r.date));
+      attMap[lid].join   += (+r.join||0);
+      attMap[lid].resign += (+r.resign||0);
+      attRowCount++;
+    });
+
+    // 4. Build sewMap: lineId → {wSum, days, pcs}
+    const sewMap = {};
+    let sewRowCount = 0;
+    sew.forEach(r => {
+      if (!inPeriod(r.date)) return;
+      const lid = normSCLine(String(r.lineNo||r.line||'').trim());
+      if (!isSCLine(lid)) return;
+      if (lineFilter && lid !== lineFilter) return;
+      if (!sewMap[lid]) sewMap[lid] = {wSum:0, days:new Set(), pcs:0};
+      const w = +r.workers||0;
+      if (w > 0) { sewMap[lid].wSum += w; sewMap[lid].days.add(toDateStr(r.date)); }
+      sewMap[lid].pcs += (+r.pieces||0);
+      sewRowCount++;
+    });
+
+    // 5. Compute averages
+    const attLineHC = {}, sewLineW = {};
+    Object.entries(attMap).forEach(([lid,v]) => {
+      attLineHC[lid] = Math.round(v.hcSum / (v.days.size||1));
+    });
+    Object.entries(sewMap).forEach(([lid,v]) => {
+      sewLineW[lid] = Math.round(v.wSum / (v.days.size||1));
+    });
+
+    // 6. Totals
+    const attTotal = Object.values(attLineHC).reduce((s,v)=>s+v,0);
+    const sewTotal = Object.values(sewLineW).reduce((s,v)=>s+v,0);
+    const diff = attTotal - sewTotal;
+    const match = attTotal > 0 ? (sewTotal/attTotal*100).toFixed(1)+'%' : '—';
+
+    // 7. Debug status (visible in UI)
+    const attLnCnt = Object.keys(attLineHC).length;
+    const sewLnCnt = Object.keys(sewLineW).length;
+    const _dateEx = _sampleDate;
+    _st(`f0=${_f0} f1(period)=${_f1} f2(noSub)=${_f2} f3(hasLine)=${_f3} f4(isSCLine)=${_f4} f5=${_f5} | att=${attRowCount} | sew=${sewRowCount} | date0="${_dateEx}"`);
+    console.log('[Att×Sewing]', {period, dates:period, attRows:attRowCount, sewRows:sewRowCount, attLines:Object.keys(attLineHC), sewLines:Object.keys(sewLineW), attTotal, sewTotal});
+
+    // 8. Update KPI cards
+    const kEl = id => document.getElementById(id);
+    if (kEl('sc-att-hc')) kEl('sc-att-hc').textContent = attLnCnt > 0 ? (attTotal||'0') : (attRowCount===0?'No Att Lines':'0');
+    if (kEl('sc-sew-hc')) kEl('sc-sew-hc').textContent = sewLnCnt > 0 ? (sewTotal||'0') : 'No Sewing Data';
+    if (kEl('sc-diff')) {
+      kEl('sc-diff').textContent = (attLnCnt>0&&sewLnCnt>0) ? (diff>=0?'+':'')+diff : '—';
+      kEl('sc-diff').style.color = diff===0?'#1a6e5c':Math.abs(diff)<10?'#f59e0b':'#ef4444';
+    }
+    if (kEl('sc-match')) {
+      kEl('sc-match').textContent = match;
+      const p=parseFloat(match); kEl('sc-match').style.color=p>=95?'#1a6e5c':p>=85?'#f59e0b':'#ef4444';
+    }
+    if (kEl('sc-att-rate')) kEl('sc-att-rate').textContent = attTotal>0 ? (Object.values(attMap).reduce((s,v)=>s+(v.hcSum>0?1:0),0)) : '—';
+    if (kEl('sc-lines-cnt')) kEl('sc-lines-cnt').textContent = attLnCnt || sewLnCnt || '0';
+
+    // 9. Line order: Att master, union with sewing
+    const allLines = [...new Set([
+      ...Object.keys(attLineHC).sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE','')),
+      ...Object.keys(sewLineW).sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''))
+    ])].sort((a,b)=>+a.replace('LINE','')-+b.replace('LINE',''));
+
+    const tblTitle = document.getElementById('sc-tbl-title');
+    if (tblTitle) tblTitle.textContent = `各組別比較明細 (${scPeriodLabel(period)} · ${allLines.length} 線)`;
+
+    // 10. Render table
+    const rowsHtml = allLines.map(lid => {
+      const aHC = attLineHC[lid]||0, sHC = sewLineW[lid]||0;
+      const d2 = aHC - sHC;
+      const m2 = aHC>0 ? (sHC/aHC*100).toFixed(1)+'%' : '—';
+      const pcs = sewMap[lid]?.pcs||0;
+      const days = attMap[lid]?.days.size||0;
+      const dc = d2===0?'color:#1a6e5c':Math.abs(d2)<3?'color:#f59e0b':'color:#ef4444';
+      const dim = !sHC ? 'style="opacity:.55"' : '';
+      return `<tr ${dim}>
+        <td style="font-weight:700;color:#1a6e5c">${lid}</td>
+        <td style="text-align:right;font-weight:600">${attLnCnt>0?(aHC||'0'):'—'}</td>
+        <td style="text-align:right;color:#0ea5e9;font-weight:600">${sewLnCnt>0?(sHC||'0'):'No Sewing'}</td>
+        <td style="text-align:right;font-weight:700;${dc}">${(attLnCnt>0&&sewLnCnt>0)?(d2>=0?'+':'')+d2:'—'}</td>
+        <td style="text-align:right">${(attLnCnt>0&&sewLnCnt>0&&sHC>0)?m2:'—'}</td>
+        <td style="text-align:right;color:#6b7a9e">${pcs?pcs.toLocaleString():'—'}</td>
+        <td style="text-align:right;font-size:11px;color:#6b7a9e">${
+          (()=>{ const avg=aHC||sHC; const d=attMap[lid]?.days.size||sewMap[lid]?.days.size||1; const pcs=sewMap[lid]?.pcs||0; return avg>0&&pcs>0?Math.round(pcs/avg/d)+'件':'—'; })()
+        }</td>
+      </tr>`;
+    }).join('');
+
+    const tbl = document.getElementById('sc-table');
+    if (tbl) tbl.innerHTML = rowsHtml
+      ? `<table class="dtbl" style="width:100%;border-collapse:collapse;font-size:12px">
+          <thead><tr style="background:#1a6e5c;color:#fff">
+            <th style="padding:7px 10px;text-align:left">LINE</th>
+            <th style="padding:7px 10px;text-align:right">出勤HC<br><small>Att HC</small></th>
+            <th style="padding:7px 10px;text-align:right">車縫HC<br><small>Sewing</small></th>
+            <th style="padding:7px 10px;text-align:right">差異<br><small>Diff</small></th>
+            <th style="padding:7px 10px;text-align:right">匹配%</th>
+            <th style="padding:7px 10px;text-align:right">產量</th>
+            <th style="padding:7px 10px;text-align:right">件/人<br><small>PPW</small></th>
+          </tr></thead>
+          <tbody style="background:#fff">${rowsHtml}</tbody>
+        </table>`
+      : '<div style="text-align:center;padding:20px;color:#aaa">無資料 — 請確認考勤和車縫資料已匯入</div>';
+
+    // 11. Trend chart
+    const nP = SC_MODE==='day'?30:12;
+    const _allD=allDates(); const trendPs=[...new Set(_allD.map(scPeriodKey))].sort().reverse().slice(0,nP).reverse();
+    const tA=[], tS=[], tMatch=[];
+    trendPs.forEach(p2 => {
+      const pd = new Set(_allD.filter(d=>scPeriodKey(d)===p2));
+      const aSum = Object.entries(attMap).reduce((s,[lid,v])=>{
+        // for trend, recount within period
+        return s;
+      },0);
+      // Simplified trend: use precomputed attLineHC for current period only
+      tA.push(p2===period ? attTotal : 0);
+      tS.push(p2===period ? sewTotal : 0);
+      tMatch.push(p2===period && attTotal>0 ? Math.round(sewTotal/attTotal*100) : null);
+    });
+
+    const CHmap = window._scCH || {};
+    if (CHmap['sc-chart']) try{CHmap['sc-chart'].destroy();}catch(e){}
+    const ctx = document.getElementById('sc-chart');
+    if (ctx && typeof Chart !== 'undefined') {
+      CHmap['sc-chart'] = new Chart(ctx, {
+        type:'bar', data:{labels:trendPs.map(scPeriodLabel),datasets:[
+          {type:'line',label:'出勤HC', data:tA, borderColor:'#1a6e5c',fill:false,tension:.3,pointRadius:3,yAxisID:'yA'},
+          {type:'line',label:'車縫HC', data:tS, borderColor:'#0ea5e9',fill:false,tension:.3,pointRadius:3,borderDash:[5,3],yAxisID:'yA'},
+        ]}, options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{labels:{font:{size:10}}}},
+          scales:{yA:{beginAtZero:false,ticks:{font:{size:10}}},x:{ticks:{font:{size:10},maxRotation:45}}}}
+      });
+      window._scCH = CHmap;
+    }
+
+
+    // ── Export to COMPLETE module (schema: generatedAt, mode, period, kpis, rows) ──
+    try{
+      const _matchPct = attTotal>0?(sewTotal/attTotal*100).toFixed(1)+'%':'—';
+      localStorage.setItem('ac_complete_att_sewcmp', JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        mode: SC_MODE,
+        period,
+        kpis: {attTotal, sewTotal, diff, match:_matchPct},
+        attTotal, sewTotal, diff, match:_matchPct,
+        rows: allLines.map(lid=>({
+          lid,
+          att: attLineHC[lid]||0,
+          sew: sewLineW[lid]||0,
+          diff: (attLineHC[lid]||0)-(sewLineW[lid]||0),
+          pcs: sewMap[lid]?.pcs||0,
+          attHC: attLineHC[lid]||0,
+          sewHC: sewLineW[lid]||0
+        })),
+        lines: allLines.map(lid=>({
+          lid, att:attLineHC[lid]||0, sew:sewLineW[lid]||0,
+          diff:(attLineHC[lid]||0)-(sewLineW[lid]||0), pcs:sewMap[lid]?.pcs||0
+        }))
+      }));
+    }catch(e){console.warn('COMPLETE export:',e);}
+
+  } catch(err) {
+    const el=document.getElementById('sc-status');
+    if(el) el.textContent='❌ '+err.message;
+    console.error('[renderSewCmp]', err);
+  }
+}
+
+</script>
+
+<!-- ══════════ TAB: 出勤×車縫比較 ══════════ -->
+<div class="sec" id="sec-sewcmp">
+  <!-- Period nav -->
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#fff;border:1px solid #e2e6f0;border-radius:10px">
+    <div style="display:flex;gap:4px">
+      <button class="btn-sm" id="sc-d" onclick="setSCMode('day',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px;background:#f0fdf8;color:#1a6e5c;font-weight:600" data-zh="日" data-en="Day" data-km="ថ្ងៃ">日</button>
+      <button class="btn-sm" id="sc-w" onclick="setSCMode('week',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</button>
+      <button class="btn-sm" id="sc-m" onclick="setSCMode('month',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px" data-zh="月" data-en="Month" data-km="ខែ">月</button>
+      <button class="btn-sm" id="sc-y" onclick="setSCMode('year',this)" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;cursor:pointer;font-size:12px" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</button>
+    </div>
+    <button onclick="navSC(-1)" style="width:30px;height:30px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer;font-size:14px">◀</button>
+    <select id="sc-sel" style="font-family:monospace;font-size:12px;border:1px solid #d0d5e8;border-radius:6px;padding:4px 8px;min-width:130px" onchange="renderSewCmp()"></select>
+    <button onclick="navSC(1)" style="width:30px;height:30px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer;font-size:14px">▶</button>
+    <select id="sc-line" style="font-size:12px;border:1px solid #d0d5e8;border-radius:6px;padding:4px 8px;min-width:100px" onchange="renderSewCmp()">
+      <option value="">— LINE —</option>
+    </select>
+    <button onclick="loadSewingIDB(true).then(renderSewCmp)" style="padding:5px 12px;border:1px solid #1a6e5c;border-radius:6px;background:#fff;color:#1a6e5c;cursor:pointer;font-size:12px" data-zh="🔄 讀取車縫" data-en="🔄 Load Sewing" data-km="🔄 អានទិន្នន័យដេរ">🔄 讀取車縫</button>
+    <span id="sc-status" style="font-size:11px;color:#6b7a9e" data-zh="尚未讀取車縫資料" data-en="Sewing data not loaded" data-km="មិនទាន់អានទិន្នន័យដេរ">尚未讀取車縫資料</span>
+  </div>
+
+  <!-- KPI cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px">
+    <div class="kpi" style="border-left:4px solid #1a6e5c"><div class="kpi-n" id="sc-att-hc">—</div><div class="kpi-l" data-zh="考勤車縫人數" data-en="Attendance Sewing HC" data-km="ចំនួនដេរតាមវត្តមាន">考勤車縫人數</div></div>
+    <div class="kpi" style="border-left:4px solid #0ea5e9"><div class="kpi-n" id="sc-sew-hc">—</div><div class="kpi-l" data-zh="車縫系統人數" data-en="Sewing System HC" data-km="ចំនួនក្នុងប្រព័ន្ធដេរ">車縫系統人數</div></div>
+    <div class="kpi" style="border-left:4px solid #ef4444"><div class="kpi-n" id="sc-diff">—</div><div class="kpi-l" data-zh="差異（考勤－車縫）" data-en="Difference (Attendance − Sewing)" data-km="ភាពខុសគ្នា">差異（考勤－車縫）</div></div>
+    <div class="kpi" style="border-left:4px solid #a855f7"><div class="kpi-n" id="sc-match">—</div><div class="kpi-l" data-zh="匹配率" data-en="Match Rate" data-km="អត្រាផ្គូផ្គង">匹配率</div></div>
+  </div>
+
+  <!-- Trend chart -->
+  <div class="card" style="margin-bottom:12px">
+    <div class="ct" data-zh="📈 考勤 vs 車縫趨勢" data-en="📈 Attendance vs Sewing Trend" data-km="📈 និន្នាការវត្តមាន vs ដេរ">📈 考勤 vs 車縫趨勢</div>
+    <div style="position:relative;height:200px"><canvas id="sc-chart"></canvas></div>
+  </div>
+
+  <!-- Detail table -->
+  <div class="card">
+    <div class="ct" id="sc-tbl-title" data-zh="各組別比較明細" data-en="Line Comparison Details" data-km="ព័ត៌មានប្រៀបធៀបក្រុម">各組別比較明細</div>
+    <div class="twrap" id="sc-table" style="overflow-x:auto"></div>
+  </div>
+</div>
+
+<script>
+setLang(LANG);
+setSyncStatus('idle','');
+</script>
+</body>
+</html>
