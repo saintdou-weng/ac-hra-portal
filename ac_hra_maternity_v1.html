@@ -352,7 +352,7 @@ tbody tr:hover{background:#f8fafc}
       <div class="grid grid-cols-2 gap-3">
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間類型 Type</label>
           <select id="tg-ptype" onchange="fillTgPeriods()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white">
-            <option value="month">月 Month</option><option value="year">年 Year</option></select></div>
+            <option value="day">日 Day</option><option value="week">週 Week</option><option value="month">月 Month</option><option value="year">年 Year</option></select></div>
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間 Period</label>
           <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"></select></div>
       </div>
@@ -1415,7 +1415,7 @@ function cloudUpload(){
   var seq=Promise.resolve(),okAll=true;
   chunks.forEach(function(ck,idx){
     seq=seq.then(function(){ return gasPost({action:'push',tool:TOOL,chunk:idx,chunks:chunks.length,records:ck,ts:Date.now()}); })
-      .then(function(res){ if(!(res&&(res.ok||res.success)))okAll=false; });
+      .then(function(res){ return res.text().then(function(t){ var d=null; try{d=JSON.parse(t);}catch(e){} if(!d||d.ok===false)okAll=false; }); });
   });
   seq.then(function(){
     return gasPost({action:'push',tool:TOOL,meta:1,count:recs.length,ts:Date.now(),records:[]});
@@ -1460,10 +1460,42 @@ function autoSync(){ /* 僅在有 GAS 且有雲端資料時提示，不自動覆
 
 /* ═══════════ ④ Telegram（HTML + escapeHtml，scope 可選、雙語） ═══════════ */
 var HR='— — — — — — — — — —\n';
+/* ═══ 期間工具：日 / 週 / 月 / 年（與入離職同一套口徑，只用 local getter） ═══ */
+function isRangeKey(p){ return String(p||'').indexOf('~')>0; }
+function rangeOf(p){ var a=String(p).split('~'); return { s:a[0], e:a[1]||a[0] }; }
+function inPeriod(dateStr,p){
+  var d=String(dateStr||'').slice(0,10); if(!d||!p) return false;
+  if(isRangeKey(p)){ var r=rangeOf(p); return d>=r.s && d<=r.e; }
+  return d.slice(0,String(p).length)===String(p);
+}
+function weekStartOf(d){ var x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+function weekKeyOf(d){ var s=weekStartOf(d), e=new Date(s.getFullYear(),s.getMonth(),s.getDate()+6); return lds(s)+'~'+lds(e); }
+function monthOfKey(p){ if(isRangeKey(p)) return rangeOf(p).s.slice(0,7); var s=String(p||''); return s.length>=7?s.slice(0,7):s; }
+/* 護理費是以「月」為單位登錄的；選日或週時，取該期間涵蓋到的月份 */
+function monthsOfKey(p){
+  var s=String(p||'');
+  if(isRangeKey(p)){ var r=rangeOf(p), a=r.s.slice(0,7), b=r.e.slice(0,7); return a===b?[a]:[a,b]; }
+  if(s.length>=10) return [s.slice(0,7)];
+  return null;                                   /* 月／年 → 維持原本的前綴比對 */
+}
+function daysWithDataM(){
+  var s={};
+  EMP.forEach(function(r){ var d=evDateEmp(r); if(d)s[String(d).slice(0,10)]=1; });
+  return Object.keys(s).sort();
+}
+function weeksWithDataM(){
+  var s={};
+  daysWithDataM().forEach(function(d){ var a=d.split('-'); s[weekKeyOf(new Date(+a[0],+a[1]-1,+a[2]))]=1; });
+  return Object.keys(s).sort();
+}
 function periodData(p){
-  var isYear=p.length===4;
-  var E=EMP.filter(function(r){var d=evDateEmp(r);return d&&d.slice(0,p.length)===p;});
-  var Nr=NUR.filter(function(r){return r.payMonth&&r.payMonth.slice(0,p.length)===p;});
+  var isYear=String(p).length===4;
+  var E=EMP.filter(function(r){var d=evDateEmp(r);return inPeriod(d,p);});
+  var _ms=monthsOfKey(p);
+  var Nr=NUR.filter(function(r){
+    if(!r.payMonth) return false;
+    return _ms ? _ms.indexOf(r.payMonth)>=0 : r.payMonth.slice(0,String(p).length)===String(p);
+  });
   return {P:E.filter(function(r){return r.status==='pregnant';}),
           M:E.filter(function(r){return r.status==='maternity'||r.status==='returned';}),
           E:E, Nr:Nr, isYear:isYear};
@@ -1536,7 +1568,7 @@ function buildApprovalItems(p,scope){
       dept:r.dept||'', group:r.group||lineOf(r), position:r.position||'',
       gender:r.gender||'F', age:saneAge(r.age)||'', days:td,
       region:regionOf(r.address||r.remark||''), marital:r.marital||'',
-      period:(evDateEmp(r)||p).slice(0,7),
+      period:(String(evDateEmp(r)||'').slice(0,7)||monthOfKey(p)),
       edd:r.edd, returnDate:r.returnDate, status:r.status,
       amount:+r.matAmount||0,
       info:kd==='maternity'
@@ -1566,12 +1598,27 @@ function buildApprovalItems(p,scope){
   return items;
 }
 function monthsWithDataTg(){ return monthsWithData(); }
+function tgWantKey(ty,d){
+  return ty==='year'  ? String(d.getFullYear())
+       : ty==='month' ? (d.getFullYear()+'-'+p2(d.getMonth()+1))
+       : ty==='week'  ? weekKeyOf(d)
+       :                lds(d);
+}
 function fillTgPeriods(){
   var ty=el('tg-ptype').value, sel=el('tg-period');
-  var vals = ty==='year' ? yearsWithData() : monthsWithData();
-  if(!vals.length){ var st=NAV[TAB]||NAV.ov; vals=[ty==='year'?String(st.pivot.getFullYear()):(st.pivot.getFullYear()+'-'+p2(st.pivot.getMonth()+1))]; }
+  var vals = ty==='year' ? yearsWithData()
+           : ty==='week' ? weeksWithDataM().slice(0)
+           : ty==='day'  ? daysWithDataM().slice(0)
+           : monthsWithData();
   vals=vals.slice().reverse();
-  sel.innerHTML=vals.map(function(v){return '<option value="'+v+'">'+v+'</option>';}).join('');
+  if(ty==='day')  vals=vals.slice(0,180);
+  if(ty==='week') vals=vals.slice(0,104);
+  var st=NAV[TAB]||NAV.ov, want=tgWantKey(ty,st.pivot);
+  if(vals.indexOf(want)<0) vals=[want].concat(vals);
+  sel.innerHTML=vals.map(function(v){
+    return '<option value="'+v+'">'+(isRangeKey(v)?v.replace('~',' ~ '):v)+'</option>';
+  }).join('');
+  sel.value=want;
   previewTg();
 }
 function setTgMode(m){
@@ -1593,9 +1640,9 @@ function openTg(mode){
   _tgMode=(mode==='approval')?'approval':'summary';
   _tgScope = TAB==='preg'?'preg' : TAB==='mat'?'mat' : TAB==='nur'?'nur' : 'all';
   var st=NAV[TAB]||NAV.ov;
-  el('tg-ptype').value=(st.mode==='year')?'year':'month';
+  el('tg-ptype').value=(st.mode==='year')?'year':(st.mode==='day')?'day':(st.mode==='week')?'week':'month';
   fillTgPeriods();
-  var want=(el('tg-ptype').value==='year')?String(st.pivot.getFullYear()):(st.pivot.getFullYear()+'-'+p2(st.pivot.getMonth()+1));
+  var want=tgWantKey(el('tg-ptype').value, st.pivot);
   var sel=el('tg-period');
   if(Array.prototype.some.call(sel.options,function(o){return o.value===want;}))sel.value=want;
   setTgScope(_tgScope); setTgMode(_tgMode);
@@ -1617,24 +1664,60 @@ function previewTg(){
   btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700';
 }
 function confirmTg(){
+  var btn=el('tg-send'), oldHtml=btn.innerHTML;
   var p=el('tg-period').value, bi=el('tg-bi').checked, scope=_tgScope;
-  var r=buildSummaryText(p,bi,scope);
-  if(r.err){ toast(r.err,'error'); return; }
-  var btn=el('tg-send'); btn.disabled=true; var old=btn.textContent; btn.textContent=L('傳送中…','Sending…');
-  var sTag=scope==='preg'?'P':scope==='mat'?'M':scope==='nur'?'N':'A', payload;
-  if(_tgMode==='approval'){
-    var items=buildApprovalItems(p,scope);
-    payload={action:'approvalRequest',type:'approvalRequest',module:'maternity',scope:scope,
-      batch:'MAT-'+sTag+'-'+p.replace(/-/g,''),period:p,
-      count:items.length,items:items,text:r.text,requestedBy:'maternity_v2',requestedAt:nowStamp()};
-  }else{
-    payload={action:'telegram',type:'notify',tool:TOOL,scope:scope,text:r.text};
+  var payload;
+
+  /* ★ 先組裝再鎖按鈕：組裝丟例外時後面的解鎖永遠不會跑，按鈕會永久卡住 */
+  try{
+    var r=buildSummaryText(p,bi,scope);
+    if(r.err){ toast(r.err,'error'); return; }
+    var sTag=scope==='preg'?'P':scope==='mat'?'M':scope==='nur'?'N':'A';
+    if(_tgMode==='approval'){
+      var items=buildApprovalItems(p,scope);
+      if(!items.length){ toast(L('此期間沒有可送核可的項目','No items to approve in this period'),'error'); return; }
+      payload={action:'approvalRequest',type:'approvalRequest',module:'maternity',scope:scope,
+        batch:'MAT-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
+        period:p, lang:LANG, count:items.length, items:items, text:r.text,
+        idempotencyKey:['maternity',sTag,p,items.length,
+                        items.map(function(x){return x.key;}).sort().join(',')].join('|'),
+        requestedBy:'maternity_v2', requestedAt:nowStamp()};
+    }else{
+      payload={action:'telegram',type:'notify',tool:TOOL,scope:scope,text:r.text};
+    }
+  }catch(e){
+    console.error('[confirmTg build]', e);
+    toast(L('組裝訊息失敗：','Build failed: ')+e.message,'error');
+    return;
   }
+
+  btn.disabled=true; btn.textContent=L('傳送中…','Sending…');
+  var unlock=function(){ btn.disabled=false; btn.innerHTML=oldHtml; };
+
   gasPost(payload).then(function(res){
-    if(res&&(res.ok||res.success||res.raw)){ toast(L('已傳送至 Telegram','Sent to Telegram'),'ok'); closeTg(); }
-    else toast(L('傳送可能失敗，請確認 GAS','Send may have failed'),'warn');
-  }).catch(function(e){ toast(L('傳送失敗','Send failed')+'：'+e.message,'error'); })
-    .then(function(){ btn.disabled=false; btn.textContent=old; });
+    /* ★ 舊版寫成 if(res && (res.ok||res.success||res.raw))——res 是 fetch Response，
+       res.ok 只代表 HTTP 200。GAS 回 {ok:false,error:...} 也會被判定成功，
+       畫面顯示「已傳送」但群組裡什麼都沒有。 */
+    return res.text().then(function(txt){
+      var d=null; try{ d=JSON.parse(txt); }catch(e2){}
+      if(!d) throw new Error(L('GAS 回傳非 JSON（HTTP ','Non-JSON from GAS (HTTP ')+res.status+'）：'+String(txt).slice(0,140));
+      return d;
+    });
+  }).then(function(d){
+    if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
+    var dd=d.data||d;
+    if(dd.reused){
+      toast(L('這批資料先前已送出，已重新整理群組裡那則訊息','Already submitted — refreshed the existing group message')
+            +(dd.batchId?(' · '+dd.batchId):''),'warn');
+    }else{
+      toast((_tgMode==='approval'?L('已送出核可請求','Approval request sent'):L('已傳送至 Telegram 群組','Sent to Telegram'))
+            +(dd.batchId?(' · '+dd.batchId):''),'ok');
+    }
+    closeTg();
+  }).catch(function(e){
+    console.error('[confirmTg send]', e);
+    toast(L('傳送失敗：','Send failed: ')+e.message,'error');
+  }).then(unlock, unlock);
 }
 
 /* ═══════════ 員工編輯 Modal ═══════════ */

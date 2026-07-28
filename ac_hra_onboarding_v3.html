@@ -338,7 +338,7 @@ tbody tr:hover{background:#f8fafc}
       <div class="grid grid-cols-2 gap-3">
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間類型 Type</label>
           <select id="tg-ptype" onchange="fillTgPeriods()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white">
-            <option value="month">月 Month</option><option value="year">年 Year</option></select></div>
+            <option value="day">日 Day</option><option value="week">週 Week</option><option value="month">月 Month</option><option value="year">年 Year</option></select></div>
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間 Period</label>
           <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"></select></div>
       </div>
@@ -1875,8 +1875,52 @@ function autoSync(){
 }
 
 /* ═══════════ TELEGRAM（④ HTML + escapeHtml） ═══════════ */
+/* ═══ 期間工具：日 / 週 / 月 / 年 ═══
+   月「2026-07」、年「2026」用前綴比對；
+   日「2026-07-15」也是前綴；週用區間鍵「起~迄」，另外走區間比對。
+   全程只用 local getter，不碰 toISOString。 */
+function isRangeKey(p){ return String(p||'').indexOf('~')>0; }
+function rangeOf(p){ var a=String(p).split('~'); return { s:a[0], e:a[1]||a[0] }; }
+function inPeriod(dateStr,p){
+  var d=String(dateStr||'').slice(0,10); if(!d||!p) return false;
+  if(isRangeKey(p)){ var r=rangeOf(p); return d>=r.s && d<=r.e; }
+  return d.slice(0,String(p).length)===String(p);
+}
+/* 週一為首日 */
+function weekStartOf(d){
+  var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  x.setDate(x.getDate()-((x.getDay()+6)%7));
+  return x;
+}
+function weekKeyOf(d){
+  var s=weekStartOf(d), e=new Date(s.getFullYear(),s.getMonth(),s.getDate()+6);
+  return lds(s)+'~'+lds(e);
+}
+/* 期間鍵 → 給 GAS 用的 YYYY-MM（核可批次的期間欄位） */
+function monthOfKey(p){
+  if(isRangeKey(p)) return rangeOf(p).s.slice(0,7);
+  var s=String(p||'');
+  return s.length>=7 ? s.slice(0,7) : s;
+}
+function daysWithData(){
+  var s={};
+  JOINS.forEach(function(r){ if(r.joinDate)s[String(r.joinDate).slice(0,10)]=1; });
+  RESIGNS.forEach(function(r){ if(r.resignDate)s[String(r.resignDate).slice(0,10)]=1; });
+  return Object.keys(s).sort();
+}
+function weeksWithData(){
+  var s={};
+  daysWithData().forEach(function(d){
+    var a=d.split('-');
+    s[weekKeyOf(new Date(+a[0],+a[1]-1,+a[2]))]=1;
+  });
+  return Object.keys(s).sort();
+}
 function tgPeriods(type){
-  return (type==='year'?yearsWithData():monthsWithData()).slice().reverse();
+  if(type==='day')  return daysWithData().slice().reverse().slice(0,180);
+  if(type==='week') return weeksWithData().slice().reverse().slice(0,104);
+  if(type==='year') return yearsWithData().slice().reverse();
+  return monthsWithData().slice().reverse();
 }
 function openTg(mode){
   _tgFrom = (mode==='approval')?'appr':'header';
@@ -1884,9 +1928,13 @@ function openTg(mode){
   /* 依目前分頁預選內容來源：入職分頁→join、離職分頁→resign，其餘→both */
   _tgScope = TAB==='join'?'join' : TAB==='resign'?'resign' : 'both';
   var st=NAV[TAB]||NAV.ov;
-  el('tg-ptype').value=(st.mode==='year')?'year':'month';
+  el('tg-ptype').value=(st.mode==='year')?'year':(st.mode==='day')?'day':(st.mode==='week')?'week':'month';
   fillTgPeriods();
-  var want=(el('tg-ptype').value==='year')?String(st.pivot.getFullYear()):(st.pivot.getFullYear()+'-'+p2(st.pivot.getMonth()+1));
+  var pt=el('tg-ptype').value;
+  var want = pt==='year'  ? String(st.pivot.getFullYear())
+           : pt==='month' ? (st.pivot.getFullYear()+'-'+p2(st.pivot.getMonth()+1))
+           : pt==='week'  ? weekKeyOf(st.pivot)
+           :                lds(st.pivot);
   var sel=el('tg-period');
   if(Array.prototype.some.call(sel.options,function(o){return o.value===want;})) sel.value=want;
   setTgScope(_tgScope);
@@ -1905,12 +1953,16 @@ function closeTg(){ var m=el('tg-modal'); m.classList.add('hidden'); m.classList
 function fillTgPeriods(){
   var type=el('tg-ptype').value, ps=tgPeriods(type), sel=el('tg-period');
   var cur=(NAV[TAB]||NAV.ov).pivot;
-  var want=(type==='year')?String(cur.getFullYear()):(cur.getFullYear()+'-'+p2(cur.getMonth()+1));
+  var want = type==='year'  ? String(cur.getFullYear())
+           : type==='month' ? (cur.getFullYear()+'-'+p2(cur.getMonth()+1))
+           : type==='week'  ? weekKeyOf(cur)
+           :                  lds(cur);
   if(ps.indexOf(want)<0){ ps=[want].concat(ps); }
   sel.innerHTML=ps.map(function(p){
-    var n=RESIGNS.filter(function(r){return (r.resignDate||'').slice(0,p.length)===p;}).length;
-    var j=JOINS.filter(function(r){return (r.joinDate||'').slice(0,p.length)===p;}).length;
-    return '<option value="'+p+'">'+p+' · '+L('入','J')+j+'/'+L('離','R')+n+'</option>';
+    var n=RESIGNS.filter(function(r){return inPeriod(r.resignDate,p);}).length;
+    var j=JOINS.filter(function(r){return inPeriod(r.joinDate,p);}).length;
+    var lab=isRangeKey(p)?p.replace('~',' ~ '):p;
+    return '<option value="'+p+'">'+lab+' · '+L('入','J')+j+'/'+L('離','R')+n+'</option>';
   }).join('');
   sel.value=want;
   previewTg();
@@ -1930,8 +1982,8 @@ function setTgMode(m){
   previewTg();
 }
 function periodData(p){
-  var J=JOINS.filter(function(r){return (r.joinDate||'').slice(0,p.length)===p;});
-  var R=RESIGNS.filter(function(r){return (r.resignDate||'').slice(0,p.length)===p;});
+  var J=JOINS.filter(function(r){return inPeriod(r.joinDate,p);});
+  var R=RESIGNS.filter(function(r){return inPeriod(r.resignDate,p);});
   return {J:J,R:R};
 }
 var HR='— — — — — — — — — —\n';
@@ -2040,7 +2092,7 @@ function buildApprovalItems(p,scope){
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:+r.workingDays||0,
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
-      period:(r.resignDate||p).slice(0,7), date:r.resignDate, type:r.resignType,
+      period:(String(r.resignDate||'').slice(0,7)||monthOfKey(p)), date:r.resignDate, type:r.resignType,
       info:(REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||''),
       reason:r.reasonCat||r.reason, amount:+r.amount||0,
       decision:x.d||'',note:x.note||''});
@@ -2051,7 +2103,7 @@ function buildApprovalItems(p,scope){
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:0,
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
-      period:(r.joinDate||p).slice(0,7), date:r.joinDate,
+      period:(String(r.joinDate||'').slice(0,7)||monthOfKey(p)), date:r.joinDate,
       info:r.position||'', amount:0, decision:x.d||'',note:x.note||''});
   });
   return items;
@@ -2075,28 +2127,64 @@ function previewTg(){
   btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-sky-600 text-white hover:bg-sky-700 transition';
 }
 function confirmTg(){
+  var btn=el('tg-send'), oldHtml=btn.innerHTML;
   var p=el('tg-period').value, bi=el('tg-bi').checked, scope=_tgScope;
-  var r=buildSummaryText(p,bi,scope);
-  if(r.err){ toast(r.err,'error'); return; }
-  var btn=el('tg-send'); btn.disabled=true; var old=btn.textContent; btn.textContent=L('傳送中…','Sending…');
-  var sTag=scope==='join'?'J':scope==='resign'?'R':'B';
   var payload;
-  if(_tgMode==='approval'){
-    var items=buildApprovalItems(p,scope);
-    payload={ action:'approvalRequest', type:'approvalRequest', module:'onboarding', scope:scope,
-      batch:'OB-'+sTag+'-'+p.replace(/-/g,''), period:p, 
-      count:items.length, items:items, text:r.text,
-      requestedBy:'onboarding_v3', requestedAt:nowStamp() };
-  }else{
-    payload={ action:'telegram', type:'notify', tool:TOOL, scope:scope, text:r.text };
+
+  /* ★ 組裝階段先做完再鎖按鈕。
+     舊版是「先鎖按鈕 → 再組裝」，組裝只要丟出例外，
+     後面的 .then(解鎖) 永遠不會執行 → 按鈕就永久卡在 disabled，
+     而且一則錯誤訊息都不會出現。這就是「連傳送鈕都按不下去」。 */
+  try{
+    var r=buildSummaryText(p,bi,scope);
+    if(r.err){ toast(r.err,'error'); return; }
+    var sTag=scope==='join'?'J':scope==='resign'?'R':'B';
+    if(_tgMode==='approval'){
+      var items=buildApprovalItems(p,scope);
+      if(!items.length){ toast(L('此期間沒有可送核可的項目','No items to approve in this period'),'error'); return; }
+      payload={ action:'approvalRequest', type:'approvalRequest', module:'onboarding', scope:scope,
+        batch:'OB-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
+        period:p, lang:LANG, count:items.length, items:items, text:r.text,
+        /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
+        idempotencyKey:['onboarding',sTag,p,items.length,
+                        items.map(function(x){return x.key;}).sort().join(',')].join('|'),
+        requestedBy:'onboarding_v3', requestedAt:nowStamp() };
+    }else{
+      payload={ action:'telegram', type:'notify', tool:TOOL, scope:scope, text:r.text };
+    }
+  }catch(e){
+    console.error('[confirmTg build]', e);
+    toast(L('組裝訊息失敗：','Build failed: ')+e.message,'error');
+    return;
   }
-  gasPost(payload).then(function(res){ return res.json().catch(function(){return null;}); })
-  .then(function(d){
-    if(d&&(d.ok===false||d.sent===false)){ toast(L('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error'); return; }
-    toast(_tgMode==='approval'?L('已送出核可請求','Approval request sent'):L('已傳送至 Telegram 群組','Sent to Telegram'),'ok');
+
+  btn.disabled=true; btn.textContent=L('傳送中…','Sending…');
+  var unlock=function(){ btn.disabled=false; btn.innerHTML=oldHtml; };   /* innerHTML 才保得住雙語 span */
+
+  gasPost(payload).then(function(res){
+    /* ★ 用 text() 不用 json()：GAS 出錯時回的是 HTML 錯誤頁，
+       舊版 json() 失敗會被吃成 null，然後跑去顯示「已傳送」。 */
+    return res.text().then(function(txt){
+      var d=null; try{ d=JSON.parse(txt); }catch(e2){}
+      if(!d) throw new Error(L('GAS 回傳非 JSON（HTTP ','Non-JSON from GAS (HTTP ')+res.status+'）：'+String(txt).slice(0,140));
+      return d;
+    });
+  }).then(function(d){
+    if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
+    var dd=d.data||d;
+    if(dd.reused){
+      /* 同一批資料重送 → GAS 端 idempotency 命中，不會產生新訊息 */
+      toast(L('這批資料先前已送出，已重新整理群組裡那則訊息','Already submitted — refreshed the existing group message')
+            +(dd.batchId?(' · '+dd.batchId):''),'warn');
+    }else{
+      toast((_tgMode==='approval'?L('已送出核可請求','Approval request sent'):L('已傳送至 Telegram 群組','Sent to Telegram'))
+            +(dd.batchId?(' · '+dd.batchId):''),'ok');
+    }
     closeTg();
-  }).catch(function(e){ toast(L('傳送失敗：','Send failed: ')+e.message,'error'); })
-  .then(function(){ btn.disabled=false; btn.textContent=old; });
+  }).catch(function(e){
+    console.error('[confirmTg send]', e);
+    toast(L('傳送失敗：','Send failed: ')+e.message,'error');
+  }).then(unlock, unlock);
 }
 
 /* ═══════════ 設定 ═══════════ */
