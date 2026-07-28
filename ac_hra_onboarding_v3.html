@@ -1006,39 +1006,106 @@ function parseJoinSheet(rows,sheetName){
 }
 
 /* ═══════════ 解析：結算單 Summery ═══════════ */
+/* ★ 這份結算單的表頭列常常是 #REF!（原檔用公式連到別的活頁簿，連結斷掉就整列壞掉）。
+   找不到表頭時不能直接放棄——資料列本身是好的，改用「看資料長相」推欄位。 */
+function looksDateCell(v){
+  if(v instanceof Date) return !isNaN(v.getTime());
+  if(typeof v==='number') return v>=40000&&v<=60000;      /* Excel 序號 ≈ 2009–2064，避開金額被誤判 */
+  var s=cs(v); if(!s) return false;
+  return /^\d{4}[-\/.]\d{1,2}[-\/.]\d{1,2}/.test(s)||/^\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}$/.test(s);
+}
+function sniffSettleLayout(rows){
+  /* ① 找錨點：某一格是工號、右邊一格是姓名，且下一列同一欄也是工號（連續兩列才算資料區） */
+  var A=null;
+  for(var i=0;i<Math.min(rows.length,40)&&!A;i++){
+    var r=rows[i]||[];
+    for(var c=0;c<Math.min(r.length,6);c++){
+      if(!empIdOf(r[c])) continue;
+      var nm=cs(r[c+1]);
+      if(!nm||!/[A-Za-z\u1780-\u17FF\u4E00-\u9FFF]/.test(nm)) continue;
+      if(!empIdOf((rows[i+1]||[])[c])) continue;
+      A={start:i, cId:c, cName:c+1, cNo:(c-1>=0?c-1:-1)};
+      break;
+    }
+  }
+  if(!A) return null;
+
+  /* ② 收資料列（工號欄有值才算，Total / 簽核列自動被排除） */
+  var body=[], maxc=0;
+  for(var j=A.start;j<rows.length;j++){
+    var rw=rows[j]||[];
+    if(empIdOf(rw[A.cId])){ body.push(rw); if(rw.length>maxc)maxc=rw.length; }
+  }
+  if(!body.length) return null;
+
+  /* ③ 逐欄看整區資料的長相決定用途；整欄都是 #REF! 的直接跳過 */
+  var cAmt=-1,cDate=-1,cRmk=-1,texts=[];
+  for(var c2=A.cName+1;c2<maxc;c2++){
+    var seen=0,nDate=0,nNum=0,nTxt=0,nRes=0;
+    body.forEach(function(r){
+      var v=r[c2], s=cs(v);
+      if(v===null||v===undefined||s==='') return;
+      seen++;
+      if(looksDateCell(v)) nDate++;
+      else if(typeof v==='number'||/^-?[\d,]+(\.\d+)?$/.test(s)) nNum++;
+      else { nTxt++; if(/resign|terminat|辭|離職/i.test(s)) nRes++; }
+    });
+    if(!seen) continue;
+    if(nDate>=seen*0.6){ if(cDate<0)cDate=c2; }
+    else if(nRes>=seen*0.6){ if(cRmk<0)cRmk=c2; }
+    else if(nNum>=seen*0.6){ if(cAmt<0)cAmt=c2; }        /* 第一個數值欄 = 結算金額 */
+    else if(nTxt>=seen*0.6) texts.push(c2);
+  }
+  A.cAmt=cAmt; A.cDate=cDate; A.cRmk=cRmk;
+  A.cPos = texts.length>0?texts[0]:-1;
+  A.cDept= texts.length>1?texts[1]:-1;
+  A.cSal=-1; A.cMeal=-1; A.cAL=-1; A.cTr=-1;
+  return A;
+}
 function parseSettleSheet(rows,sheetName){
-  var out=[], warn=[];
+  var out=[], warn=[], M=null, start=0;
   var h=hdrRowOf(rows,[/id no/,/amount/],16);
-  if(h<0)return {rows:out,warn:['['+sheetName+'] '+L('找不到結算表頭','settlement header not found')]};
-  var hdr=hdrMap(rows[h]);
-  var cNo=cIdx(hdr,/^no\.?$/),
-      cId=cIdx(hdr,/id no/),
-      cName=cIdx(hdr,/^name$/),
-      cAmt=cIdx(hdr,/amount/),
-      cSal=cIdx(hdr,/^salary$/),
-      cMeal=cIdx(hdr,/meal/),
-      cAL=cIdx(hdr,/annual\s*leave/),
-      cTr=cIdx(hdr,/transport/),
-      cRmk=cIdx(hdr,/remark/),
-      cDate=cIdx(hdr,/^date$/),
-      cPos=cIdx(hdr,/position/),
-      cDept=cIdx(hdr,/dapartment|department/);
-  if(cId<0)return {rows:out,warn:['['+sheetName+'] '+L('缺少 ID No. 欄','missing ID No. column')]};
-  for(var i=h+1;i<rows.length;i++){
+  if(h>=0){
+    var hdr=hdrMap(rows[h]);
+    M={ cNo:cIdx(hdr,/^no\.?$/), cId:cIdx(hdr,/id no/), cName:cIdx(hdr,/^name$/),
+        cAmt:cIdx(hdr,/amount/), cSal:cIdx(hdr,/^salary$/), cMeal:cIdx(hdr,/meal/),
+        cAL:cIdx(hdr,/annual\s*leave/), cTr:cIdx(hdr,/transport/), cRmk:cIdx(hdr,/remark/),
+        cDate:cIdx(hdr,/^date$/), cPos:cIdx(hdr,/position/), cDept:cIdx(hdr,/dapartment|department/) };
+    start=h+1;
+    if(M.cId<0) M=null;
+  }
+  if(!M){
+    M=sniffSettleLayout(rows);
+    if(!M) return {rows:out,warn:['['+sheetName+'] '+L('找不到結算表頭，也認不出資料列格式','no settlement header and layout not recognised')]};
+    start=M.start;
+    warn.push('['+sheetName+'] '+L('表頭是 #REF!，已改用欄位格式自動辨識','header is #REF! — columns detected from the data')+
+      '（'+L('工號','ID')+'=' +colL(M.cId)+' · '+L('姓名','Name')+'='+colL(M.cName)+
+      (M.cAmt>=0?(' · '+L('金額','Amount')+'='+colL(M.cAmt)):'')+
+      (M.cDate>=0?(' · '+L('日期','Date')+'='+colL(M.cDate)):'')+'）');
+  }
+  for(var i=start;i<rows.length;i++){
     var row=rows[i]||[];
-    var nm=cs(row[cName]);
+    var nm=cs(row[M.cName]);
     if(/^(total|合計|approved by|check by|prepared by|hr manager)$/i.test(nm))continue;  /* 跳過 Total / 簽核列 */
-    var empId=empIdOf(row[cId]); if(!empId)continue;                                     /* 跳過 #N/A、空白、非數字 */
-    var dt=cDate>=0?xdate(row[cDate]):'';
-    var rmk=cRmk>=0?cs(row[cRmk]):'';
+    var empId=empIdOf(row[M.cId]); if(!empId)continue;                                   /* 跳過 #N/A、空白、非數字 */
+    var dt=M.cDate>=0?xdate(row[M.cDate]):'';
+    var rmk=M.cRmk>=0?cs(row[M.cRmk]):'';
     var isResign = !rmk || /resign|辭|離職/i.test(rmk);
     out.push({ _k:'S|'+empId+'|'+(dt||'-'), id:'s_'+uid(), empId:empId, name:nm,
-      settleDate:dt, amount:N(row[cAmt]), settleSalary:N(row[cSal]), meals:N(row[cMeal]),
-      annualLeave:N(row[cAL]), transport:N(row[cTr]),
-      remarks:rmk, position:cPos>=0?cs(row[cPos]):'', dept:cDept>=0?cs(row[cDept]):'',
+      settleDate:dt, amount:N(row[M.cAmt]), settleSalary:N(row[M.cSal]), meals:N(row[M.cMeal]),
+      annualLeave:N(row[M.cAL]), transport:N(row[M.cTr]),
+      remarks:rmk, position:M.cPos>=0?cs(row[M.cPos]):'', dept:M.cDept>=0?cs(row[M.cDept]):'',
       isResign:isResign, matchedTo:'', srcSheet:sheetName });
   }
+  if(!out.length) warn.push('['+sheetName+'] '+L('認得表頭但沒有讀到任何有效工號列','header found but no valid ID rows'));
   return {rows:out,warn:warn};
+}
+/* 欄索引 → Excel 欄名（給匯入報告看的） */
+function colL(n){
+  if(n<0||n==null) return '?';
+  var s=''; n=+n;
+  while(n>=0){ s=String.fromCharCode(65+(n%26))+s; n=Math.floor(n/26)-1; }
+  return s;
 }
 
 /* ═══════════ ② 去重合併 upsert ═══════════ */
