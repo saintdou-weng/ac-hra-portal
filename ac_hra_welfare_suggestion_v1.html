@@ -48,6 +48,14 @@ main{max-width:1500px;margin:auto;padding:14px 18px 55px}.view{display:none}.vie
 .loading{position:fixed;inset:0;background:rgba(242,248,250,.84);z-index:210;display:none;place-items:center}.loading.on{display:grid}.loader{background:#fff;padding:18px 24px;border-radius:13px;box-shadow:var(--shadow);font-weight:850}.spin{display:inline-block;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}.month-grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:650px){.top-in{padding:10px}.brand h1{font-size:18px}.brand p{font-size:10px}.logo{width:46px;height:46px}.top-btn{font-size:0;min-width:42px;justify-content:center}.top-btn span{font-size:19px}.manual-note{width:100%;margin-left:0}.tab-wrap{top:126px}.tab{padding:12px 13px;font-size:13px}.period-bar,main{padding-left:10px;padding-right:10px}.cards{gap:8px}.kpi{padding:13px}.month-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.suggestion-item{grid-template-columns:1fr}.gallery{grid-template-columns:1fr 1fr}.gallery img{height:150px}.modal{padding:7px}}
+
+.dzbar{background:linear-gradient(90deg,#f8fafc,#fff,#f0f9ff);border-bottom:1px solid var(--line,#e2e8f0)}
+.dzwrap{max-width:1500px;margin:auto;padding:10px 16px}
+.dz{border:2px dashed #cbd5e1;border-radius:12px;background:#fff;padding:12px 16px;text-align:center;cursor:pointer;transition:.2s}
+.dz:hover{border-color:#0ea5e9}
+.dz.over{border-color:#0ea5e9;background:#f0f9ff}
+.dz b{font-size:13px;color:#334155}
+.dz span{font-size:11px;color:#94a3b8;display:block;margin-top:2px}
 </style>
 </head>
 <body>
@@ -57,7 +65,7 @@ main{max-width:1500px;margin:auto;padding:14px 18px 55px}.view{display:none}.vie
       <div class="logo">🤝</div>
       <div class="brand"><h1 data-i18n="title">員工福利與意見箱</h1><p>AC HRA · TRANSPORT · ACCOMMODATION · UNION DUES · SUGGESTION v1.0</p></div>
       <div class="grow"></div>
-      <div class="lang"><button id="langZh" onclick="setLang('zh')">中</button><button id="langEn" onclick="setLang('en')">EN</button></div>
+      <div class="lang"><button id="langZh" onclick="setLang('zh')">中</button><button id="langEn" onclick="setLang('en')">EN</button><button id="langKm" onclick="setLang('km')">ខ្មែរ</button></div>
     </div>
     <div class="actions">
       <button class="top-btn primary" onclick="openImport()"><span>📥</span><b data-i18n="import">匯入 Excel</b></button>
@@ -65,12 +73,21 @@ main{max-width:1500px;margin:auto;padding:14px 18px 55px}.view{display:none}.vie
       <button class="top-btn" onclick="cloudPull()"><span>☁️↓</span><b data-i18n="cloudDown">手動下載</b></button>
       <button class="top-btn" onclick="exportExcel()"><span>⇩ XLSX</span><b data-i18n="export">匯出</b></button>
       <button class="top-btn" onclick="openTelegram()"><span>✈️</span><b data-i18n="telegram">Telegram 摘要</b></button>
+      <button class="top-btn" onclick="sendWelfareApproval()"><span>📋</span><b data-i18n="batchApply">送出核可</b></button>
       <button class="top-btn" onclick="window.print()"><span>🖨️</span><b data-i18n="print">列印</b></button>
       <div class="manual-note" id="manualNote">● 僅按下按鈕時連線</div>
     </div>
   </div>
 </header>
 
+
+<div class="dzbar"><div class="dzwrap">
+  <div id="dzone" class="dz" onclick="document.getElementById('dzInput').click()">
+    <b>📥 <span data-i18n="smartImport">智慧匯入 Smart Import</span></b>
+    <span data-i18n="dropHint">拖放或點選檔案，系統自動判斷類型 · Drag &amp; drop or click</span>
+    <input id="dzInput" type="file" multiple accept=".xlsx,.xls,.xlsm,.csv" style="display:none">
+  </div>
+</div></div>
 <nav class="tab-wrap"><div class="tabs">
   <button class="tab on" data-tab="dashboard" data-i18n="tabDashboard">總覽</button>
   <button class="tab" data-tab="periods" data-i18n="tabPeriods">月／年列表</button>
@@ -82,7 +99,7 @@ main{max-width:1500px;margin:auto;padding:14px 18px 55px}.view{display:none}.vie
 </div></nav>
 
 <div class="period-bar">
-  <div class="seg"><button id="modeMonth" class="on" onclick="setPeriodMode('month')" data-i18n="month">月</button><button id="modeYear" onclick="setPeriodMode('year')" data-i18n="year">年</button></div>
+  <div class="seg"><button id="modeDay" onclick="setPeriodMode('day')" data-i18n="day">日</button><button id="modeWeek" onclick="setPeriodMode('week')" data-i18n="week">週</button><button id="modeMonth" class="on" onclick="setPeriodMode('month')" data-i18n="month">月</button><button id="modeYear" onclick="setPeriodMode('year')" data-i18n="year">年</button></div>
   <button class="nav-btn" onclick="movePeriod(-1)">◀</button>
   <input class="control" id="periodPicker" type="month" onchange="pickPeriod(this.value)">
   <button class="nav-btn" onclick="movePeriod(1)">▶</button>
@@ -215,6 +232,7 @@ const APP_VERSION='1.0.0',DB_NAME='ac_hra_welfare_suggestion_v1',DB_STORE='snaps
 let LANG=localStorage.getItem(LANG_KEY)||'zh',STATE=null,PERIOD_MODE='month',ANCHOR=new Date(2026,6,1),ACTIVE_TAB='dashboard',FORM_PHOTOS=[],deptChart=null,trendChart=null;
 const I18N={
 zh:{
+ smartImport:'智慧匯入',dropHint:'拖放或點選檔案，系統自動判斷類型',
  title:'員工福利與意見箱',import:'匯入 Excel',cloudUp:'手動上傳',cloudDown:'手動下載',export:'匯出',telegram:'Telegram 摘要',print:'列印',manualOnly:'● 僅按下按鈕時連線',
  tabDashboard:'總覽',tabPeriods:'月／年列表',tabTransport:'交通／住宿',tabUnion:'工會費',tabSuggestion:'意見箱',tabAnalysis:'部門分析',tabSettings:'匯入／設定',
  month:'月',year:'年',allFields:'全部項目',transport:'交通',accommodation:'住宿',unionDues:'工會費',suggestionBox:'意見箱',allDepartments:'全部部門',
@@ -235,6 +253,7 @@ zh:{
  gasMissing:'請先在設定填入 GAS URL',cloudSent:'已手動上傳（含照片）',cloudReceived:'已手動下載（含照片）',cloudFail:'雲端操作失敗',telegramSent:'Telegram 摘要已發送',copyDone:'已複製',sourceSummary:'月摘要含外籍住宿 {n} 人，但原檔未提供這些人的個別名單。',noSourceSummary:'本期間沒有月摘要資料。'
 },
 en:{
+ smartImport:'Smart Import',dropHint:'Drag & drop or click — type auto-detected',
  title:'Employee Welfare & Suggestion',import:'Import Excel',cloudUp:'Manual Upload',cloudDown:'Manual Download',export:'Export',telegram:'Telegram Summary',print:'Print',manualOnly:'● Connects only when you press a button',
  tabDashboard:'Overview',tabPeriods:'Month / Year List',tabTransport:'Transport / Accommodation',tabUnion:'Union Dues',tabSuggestion:'Suggestion Box',tabAnalysis:'Department Analysis',tabSettings:'Import / Settings',
  month:'Month',year:'Year',allFields:'All Items',transport:'Transport',accommodation:'Accommodation',unionDues:'Union Dues',suggestionBox:'Suggestion Box',allDepartments:'All Departments',
@@ -253,8 +272,29 @@ en:{
  transportApplyLabel:'Transport Application',transportStopLabel:'Transport Stop',dormInLabel:'Dormitory Move-in',dormOutLabel:'Dormitory Move-out',paidStatus:'Paid',unpaidStatus:'Unpaid',newLabel:'New',reviewingLabel:'Reviewing',actionLabel:'In Action',closedLabel:'Closed',rejectedLabel:'Not Accepted',
  importDone:'Import complete',importFailed:'The attachment columns could not be recognized',fileResult:'{file}: welfare +{ma} / updated {mu}; union dues +{ua} / updated {uu}; suggestions +{sa} / updated {su}; photos {ph}',saved:'Saved',settingsSaved:'Settings saved',selectPhotoLimit:'Maximum 6 photos',confirmClear:'Clear all data in this module?',cleared:'Module data cleared',
  gasMissing:'Enter the GAS URL in Settings first',cloudSent:'Manual upload complete, including photos',cloudReceived:'Manual download complete, including photos',cloudFail:'Cloud action failed',telegramSent:'Telegram summary sent',copyDone:'Copied',sourceSummary:'The monthly summary includes {n} expat residents, but the source file has no individual roster for them.',noSourceSummary:'No source monthly summary for this period.'
+},
+km:{
+ smartImport:'នាំចូលឆ្លាតវៃ',dropHint:'អូសទម្លាក់ ឬចុចដើម្បីជ្រើសឯកសារ',
+ title:'សុខុមាលភាព និងប្រអប់មតិ',import:'នាំចូល Excel',cloudUp:'ផ្ទុកឡើង',cloudDown:'ទាញយក',
+ export:'នាំចេញ',telegram:'សេចក្តីសង្ខេប Telegram',print:'បោះពុម្ព',manualOnly:'● ភ្ជាប់តែពេលចុចប៊ូតុង',
+ tabDashboard:'ទិដ្ឋភាពរួម',tabPeriods:'បញ្ជីខែ/ឆ្នាំ',tabTransport:'ដឹកជញ្ជូន / ស្នាក់នៅ',
+ tabUnion:'ថ្លៃសហជីព',tabSuggestion:'ប្រអប់មតិ',tabAnalysis:'វិភាគតាមផ្នែក',tabSettings:'នាំចូល / កំណត់',
+ day:'ថ្ងៃ',week:'សប្តាហ៍',month:'ខែ',year:'ឆ្នាំ',allFields:'គ្រប់វាល',
+ transport:'ដឹកជញ្ជូន',accommodation:'ស្នាក់នៅ',unionDues:'ថ្លៃសហជីព',suggestionBox:'ប្រអប់មតិ',
+ allDepartments:'គ្រប់ផ្នែក',kpiTransport:'ដឹកជញ្ជូន',kpiAccommodation:'ស្នាក់នៅ',kpiUnion:'សហជីព',
+ kpiSuggestions:'មតិ',kpiClosed:'បានបិទ',selectedPeriod:'ដំណាក់កាលបានជ្រើស',closedInPeriod:'បិទក្នុងដំណាក់កាល',
+ periodOverview:'ទិដ្ឋភាពដំណាក់កាល',makeSummary:'បង្កើតសង្ខេប',item:'ធាតុ',people:'នាក់',amount:'ចំនួនទឹកប្រាក់',
+ newAdded:'ថ្មី',stopped:'ឈប់',photos:'រូបភាព',remark:'កំណត់សម្គាល់',dataStatus:'ស្ថានភាពទិន្នន័យ',
+ periodReport:'របាយការណ៍',period:'ដំណាក់កាល',transportMembers:'អ្នកប្រើដឹកជញ្ជូន',
+ accommodationLocal:'ស្នាក់នៅក្នុងស្រុក',accommodationExpat:'ស្នាក់នៅបរទេស',
+ transportApply:'ដាក់ពាក្យដឹកជញ្ជូន',transportStop:'ឈប់ដឹកជញ្ជូន',unionMembers:'សមាជិកសហជីព',
+ unionAmount:'ទឹកប្រាក់សហជីព',suggestions:'មតិ',closed:'បានបិទ',
+ transportAccommodation:'ដឹកជញ្ជូន / ស្នាក់នៅ',save:'រក្សាទុក',cancel:'បោះបង់',edit:'កែ',del:'លុប',
+ name:'ឈ្មោះ',employeeId:'លេខសម្គាល់',department:'ផ្នែក',status:'ស្ថានភាព',date:'កាលបរិច្ឆេទ',
+ total:'សរុប',count:'ចំនួន',search:'ស្វែងរក',all:'ទាំងអស់',onlineAdd:'＋ បន្ថែមតាមអនឡាញ',
+ batchApply:'ដាក់ស្នើអនុម័ត',approve:'អនុម័ត',reject:'បដិសេធ',pending:'រង់ចាំ'
 }};
-function tr(k,v={}){let s=(I18N[LANG]&&I18N[LANG][k])||I18N.zh[k]||k;Object.entries(v).forEach(([a,b])=>s=s.replaceAll('{'+a+'}',String(b)));return s}
+function tr(k,v={}){let s=(I18N[LANG]&&I18N[LANG][k])||(LANG==='km'?I18N.en[k]:null)||I18N.zh[k]||k;Object.entries(v).forEach(([a,b])=>s=s.replaceAll('{'+a+'}',String(b)));return s}
 </script>
 <script>
 /* ── Utilities, IndexedDB and UI state ─────────────────────────────── */
@@ -290,12 +330,62 @@ function setLang(l){LANG=l;localStorage.setItem(LANG_KEY,l);applyLang();renderAl
 function applyLang(){document.documentElement.lang=LANG==='en'?'en':'zh-TW';document.getElementById('langZh').classList.toggle('on',LANG==='zh');document.getElementById('langEn').classList.toggle('on',LANG==='en');document.querySelectorAll('[data-i18n]').forEach(e=>e.textContent=tr(e.dataset.i18n));document.querySelectorAll('[data-i18n-placeholder]').forEach(e=>e.placeholder=tr(e.dataset.i18nPlaceholder));document.getElementById('manualNote').textContent=tr('manualOnly')}
 function setTab(tab){ACTIVE_TAB=tab;document.querySelectorAll('.tab').forEach(e=>e.classList.toggle('on',e.dataset.tab===tab));document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id==='view-'+tab));if(tab==='analysis')setTimeout(renderAnalysis,0)}
 document.querySelectorAll('.tab').forEach(e=>e.addEventListener('click',()=>setTab(e.dataset.tab)));
-function setPeriodMode(m){PERIOD_MODE=m;document.getElementById('modeMonth').classList.toggle('on',m==='month');document.getElementById('modeYear').classList.toggle('on',m==='year');syncPeriod();renderAll()}
-function syncPeriod(){const p=document.getElementById('periodPicker');if(PERIOD_MODE==='month'){p.type='month';p.value=`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`}else{p.type='number';p.min=2000;p.max=2100;p.value=ANCHOR.getFullYear()}document.getElementById('periodLabel').textContent=PERIOD_MODE==='month'?monthLabel(`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`):String(ANCHOR.getFullYear())}
-function pickPeriod(v){if(!v)return;if(PERIOD_MODE==='year')ANCHOR=new Date(+v,0,1);else{const [y,m]=v.split('-').map(Number);ANCHOR=new Date(y,m-1,1)}renderAll()}
-function movePeriod(n){if(PERIOD_MODE==='month')ANCHOR.setMonth(ANCHOR.getMonth()+n);else ANCHOR.setFullYear(ANCHOR.getFullYear()+n);ANCHOR=new Date(ANCHOR);renderAll()}
-function selectedKey(){return PERIOD_MODE==='month'?`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`:String(ANCHOR.getFullYear())}
-function matchPeriod(p,mode=PERIOD_MODE,key=selectedKey()){return mode==='year'?String(p||'').startsWith(key):p===key}
+function setPeriodMode(m){
+  PERIOD_MODE=m;
+  ['day','week','month','year'].forEach(function(x){
+    var b=document.getElementById('mode'+x.charAt(0).toUpperCase()+x.slice(1));
+    if(b)b.classList.toggle('on',m===x);
+  });
+  syncPeriod();renderAll();
+}
+function _p2(n){return String(n).padStart(2,'0');}
+function _lds(d){return d.getFullYear()+'-'+_p2(d.getMonth()+1)+'-'+_p2(d.getDate());}
+function _weekStart(d){var x=new Date(d.getFullYear(),d.getMonth(),d.getDate());var w=(x.getDay()+6)%7;x.setDate(x.getDate()-w);return x;}
+function syncPeriod(){
+  var p=document.getElementById('periodPicker');
+  if(PERIOD_MODE==='day'||PERIOD_MODE==='week'){ p.type='date'; p.value=_lds(ANCHOR); }
+  else if(PERIOD_MODE==='month'){ p.type='month'; p.value=ANCHOR.getFullYear()+'-'+_p2(ANCHOR.getMonth()+1); }
+  else { p.type='number'; p.min=2000; p.max=2100; p.value=ANCHOR.getFullYear(); }
+  var lbl=document.getElementById('periodLabel');
+  if(lbl){
+    if(PERIOD_MODE==='day') lbl.textContent=_lds(ANCHOR);
+    else if(PERIOD_MODE==='week'){ var s=_weekStart(ANCHOR),e=new Date(s.getFullYear(),s.getMonth(),s.getDate()+6);
+      lbl.textContent=_lds(s)+' ~ '+_lds(e); }
+    else if(PERIOD_MODE==='month') lbl.textContent=monthLabel(ANCHOR.getFullYear()+'-'+_p2(ANCHOR.getMonth()+1));
+    else lbl.textContent=String(ANCHOR.getFullYear());
+  }
+}
+function pickPeriod(v){
+  if(!v)return;
+  if(PERIOD_MODE==='year')ANCHOR=new Date(+v,0,1);
+  else if(PERIOD_MODE==='month'){var a=v.split('-').map(Number);ANCHOR=new Date(a[0],a[1]-1,1);}
+  else {var b=v.split('-').map(Number);ANCHOR=new Date(b[0],b[1]-1,b[2]);}
+  syncPeriod();renderAll();
+}
+function movePeriod(n){
+  if(PERIOD_MODE==='day')       ANCHOR.setDate(ANCHOR.getDate()+n);
+  else if(PERIOD_MODE==='week') ANCHOR.setDate(ANCHOR.getDate()+7*n);
+  else if(PERIOD_MODE==='month')ANCHOR.setMonth(ANCHOR.getMonth()+n);
+  else                          ANCHOR.setFullYear(ANCHOR.getFullYear()+n);
+  ANCHOR=new Date(ANCHOR);syncPeriod();renderAll();
+}
+function selectedKey(){
+  if(PERIOD_MODE==='day')  return _lds(ANCHOR);
+  if(PERIOD_MODE==='week') return _lds(_weekStart(ANCHOR));
+  if(PERIOD_MODE==='month')return ANCHOR.getFullYear()+'-'+_p2(ANCHOR.getMonth()+1);
+  return String(ANCHOR.getFullYear());
+}
+function matchPeriod(p,mode,key){
+  mode=mode||PERIOD_MODE; key=key||selectedKey();
+  var s=String(p||''); if(!s)return false;
+  if(mode==='year') return s.slice(0,4)===key;
+  if(mode==='month')return s.slice(0,7)===key;
+  if(mode==='day')  return s.slice(0,10)===key;
+  /* week：落在該週七天內 */
+  var st=new Date(key+'T00:00:00'), en=new Date(st.getFullYear(),st.getMonth(),st.getDate()+6);
+  var d=s.slice(0,10);
+  return d>=_lds(st)&&d<=_lds(en);
+}
 function allDepartments(){return [...new Set([...STATE.members.map(x=>x.department),...STATE.unionDues.map(x=>x.department),...STATE.suggestions.map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))}
 function fillSelect(id,values,key='allDepartments'){const e=document.getElementById(id),keep=e.value;e.innerHTML=`<option value="">${esc(tr(key))}</option>`+values.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if([...e.options].some(o=>o.value===keep))e.value=keep}
 function filterDept(x,dept){return !dept||x.department===dept}
@@ -470,6 +560,81 @@ async function sendTelegram(){showLoading(LANG==='en'?'Sending manually…':'手
 /* ── Local-only startup: no network request ────────────────────────── */
 async function init(){showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();for(const k of ['members','movements','unionDues','suggestions','summaries','imports'])STATE[k]=STATE[k]||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});setVal('imageSize',STATE.settings.imageSize);setVal('imageQuality',STATE.settings.imageQuality);setVal('gasUrl',gasUrlValue());applyLang();renderAll();hideLoading()}
 document.querySelectorAll('.modal:not(#lightboxModal)').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));init();
+
+/* ═══ 拖放匯入（與入離職/產假同一位置與方式） ═══ */
+(function(){
+  function findImportHandler(){
+    var names=['handleFiles','onFiles','importFiles','doImport','handleImport','readFiles'];
+    for(var i=0;i<names.length;i++){ if(typeof window[names[i]]==='function') return window[names[i]]; }
+    return null;
+  }
+  function wire(){
+    var dz=document.getElementById('dzone'), inp=document.getElementById('dzInput');
+    if(!dz||!inp) return;
+    function pass(files){
+      if(!files||!files.length)return;
+      var h=findImportHandler();
+      if(h){ try{ h(files); return; }catch(e){ console.warn('[dz]',e); } }
+      /* 找不到就把檔案轉交給原本的匯入 input */
+      var alt=document.querySelector('input[type=file]:not(#dzInput)');
+      if(alt){ try{ var dt=new DataTransfer(); Array.prototype.forEach.call(files,function(f){dt.items.add(f);});
+        alt.files=dt.files; alt.dispatchEvent(new Event('change',{bubbles:true})); return; }catch(e){}
+      }
+      if(typeof openImport==='function') openImport();
+    }
+    inp.addEventListener('change',function(){ pass(this.files); this.value=''; });
+    ['dragenter','dragover'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();dz.classList.add('over');});});
+    ['dragleave','drop'].forEach(function(ev){dz.addEventListener(ev,function(e){e.preventDefault();e.stopPropagation();dz.classList.remove('over');});});
+    dz.addEventListener('drop',function(e){ if(e.dataTransfer&&e.dataTransfer.files) pass(e.dataTransfer.files); });
+    ['dragover','drop'].forEach(function(ev){window.addEventListener(ev,function(e){e.preventDefault();});});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',wire); else wire();
+})();
+
+/* ═══ 送出核可（與其他模組同一套引擎） ═══ */
+function welfareApprovalItems(){
+  var key=selectedKey(), items=[];
+  function push(r,kind,amt,info){
+    items.push({
+      key:kind+'|'+(r.employeeId||r.id||r.name||'')+'|'+key,
+      kind:kind, id:r.employeeId||r.factoryId||'', name:r.name||'',
+      dept:r.department||'', group:r.line||r.section||'', position:r.position||'',
+      gender:r.gender||'', age:r.age||'', days:+r.workingDays||0,
+      period:key.slice(0,7), amount:+amt||0, info:info||''
+    });
+  }
+  (STATE.members||[]).forEach(function(r){
+    if(!matchPeriod(r.applyDate||r.date||r.period))return;
+    var isT=(r.field==='transport'), isA=(r.field==='accommodation');
+    if(isT||isA) push(r,isT?'transport':'accommodation',r.amount||r.fee||0,
+      isT?tr('transport'):tr('accommodation'));
+  });
+  (STATE.unionDues||[]).forEach(function(r){
+    if(!matchPeriod(r.period||r.date))return;
+    push(r,'union',r.amount||0,tr('unionDues'));
+  });
+  return items;
+}
+async function sendWelfareApproval(){
+  var items=welfareApprovalItems();
+  if(!items.length){ toast('⚠ '+(LANG==='en'?'No items in this period':LANG==='km'?'គ្មានធាតុ':'此期間沒有可送審的項目')); return; }
+  var url=(typeof gasUrl==='function')?gasUrl():(localStorage.getItem('vrt_att_cloud_v1_url')||'');
+  if(!url){ toast('⚠ '+(LANG==='en'?'GAS URL not set':'尚未設定 GAS 網址')); return; }
+  var key=selectedKey();
+  try{
+    var body={ action:'approvalRequest', module:'welfare', scope:'all',
+      batch:'WF-'+String(key).replace(/-/g,''), period:key.slice(0,7), lang:LANG,
+      count:items.length, items:items, requestedBy:'welfare_v1',
+      idempotencyKey:['welfare',key,items.length,items.map(function(x){return x.key;}).sort().join(',')].join('|') };
+    var r=await fetch(url,{method:'POST',redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
+    var d=null; try{ d=await r.json(); }catch(e){}
+    if(d&&d.ok===false){ toast('❌ '+(d.error||'GAS error')); return; }
+    var bid=(d&&d.data&&d.data.batchId)||'';
+    toast('✅ '+(LANG==='en'?'Approval request sent':LANG==='km'?'បានផ្ញើសំណើអនុម័ត':'已送出核可請求')+(bid?(' · '+bid):''));
+  }catch(e){ toast('❌ '+e.message); }
+}
+window.sendWelfareApproval=sendWelfareApproval;
 </script>
 </body>
 </html>

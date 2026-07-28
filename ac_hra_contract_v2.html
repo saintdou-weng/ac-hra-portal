@@ -26,6 +26,8 @@ body{font-family:'DM Sans',sans-serif}
 .toast-item{padding:10px 16px;border-radius:8px;color:#fff;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:up .2s ease both;max-width:340px}
 .hidden{display:none!important}
 tr.sel{background:#eff6ff}
+.ctl{font-size:11px;font-weight:600;color:#64748b;display:block;margin-bottom:3px}
+.cti{width:100%;font-size:13px;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px}
 </style>
 </head>
 <body class="bg-slate-50 text-slate-800">
@@ -51,6 +53,7 @@ tr.sel{background:#eff6ff}
     <div class="flex rounded-lg overflow-hidden border border-slate-200">
       <button id="lang-zh" onclick="setLang('zh')" class="px-2.5 py-1.5 text-[12px] bg-slate-800 text-white">中</button>
       <button id="lang-en" onclick="setLang('en')" class="px-2.5 py-1.5 text-[12px] bg-white text-slate-600">EN</button>
+      <button id="lang-km" onclick="setLang('km')" class="px-2.5 py-1.5 text-[12px] bg-white text-slate-600">ខ្មែរ</button>
     </div>
   </div>
   <!-- Tabs -->
@@ -319,7 +322,7 @@ const LS_FIN   = 'vrt_dashFinish';
 let GAS_URL  = localStorage.getItem(CFG.gas) || '';
 let TG_CHAT  = localStorage.getItem(CFG.chat) || '';
 let APPROVER = localStorage.getItem(CFG.approver) || '';   /* 核可人由 GAS 決定 */
-let LANG     = localStorage.getItem(CFG.lang) || 'zh';
+let LANG=(function(){try{return localStorage.getItem('ac_hra_lang')||'zh';}catch(e){return 'zh';}})();
 
 // ── State ───────────────────────────────────────────────────
 let PROBS = [], CONTS = [], FINISH = [];
@@ -338,7 +341,7 @@ const NAV = {
 
 // ── Tiny helpers ────────────────────────────────────────────
 const qs = s => document.querySelector(s);
-const T  = (zh,en) => LANG==='en' ? en : zh;
+const T  = (zh,en,km) => LANG==='km' ? (km||en) : LANG==='en' ? en : zh;
 const pad2 = n => String(n).padStart(2,'0');
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function N(v){const n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isNaN(n)?0:n;}
@@ -1115,7 +1118,16 @@ function setTgMode(m){
 // ── Bilingual TG text ───────────────────────────────────────
 // BI=true → 中英雙語；BI=false → 只用目前介面語言
 function tgBi(){ const el=qs('#tg-bi'); return el ? el.checked : true; }
-function L(zh,en){ return tgBi() ? (zh+' '+en) : (LANG==='en'?en:zh); }
+
+/* 柬文核心詞（缺字自動退英文） */
+var km={/*柬文對照 Khmer map*/}, KM_T={ '合約':'កិច្ចសន្យា','試用期':'អំឡុងសាកល្បង','到期終止':'បញ្ចប់កិច្ចសន្យា','人數':'ចំនួនបុគ្គលិក',
+ '各部門明細':'តាមផ្នែក','期間':'ដំណាក់កាល','合計金額':'ទឹកប្រាក់សរុប','通過':'ជាប់','未通過':'មិនជាប់',
+ '待評估':'រង់ចាំវាយតម្លៃ','續約':'បន្តកិច្ចសន្យា','不續':'មិនបន្ត','到期':'ផុតកំណត់','人':'នាក់',
+ '總覽':'ទិដ្ឋភាពរួម','設定':'ការកំណត់','匯入':'នាំចូល','匯出':'នាំចេញ','儲存':'រក្សាទុក','取消':'បោះបង់',
+ '新增':'បន្ថែម','編輯':'កែ','刪除':'លុប','搜尋':'ស្វែងរក','部門':'ផ្នែក','姓名':'ឈ្មោះ','工號':'លេខសម្គាល់',
+ '年資':'អាយុការងារ','金額':'ចំនួនទឹកប្រាក់','狀態':'ស្ថានភាព','日':'ថ្ងៃ','週':'សប្តាហ៍','月':'ខែ','年':'ឆ្នាំ' };
+function KM(zh,en){ return KM_T[zh]||en||zh; }
+function L(zh,en,km){ return LANG==='km'?(km||KM(zh,en)):LANG==='en'?en:zh; }
 function tgPeriodVal(){ const el=qs('#tg-period'); return el&&el.value ? el.value : 'ALL'; }
 
 function buildText(src){
@@ -1236,23 +1248,56 @@ async function sendTG(text){
 }
 async function sendApproval(payloadText, items, win){
   if(!GAS_URL){ toast('尚未設定 GAS URL','error'); return false; }
-  const header='✅ <b>需要核可 Approval Required</b>\n'
-    +'👤 核可人 Approver: <a href="tg://user?id='+esc(APPROVER)+'">'+esc(APPROVER)+'</a>\n'
-    +'🔖 批次 Batch: CT-'+(win?win.from.replace(/-/g,''):lds(today0()).replace(/-/g,''))+'\n\n';
-  const ok=await sendTG(header+payloadText);
-  // Also post structured request so the future GAS approval handler can pick it up
+  if(!items || !items.length){ toast(L('沒有可送審的項目','No items to submit','គ្មានធាតុ'),'warn'); return false; }
+  const today=new Date(), lds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  function dayDiff(a,b){ if(!a||!b)return 0; return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+  /* ★ 逐人明細：工號 / 姓名 / 部門 / 年資 / 到期日 / 金額 */
+  const payloadItems = items.map(it=>{
+    const src = it.kind==='prob' ? PROBS.find(r=>r.factoryId===it.factoryId)
+              : it.kind==='cont' ? CONTS.find(r=>r.factoryId===it.factoryId)
+              : FINISH.find(r=>r.factoryId===it.factoryId);
+    const r = src||{};
+    const join = it.joinDate||r.joinDate||'';
+    const days = join ? Math.max(0, dayDiff(join, it.expiry||lds(today))) : 0;
+    return {
+      key   : it.key,
+      kind  : it.kind,
+      id    : it.factoryId||r.factoryId||'',
+      name  : it.name||r.name||'',
+      dept  : it.dept||r.dept||'',
+      group : r.section||r.line||'',
+      position: r.position||'',
+      gender: r.gender||'',
+      age   : r.age||'',
+      days  : days,
+      period: String(it.expiry||'').slice(0,7),
+      amount: N(r.amount)||N(r.severance5)||0,
+      info  : (it.kind==='prob' ? L('試用到期','Probation ends','ផុតសាកល្បង')
+             : it.kind==='cont' ? L('合約到期','Contract ends','ផុតកិច្ចសន្យា')
+             :                    L('合約終止','Contract finished','បញ្ចប់កិច្ចសន្យា'))
+              + ' ' + (it.expiry||'')
+              + (it.extra?(' · '+it.extra):'')
+    };
+  });
+  const kindTag = items[0].kind==='prob'?'P':items[0].kind==='cont'?'C':'F';
+  const period  = payloadItems[0].period || '';
   try{
-    await fetch(GAS_URL,{method:'POST',redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({ action:'approvalRequest', type:'approvalRequest', module:'contract',
-        batch:'CT-'+(win?win.from.replace(/-/g,''):''),
-        period: win?win.label:'', approverId: APPROVER,
-        count: items?items.length:0,
-        items: (items||[]).map(i=>({key:i.key,kind:i.kind,id:i.factoryId,name:i.name,dept:i.dept,
-          expiry:i.expiry, decision:(DECISIONS[i.key]||{}).d||'', note:(DECISIONS[i.key]||{}).note||''})),
-        requestedBy:'contract_v3', requestedAt: nowISO() })});
-  }catch(e){ console.warn('[approvalRequest]',e); }
-  return ok;
+    const body={
+      action:'approvalRequest', module:'contract', scope:items[0].kind,
+      batch:'CT-'+kindTag+'-'+String(period).replace(/-/g,'')+'-'+payloadItems.length,
+      period:period, lang:LANG, count:payloadItems.length, items:payloadItems,
+      requestedBy:'contract_v2', requestedAt:new Date().toLocaleString(),
+      idempotencyKey:['contract',kindTag,period,payloadItems.length,
+                      payloadItems.map(x=>x.key).sort().join(',')].join('|')
+    };
+    const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
+    let d=null; try{ d=await r.json(); }catch(e){}
+    if(d && d.ok===false){ toast('GAS 回報失敗：'+(d.error||''),'error'); return false; }
+    const bid=(d&&d.data&&d.data.batchId)||'';
+    toast('✅ '+L('已送出核可請求','Approval request sent','បានផ្ញើសំណើ')+(bid?(' · '+bid):''));
+    return true;
+  }catch(e){ toast('傳送失敗：'+e.message,'error'); return false; }
 }
 async function confirmSendTg(){
   const src=qs('#tg-src').value;
@@ -1413,7 +1458,8 @@ const I18N={
   alAll:['全選','Select all'],
 };
 function setLang(l){
-  LANG=l; localStorage.setItem(CFG.lang,l);
+  LANG=(['zh','en','km'].indexOf(l)>=0)?l:'zh'; localStorage.setItem(CFG.lang,LANG); try{localStorage.setItem('ac_hra_lang',LANG);}catch(e){}
+  ['zh','en','km'].forEach(function(x){var b=document.getElementById('lang-'+x);if(b){b.className='px-2.5 py-1.5 text-[12px] '+(x===LANG?'bg-slate-800 text-white font-semibold':'bg-white text-slate-600');}});
   qs('#lang-zh').className='px-2.5 py-1.5 text-[12px] '+(l==='zh'?'bg-slate-800 text-white':'bg-white text-slate-600');
   qs('#lang-en').className='px-2.5 py-1.5 text-[12px] '+(l==='en'?'bg-slate-800 text-white':'bg-white text-slate-600');
   document.querySelectorAll('[data-i]').forEach(el=>{
@@ -1445,6 +1491,81 @@ Object.assign(window,{smartImport,goTab,setLang,navMode,navStep,navToday,navJump
   renderFinish,renderAlert,alertStep,alertToday,alertToggle,alertToggleAll,alertSetDecision,editEnd,
   openTgModal,closeTgModal,setTgMode,previewTg,confirmSendTg,cloudUpload,cloudDownload,
   saveCfg,testGas,exportJSON,importJSON,clearAll,exportCSV});
+
+/* ═══ 線上新增 / 編輯（與匯入同源，可送核可） ═══ */
+var _ctId=null,_ctKind='cont';
+function openCt(kind,id){
+  _ctKind=kind||'cont'; _ctId=id||null;
+  var src=_ctKind==='prob'?PROBS:_ctKind==='cont'?CONTS:FINISH;
+  var r=id?src.filter(function(x){return x.factoryId===id;})[0]:null;
+  var box=document.getElementById('ct-modal'); if(!box)return;
+  document.getElementById('ct-title').textContent=(r?L('編輯','Edit','កែ'):L('新增','New','បន្ថែម'))+' '+
+    (_ctKind==='prob'?L('試用期','Probation','សាកល្បង'):_ctKind==='cont'?L('合約','Contract','កិច្ចសន្យា'):L('終止','Finished','បញ្ចប់'));
+  ['factoryId','name','dept','section','position','gender','joinDate','contractStart','contractEnd','probEnd','amount','severance5','result','remark']
+   .forEach(function(k){ var n=document.getElementById('ct-'+k); if(n) n.value=r?(r[k]!=null?r[k]:''):''; });
+  document.getElementById('ct-del').style.display=_ctId?'':'none';
+  box.style.display='flex';
+}
+function closeCt(){ var b=document.getElementById('ct-modal'); if(b)b.style.display='none'; _ctId=null; }
+function saveCt(){
+  var g=function(k){var n=document.getElementById('ct-'+k);return n?String(n.value||'').trim():'';};
+  var fid=g('factoryId').replace(/\s+/g,''), nm=g('name');
+  if(!/^\d{2,6}$/.test(fid)){ toast(L('工號需為 2-6 位數字','ID must be 2-6 digits','លេខត្រូវជា 2-6 ខ្ទង់'),'error'); return; }
+  if(!nm){ toast(L('請輸入姓名','Name required','សូមបញ្ចូលឈ្មោះ'),'error'); return; }
+  var rec={ factoryId:fid,name:nm,dept:g('dept'),section:g('section'),position:g('position'),
+    gender:g('gender'),joinDate:g('joinDate'),contractStart:g('contractStart'),contractEnd:g('contractEnd'),
+    probEnd:g('probEnd'),amount:N(g('amount')),severance5:N(g('severance5')),result:g('result'),
+    remark:g('remark'),source:'online',updatedAt:new Date().toISOString().slice(0,10) };
+  var tgt=_ctKind==='prob'?PROBS:_ctKind==='cont'?CONTS:FINISH;
+  var idx=tgt.findIndex(function(x){return x.factoryId===(_ctId||fid);});
+  if(idx>=0) Object.assign(tgt[idx],rec); else tgt.push(rec);
+  if(typeof saveAll==='function')saveAll(); else if(typeof persist==='function')persist();
+  closeCt(); if(typeof renderAll==='function')renderAll();
+  toast('✅ '+(_ctId?L('已更新','Updated','បានកែ'):L('已新增','Added','បានបន្ថែម'))+'：'+fid+' '+nm+
+        ' · '+L('可送核可','ready for approval','អាចដាក់ស្នើ'));
+}
+function deleteCt(){
+  if(!_ctId)return;
+  if(!confirm(L('確定刪除？','Delete?','លុប?')))return;
+  var tgt=_ctKind==='prob'?PROBS:_ctKind==='cont'?CONTS:FINISH;
+  var i=tgt.findIndex(function(x){return x.factoryId===_ctId;});
+  if(i>=0)tgt.splice(i,1);
+  if(typeof saveAll==='function')saveAll(); else if(typeof persist==='function')persist();
+  closeCt(); if(typeof renderAll==='function')renderAll();
+  toast('✅ '+L('已刪除','Deleted','បានលុប'));
+}
+Object.assign(window,{openCt:openCt,closeCt:closeCt,saveCt:saveCt,deleteCt:deleteCt});
 </script>
+
+<div id="ct-modal" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(15,23,42,.4);backdrop-filter:blur(2px);padding:16px">
+ <div style="background:#fff;border-radius:16px;max-width:640px;width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 20px 40px rgba(0,0,0,.2)">
+  <div style="padding:14px 18px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;gap:8px;flex-shrink:0">
+    <span style="font-size:18px">📋</span>
+    <b id="ct-title" style="font-size:14px;flex:1">新增</b>
+    <span onclick="closeCt()" style="cursor:pointer;color:#94a3b8;font-size:20px">&times;</span></div>
+  <div style="padding:16px 18px;overflow:auto;flex:1;display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+    <div><label class="ctl">工號 ID *</label><input id="ct-factoryId" class="cti"></div>
+    <div><label class="ctl">姓名 Name *</label><input id="ct-name" class="cti"></div>
+    <div><label class="ctl">部門 Dept</label><input id="ct-dept" class="cti"></div>
+    <div><label class="ctl">線別 Line</label><input id="ct-section" class="cti"></div>
+    <div><label class="ctl">職務 Position</label><input id="ct-position" class="cti"></div>
+    <div><label class="ctl">性別 Gender</label><select id="ct-gender" class="cti"><option value="">—</option><option value="F">女 F</option><option value="M">男 M</option></select></div>
+    <div><label class="ctl">到職日 Join</label><input id="ct-joinDate" type="date" class="cti"></div>
+    <div><label class="ctl">合約起 Start</label><input id="ct-contractStart" type="date" class="cti"></div>
+    <div><label class="ctl">合約迄 End</label><input id="ct-contractEnd" type="date" class="cti"></div>
+    <div><label class="ctl">試用到期 Prob End</label><input id="ct-probEnd" type="date" class="cti"></div>
+    <div><label class="ctl">金額 Amount</label><input id="ct-amount" type="number" step="0.01" class="cti"></div>
+    <div><label class="ctl">5% 提存 Reserve</label><input id="ct-severance5" type="number" step="0.01" class="cti"></div>
+    <div><label class="ctl">評估結果 Result</label><select id="ct-result" class="cti"><option value="">—</option><option value="pass">通過 Pass</option><option value="fail">未通過 Fail</option></select></div>
+    <div style="grid-column:span 2"><label class="ctl">備註 Remark</label><input id="ct-remark" class="cti"></div>
+  </div>
+  <div style="padding:12px 18px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;gap:8px;flex-shrink:0">
+    <button id="ct-del" onclick="deleteCt()" style="display:none;padding:9px 14px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;font-size:12px">🗑 刪除</button>
+    <button onclick="closeCt()" style="flex:1;padding:9px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;font-size:12px">取消 Cancel</button>
+    <button onclick="saveCt()" style="flex:1;padding:9px;border-radius:8px;border:0;background:#0f4c81;color:#fff;font-weight:700;font-size:12px">儲存 Save</button>
+  </div>
+ </div>
+</div>
+
 </body>
 </html>
