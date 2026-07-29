@@ -1562,9 +1562,15 @@ function buildSummaryText(p,bi,scope){
 function buildApprovalItems(p,scope){
   scope=scope||_tgScope||'all';
   var d=periodData(p), items=[];
+  /* ★ 送核可的 key 不能直接用 _k。
+     _k 是 'E|工號'，那是刻意的——產假給付表要靠它合併進登記表同一筆員工紀錄，
+     動了會拆散合併。但拿它當核可帳本索引就會出事：
+     懷孕和產假是同一個 key → 核了懷孕，產假會被當成「已核可」而擋掉；
+     同一人第二胎也會被擋。所以核可 key 另外組，帶上事件別與事件日。 */
+  function apprKeyE(r,kd){ return 'E|'+(r.idNo||'')+'|'+kd+'|'+(evDateEmp(r)||''); }
   function pushE(r,kd){
     var x=DEC[r._k]||{}, td=tenureDaysOf(r);
-    items.push({key:r._k,kind:kd,id:r.idNo,name:r.name,
+    items.push({key:apprKeyE(r,kd),kind:kd,id:r.idNo,name:r.name,
       dept:r.dept||'', group:r.group||lineOf(r), position:r.position||'',
       gender:r.gender||'F', age:saneAge(r.age)||'', days:td,
       region:regionOf(r.address||r.remark||''), marital:r.marital||'',

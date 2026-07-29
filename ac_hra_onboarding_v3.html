@@ -2176,9 +2176,13 @@ function apprStats(p,scope){
 function buildApprovalItems(p,scope){
   scope=scope||_tgScope||'both';
   var d=periodData(p), items=[];
+  /* ★ 核可 key 不直接用 _k：匯入的是 'R|工號'（沒日期），線上新增的是 'R|工號|離職日'，
+     同一個人兩種格式，帳本會漏擋；而且沒日期表示回鍋員工二次離職會被誤擋。
+     這裡一律用「工號＋日期」重組，不動 _k（_k 仍供匯入合併使用）。 */
+  function apprKey(pfx,id,dt){ return pfx+'|'+(id||'')+'|'+(String(dt||'').slice(0,10)); }
   if(scope!=='join') d.R.forEach(function(r){
     var x=DEC[r._k]||{};
-    items.push({key:r._k,kind:'resign',id:r.empId,name:r.name,
+    items.push({key:apprKey('R',r.empId,r.resignDate),kind:'resign',id:r.empId,name:r.name,
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:+r.workingDays||0,
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
@@ -2189,7 +2193,7 @@ function buildApprovalItems(p,scope){
   });
   if(scope!=='resign') d.J.forEach(function(r){
     var x=DEC[r._k]||{};
-    items.push({key:r._k,kind:'join',id:r.empId,name:r.name,
+    items.push({key:apprKey('J',r.empId,r.joinDate),kind:'join',id:r.empId,name:r.name,
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:0,
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
