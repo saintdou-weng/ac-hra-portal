@@ -2024,7 +2024,16 @@ function fillTgPeriods(){
            : type==='month' ? (cur.getFullYear()+'-'+p2(cur.getMonth()+1))
            : type==='week'  ? weekKeyOf(cur)
            :                  lds(cur);
-  if(ps.indexOf(want)<0){ ps=[want].concat(ps); }
+  /* ★ 目前游標的期間如果一筆資料都沒有（例如切成「日」剛好停在今天），
+     就自動跳到最近一個「有資料」的期間，不要停在空的讓送出鈕變灰。 */
+  var cnt=function(p){
+    return RESIGNS.filter(function(r){return inPeriod(r.resignDate,p);}).length
+         + JOINS.filter(function(r){return inPeriod(r.joinDate,p);}).length;
+  };
+  if(ps.indexOf(want)<0){
+    if(ps.length && !cnt(want)) want=ps[0];        /* ps 已由新到舊排序，取最近有資料的 */
+    else ps=[want].concat(ps);
+  }
   sel.innerHTML=ps.map(function(p){
     var n=RESIGNS.filter(function(r){return inPeriod(r.resignDate,p);}).length;
     var j=JOINS.filter(function(r){return inPeriod(r.joinDate,p);}).length;
@@ -2253,13 +2262,18 @@ function confirmTg(){
   }).then(function(d){
     if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
     var dd=d.data||d;
-    if(dd.reused){
-      /* 同一批資料重送 → GAS 端 idempotency 命中，不會產生新訊息 */
+    if(dd.closed){
+      toast(L('這批先前已核可並關閉，未重複送出','Batch was already approved and closed — not re-sent')
+            +(dd.batchId?(' · '+dd.batchId):''),'warn');
+    }else if(dd.reused){
       toast(L('這批資料先前已送出，已重新整理群組裡那則訊息','Already submitted — refreshed the existing group message')
             +(dd.batchId?(' · '+dd.batchId):''),'warn');
     }else{
-      toast((_tgMode==='approval'?L('已送出核可請求','Approval request sent'):L('已傳送至 Telegram 群組','Sent to Telegram'))
-            +(dd.batchId?(' · '+dd.batchId):''),'ok');
+      var msg=(_tgMode==='approval'?L('已送出核可請求','Approval request sent'):L('已傳送至 Telegram 群組','Sent to Telegram'))
+              +(dd.batchId?(' · '+dd.batchId):'');
+      /* ★ 有幾筆因為先前已核可而被擋掉，要講出來，不然數字對不上會以為漏送 */
+      if(dd.skipped) msg+=' · '+L('略過已核可 ','skipped already-approved ')+dd.skipped;
+      toast(msg,'ok');
     }
     closeTg();
   }).catch(function(e){
