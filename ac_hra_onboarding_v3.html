@@ -338,7 +338,7 @@ tbody tr:hover{background:#f8fafc}
       <div class="grid grid-cols-2 gap-3">
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間類型 Type</label>
           <select id="tg-ptype" onchange="fillTgPeriods()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white">
-            <option value="day">日 Day</option><option value="week">週 Week</option><option value="month">月 Month</option><option value="year">年 Year</option></select></div>
+            <option value="day">日 Day</option><option value="week">週 Week</option><option value="month">月 Month</option><option value="year">年 Year</option><option value="settle">💵 結算日 Settle date</option></select></div>
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間 Period</label>
           <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"></select></div>
       </div>
@@ -1983,8 +1983,9 @@ function weekKeyOf(d){
 }
 /* 期間鍵 → 給 GAS 用的 YYYY-MM（核可批次的期間欄位） */
 function monthOfKey(p){
-  if(isRangeKey(p)) return rangeOf(p).s.slice(0,7);
   var s=String(p||'');
+  if(s.indexOf('S:')===0) s=s.slice(2);
+  if(isRangeKey(s)) return rangeOf(s).s.slice(0,7);
   return s.length>=7 ? s.slice(0,7) : s;
 }
 function daysWithData(){
@@ -2002,6 +2003,8 @@ function weeksWithData(){
   return Object.keys(s).sort();
 }
 function tgPeriods(type){
+  if(type==='settle') return settleDatesWithData().slice().reverse().slice(0,180)
+                        .map(function(d){return 'S:'+d;});
   if(type==='day')  return daysWithData().slice().reverse().slice(0,180);
   if(type==='week') return weeksWithData().slice().reverse().slice(0,104);
   if(type==='year') return yearsWithData().slice().reverse();
@@ -2038,6 +2041,23 @@ function closeTg(){ var m=el('tg-modal'); m.classList.add('hidden'); m.classList
 function fillTgPeriods(){
   var type=el('tg-ptype').value, ps=tgPeriods(type), sel=el('tg-period');
   var cur=(NAV[TAB]||NAV.ov).pivot;
+
+  /* ★ 結算日基準：清單就是各張結算單的日期，直接選最新那張 */
+  if(type==='settle'){
+    if(!ps.length){
+      sel.innerHTML='<option value="">'+L('尚無結算資料 — 請先匯入結算單','No settlement data — import a settlement sheet first')+'</option>';
+      previewTg(); return;
+    }
+    sel.innerHTML=ps.map(function(k){
+      var rs=RESIGNS.filter(function(r){return String(r.settleDate||'').slice(0,10)===k.slice(2);});
+      var amt=rs.reduce(function(a,r){return a+(+r.amount||0);},0);
+      return '<option value="'+k+'">'+k.slice(2)+' · '+L('離','R')+rs.length+
+             (amt?(' · $'+amt.toFixed(2)):'')+'</option>';
+    }).join('');
+    sel.value=ps[0];
+    previewTg(); return;
+  }
+
   var want = type==='year'  ? String(cur.getFullYear())
            : type==='month' ? (cur.getFullYear()+'-'+p2(cur.getMonth()+1))
            : type==='week'  ? weekKeyOf(cur)
@@ -2089,10 +2109,24 @@ function setTgMode(m){
   syncTgSendBtn();
   previewTg();
 }
+/* ★ 'S:YYYY-MM-DD' = 以「結算日」為基準，不是離職日。
+   結算單上的日期和主檔的離職日常常不同（結算單是製表/結清日），
+   舊版只能按離職日找人，導致「結算單有 4 人，按結算單日期卻找不到」。
+   加這個基準後，你匯入哪張結算單就能照那張單發核可，離職日完全不用動。 */
+function isSettleKey(p){ return String(p||'').indexOf('S:')===0; }
 function periodData(p){
+  if(isSettleKey(p)){
+    var d=String(p).slice(2);
+    return { J:[], R:RESIGNS.filter(function(r){return String(r.settleDate||'').slice(0,10)===d;}) };
+  }
   var J=JOINS.filter(function(r){return inPeriod(r.joinDate,p);});
   var R=RESIGNS.filter(function(r){return inPeriod(r.resignDate,p);});
   return {J:J,R:R};
+}
+function settleDatesWithData(){
+  var s={};
+  RESIGNS.forEach(function(r){ if(r.settleDate)s[String(r.settleDate).slice(0,10)]=1; });
+  return Object.keys(s).sort();
 }
 var HR='— — — — — — — — — —\n';
 function joinBlock(J,bi){
