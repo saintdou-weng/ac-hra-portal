@@ -1174,7 +1174,9 @@ function attachSettlements(resigns,setts){
       best.hasSettlement=true;
       s.matchedTo=best._k; s.matchedDate=best.resignDate||''; s.matchGap=bd; merged++;
       /* ★ 結算日與離職日差太多 → 記下來，匯入報告要講，不能默默吃掉 */
-      if(bd>7) farMatch.push({id:s.empId,name:s.name,settle:s.settleDate,resign:best.resignDate,gap:bd});
+      /* ★ 門檻本來設 7 天，但實際落差常常只有 1~5 天，照樣會把人散到不同日期，
+         警示卻不會跳。改成「只要日期不同就列出來」，落點一目了然。 */
+      if(bd>0) farMatch.push({id:s.empId,name:s.name,settle:s.settleDate,resign:best.resignDate,gap:bd});
     }else if(s.isResign){
       var nr={ _k:'R|'+s.empId, id:'r_'+uid(), empId:s.empId, name:s.name,
         resignDate:s.settleDate||'', joinDate:'',
@@ -2199,7 +2201,11 @@ function buildSummaryText(p,bi,scope){
   var head = scope==='join'?'🟢 <b>'+esc(BL('入職月報','Join Report','របាយការណ៍ចូលធ្វើការ',bi))+'</b>'
            : scope==='resign'?'🔴 <b>'+esc(BL('離職月報','Resign Report','របាយការណ៍ចេញពីការងារ',bi))+'</b>'
            : '👥 <b>'+esc(BL('入離職月報','Onboarding & Turnover','ចូល/ចេញពីការងារ',bi))+'</b>';
-  var t=head+'\n📅 '+esc(BL('期間','Period','ដំណាក់កាល',bi))+'：'+esc(p)+'\n🏭 VRT Sihanoukville\n'+HR;
+  /* ★ 'S:' 是內部基準前綴，不能直接印給人看 */
+  var pLabel = isSettleKey(p)
+    ? (String(p).slice(2)+'（'+BL('結算日','settle date','ថ្ងៃទូទាត់',bi)+'）')
+    : String(p);
+  var t=head+'\n📅 '+esc(BL('期間','Period','ដំណាក់កាល',bi))+'：'+esc(pLabel)+'\n🏭 VRT Sihanoukville\n'+HR;
   if(scope==='both'){
     t+='🟢 '+esc(BL('入職','Joins','ចូល',bi))+'：<b>'+J.length+'</b>　🔴 '+esc(BL('離職','Resigns','ចេញ',bi))+'：<b>'+R.length+'</b>\n';
     t+='⚖️ '+esc(BL('淨增減','Net','សុទ្ធ',bi))+'：<b>'+((J.length-R.length)>0?'+':'')+(J.length-R.length)+'</b>\n'+HR;
@@ -2238,8 +2244,15 @@ function buildApprovalItems(p,scope){
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:+r.workingDays||0,
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
-      period:(String(r.resignDate||'').slice(0,7)||monthOfKey(p)), date:r.resignDate, type:r.resignType,
-      info:(REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||''),
+      /* ★ 一次核多人時（結算日基準）每個人的離職日不同，
+         這裡帶完整日期而不是月份，群組訊息才看得出誰是哪天離職。
+         GAS 的免核可判斷取前 7 碼，帶完整日期不影響。 */
+      period:(String(r.resignDate||'').slice(0,10)||monthOfKey(p)), date:r.resignDate, type:r.resignType,
+      info:((REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||'')
+            +(r.resignDate?((REASON_ZH[r.reasonCat]||r.reasonCat||r.reason?' · ':'')
+              +L('離職日 Resigned ','Resigned ')+String(r.resignDate).slice(0,10)):'')
+            +(r.settleDate&&String(r.settleDate).slice(0,10)!==String(r.resignDate).slice(0,10)
+              ?(' · '+L('結算 Settled ','Settled ')+String(r.settleDate).slice(0,10)):'')),
       reason:r.reasonCat||r.reason, amount:+r.amount||0,
       decision:x.d||'',note:x.note||''});
   });
@@ -2249,7 +2262,7 @@ function buildApprovalItems(p,scope){
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:0,
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
-      period:(String(r.joinDate||'').slice(0,7)||monthOfKey(p)), date:r.joinDate,
+      period:(String(r.joinDate||'').slice(0,10)||monthOfKey(p)), date:r.joinDate,
       info:r.position||'', amount:0, decision:x.d||'',note:x.note||''});
   });
   return items;
@@ -2290,7 +2303,9 @@ function confirmTg(){
       if(!items.length){ toast(L('此期間沒有可送核可的項目','No items to approve in this period'),'error'); return; }
       payload={ action:'approvalRequest', type:'approvalRequest', module:'onboarding', scope:scope,
         batch:'OB-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
-        period:p, lang:LANG, count:items.length, items:items, text:r.text,
+        /* ★ 'S:' 只是內部基準前綴，送給 GAS 的期間要是人看得懂的字 */
+        period: isSettleKey(p) ? (String(p).slice(2)+' '+L('結算 Settle','Settle')) : p,
+        lang:LANG, count:items.length, items:items, text:r.text,
         /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
         idempotencyKey:['onboarding',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
