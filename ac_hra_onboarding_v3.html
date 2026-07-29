@@ -1148,26 +1148,34 @@ function mergeInto(target,incoming){
 
 /* ═══════════ ③ 結算單 → 離職記錄 合併（不新增第二筆） ═══════════ */
 function attachSettlements(resigns,setts){
-  var merged=0, created=0, settleOnly=0;
+  var merged=0, created=0, settleOnly=0, farMatch=[];
   var byId={};
   resigns.forEach(function(r){ (byId[r.empId]=byId[r.empId]||[]).push(r); });
   setts.forEach(function(s){
     var cands=byId[s.empId]||[], best=null, bd=1e18;
     cands.forEach(function(r){
-      var d=(s.settleDate&&r.resignDate)?Math.abs(dayDiff(r.resignDate,s.settleDate)||0):0;
+      /* ★ 舊版：任一日期為空就給 d=0，等於「完全吻合」→ 會亂配到不相干的那筆。
+         改成沒日期就標成極大值，只在真的沒有其他候選時才當備胎。 */
+      var d;
+      if(s.settleDate&&r.resignDate) d=Math.abs(dayDiff(r.resignDate,s.settleDate)||0);
+      else d=9999;
       if(d<bd){bd=d;best=r;}
     });
-    if(best && bd<=180){
-      /* 補寫結算欄位到既有離職記錄上，不新增第二筆 */
+    /* ★ 比對窗口從 180 天收到 45 天。
+       180 天等於「半年內同工號一律視為同一次離職」——結算單上的 7/29
+       會被黏到三個月前那筆舊離職紀錄上，而且不會更新離職日，
+       結果就是：檔案裡 4 個人，發核可時散在好幾個不同日期。 */
+    if(best && bd<=45){
       best.amount=s.amount; best.settleSalary=s.settleSalary; best.meals=s.meals;
       best.annualLeave=s.annualLeave; best.transport=s.transport;
       best.settleDate=s.settleDate; best.settleRemarks=s.remarks;
       if(!best.position&&s.position)best.position=s.position;
       if(!best.dept&&s.dept){best.dept=s.dept;best.section=s.dept;}
       best.hasSettlement=true;
-      s.matchedTo=best._k; merged++;
+      s.matchedTo=best._k; s.matchedDate=best.resignDate||''; s.matchGap=bd; merged++;
+      /* ★ 結算日與離職日差太多 → 記下來，匯入報告要講，不能默默吃掉 */
+      if(bd>7) farMatch.push({id:s.empId,name:s.name,settle:s.settleDate,resign:best.resignDate,gap:bd});
     }else if(s.isResign){
-      /* 只有結算檔有此工號 → 才新建一筆，標記 source:'settlement' */
       var nr={ _k:'R|'+s.empId, id:'r_'+uid(), empId:s.empId, name:s.name,
         resignDate:s.settleDate||'', joinDate:'',
         dept:s.dept||'', section:s.dept||'', position:s.position||'',
@@ -1182,13 +1190,12 @@ function attachSettlements(resigns,setts){
       var res=mergeInto(resigns,[nr]);
       resigns.length=0; Array.prototype.push.apply(resigns,res.arr);
       byId={}; resigns.forEach(function(r){ (byId[r.empId]=byId[r.empId]||[]).push(r); });
-      s.matchedTo=nr._k; created+=res.added; merged+=res.updated;
+      s.matchedTo=nr._k; s.matchedDate=nr.resignDate; s.matchGap=0; created+=res.added; merged+=res.updated;
     }else{
-      /* 非離職性質（maternity 等）→ 只留在結算對照表，不污染 ac_hra_resigns */
       settleOnly++;
     }
   });
-  return {merged:merged,created:created,settleOnly:settleOnly};
+  return {merged:merged,created:created,settleOnly:settleOnly,farMatch:farMatch};
 }
 
 /* ═══════════ 匯入流程 ═══════════ */
@@ -1259,6 +1266,17 @@ function readOne(file){
           detail.push('💵 '+L('補寫至既有離職','merged into existing resign')+' '+at.merged+
                       ' · ➕ '+L('新建離職','new resign')+' '+at.created+
                       ' · 🧾 '+L('僅結算（非離職）','settlement-only')+' '+at.settleOnly);
+          /* ★ 結算日 ≠ 離職日：這些人會被歸到「離職日」那天，不是結算單上的日期。
+             不講的話，你在核可頁按結算單日期找人會找不到（4 個人散成好幾天）。 */
+          if(at.farMatch&&at.farMatch.length){
+            detail.push('⚠️ '+L('結算日與離職日不同 ','settlement date differs from resign date ')+
+                        at.farMatch.length+L(' 筆 — 這些人會歸在「離職日」那天：',' — these are filed under their RESIGN date:'));
+            at.farMatch.slice(0,10).forEach(function(x){
+              detail.push('　　'+x.id+' '+x.name+'：'+L('結算','settle')+' '+x.settle+
+                          ' → '+L('離職','resign')+' '+(x.resign||'—')+'（'+L('差','gap')+' '+x.gap+L(' 天',' d')+'）');
+            });
+            if(at.farMatch.length>10) detail.push('　　… +'+(at.farMatch.length-10));
+          }
         }
         JOINS.forEach(ensureJoinKey); RESIGNS.forEach(ensureResignKey);
         var html='<div class="mb-1.5"><span class="text-emerald-600">✅</span> <b>'+esc(file.name)+'</b> → '+
