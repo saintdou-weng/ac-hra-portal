@@ -2018,15 +2018,23 @@ function openTg(mode){
   /* 依目前分頁預選內容來源：入職分頁→join、離職分頁→resign，其餘→both */
   _tgScope = TAB==='join'?'join' : TAB==='resign'?'resign' : 'both';
   var st=NAV[TAB]||NAV.ov;
-  el('tg-ptype').value=(st.mode==='year')?'year':(st.mode==='day')?'day':(st.mode==='week')?'week':'month';
+  /* ★ 核可離職時預設就用「結算日」。
+     離職核可核的是結算金額，而同一張結算單上的人離職日往往各不相同
+     （例：7/29 那張單，四個人分別是 7/22、7/24、7/28）。
+     用日／週／月去找永遠湊不齊一張單，所以這裡直接預設到結算日基準。 */
+  var useSettle = (_tgMode==='approval') && (_tgScope!=='join') && settleDatesWithData().length>0;
+  el('tg-ptype').value = useSettle ? 'settle'
+    : (st.mode==='year')?'year':(st.mode==='day')?'day':(st.mode==='week')?'week':'month';
   fillTgPeriods();
   var pt=el('tg-ptype').value;
-  var want = pt==='year'  ? String(st.pivot.getFullYear())
-           : pt==='month' ? (st.pivot.getFullYear()+'-'+p2(st.pivot.getMonth()+1))
-           : pt==='week'  ? weekKeyOf(st.pivot)
-           :                lds(st.pivot);
-  var sel=el('tg-period');
-  if(Array.prototype.some.call(sel.options,function(o){return o.value===want;})) sel.value=want;
+  if(pt!=='settle'){
+    var want = pt==='year'  ? String(st.pivot.getFullYear())
+             : pt==='month' ? (st.pivot.getFullYear()+'-'+p2(st.pivot.getMonth()+1))
+             : pt==='week'  ? weekKeyOf(st.pivot)
+             :                lds(st.pivot);
+    var sel=el('tg-period');
+    if(Array.prototype.some.call(sel.options,function(o){return o.value===want;})) sel.value=want;
+  }
   setTgScope(_tgScope);
   setTgMode(_tgMode);
   var m=el('tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
@@ -2108,6 +2116,12 @@ function setTgMode(m){
         'GAS creates an approval batch; the group message carries numbered buttons. Re-sending identical data hits the same batch instead of posting again.')
     : L('摘要只是通知，不會產生核可批次，群組不會有按鈕。要核可請切到上面的「核可 Approval」。',
         'Summary is a notification only — no batch, no buttons. Switch to "Approval" above to request approval.'));
+  /* ★ 切到核可時，若有結算資料就自動改用結算日基準（理由同 openTg） */
+  if(app && _tgScope!=='join' && settleDatesWithData().length &&
+     el('tg-ptype') && el('tg-ptype').value!=='settle'){
+    el('tg-ptype').value='settle';
+    fillTgPeriods();
+  }
   syncTgSendBtn();
   previewTg();
 }
@@ -2280,6 +2294,25 @@ function previewTg(){
     var items=buildApprovalItems(p,_tgScope);
     var sTag=_tgScope==='join'?'J':_tgScope==='resign'?'R':'B';
     extra='\n\n— — — —\n'+L('核可批次','Batch')+'：OB-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
+  }
+  /* ★ 在核可模式下用日/週/月找離職，若同時有結算單能湊到更多人，明講出來。
+     這是你踩過三次的坑：同一張結算單的人離職日各不同，按日曆期間永遠湊不齊。 */
+  if(_tgMode==='approval' && _tgScope!=='join' && !isSettleKey(p)){
+    var sds=settleDatesWithData();
+    if(sds.length){
+      var bestD='', bestN=0, bestAmt=0;
+      sds.forEach(function(d){
+        var rs=RESIGNS.filter(function(x){return String(x.settleDate||'').slice(0,10)===d;});
+        if(rs.length>bestN){ bestN=rs.length; bestD=d; bestAmt=rs.reduce(function(a,x){return a+(+x.amount||0);},0); }
+      });
+      var nowN=(periodData(p).R||[]).length;
+      if(bestN>nowN){
+        extra+='\n\n💡 '+L('提示 TIP','TIP')+'：'+L('目前這個期間只有 ','this period has only ')+nowN+L(' 筆。','.')
+             +L('改用「💵 結算日」選 ','Switch TYPE to "Settle date" and pick ')+bestD
+             +L('，可一次核 ',' to approve ')+bestN+L(' 人 ',' people, ')+'$'+bestAmt.toFixed(2)
+             +L('（同一張結算單，離職日各不相同）','(one settlement sheet, different resign dates).');
+      }
+    }
   }
   pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')+extra;
