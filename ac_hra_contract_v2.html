@@ -283,6 +283,16 @@ tr.sel{background:#eff6ff}
           <input type="checkbox" id="tg-bi" checked onchange="previewTg()"> 中英雙語
         </label>
       </div>
+      <div id="tg-route-wrap" class="hidden">
+        <label class="text-[12px] text-slate-500">核可路徑 Route</label>
+        <div class="mt-1 flex gap-1">
+          <button id="tgr-review" type="button" onclick="setTgRoute('review')"
+            class="flex-1 px-3 py-2 rounded-lg text-[13px]">👥 群組審核</button>
+          <button id="tgr-direct" type="button" onclick="setTgRoute('direct')"
+            class="flex-1 px-3 py-2 rounded-lg text-[13px]">🚀 直送核可</button>
+        </div>
+        <p id="tg-route-note" class="text-[11px] text-slate-400 mt-1 leading-relaxed"></p>
+      </div>
       <div>
         <div class="text-[12px] text-slate-500 mb-1">預覽 Preview</div>
         <pre id="tg-preview" class="text-[11.5px] bg-slate-50 border border-slate-200 rounded-lg p-3 whitespace-pre-wrap max-h-72 overflow-auto jmono"></pre>
@@ -1102,17 +1112,34 @@ function openTgModal(src){
   setTgMode(TG_MODE); previewTg();
 }
 function closeTgModal(){ qs('#tg-modal').classList.add('hidden'); }
+var TG_ROUTE='review';
+function setTgRoute(r){
+  TG_ROUTE=(r==='direct')?'direct':'review';
+  var d=(TG_ROUTE==='direct');
+  var a=qs('#tgr-review'), b=qs('#tgr-direct');
+  if(a) a.className='flex-1 px-3 py-2 rounded-lg text-[13px] '+(!d?'bg-sky-600 text-white':'bg-slate-100 text-slate-600');
+  if(b) b.className='flex-1 px-3 py-2 rounded-lg text-[13px] '+( d?'bg-amber-600 text-white':'bg-slate-100 text-slate-600');
+  var n=qs('#tg-route-note');
+  if(n) n.textContent = d
+    ? '直接私訊核可人，一步到位（不經群組審查）。'
+    : '先送群組，審查人按「確認審查」後才轉給核可人。';
+}
 function setTgMode(m){
   TG_MODE=m;
   qs('#tgm-sum').className='flex-1 px-3 py-2 rounded-lg text-[13px] '+(m==='summary'?'bg-sky-600 text-white':'bg-slate-100 text-slate-600');
-  qs('#tgm-app').className='flex-1 px-3 py-2 rounded-lg text-[13px] '+(m==='approval'?'bg-sky-600 text-white':'bg-slate-100 text-slate-600');
+  qs('#tgm-app').className='flex-1 px-3 py-2 rounded-lg text-[13px] '+(m==='approval'?'bg-amber-600 text-white':'bg-slate-100 text-slate-600');
   const hint=qs('#tg-hint');
+  var rw=qs('#tg-route-wrap');
   if(m==='approval'){
     hint.classList.remove('hidden');
-    hint.innerHTML='核可請求會送到群組並標記核可人 <b class="jmono">'+esc(APPROVER)+'</b>。'
-      +'<br>目前 GAS 尚未部署「按鈕核可」流程，訊息會以清單形式送出，可先用文字回覆核可；'
-      +'待線上核可統一實作後即可直接按按鈕。';
-  }else hint.classList.add('hidden');
+    /* ★ 舊說明寫著「GAS 尚未部署按鈕核可」——引擎早就上線了，
+       留著會讓人以為群組不會有按鈕。改成實際行為。 */
+    hint.innerHTML='核可請求送出後，群組訊息會帶逐筆 ✅／✕ 按鈕；'
+      +'核可人 <b class="jmono">'+esc(APPROVER)+'</b>。'
+      +'<br>同一批資料重送會命中原批次，不會重複發送。';
+    if(rw) rw.classList.remove('hidden');
+    setTgRoute(TG_ROUTE);
+  }else{ hint.classList.add('hidden'); if(rw) rw.classList.add('hidden'); }
   previewTg();
 }
 // ── Bilingual TG text ───────────────────────────────────────
@@ -1286,7 +1313,7 @@ async function sendApproval(payloadText, items, win){
     const body={
       action:'approvalRequest', module:'contract', scope:items[0].kind,
       batch:'CT-'+kindTag+'-'+String(period).replace(/-/g,'')+'-'+payloadItems.length,
-      period:period, lang:LANG, count:payloadItems.length, items:payloadItems,
+      period:period, lang:LANG, route:TG_ROUTE, count:payloadItems.length, items:payloadItems,
       requestedBy:'contract_v2', requestedAt:new Date().toLocaleString(),
       idempotencyKey:['contract',kindTag,period,payloadItems.length,
                       payloadItems.map(x=>x.key).sort().join(',')].join('|')

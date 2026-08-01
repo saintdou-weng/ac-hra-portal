@@ -358,6 +358,16 @@ tbody tr:hover{background:#f8fafc}
       </div>
       <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
         <input type="checkbox" id="tg-bi" checked onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
+      <div id="tg-route-wrap" class="hidden">
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">核可路徑 ROUTE</label>
+        <div class="mt-1.5 grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg">
+          <button id="tgr-review" type="button" onclick="setTgRoute('review')"
+            class="text-xs px-3 py-1.5 rounded-md transition">👥 群組審核 Review</button>
+          <button id="tgr-direct" type="button" onclick="setTgRoute('direct')"
+            class="text-xs px-3 py-1.5 rounded-md transition">🚀 直送核可 Direct</button>
+        </div>
+        <p id="tg-route-note" class="mt-1 text-[10px] text-slate-400 leading-relaxed"></p>
+      </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
       <p id="tg-note" class="text-[10px] text-slate-400 leading-relaxed"></p>
@@ -1629,11 +1639,28 @@ function fillTgPeriods(){
   sel.value=want;
   previewTg();
 }
+var _tgRoute='review';
+function setTgRoute(r){
+  _tgRoute=(r==='direct')?'direct':'review';
+  var d=(_tgRoute==='direct');
+  var a=el('tgr-review'), b=el('tgr-direct');
+  if(a) a.className='text-xs px-3 py-1.5 rounded-md transition '+(!d?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
+  if(b) b.className='text-xs px-3 py-1.5 rounded-md transition '+( d?'bg-white shadow-sm font-semibold text-amber-700':'text-slate-500 font-medium');
+  setTxt('tg-route-note', d
+    ? L('直接私訊核可人，一步到位（不經群組審查）','Sent straight to the approver — no group review')
+    : L('先送群組，審查人按「確認審查」後才轉給核可人','Goes to the group first; reaches the approver after a reviewer confirms'));
+}
 function setTgMode(m){
   _tgMode=m;
   el('tgm-sum').className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='summary'?'bg-white shadow-sm font-semibold text-pink-700':'text-slate-500 font-medium');
   el('tgm-app').className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(m==='approval'?'bg-white shadow-sm font-semibold text-pink-700':'text-slate-500 font-medium');
-  setTxt('tg-kind', (m==='approval'?L('核可請求 → 送出後於群組核可','Approval → decide in group'):L('摘要通知 → 群組','Summary → group')));
+  var app=(m==='approval');
+  setTxt('tg-kind', app
+    ? L('📋 核可請求 — 群組會出現逐筆 ✅／✕ 按鈕','📋 Approval — per-item ✅/✕ buttons in the group')
+    : L('📄 摘要通知 — 純文字，群組沒有核可按鈕','📄 Summary — plain text, no approval buttons'));
+  var rw=el('tg-route-wrap');
+  if(rw) rw.className = app ? '' : 'hidden';
+  if(app) setTgRoute(_tgRoute);
   previewTg();
 }
 function setTgScope(s){
@@ -1686,7 +1713,7 @@ function confirmTg(){
       if(!items.length){ toast(L('此期間沒有可送核可的項目','No items to approve in this period'),'error'); return; }
       payload={action:'approvalRequest',type:'approvalRequest',module:'maternity',scope:scope,
         batch:'MAT-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
-        period:p, lang:LANG, count:items.length, items:items, text:r.text,
+        period:p, lang:LANG, route:_tgRoute, count:items.length, items:items, text:r.text,
         idempotencyKey:['maternity',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
         requestedBy:'maternity_v2', requestedAt:nowStamp()};

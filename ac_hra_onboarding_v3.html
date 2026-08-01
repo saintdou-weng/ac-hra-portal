@@ -342,6 +342,16 @@ tbody tr:hover{background:#f8fafc}
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間 Period</label>
           <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"></select></div>
       </div>
+      <div id="tg-route-wrap" class="hidden">
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">核可路徑 ROUTE</label>
+        <div class="mt-1.5 grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg">
+          <button id="tgr-review" type="button" onclick="setTgRoute('review')"
+            class="text-xs px-3 py-1.5 rounded-md transition">👥 群組審核 Review</button>
+          <button id="tgr-direct" type="button" onclick="setTgRoute('direct')"
+            class="text-xs px-3 py-1.5 rounded-md transition">🚀 直送核可 Direct</button>
+        </div>
+        <p id="tg-route-note" class="mt-1 text-[10px] text-slate-400 leading-relaxed"></p>
+      </div>
       <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
         <input type="checkbox" id="tg-bi" checked onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
@@ -2102,6 +2112,16 @@ function syncTgSendBtn(){
                         : L('📄 傳送摘要 Send Summary','📄 Send Summary');
   if(!btn.disabled) btn.className = app?TG_BTN_CLS_APP:TG_BTN_CLS_SUM;
 }
+var _tgRoute='review';
+function setTgRoute(r){
+  _tgRoute=(r==='direct')?'direct':'review';
+  var a=el('tgr-review'), b=el('tgr-direct'), d=(_tgRoute==='direct');
+  if(a) a.className='text-xs px-3 py-1.5 rounded-md transition '+(!d?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
+  if(b) b.className='text-xs px-3 py-1.5 rounded-md transition '+( d?'bg-white shadow-sm font-semibold text-amber-700':'text-slate-500 font-medium');
+  setTxt('tg-route-note', d
+    ? L('直接私訊核可人，一步到位（不經群組審查）','Sent straight to the approver — no group review step')
+    : L('先送群組，審查人按「確認審查」後才轉給核可人','Goes to the group first; an approval request reaches the approver only after a reviewer confirms'));
+}
 function setTgMode(m){
   _tgMode=m;
   var app=(m==='approval');
@@ -2116,6 +2136,9 @@ function setTgMode(m){
         'GAS creates an approval batch; the group message carries numbered buttons. Re-sending identical data hits the same batch instead of posting again.')
     : L('摘要只是通知，不會產生核可批次，群組不會有按鈕。要核可請切到上面的「核可 Approval」。',
         'Summary is a notification only — no batch, no buttons. Switch to "Approval" above to request approval.'));
+  var rw=el('tg-route-wrap');
+  if(rw) rw.className = app ? '' : 'hidden';
+  if(app) setTgRoute(_tgRoute);
   /* ★ 切到核可時，若有結算資料就自動改用結算日基準（理由同 openTg） */
   if(app && _tgScope!=='join' && settleDatesWithData().length &&
      el('tg-ptype') && el('tg-ptype').value!=='settle'){
@@ -2338,6 +2361,7 @@ function confirmTg(){
         batch:'OB-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
         /* ★ 'S:' 只是內部基準前綴，送給 GAS 的期間要是人看得懂的字 */
         period: isSettleKey(p) ? (String(p).slice(2)+' '+L('結算 Settle','Settle')) : p,
+        route: _tgRoute,
         lang:LANG, count:items.length, items:items, text:r.text,
         /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
         idempotencyKey:['onboarding',sTag,p,items.length,
@@ -2592,7 +2616,7 @@ Object.assign(window,{
   renderJoin:renderJoin, renderResign:renderResign, renderAnly:renderAnly, renderAppr:renderAppr,
   resetFilters:resetFilters,
   cloudUpload:cloudUpload, cloudDownload:cloudDownload,
-  openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods, syncTgSendBtn:syncTgSendBtn,
+  openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods, syncTgSendBtn:syncTgSendBtn, setTgRoute:setTgRoute,
   previewTg:previewTg, confirmTg:confirmTg,
   apprToggle:apprToggle, apprSelectAll:apprSelectAll, apprMark:apprMark,
   openReject:openReject, closeReject:closeReject, confirmReject:confirmReject,
