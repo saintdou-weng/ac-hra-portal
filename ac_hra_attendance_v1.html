@@ -1426,6 +1426,35 @@ function quickDateCheck(wb,sheetName){
     }
   }
 
+  // ★ Step 3b: 表頭沒有「Date:」標籤、分頁名也不是數字日時（例如分頁叫 '01'、'(1)'），
+  // 直接掃前 8 列所有儲存格，撿出「完整日期」（含日）當來源。
+  // 重點：排除明顯是範本殘留的舊年份（例如 (1) 分頁那格 2020-03-01），
+  // 只認今年前後兩年內的日期，避免抓到錯的把整批日期帶歪。
+  if(!ym || !ym.d){
+    const _now=new Date().getFullYear();
+    let best=null;
+    for(let R=0;R<8;R++){
+      for(let C=0;C<44;C++){
+        const addr=XLSX.utils.encode_cell({r:R,c:C});
+        const cell=ws[addr];if(!cell)continue;
+        let y,mo,d;
+        const v=cell.v;
+        if(v instanceof Date){ y=v.getFullYear();mo=v.getMonth()+1;d=v.getDate(); }
+        else if(typeof v==='number'&&v>40000&&v<60000){
+          const dt=new Date(Math.round((v-25569)*86400)*1000);
+          y=dt.getUTCFullYear();mo=dt.getUTCMonth()+1;d=dt.getUTCDate();
+        } else {
+          const m2=String(v||'').match(/(20\d{2})[.\/\-](0?[1-9]|1[0-2])[.\/\-](\d{1,2})/);
+          if(m2){ y=+m2[1];mo=+m2[2];d=+m2[3]; }
+        }
+        // 只接受今年 ±2 年內的日期（擋掉 2020 那種殘留）
+        if(y&&mo&&d&&Math.abs(y-_now)<=2){ best={y:y,m:mo,d:d}; break; }
+      }
+      if(best)break;
+    }
+    if(best) ym=best;
+  }
+
   if(!ym)return null;
 
   // Step 4: Determine the day
