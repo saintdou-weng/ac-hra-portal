@@ -1426,35 +1426,6 @@ function quickDateCheck(wb,sheetName){
     }
   }
 
-  // ★ Step 3b: 表頭沒有「Date:」標籤、分頁名也不是數字日時（例如分頁叫 '01'、'(1)'），
-  // 直接掃前 8 列所有儲存格，撿出「完整日期」（含日）當來源。
-  // 重點：排除明顯是範本殘留的舊年份（例如 (1) 分頁那格 2020-03-01），
-  // 只認今年前後兩年內的日期，避免抓到錯的把整批日期帶歪。
-  if(!ym || !ym.d){
-    const _now=new Date().getFullYear();
-    let best=null;
-    for(let R=0;R<8;R++){
-      for(let C=0;C<44;C++){
-        const addr=XLSX.utils.encode_cell({r:R,c:C});
-        const cell=ws[addr];if(!cell)continue;
-        let y,mo,d;
-        const v=cell.v;
-        if(v instanceof Date){ y=v.getFullYear();mo=v.getMonth()+1;d=v.getDate(); }
-        else if(typeof v==='number'&&v>40000&&v<60000){
-          const dt=new Date(Math.round((v-25569)*86400)*1000);
-          y=dt.getUTCFullYear();mo=dt.getUTCMonth()+1;d=dt.getUTCDate();
-        } else {
-          const m2=String(v||'').match(/(20\d{2})[.\/\-](0?[1-9]|1[0-2])[.\/\-](\d{1,2})/);
-          if(m2){ y=+m2[1];mo=+m2[2];d=+m2[3]; }
-        }
-        // 只接受今年 ±2 年內的日期（擋掉 2020 那種殘留）
-        if(y&&mo&&d&&Math.abs(y-_now)<=2){ best={y:y,m:mo,d:d}; break; }
-      }
-      if(best)break;
-    }
-    if(best) ym=best;
-  }
-
   if(!ym)return null;
 
   // Step 4: Determine the day
@@ -2091,7 +2062,7 @@ function exportDayExcel(){
   XLSX.utils.book_append_sheet(wb,ws,'日報');XLSX.writeFile(wb,`VRT_Attendance_${d}.xlsx`);toast('🟢 Excel 已下載','ok');}
 
 // ═══════ UTILS ═══════
-function toast(m,t='info',ms=4000){const e=document.createElement('div');e.className=`toast toast-${t}`;e.textContent=m;document.getElementById('toasts').appendChild(e);setTimeout(()=>e.remove(),ms);}
+function toast(m,t='info'){const e=document.createElement('div');e.className=`toast toast-${t}`;e.textContent=m;document.getElementById('toasts').appendChild(e);setTimeout(()=>e.remove(),4000);}
 
 // ═══════ INIT ═══════
 updateHeader();
@@ -2206,7 +2177,6 @@ async function pushCloud() {
 
   setSyncStatus('syncing', T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…'));
   setProgress(0, true);
-  let _mergeStat=null;
   const summary = buildCloudSummary();
   // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
   const _PUSH_CHUNK = Math.min(CHUNK_SIZE, 3000); // 3000 records ≈ 700KB per chunk
@@ -2242,7 +2212,6 @@ async function pushCloud() {
       });
       const d = await r.json();
       if (!d.ok) { allOk = false; break; }
-      if (d.data && d.data.chunk==='final') _mergeStat=d.data;   // ★ 收合併結果
     }
 
     setProgress(100);
@@ -2259,13 +2228,7 @@ async function pushCloud() {
         updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
       }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
       setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-      // ★ 合併結果：讓你確認雲端沒有被整包蓋掉
-      const _ms=_mergeStat;
-      if(_ms && _ms.mode==='merge'){
-        toast(`✅ ${T('上傳（合併）','Uploaded (merged)','បានបញ្ចូល')} — ${T('更新','upd','')} ${_ms.updated||0} · ${T('新增','add','')} ${_ms.added||0} · ${T('雲端共','cloud total','')} ${_ms.recordCount||0}`, 'ok', 6000);
-      }else{
-        toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
-      }
+      toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
     } else {
       setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
       toast(T('❌ 部分上傳失敗，請重試','❌ Upload incomplete. Try again.','❌ ផ្ទុកឡើងមិនពេញលេញ'), 'err');
