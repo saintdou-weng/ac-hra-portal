@@ -1362,32 +1362,43 @@ function parseSheet(data,dateStr){
   return rows;
 }
 
-// Fast date check: uses SHEET NAME as day + Date: cell for year/month
-// This avoids timezone issues: sheet name "06" is always day 6 regardless of timezone
+// Fast date check: uses SHEET NAME as day + the Date: cell for year/month.
+// The workbook's displayed Date value is authoritative.  Do not derive the
+// month from Date.getMonth(), because SheetJS may materialize an Excel date
+// just before midnight in the browser's local timezone (e.g. 8/1 -> 7/31).
 function quickDateCheck(wb,sheetName){
   const ws=wb.Sheets[sheetName];if(!ws)return null;
 
-  // Helper: parse Excel date value timezone-safe
-  // Always use the DATE: cell for YEAR+MONTH, sheet name for DAY
-  function excelDateToYearMonth(nv){
-    if(nv instanceof Date){
-      // Use UTC components (XLSX cellDates:true stores as UTC midnight of that date)
-      // But some timezones shift this - so try both UTC and local, prefer UTC
-      const utcY=nv.getUTCFullYear(),utcM=nv.getUTCMonth()+1,utcD=nv.getUTCDate();
-      const locY=nv.getFullYear(),locM=nv.getMonth()+1,locD=nv.getDate();
-      // If UTC and local differ by 1 day, local is likely correct (cellDates stores local midnight)
-      // Return ONLY year+month (day will come from sheet name)
-      if(utcY>=2000) return {y:locY,m:locM}; // use local year+month
-      return null;
+  // Excel's formatted display (cell.w) is the safest source.  It preserves
+  // the date shown in Excel, including dates on the first day of a month.
+  function excelDateToYearMonth(nv,display){
+    const text=String(display==null?'':display).trim();
+    let match=text.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
+    if(match) return {y:+match[1],m:+match[2],d:+match[3]};
+
+    // Common Excel display format: 8/1/26 or 8-1-2026.
+    match=text.match(/^(0?[1-9]|1[0-2])[\/\-\.](0?[1-9]|[12]\d|3[01])[\/\-\.](\d{2}|\d{4})(?:\D|$)/);
+    if(match){
+      let y=+match[3];
+      if(y<100)y+=y>=70?1900:2000;
+      return {y,m:+match[1],d:+match[2]};
     }
+
+    // When cellDates is disabled, SheetJS exposes the raw Excel serial.
+    // Convert it in UTC so the browser timezone cannot change the month.
     if(typeof nv==='number'&&nv>40000&&nv<60000){
       const d=new Date(Math.round((nv-25569)*86400)*1000);
       if(d.getUTCFullYear()<2000)return null;
       return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1};
     }
-    const s=String(nv||'');
-    const match=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
-    if(match&&+match[1]>=2000) return {y:+match[1],m:+match[2]};
+
+    // Fallback for cellDates:true.  SheetJS dates represent the Excel date
+    // on the UTC calendar; using local getMonth() is what caused 8/1 to be
+    // interpreted as 7/1 in Asia/Phnom_Penh.
+    if(nv instanceof Date){
+      const y=nv.getUTCFullYear(),m=nv.getUTCMonth()+1;
+      if(y>=2000&&m>=1&&m<=12)return {y,m};
+    }
     return null;
   }
 
@@ -1407,7 +1418,7 @@ function quickDateCheck(wb,sheetName){
       for(let off=1;off<=3;off++){
         const nAddr=XLSX.utils.encode_cell({r:R,c:C+off});
         const nCell=ws[nAddr];if(!nCell)continue;
-        ym=excelDateToYearMonth(nCell.v);
+        ym=excelDateToYearMonth(nCell.v,nCell.w);
         if(ym)break;
       }
     }
@@ -1440,9 +1451,9 @@ function quickDateCheck(wb,sheetName){
   }
 
   const dateStr=`${ym.y}-${String(ym.m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  // Validate it's a real date
-  const check=new Date(dateStr);
-  if(isNaN(check.getTime())||check.getUTCFullYear()<2000)return null;
+  // Validate as a calendar date without using local timezone conversion.
+  const check=new Date(Date.UTC(ym.y,ym.m-1,day));
+  if(isNaN(check.getTime())||check.getUTCFullYear()!==ym.y||check.getUTCMonth()+1!==ym.m||check.getUTCDate()!==day)return null;
   return dateStr;
 }
 
@@ -1451,37 +1462,10 @@ async function parseWorkbook(wb, progressFn, overwrite){
   const results=[],dedupLog=[],newDates=[],skippedDates=[];
   const total=wb.SheetNames.length;
 
-  // ── Phase 0: 全本共識年月掃描（防止單一 sheet 年月被誤讀）──
-  // 例：sheet '01' 的 2026-05-01 有時被解成 2026-04-01（序號邊界問題）
-  // 解法：先掃全部 sheet 取共識年月，再逐一校正衝突者
-  const _ymMap={};
-  for(const sn of wb.SheetNames){
-    const ds=quickDateCheck(wb,sn);
-    if(ds&&/^\d{4}-\d{2}-\d{2}$/.test(ds)){
-      const ym=ds.slice(0,7);
-      if(+ym.slice(0,4)>=2020) _ymMap[ym]=(_ymMap[ym]||0)+1;
-    }
-  }
-  // 找最多票的年月（排除很舊的年份，如 template sheet 的 2020-03）
-  let _consensusYM=null,_maxVote=0;
-  for(const[ym,cnt] of Object.entries(_ymMap)){
-    if(cnt>_maxVote){_consensusYM=ym;_maxVote=cnt;}
-  }
-
   // Phase 1: Quick scan all sheets for dates (fast — only reads cells directly, no full decode)
   const sheetDates=[];
   for(const sn of wb.SheetNames){
     let dateStr=quickDateCheck(wb,sn);
-    // ── 共識校正：若年月與共識不同，嘗試用共識年月+原日期替換 ──
-    if(dateStr&&_consensusYM&&dateStr.slice(0,7)!==_consensusYM){
-      const day=dateStr.slice(8); // DD
-      const candidate=_consensusYM+'-'+day;
-      const chk=new Date(candidate);
-      if(!isNaN(chk)&&chk.getUTCFullYear()>=2020){
-        console.log('[DateConsensus] sheet',sn,':',dateStr,'→',candidate,'(consensus',_consensusYM+')');
-        dateStr=candidate;
-      }
-    }
     const alreadyHave=dateStr&&IMPORT_LOG.includes(dateStr);
     sheetDates.push({sn,dateStr,alreadyHave});
   }
@@ -1532,28 +1516,28 @@ async function extractMSG(file){
   const results=[];
 
   // ── Method A: OLE/CFB walk (proper MSG parsing via XLSX.CFB) ──
+  // Outlook stores the attachment stream beside the storage object.  The
+  // CFB reader exposes the stream's storage as "fat"/"minifat", not as the
+  // parent __attach_version1.0_* name, so matching e.storage to the parent
+  // name silently misses every attachment on some MSG files.  Scan the CFB
+  // streams themselves and let XLSX validate the candidate bytes.
   try{
     const cfb=XLSX.CFB.read(new Uint8Array(buf),{type:'array'});
-    const attachStorages=[...new Set(
-      cfb.FileIndex
-        .filter(e=>e.name&&e.name.startsWith('__attach_version1.0'))
-        .map(e=>e.name)
-    )];
-    for(const storageName of attachStorages){
-      const streamNames=['__substg1.0_37010102','AttachDataW','__substg1.0_3701000D'];
-      for(const sn of streamNames){
-        const entry=cfb.FileIndex.find(e=>e.name===sn&&e.storage===storageName);
-        if(!entry||!entry.content||entry.content.length<50)continue;
-        const bytes=entry.content;
-        const m0=bytes[0],m1=bytes[1];
-        const isXlsx=m0===0x50&&m1===0x4B;
-        const isXls =m0===0xD0&&m1===0xCF;
-        if(!isXlsx&&!isXls)continue;
-        try{
-          const wb=XLSX.read(bytes,{type:'array',cellDates:true});
-          if(wb.SheetNames.length>0){results.push({name:`att_cfb_${results.length}.${isXlsx?'xlsx':'xls'}`,data:bytes,wb});break;}
-        }catch(e){}
-      }
+    const seen=new Set();
+    for(const entry of (cfb.FileIndex||[])){
+      if(!entry||!entry.content||entry.content.length<50)continue;
+      const bytes=entry.content;
+      const m0=bytes[0],m1=bytes[1];
+      const isXlsx=m0===0x50&&m1===0x4B;
+      const isXls =m0===0xD0&&m1===0xCF;
+      if(!isXlsx&&!isXls)continue;
+      const sig=String(bytes.length)+':'+Array.from(bytes.slice(0,16)).join(',');
+      if(seen.has(sig))continue;
+      seen.add(sig);
+      try{
+        const wb=XLSX.read(bytes,{type:'array',cellDates:true});
+        if(wb.SheetNames.length>0)results.push({name:`att_cfb_${results.length}.${isXlsx?'xlsx':'xls'}`,data:bytes,wb});
+      }catch(e){}
     }
     if(results.length)return results;
   }catch(e){}
