@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1876,6 +1877,9 @@ function gasPost(payload){
     headers:{'Content-Type':'text/plain;charset=utf-8'},          /* ① 避開 CORS preflight */
     body:JSON.stringify(payload)});
 }
+function gasPushJson(payload){
+  return gasPost(payload).then(function(res){return res.json();});
+}
 function cloudUpload(){
   var btn=el('btn-cloud-up'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
   var recs=flatRecords();
@@ -1888,9 +1892,13 @@ function cloudUpload(){
       seq=seq.then(function(){
         var slice=recs.slice(idx*CHUNK,(idx+1)*CHUNK);
         var p={action:'push',type:'push',tool:TOOL,records:slice,recordCount:recs.length,
-               summary:summary,updatedAt:lds(new Date()),decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride}};
+               summary:summary,coverage:HRACloudGuard.coverage(recs,'onboarding'),updatedAt:lds(new Date()),decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride}};
         if(total>1){ p.chunk=idx; p.totalChunks=total; }
-        return gasPost(p).then(function(){ sent+=slice.length; });
+        return HRACloudGuard.push(p,function(safePayload){return gasPushJson(safePayload);},LANG==='en'?'en':(LANG==='km'?'km':'zh')).then(function(d){
+          if(d && d.cancelled) throw new Error(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'));
+          if(!d || d.ok===false) throw new Error(d&&d.error||'GAS error');
+          sent+=slice.length;
+        });
       });
     })(i);
   }

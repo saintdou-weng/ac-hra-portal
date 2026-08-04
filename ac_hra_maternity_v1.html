@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1408,6 +1409,8 @@ function gasPost(payload){
   return fetch(gasUrl(),{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),redirect:'follow'})
     .then(function(r){return r.text();}).then(function(t){ try{return JSON.parse(t);}catch(e){return {ok:/success|ok|true/i.test(t),raw:t};} });
 }
+function gasJson(payload){ return gasPost(payload); }
+function gasGet(query){ return fetch(gasUrl()+query,{method:'GET',redirect:'follow'}).then(function(r){return r.json();}); }
 function digRecords(data){
   var d=data; if(!d)return [];
   if(d.data&&d.data.records)return d.data.records;
@@ -1421,15 +1424,20 @@ function cloudUpload(){
   if(!recs.length){ toast(L('沒有資料可上傳','Nothing to upload'),'warn'); return; }
   var btn=el('btn-cloud-up'); if(btn)btn.disabled=true;
   var chunks=[]; for(var i=0;i<recs.length;i+=CHUNK)chunks.push(recs.slice(i,i+CHUNK));
+  var coverage=HRACloudGuard.coverage(recs,'maternity');
   setTxt('cloud-stat', '☁↑…');
   var seq=Promise.resolve(),okAll=true;
   chunks.forEach(function(ck,idx){
-    seq=seq.then(function(){ return gasPost({action:'push',tool:TOOL,chunk:idx,chunks:chunks.length,records:ck,ts:Date.now()}); })
-      .then(function(res){ return res.text().then(function(t){ var d=null; try{d=JSON.parse(t);}catch(e){} if(!d||d.ok===false)okAll=false; }); });
+    seq=seq.then(function(){
+      var payload={action:'push',tool:TOOL,chunk:idx,totalChunks:chunks.length,records:ck,
+        recordCount:recs.length,summary:{employees:EMP.length,nursing:NUR.length,salary:SAL.length},
+        coverage:coverage,updatedAt:coverage.latestDate||new Date().toISOString(),pushedBy:'maternity_v1'};
+      return HRACloudGuard.push(payload,function(safePayload){return gasJson(safePayload);},LANG==='en'?'en':'zh').then(function(d){
+        if(!d||d.ok===false||d.cancelled){okAll=false;throw new Error(d&&d.cancelled?L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept'):d&&d.error||'GAS error');}
+      });
+    });
   });
   seq.then(function(){
-    return gasPost({action:'push',tool:TOOL,meta:1,count:recs.length,ts:Date.now(),records:[]});
-  }).then(function(){
     META.uploadedAt=nowStamp(); META.count=recs.length; saveMeta();
     setTxt('cloud-stat', '☁ '+recs.length);
     toast(okAll?(L('已上傳','Uploaded')+' '+recs.length+' '+L('筆','rows')):L('上傳部分完成（請重試）','Partial upload'),okAll?'ok':'warn');
@@ -1439,18 +1447,20 @@ function cloudUpload(){
 function cloudDownload(){
   var btn=el('btn-cloud-down'); if(btn)btn.disabled=true;
   setTxt('cloud-stat', '☁↓…');
-  gasPost({action:'pull',tool:TOOL,ts:Date.now()}).then(function(data){
-    var recs=digRecords(data);
-    if(!recs.length){ /* 分塊拉取 fallback */
-      return gasPost({action:'pull',tool:TOOL,meta:1}).then(function(m){
-        var chunks=(m&&(m.chunks||(m.data&&m.data.chunks)))||1, seq=Promise.resolve(),all=[];
-        for(var i=0;i<chunks;i++){ (function(idx){ seq=seq.then(function(){return gasPost({action:'pull',tool:TOOL,chunk:idx});}).then(function(d){all=all.concat(digRecords(d));}); })(i); }
-        return seq.then(function(){return all;});
-      });
+  gasGet('?action=pull&tool='+TOOL+'&meta=1').then(function(data){
+    var info=(data&&data.data)||data||{};
+    if(info.data===null){return []}
+    if(info.chunked&&info.meta&&info.meta.totalChunks){
+      var chunks=info.meta.totalChunks,seq=Promise.resolve(),all=[];
+      for(var i=0;i<chunks;i++){ (function(idx){ seq=seq.then(function(){return gasGet('?action=pull&tool='+TOOL+'&chunk='+idx);}).then(function(d){all=all.concat(digRecords(d));}); })(i); }
+      return seq.then(function(){return all;});
     }
-    return recs;
+    return digRecords(info.data||info);
   }).then(function(recs){
     if(!recs||!recs.length){ toast(L('雲端沒有資料','No cloud data'),'warn'); setTxt('cloud-stat', '☁∅'); return; }
+    if((EMP.length||NUR.length||SAL.length) && !confirm(L('雲端資料將載入本機，請確認是否繼續？','Cloud data will be loaded to this device. Continue?'))){
+      setTxt('cloud-stat','☁↩'); return;
+    }
     var emp=[],nur=[],sal=[];
     recs.forEach(function(r){
       var t=(r.type||'').toLowerCase();

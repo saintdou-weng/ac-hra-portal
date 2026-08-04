@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Welfare &amp; Suggestion</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -541,8 +542,20 @@ async function clearAllData(){if(!confirm(tr('confirmClear')))return;STATE=defau
 function saveSettings(){STATE.settings.imageSize=Number(val('imageSize'))||1000;STATE.settings.imageQuality=Number(val('imageQuality'))||.7;const gas=val('gasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})}
 function gasUrlValue(){return localStorage.getItem(GAS_KEY)||''}
 async function postGas(payload){const url=gasUrlValue();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d}
-async function cloudPush(){showLoading(LANG==='en'?'Uploading data and photos manually…':'手動上傳資料與照片中…');try{await postGas({action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],recordCount:STATE.members.length+STATE.unionDues.length+STATE.suggestions.length,updatedAt:new Date().toISOString()});toast(`✅ ${tr('cloudSent')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}}
-async function cloudPull(){const url=gasUrlValue();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading data and photos manually…':'手動下載資料與照片中…');try{const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');let records=d.data?.records||d.data?.data?.records||d.records||[],snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.members)snap=d.data.data;if(!snap?.members)throw new Error('No welfare snapshot');STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}}
+async function cloudPush(){
+  showLoading(LANG==='en'?'Uploading data and photos manually…':'手動上傳資料與照片中…');
+  try{
+    const payload={action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],
+      recordCount:STATE.members.length+STATE.unionDues.length+STATE.suggestions.length,
+      coverage:HRACloudGuard.coverage(STATE,'welfare_suggestion'),
+      updatedAt:new Date().toISOString()};
+    const d=await HRACloudGuard.push(payload,function(p){return postGas(p)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
+    if(d && d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消覆蓋，雲端資料已保留。',5000);return}
+    if(!d || d.ok===false)throw new Error(d&&d.error||'GAS error');
+    toast(`✅ ${tr('cloudSent')}`)
+  }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
+}
+async function cloudPull(){const url=gasUrlValue();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading data and photos manually…':'手動下載資料與照片中…');try{const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');let records=d.data?.records||d.data?.data?.records||d.records||[],snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.members)snap=d.data.data;if(!snap?.members)throw new Error('No welfare snapshot');const incomingCount=(snap.members?.length||0)+(snap.movements?.length||0)+(snap.unionDues?.length||0)+(snap.suggestions?.length||0);const localCount=(STATE.members?.length||0)+(STATE.movements?.length||0)+(STATE.unionDues?.length||0)+(STATE.suggestions?.length||0);if(localCount&&!confirm(`雲端將載入 ${incomingCount} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`))return;STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}}
 
 /* ── Telegram text summaries — always manual ───────────────────────── */
 /* ★ 期間鍵／標籤：四種模式都要對，否則選「日」「週」會拿到整個月的數字 */

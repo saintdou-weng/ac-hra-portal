@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VRT 考勤分析系統 v2</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -2156,6 +2157,7 @@ async function pushCloud() {
 
   // ── Debug: show what we're about to push ─────────────────────────
   const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
+  const _firstAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().shift()||'';
   console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
   toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+': '+DB.length+' · '+_latestAttDate, 'info');
 
@@ -2183,19 +2185,22 @@ async function pushCloud() {
         records     : chunk,
         recordCount : DB.length,
         updatedAt   : _pushUpdatedAt,   // ← latest DATE in records, not push timestamp
-        importLog   : i === 0 ? IMPORT_LOG : [],  // only send importLog in first chunk
-        summary     : i === 0 ? summary : {},
+        coverage    : {firstDate:_firstAttDate, latestDate:_latestAttDate, source:'attendance'},
+        importLog   : IMPORT_LOG,
+        summary     : summary,
         pushedBy    : 'attendance_cloud_v1',
       };
 
-      const r = await fetch(GAS_URL, {
-        method      : 'POST',
-        redirect    : 'follow',
-        headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
-        body        : JSON.stringify(payload),
-      });
-      const d = await r.json();
-      if (!d.ok) { allOk = false; break; }
+      const d = await HRACloudGuard.push(payload, async function (safePayload) {
+        const r = await fetch(GAS_URL, {
+          method      : 'POST',
+          redirect    : 'follow',
+          headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
+          body        : JSON.stringify(safePayload),
+        });
+        return r.json();
+      }, LANG === 'en' ? 'en' : (LANG === 'km' ? 'km' : 'zh'));
+      if (!d || !d.ok || d.cancelled) { allOk = false; break; }
     }
 
     setProgress(100);
@@ -2215,7 +2220,7 @@ async function pushCloud() {
       toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
     } else {
       setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
-      toast(T('❌ 部分上傳失敗，請重試','❌ Upload incomplete. Try again.','❌ ផ្ទុកឡើងមិនពេញលេញ'), 'err');
+      toast(T('⚠️ 上傳已停止，雲端資料未被覆蓋','⚠️ Upload stopped; cloud data was not overwritten.','⚠️ បានបញ្ឈប់ការផ្ទុកឡើង ទិន្នន័យ Cloud មិនត្រូវបានជំនួសទេ'), 'err');
     }
   } catch(e) {
     setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));

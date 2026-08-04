@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Certificate &amp; Visa</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
@@ -949,13 +950,26 @@ async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
 async function cloudPush(){
-  showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');try{await postGas({action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],recordCount:STATE.certificates.length+STATE.people.length+STATE.requests.length,updatedAt:new Date().toISOString()});toast(`✅ ${tr('cloudSent')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
+  showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');
+  try{
+    const payload={action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],
+      recordCount:STATE.certificates.length+STATE.people.length+STATE.requests.length,
+      coverage:HRACloudGuard.coverage(STATE,'certificate_visa'),
+      updatedAt:new Date().toISOString()};
+    const d=await HRACloudGuard.push(payload,function(p){return postGas(p)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
+    if(d && d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消覆蓋，雲端資料已保留。',5000);return}
+    if(!d || d.ok===false)throw new Error(d&&d.error||'GAS error');
+    toast(`✅ ${tr('cloudSent')}`)
+  }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
 async function cloudPull(){
   const url=gasUrl();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading manually…':'手動下載中…');
   try{
     const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');
     let records=d.data?.records||d.data?.data?.records||d.records||[];let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.certificates)snap=d.data.data;if(!snap?.certificates)throw new Error('No Certificate & Visa snapshot');
+    const incomingCount=(snap.certificates?.length||0)+(snap.people?.length||0)+(snap.requests?.length||0);
+    const localCount=(STATE.certificates?.length||0)+(STATE.people?.length||0)+(STATE.requests?.length||0);
+    if(localCount && !confirm(`雲端將載入 ${incomingCount} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`))return;
     STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }

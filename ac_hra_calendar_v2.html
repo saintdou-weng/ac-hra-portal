@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🇰🇭 柬埔寨假日行事曆管理系統</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -2634,18 +2635,22 @@ init();
       var count=flatDB().length;
       var snapshot={kind:'calendarSnapshot',version:3,db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS,updatedAt:new Date().toISOString()};
       var payload = {action:'push',tool:'calendar',records:[snapshot],
-        recordCount:count,updatedAt:snapshot.updatedAt};
-      var r = await fetch(gasUrl, {method:'POST',redirect:'follow',
-        headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body:JSON.stringify(payload)});
-      var d = await r.json();
-      if(d.ok){
+        recordCount:count,coverage:HRACloudGuard.coverage(DB,'calendar'),updatedAt:snapshot.updatedAt};
+      var d = await HRACloudGuard.push(payload, async function(safePayload){
+        var r = await fetch(gasUrl, {method:'POST',redirect:'follow',
+          headers:{'Content-Type':'text/plain;charset=utf-8'},
+          body:JSON.stringify(safePayload)});
+        return r.json();
+      }, lang === 'en' ? 'en' : 'zh');
+      if(d && d.ok && !d.cancelled){
         var meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
         localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
         calLog('✓ '+(lang==='en'?'Manual upload complete':'手動上傳完成')+' ('+count+'筆)','ok');
         calShowStatus();
+      } else if(d && d.cancelled){
+        calLog('⚠ '+(lang==='en'?'Upload cancelled; cloud data was kept':'已取消覆蓋，雲端資料已保留'),'err');
       } else {
-        calLog('✗ '+d.error,'err');
+        calLog('✗ '+(d&&d.error||'GAS error'),'err');
       }
     } catch(e){ calLog('✗ '+e.message,'err'); }
     finally{ if(btn){ btn.disabled=false; btn.innerHTML=lang==='en'?'☁ Upload':'☁ 上傳'; } }

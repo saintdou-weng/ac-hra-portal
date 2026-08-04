@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 合約與試用期管理 Contract & Probation</title>
+<script src="shared/cloud-guard.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1357,12 +1358,16 @@ async function cloudUpload(){
   setSync('☁ 上傳中…');
   try{
     const body={ action:'push', tool:'contract', records:recs, recordCount:recs.length,
+      coverage:HRACloudGuard.coverage(recs,'contract'),
       summary:{probs:PROBS.length,conts:CONTS.length,finish:FINISH.length,
                decisions:Object.keys(DECISIONS).length},
       decisions: DECISIONS, updatedAt: nowISO() };
-    const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
-    const d=await r.json();
+    const d=await HRACloudGuard.push(body,async function(safeBody){
+      const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',
+        headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(safeBody)});
+      return r.json();
+    },LANG==='en'?'en':(LANG==='km'?'km':'zh'));
+    if(d && d.cancelled){toast(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return;}
     if(d && d.ok===false) throw new Error(d.error||'GAS 回報失敗');
     setSync('✓ '+new Date().toLocaleTimeString());
     toast('☁ 已上傳雲端 — '+recs.length+' 筆');
@@ -1381,6 +1386,8 @@ async function cloudDownload(){
     const recs  = inner.records || [];
     if(!Array.isArray(recs) || !recs.length){ toast('雲端尚無資料 — 請先上傳','warn'); setSync(''); }
     else{
+      const localCount=flatRecords().length;
+      if(localCount && !confirm(`雲端將載入 ${recs.length} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`)){setSync('');return;}
       PROBS  = recs.filter(r=>r._kind==='prob');
       CONTS  = recs.filter(r=>r._kind==='cont');
       FINISH = recs.filter(r=>r._kind==='finish');
