@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════
-   AC HRA Cloud Sync  shared/cloud.js  v1.2
+   AC HRA Cloud Sync  shared/cloud.js  v1.3
    ─────────────────────────────────────────────────────
    CORS fix: POST must use 'text/plain;charset=utf-8'
    Any other Content-Type triggers preflight → GAS fails
@@ -43,34 +43,40 @@ const Cloud = {
     if (!url) return {ok:false,error:'No GAS URL'};
     const arr   = Array.isArray(records) ? records : [records];
     const total = Math.ceil(arr.length / CHUNK) || 1;
+    const coverage = G.HRACloudGuard && G.HRACloudGuard.coverage
+      ? G.HRACloudGuard.coverage(arr, tool) : {};
     try {
       if (arr.length <= CHUNK) {
         if (onProgress) onProgress(50,1,1);
-        const r = await this._post(url, {
+        const body = {
           action:'push', tool, records:arr,
           recordCount:arr.length, totalChunks:1, chunk:0,
-          summary:summary||{}, version:'1.0',
+          summary:summary||{}, coverage, version:'1.0',
           updatedAt:new Date().toISOString(),
-        });
+        };
+        const safe = await (G.HRACloudGuard && G.HRACloudGuard.push
+          ? G.HRACloudGuard.push(body, p => this._post(url,p)) : this._post(url, body));
         if (onProgress) onProgress(100,1,1);
-        if (r.ok) this._saveSnap(tool,{recordCount:arr.length,timestamp:new Date().toISOString(),summary});
-        return r;
+        if (safe.ok) this._saveSnap(tool,{recordCount:arr.length,timestamp:new Date().toISOString(),summary,coverage});
+        return safe;
       }
       // Chunked
       for (let i=0;i<total;i++) {
         const slice = arr.slice(i*CHUNK,(i+1)*CHUNK);
         if (onProgress) onProgress(Math.round(i/total*90),i+1,total);
-        const r = await this._post(url, {
+        const body = {
           action:'push', tool, records:slice,
           recordCount:arr.length, totalChunks:total, chunk:i,
-          summary:i===total-1?(summary||{}):{}, version:'1.0',
+          summary:i===total-1?(summary||{}):{}, coverage, version:'1.0',
           updatedAt:new Date().toISOString(),
-        });
+        };
+        const r = await (G.HRACloudGuard && G.HRACloudGuard.push
+          ? G.HRACloudGuard.push(body, p => this._post(url,p)) : this._post(url, body));
         if (!r.ok) return r;
         await this._tick();
       }
       if (onProgress) onProgress(100,total,total);
-      this._saveSnap(tool,{recordCount:arr.length,timestamp:new Date().toISOString(),summary});
+      this._saveSnap(tool,{recordCount:arr.length,timestamp:new Date().toISOString(),summary,coverage});
       return {ok:true,recordCount:arr.length};
     } catch(e) { return {ok:false,error:e.message}; }
   },
