@@ -474,9 +474,20 @@ function periodFromName(name){
   let m=s.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*[_\-\s\.]*(\d{4})/);
   if(m) return m[2]+'-'+MN[m[1]];
   m=s.match(/(\d{4})[_\-\s\.]*(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/);
-  if(m) return m[1]+'-'+MN[m[2]];
+  if(m){ const k=Object.keys(MN).find(x=>m[2].startsWith(x)); if(k) return m[1]+'-'+MN[k]; }
   m=s.match(/(\d{4})[-_](0[1-9]|1[0-2])/);
   if(m) return m[1]+'-'+m[2];
+  return '';
+}
+function periodFromWorkbook(wb){
+  for(const sn of (wb.SheetNames||[])){
+    const raw=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
+    for(const row of raw.slice(0,8)) for(const cell of (row||[])){
+      if(typeof cell!=='string') continue;
+      const p=periodFromName(cell);
+      if(p) return p;
+    }
+  }
   return '';
 }
 function periodFromSheetName(sn, fallbackYear){
@@ -498,7 +509,7 @@ function findHeader(rows, re, maxScan){
 
 // ── Parser: Probation List ──────────────────────────────────
 function parseProb(wb, fileName){
-  const out=[]; const filePeriod=periodFromName(fileName);
+  const out=[]; const filePeriod=periodFromName(fileName)||periodFromWorkbook(wb);
   const fbYear = filePeriod ? +filePeriod.slice(0,4) : new Date().getFullYear();
   for(const sn of wb.SheetNames){
     if(/chart/i.test(sn)) continue;
@@ -534,15 +545,21 @@ function parseProb(wb, fileName){
 
 // ── Parser: 5% For Contract Worker ──────────────────────────
 function parseCont(wb, fileName){
-  const out=[]; const filePeriod=periodFromName(fileName);
+  const out=[]; const filePeriod=periodFromName(fileName)||periodFromWorkbook(wb);
   const sn = wb.SheetNames.find(s=>/5\s*%|contract\s*wo?ker/i.test(s)) ||
              wb.SheetNames.find(s=>!/chart|sheet\d/i.test(s)) || wb.SheetNames[0];
   const rows=rowsOf(wb.Sheets[sn]);
   const h=findHeader(rows, /^\s*id\s*$/i, 10) || findHeader(rows, /deparment|department/i, 10);
   let c = h ? (h.c) : 1;
   if(h && /deparment|department/i.test(String(rows[h.r][h.c]))) c = h.c-2;   // ID is 2 left of Dept
-  let totalIdx = -1;
-  if(h){ const hr=rows[h.r]||[]; totalIdx = hr.findIndex(x=>typeof x==='string' && /total\s*salary/i.test(x)); }
+  let totalIdx = -1, fiveIdx = -1, annualPaidIdx = -1, netPayIdx = -1;
+  if(h){
+    const hr=rows[h.r]||[];
+    totalIdx = hr.findIndex(x=>typeof x==='string' && /total\s*salary/i.test(x));
+    fiveIdx = hr.findIndex(x=>typeof x==='string' && /5\s*%\s*(paid|pay)/i.test(x));
+    annualPaidIdx = hr.findIndex(x=>typeof x==='string' && /annual\s*paid/i.test(x));
+    netPayIdx = hr.findIndex(x=>typeof x==='string' && /net\s*pay/i.test(x));
+  }
   for(let i=0;i<rows.length;i++){
     const row=rows[i]||[];
     const id=row[c];
@@ -551,13 +568,24 @@ function parseCont(wb, fileName){
     if(!/^\d{2,6}$/.test(idStr)) continue;
     const name = String(row[c+1]||'').trim();
     if(!name) continue;
+    /* 原始欄位：ID / Name / Dept / Section / Position / Join date /
+       Average Salary / ... / Total Salary / 5% Paid / Annual Paid / Net Pay。
+       舊版從 c+3 開始讀，導致日期與薪資全部錯位。 */
     const dept = String(row[c+2]||'').trim();
-    const joinDate = xdate(row[c+3]);
-    const avgSalary = N(row[c+4]);
+    const section = String(row[c+3]||'').trim();
+    const position = String(row[c+4]||'').trim();
+    const joinDate = xdate(row[c+5]);
+    const avgSalary = N(row[c+6]);
     const totalSalary = totalIdx>=0 ? N(row[totalIdx]) : 0;
+    const fivePercentPaid = fiveIdx>=0 ? N(row[fiveIdx]) : 0;
+    const annualPaid = annualPaidIdx>=0 ? N(row[annualPaidIdx]) : 0;
+    const netPay = netPayIdx>=0 ? N(row[netPayIdx]) : 0;
+    /* 畫面／Telegram 對應 Excel 左側彙總 Net Pay，不是 Total Salary × 5%。 */
+    const reserve = netPayIdx>=0 ? netPay : fivePercentPaid;
     out.push({ _k:'C|'+idStr, _kind:'cont',
-      factoryId:idStr, name, dept, joinDate, avgSalary, totalSalary,
-      severance5: Math.round(totalSalary*0.05*100)/100,
+      factoryId:idStr, name, dept, section, position, joinDate, avgSalary, totalSalary,
+      fivePercentPaid, annualPaid, netPay,
+      severance5: Math.round(reserve*100)/100,
       contractEnd: '',                       // computed on demand (rolling +6M)
       period: filePeriod, updatedAt: nowISO() });
   }
@@ -712,7 +740,10 @@ function inPeriod(dateStr, st){
 }
 function dateFieldOf(tab, r){
   if(tab==='prob')   return r.probEnd || r.joinDate || '';
-  if(tab==='cont')   return contractEndOf(r) || r.joinDate || '';
+  /* ContractList 是按檔案月份彙總的薪資資料；有來源月份時，
+     月報／Telegram 期間應跟著 Excel（例如 2026-07）。
+     到期提醒仍直接使用 contractEndOf()。 */
+  if(tab==='cont')   return r.period || contractEndOf(r) || r.joinDate || '';
   return r.period ? r.period+'-01' : '';
 }
 function navRender(tab){
@@ -1157,6 +1188,18 @@ var km={/*柬文對照 Khmer map*/}, KM_T={ '合約':'កិច្ចសន្�
 function KM(zh,en){ return KM_T[zh]||en||zh; }
 function L(zh,en,km){ return LANG==='km'?(km||KM(zh,en)):LANG==='en'?en:zh; }
 function tgPeriodVal(){ const el=qs('#tg-period'); return el&&el.value ? el.value : 'ALL'; }
+function approvalItemsForRows(tab, rows){
+  return rows.map(r=>{
+    const rawDate=dateFieldOf(tab,r)||'';
+    const expiry=rawDate.length===7 ? rawDate+'-01' : rawDate;
+    return {
+      key:r._k || (tab+'|'+String(r.factoryId||r.id||'')+'|'+expiry),
+      kind:tab, factoryId:r.factoryId||r.id||'', name:r.name||'',
+      dept:r.dept||r.section||'', joinDate:r.joinDate||'', expiry,
+      extra:tab==='cont' ? ('5% reserve $'+fmt(r.severance5)) : ''
+    };
+  });
+}
 
 function buildText(src){
   const SEP='— — — — — — — — — —';
@@ -1235,7 +1278,8 @@ function buildText(src){
     t+=SEP+'\n💰 '+L('合計金額','Total amount')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.amount),0));
   }
   t+=FOOT;
-  return {text:t};
+  /* 名單模式也要回傳逐筆項目；否則選「送出核可」時會被判定為空批次。 */
+  return {text:t, items:approvalItemsForRows(tab,rows)};
 }
 
 // ── TG period dropdown ──────────────────────────────────────
@@ -1265,10 +1309,12 @@ async function sendTG(text){
   if(!GAS_URL){ toast('尚未設定 GAS URL（請到設定頁）','error'); return false; }
   try{
     const body={action:'telegram', text};
-    if(TG_CHAT) body.chat_id=TG_CHAT;
+    if(TG_CHAT) body.chatId=TG_CHAT;
     const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
     let d=null; try{ d=await r.json(); }catch(e){}
+    if(!r.ok){ toast('Telegram HTTP '+r.status,'error'); return false; }
+    if(!d){ toast('Telegram 回傳不是 JSON，請檢查 GAS Web App URL','error'); return false; }
     if(d && d.ok===false){ toast('GAS 回報失敗：'+(d.error||''),'error'); return false; }
     if(d && d.data && d.data.sent===false){ toast('GAS 回報未送出，請確認 Bot 在群組內','error'); return false; }
     toast('✅ 已傳送至 Telegram'); return true;
@@ -1322,6 +1368,8 @@ async function sendApproval(payloadText, items, win){
     const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
     let d=null; try{ d=await r.json(); }catch(e){}
+    if(!r.ok){ toast('核可請求 HTTP '+r.status,'error'); return false; }
+    if(!d){ toast('GAS 回傳不是 JSON，請確認已部署最新完整 GS','error'); return false; }
     if(d && d.ok===false){ toast('GAS 回報失敗：'+(d.error||''),'error'); return false; }
     const bid=(d&&d.data&&d.data.batchId)||'';
     toast('✅ '+L('已送出核可請求','Approval request sent','បានផ្ញើសំណើ')+(bid?(' · '+bid):''));
