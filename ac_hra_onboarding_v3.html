@@ -760,13 +760,41 @@ function ensureResignKey(r){ if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid())));
 function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
 function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
 function saveSettles(){ try{localStorage.setItem(K_SETTLES,JSON.stringify(SETTLES));}catch(e){} }
-function saveDec(){ try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){} }
+var _decSyncTimer=null, _decSyncBusy=false;
+function saveDec(){
+  try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){}
+  scheduleDecisionSync();
+}
 function saveMeta(){ try{localStorage.setItem(K_META,JSON.stringify(META));}catch(e){} }
 function saveSetsRaw(){ try{localStorage.setItem(K_SETS,JSON.stringify(SETS));}catch(e){} }
 function gasUrl(){
   return (SETS.gasUrl||'').trim() ||
          (localStorage.getItem(K_GAS_SHARED)||'').trim() ||
          (localStorage.getItem(K_GAS_OLD)||'').trim() || DEFAULT_GAS;
+}
+/* 將網頁本機的核可標記同步到 GAS 批次；否則網頁顯示已核可，
+   Telegram 異常排程仍只看到伺服器的 pending。離線時靜默保留，
+   下次開頁或再次標記會重試。 */
+function syncDecisionsToGas(){
+  var keys=Object.keys(DEC).filter(function(k){return DEC[k]&&DEC[k].d;});
+  if(!keys.length||_decSyncBusy)return Promise.resolve(null);
+  var u=gasUrl(); if(!u)return Promise.resolve(null);
+  _decSyncBusy=true;
+  return fetch(u,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action:'syncDecisions',module:TOOL,decisions:DEC,requestedBy:'onboarding_web'})})
+    .then(function(r){return r.text();})
+    .then(function(txt){
+      var d=null; try{d=JSON.parse(txt);}catch(e){}
+      if(!d||d.ok===false)throw new Error((d&&d.error)||'GAS decision sync failed');
+      if(d.data&&d.data.updated)console.log('[DEC SYNC]',d.data);
+      return d;
+    })
+    .catch(function(e){console.warn('[DEC SYNC]',e.message||e);return null;})
+    .then(function(d){_decSyncBusy=false;return d;});
+}
+function scheduleDecisionSync(){
+  if(_decSyncTimer)clearTimeout(_decSyncTimer);
+  _decSyncTimer=setTimeout(function(){_decSyncTimer=null;syncDecisionsToGas();},250);
 }
 
 /* ═══════════ 正規化 / 分類 ═══════════ */
@@ -2668,6 +2696,8 @@ function init(){
     rebuildFilterOptions();
     setTab('ov');
     if(META.updatedAt) setTxt('cloud-stat', '☁ '+(META.cloudUpdatedAt||META.updatedAt));
+    /* 讓既有的本機「已核可」也能補回伺服器，修復之前未同步的批次。 */
+    setTimeout(syncDecisionsToGas,500);
     autoSync();
   }catch(e){ console.error(e); toast('初始化錯誤：'+e.message,'error'); }
 }
