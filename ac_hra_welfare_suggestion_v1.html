@@ -542,6 +542,10 @@ async function clearAllData(){if(!confirm(tr('confirmClear')))return;STATE=defau
 function saveSettings(){STATE.settings.imageSize=Number(val('imageSize'))||1000;STATE.settings.imageQuality=Number(val('imageQuality'))||.7;const gas=val('gasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})}
 function gasUrlValue(){return localStorage.getItem(GAS_KEY)||''}
 async function postGas(payload){const url=gasUrlValue();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d}
+function welfareKey(kind,x){x=x||{};const eid=x.employeeId||x.empId||x.idNo||'';if(kind==='members')return [x.period||'',eid||x.id||x.name||''].join('|');if(kind==='movements')return [x.action||'',x.date||'',eid||x.name||''].join('|');if(kind==='unionDues')return [x.period||'',eid||x.id||x.name||''].join('|');if(kind==='suggestions')return x.sourceKey||[x.date||x.period||'',x.number||'',x.department||'',x.grievance||'',x.id||''].join('|');if(kind==='summaries')return String(x.period||x.id||'');return String(x.id||x.file||x.sourceFile||JSON.stringify(x))}
+function welfareMergeRow(a,b){a=a||{};b=b||{};const at=new Date(a.updatedAt||0).getTime(),bt=new Date(b.updatedAt||0).getTime(),newer=bt>=at?b:a,older=bt>=at?a:b,out=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((out[k]===undefined||out[k]===null||out[k]==='')&&older[k]!==undefined)out[k]=older[k]});if(Array.isArray(a.photos)||Array.isArray(b.photos))out.photos=[...new Set([...(a.photos||[]),...(b.photos||[])])];return out}
+function welfareMergeList(kind,a,b){const map=new Map(),order=[];[...(Array.isArray(a)?a:[])].forEach(x=>{const k=welfareKey(kind,x);if(!map.has(k))order.push(k);map.set(k,x)});[...(Array.isArray(b)?b:[])].forEach(x=>{const k=welfareKey(kind,x);if(map.has(k))map.set(k,welfareMergeRow(map.get(k),x));else{order.push(k);map.set(k,x)}});return order.map(k=>map.get(k))}
+function mergeWelfareState(local,incoming){const out=Object.assign(defaultState(),local||{},incoming||{});['members','movements','unionDues','suggestions','summaries'].forEach(k=>out[k]=welfareMergeList(k,local?.[k],incoming?.[k]));out.imports=welfareMergeList('imports',local?.imports,incoming?.imports);out.settings=Object.assign({},local?.settings||{},incoming?.settings||{});out.updatedAt=new Date(Math.max(new Date(local?.updatedAt||0).getTime(),new Date(incoming?.updatedAt||0).getTime())).toISOString();return out}
 async function cloudPush(){
   showLoading(LANG==='en'?'Uploading data and photos manually…':'手動上傳資料與照片中…');
   try{
@@ -555,7 +559,23 @@ async function cloudPush(){
     toast(`✅ ${tr('cloudSent')}`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
-async function cloudPull(){const url=gasUrlValue();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading data and photos manually…':'手動下載資料與照片中…');try{const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');let records=d.data?.records||d.data?.data?.records||d.records||[],snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.members)snap=d.data.data;if(!snap?.members)throw new Error('No welfare snapshot');const incomingCount=(snap.members?.length||0)+(snap.movements?.length||0)+(snap.unionDues?.length||0)+(snap.suggestions?.length||0);const localCount=(STATE.members?.length||0)+(STATE.movements?.length||0)+(STATE.unionDues?.length||0)+(STATE.suggestions?.length||0);if(localCount&&!confirm(`雲端將載入 ${incomingCount} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`))return;STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}}
+async function cloudPull(){
+  const url=gasUrlValue();if(!url){toast(tr('gasMissing'));return}
+  showLoading(LANG==='en'?'Downloading data and photos manually…':'手動下載資料與照片中…');
+  try{
+    const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();
+    if(d.ok===false)throw new Error(d.error||'GAS error');
+    const records=d.data?.records||d.data?.data?.records||d.records||[];
+    let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;
+    if(!snap&&d.data?.data?.members)snap=d.data.data;
+    if(!snap?.members)throw new Error('No welfare snapshot');
+    const incomingCount=(snap.members?.length||0)+(snap.movements?.length||0)+(snap.unionDues?.length||0)+(snap.suggestions?.length||0),localCount=(STATE.members?.length||0)+(STATE.movements?.length||0)+(STATE.unionDues?.length||0)+(STATE.suggestions?.length||0);
+    if(localCount&&!confirm(`雲端 ${incomingCount} 筆，本機 ${localCount} 筆。\n\n會合併雙方資料；本機或雲端單獨存在的意見箱、照片與明細都會保留。確定下載？`))return;
+    STATE=mergeWelfareState(STATE,snap);await persist();renderAll();
+    const photoCount=STATE.suggestions.reduce((n,x)=>n+(x.photos?.length||0),0);
+    toast(`✅ ${tr('cloudReceived')} · ${STATE.suggestions.length} suggestions / ${photoCount} photos`)
+  }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
+}
 
 /* ── Telegram text summaries — always manual ───────────────────────── */
 /* ★ 期間鍵／標籤：四種模式都要對，否則選「日」「週」會拿到整個月的數字 */
@@ -573,17 +593,51 @@ function tgLabelForMode(mode,key){
   if(mode==='year') return key;
   return monthLabel(key);
 }
+function tgOneLine(v,n){return String(v??'—').replace(/[\r\n]+/g,' ').trim().slice(0,n||70)||'—'}
+function tgRosterLines(rows,lang,label,max){
+  rows=(rows||[]).slice(0,max||8);
+  if(!rows.length)return [];
+  const out=[lang==='en'?`  ${label}:`:`  ${label}：`];
+  rows.forEach(x=>out.push(`  • ${tgOneLine(x.employeeId||x.id,18)} ${tgOneLine(x.name||x.submittedBy||'—',28)} · ${tgOneLine(x.department||'—',20)}`));
+  return out;
+}
+function tgSuggestionLines(rows,lang,max){
+  rows=(rows||[]).slice(0,max||8);if(!rows.length)return [];
+  const out=[lang==='en'?'  Details:':'  明細：'];
+  rows.forEach(x=>{const who=x.submittedBy?` · ${tgOneLine(x.submittedBy,22)}`:'';out.push(`  • ${tgOneLine(x.date||x.period,10)} · ${tgOneLine(x.department||'—',16)} · ${tgOneLine(x.grievance||'—',44)}${who} · 📷${x.photos?.length||0}`)});
+  return out;
+}
+function tgUnionLines(rows,lang,max){
+  rows=(rows||[]).slice(0,max||8);if(!rows.length)return [];
+  const out=[lang==='en'?'  Union dues roster:':'  工會費名單：'];
+  rows.forEach(x=>out.push(`  • ${tgOneLine(x.employeeId||x.id,18)} ${tgOneLine(x.name||'—',26)} · ${tgOneLine(x.department||'—',18)} · ${money(x.amount)}`));
+  return out;
+}
 function summaryText(lang,type,mode){
-  const old=LANG,key=tgKeyForMode(mode),s=statsFor(key,mode,''),label=tgLabelForMode(mode,key);
-  const zh=[],en=[];if(type==='all'||type==='transport'){zh.push(`🚌 交通：${s.transport} 人（新增 ${s.apply}／停止 ${s.stop}）`,`🏠 住宿：本地 ${s.local}／外籍 ${s.expat}`);en.push(`🚌 Transport: ${s.transport} people (Added ${s.apply} / Stopped ${s.stop})`,`🏠 Accommodation: Local ${s.local} / Expat ${s.expat}`)}
-  if(type==='all'||type==='union'){zh.push(`🤝 工會費：${s.unionMembers} 人／${money(s.unionAmount)}`);en.push(`🤝 Union dues: ${s.unionMembers} people / ${money(s.unionAmount)}`)}
-  if(type==='all'||type==='suggestion'){zh.push(`💬 意見箱：${s.suggestions} 件／照片 ${s.photos} 張／結案 ${s.closed}`);en.push(`💬 Suggestion box: ${s.suggestions} cases / ${s.photos} photos / ${s.closed} closed`)}
+  const key=tgKeyForMode(mode),s=statsFor(key,mode,''),label=tgLabelForMode(mode,key),zh=[],en=[];
+  if(type==='all'||type==='transport'){
+    zh.push(`🚌 交通：${s.transport} 人（新增 ${s.apply}／停止 ${s.stop}）`,`🏠 住宿：本地 ${s.local}／外籍 ${s.expat}`);
+    en.push(`🚌 Transport: ${s.transport} people (Added ${s.apply} / Stopped ${s.stop})`,`🏠 Accommodation: Local ${s.local} / Expat ${s.expat}`);
+    const trRows=s.members.filter(x=>x.transport&&x.status!=='stopped'),localRows=s.members.filter(x=>x.accommodation&&x.accommodationType!=='expat'&&x.status!=='stopped'),expatRows=s.members.filter(x=>x.accommodation&&x.accommodationType==='expat'&&x.status!=='stopped');
+    const zt=tgRosterLines(trRows,'zh','交通名單',6),et=tgRosterLines(trRows,'en','Transport roster',6),zl=tgRosterLines(localRows,'zh','本地住宿名單',4),el=tgRosterLines(localRows,'en','Local accommodation',4),ze=tgRosterLines(expatRows,'zh','外籍住宿名單',4),ee=tgRosterLines(expatRows,'en','Expat accommodation',4);zh.push(...zt,...zl,...ze);en.push(...et,...el,...ee);
+    if(!trRows.length&&s.transport) {zh.push('  （來源只有月摘要，沒有逐人名單）');en.push('  (The source contains only a monthly total, not an individual roster.)')}
+  }
+  if(type==='all'||type==='union'){
+    zh.push(`🤝 工會費：${s.unionMembers} 人／${money(s.unionAmount)}`);en.push(`🤝 Union dues: ${s.unionMembers} people / ${money(s.unionAmount)}`);
+    zh.push(...tgUnionLines(s.union,'zh',8));
+    en.push(...tgUnionLines(s.union,'en',8));
+  }
+  if(type==='all'||type==='suggestion'){
+    zh.push(`💬 意見箱：${s.suggestions} 件／照片 ${s.photos} 張／結案 ${s.closed}`,...tgSuggestionLines(s.sugs,'zh',10));
+    en.push(`💬 Suggestion box: ${s.suggestions} cases / ${s.photos} photos / ${s.closed} closed`,...tgSuggestionLines(s.sugs,'en',10));
+  }
   return lang==='en'?[`📊 AC HRA Welfare & Suggestion — ${label}`,...en,'🏭 Vantage River Textiles'].join('\n'):[`📊 AC HRA 福利／意見箱摘要 — ${label}`,...zh,'🏭 Vantage River Textiles'].join('\n')
 }
 function refreshTg(){const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>summaryText(l,type,mode);document.getElementById('tgPreview').textContent=lang==='both'?one('zh')+'\n\n────────────────\n\n'+one('en'):one(lang)}
 function openTelegram(){setVal('tgPeriod',PERIOD_MODE);setVal('tgLang','both');refreshTg();openModal('telegramModal')}
 async function copyTg(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
-async function sendTelegram(){showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{await postGas({action:'telegram',tool:TOOL_ID,text:document.getElementById('tgPreview').textContent,messageType:val('tgType')});closeModal('telegramModal');toast(`✅ ${tr('telegramSent')}`)}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}}
+function telegramPhotos(){const type=val('tgType');if(type!=='all'&&type!=='suggestion')return[];const key=tgKeyForMode(val('tgPeriod')),s=statsFor(key,val('tgPeriod'),'');return s.sugs.flatMap(x=>x.photos||[]).slice(0,10)}
+async function sendTelegram(){showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{const photos=telegramPhotos();await postGas({action:'telegram',tool:TOOL_ID,text:document.getElementById('tgPreview').textContent,messageType:val('tgType'),photos,photoCaption:`📷 AC HRA Welfare & Suggestion · ${tgLabelForMode(val('tgPeriod'),tgKeyForMode(val('tgPeriod')))} · ${photos.length} photos`});closeModal('telegramModal');toast(`✅ ${tr('telegramSent')}${photos.length?` · ${photos.length} photos`:''}`)}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}}
 
 /* ── Local-only startup: no network request ────────────────────────── */
 async function init(){showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();for(const k of ['members','movements','unionDues','suggestions','summaries','imports'])STATE[k]=STATE[k]||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});setVal('imageSize',STATE.settings.imageSize);setVal('imageQuality',STATE.settings.imageQuality);setVal('gasUrl',gasUrlValue());applyLang();renderAll();hideLoading()}

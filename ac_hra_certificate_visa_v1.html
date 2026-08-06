@@ -949,6 +949,9 @@ function gasUrl(){return localStorage.getItem(GAS_KEY)||''}
 async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
+function certMergeKey(r,kind){r=r||{};return [kind,r.id||r.employeeId||r.number||r.name||'',r.issueDate||r.joinDate||r.dueDate||r.expiryDate||''].join('|')}
+function certMergeList(kind,a,b){const m=new Map(),o=[];[...(a||[]),...(b||[])].forEach((r,i)=>{const k=certMergeKey(r,kind);if(!m.has(k))o.push(k);m.set(k,Object.assign({},m.get(k)||{},r))});return o.map(k=>m.get(k))}
+function mergeCertificateState(local,incoming){return Object.assign(defaultState(),incoming||{},local||{},{certificates:certMergeList('certificates',local?.certificates,incoming?.certificates),people:certMergeList('people',local?.people,incoming?.people),requests:certMergeList('requests',local?.requests,incoming?.requests),imports:[...(local?.imports||[]),...(incoming?.imports||[])],settings:Object.assign({},local?.settings||{},incoming?.settings||{})})}
 async function cloudPush(){
   showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');
   try{
@@ -970,7 +973,7 @@ async function cloudPull(){
     const incomingCount=(snap.certificates?.length||0)+(snap.people?.length||0)+(snap.requests?.length||0);
     const localCount=(STATE.certificates?.length||0)+(STATE.people?.length||0)+(STATE.requests?.length||0);
     if(localCount && !confirm(`雲端將載入 ${incomingCount} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`))return;
-    STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)
+    STATE=mergeCertificateState(STATE,snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
 

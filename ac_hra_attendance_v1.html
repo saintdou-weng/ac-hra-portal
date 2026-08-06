@@ -2157,31 +2157,66 @@ function showCloudUpdateBanner(snap) {
 }
 
 // ── PUSH to Cloud ──
+// Keep this field list identical to ga_attendance_cloud.gs.  The hash is
+// intentionally based on the daily report rows, not on upload time, so a
+// phone with an older/smaller snapshot only sends dates that really changed.
+const ATT_HASH_FIELDS=['date','dept','sect','line','m','f','join','resign','ti','to','tr','al','pl','sl','np','bus','fl','ml','idle','att','isSubtotal','isGrand'];
+function attField(v){return v===undefined||v===null?'':String(v)}
+function attRowSignature(r){return ATT_HASH_FIELDS.map(k=>attField(r?.[k])).join('\x1f')}
+function fnv1a32Hex(s){let h=2166136261;for(let i=0;i<String(s||'').length;i++){h^=String(s||'').charCodeAt(i);h=Math.imul(h,16777619)}return ('00000000'+(h>>>0).toString(16)).slice(-8)}
+function attendanceDateStats(rows){const b={};(rows||[]).forEach(r=>{const d=attField(r?.date).slice(0,10);if(!d)return;(b[d]??=[]).push(attRowSignature(r))});const out={};Object.keys(b).sort().forEach(d=>{const a=b[d].sort();out[d]={count:a.length,hash:fnv1a32Hex(a.join('\x1e'))}});return out}
+async function attendanceMeta(){
+  const r=await fetch(GAS_URL+'?action=attendanceMeta&tool=attendance',{method:'GET',redirect:'follow'}),d=await r.json();
+  if(!d?.ok)throw new Error(d?.error||'Attendance meta unavailable');
+  return d.data||{};
+}
+async function sendAttendanceChunk(payload,index,total){
+  let last;
+  for(let attempt=1;attempt<=3;attempt++){
+    try{
+      const d=await HRACloudGuard.push(payload,async function(safePayload){
+        const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(safePayload)});
+        return r.json();
+      },LANG==='en'?'en':(LANG==='km'?'km':'zh'));
+      if(d?.cancelled)return d;
+      if(d?.ok)return d;
+      last=new Error(d?.error||'GAS rejected upload');
+    }catch(e){last=e}
+    if(attempt<3){setSyncStatus('syncing',`${T('重試中…','Retrying…','កំពុងព្យាយាមម្ដងទៀត…')} ${index+1}/${total} (${attempt+1}/3)`);await new Promise(r=>setTimeout(r,700*attempt))}
+  }
+  throw last||new Error('Upload failed');
+}
 async function pushCloud() {
   if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
   if (!DB.length) { toast(T('尚無資料可上傳','No data to upload','គ្មានទិន្នន័យសម្រាប់ផ្ទុកឡើង'), 'err'); return; }
 
-  // ── Debug: show what we're about to push ─────────────────────────
-  const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
-  const _firstAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().shift()||'';
-  console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
-  toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+': '+DB.length+' · '+_latestAttDate, 'info');
-
   setSyncStatus('syncing', T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…'));
   setProgress(0, true);
-  const summary = buildCloudSummary();
-  // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
-  const _PUSH_CHUNK = Math.min(CHUNK_SIZE, 3000); // 3000 records ≈ 700KB per chunk
-  const totalChunks = Math.ceil(DB.length / _PUSH_CHUNK);
-  let allOk = true;
-  // Include updatedAt = latest date in DB (not push timestamp)
-  const _pushUpdatedAt = _latestAttDate || new Date().toISOString().slice(0,10);
-
   try {
+    const localStats=attendanceDateStats(DB),remote=await attendanceMeta(),remoteStats=remote.dateStats||{};
+    const localDates=Object.keys(localStats).sort(),remoteDates=new Set(Object.keys(remoteStats));
+    const newDates=localDates.filter(d=>!remoteDates.has(d));
+    const changedDates=localDates.filter(d=>remoteStats[d]&&(
+      Number(remoteStats[d].count)!==Number(localStats[d].count)||String(remoteStats[d].hash||'')!==String(localStats[d].hash||'')));
+    if(!newDates.length&&!changedDates.length){
+      setSyncStatus('synced',T('雲端已是最新','Cloud is already up to date','Cloud មានទិន្នន័យថ្មីបំផុត'));
+      toast(T('☁️ 沒有新增或修改的日期，不需重新上傳','☁️ No new or changed dates; nothing to upload','☁️ គ្មានថ្ងៃថ្មី ឬកែប្រែ មិនចាំបាច់ផ្ទុកឡើងទេ'),'ok');
+      setProgress(0,false);
+      return;
+    }
+    if(changedDates.length&&!confirm(T(
+      `偵測到 ${changedDates.length} 個日期的資料有變更，會先替換這些日期；${newDates.length} 個新日期會直接加入。繼續？`,
+      `${changedDates.length} date(s) changed and will be replaced; ${newDates.length} new date(s) will be added. Continue?`,
+      `${changedDates.length} ថ្ងៃបានកែប្រែ និង ${newDates.length} ថ្ងៃថ្មី។ បន្ត?`))){setSyncStatus('idle','');setProgress(0,false);return}
+    const selectedDates=new Set([...newDates,...changedDates]),selected=DB.filter(r=>selectedDates.has(attField(r?.date).slice(0,10)));
+    const _latestAttDate=localDates.at(-1)||'',_firstAttDate=localDates[0]||'',summary=buildCloudSummary();
+    const _PUSH_CHUNK=Math.min(CHUNK_SIZE,3000),totalChunks=Math.ceil(selected.length/_PUSH_CHUNK);
+    const _pushUpdatedAt=new Date().toISOString();
+    toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+`: ${selected.length} records · ${newDates.length+changedDates.length} date(s)`, 'info');
     for (let i = 0; i < totalChunks; i++) {
-      const chunk = DB.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
+      const chunk = selected.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
       setProgress((i / totalChunks) * 100);
-      if (i % 5 === 0) setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
+      setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
 
       const payload = {
         action      : 'push',
@@ -2190,47 +2225,28 @@ async function pushCloud() {
         totalChunks,
         records     : chunk,
         recordCount : DB.length,
-        updatedAt   : _pushUpdatedAt,   // ← latest DATE in records, not push timestamp
+        updatedAt   : _pushUpdatedAt,
         coverage    : {firstDate:_firstAttDate, latestDate:_latestAttDate, source:'attendance'},
         importLog   : IMPORT_LOG,
+        dateStats   : localStats,
+        replaceDates: changedDates,
         summary     : summary,
         pushedBy    : 'attendance_cloud_v1',
       };
-
-      const d = await HRACloudGuard.push(payload, async function (safePayload) {
-        const r = await fetch(GAS_URL, {
-          method      : 'POST',
-          redirect    : 'follow',
-          headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
-          body        : JSON.stringify(safePayload),
-        });
-        return r.json();
-      }, LANG === 'en' ? 'en' : (LANG === 'km' ? 'km' : 'zh'));
-      if (!d || !d.ok || d.cancelled) { allOk = false; break; }
+      const d=await sendAttendanceChunk(payload,i,totalChunks);
+      if(!d||d.cancelled)throw new Error(T('使用者取消上傳','Upload cancelled','បានបោះបង់ការផ្ទុកឡើង'));
     }
 
     setProgress(100);
-    if (allOk) {
-      lastSyncTs = new Date().toISOString();
-      localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
-      saveMeta({updatedAt: _pushUpdatedAt, source:'cloud'});
-      // Re-fetch cloud meta to sync cloudUpdatedAt (so next startup won't re-pull)
-      try{
-        const _mr=await fetch(GAS_URL+'?action=pull&tool=attendance&meta=1',{method:'GET',redirect:'follow'});
-        const _md=await _mr.json();
-        const _nct=_md.data?.chunked?(_md.data?.meta?.timestamp||''):(_md.data?.data?.updatedAt||'');
-        if(_nct)saveMeta({cloudUpdatedAt:_nct});
-        updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
-      }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
-      setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-      toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
-    } else {
-      setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
-      toast(T('⚠️ 上傳已停止，雲端資料未被覆蓋','⚠️ Upload stopped; cloud data was not overwritten.','⚠️ បានបញ្ឈប់ការផ្ទុកឡើង ទិន្នន័យ Cloud មិនត្រូវបានជំនួសទេ'), 'err');
-    }
+    lastSyncTs = new Date().toISOString();
+    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
+    saveMeta({updatedAt:_latestAttDate,source:'cloud'});
+    try{const _m=await attendanceMeta(),_nct=_m.updatedAt||lastSyncTs;saveMeta({cloudUpdatedAt:_nct});updateSyncBadge(_latestInDB(DB),_nct,LS.get('sewMeta')?.updatedAt||'','')}catch(e){updateSyncBadge(_latestInDB(DB),lastSyncTs,LS.get('sewMeta')?.updatedAt||'','')}
+    setSyncStatus('synced',T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
+    toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${selected.length} / ${totalChunks} · +${newDates.length} / ↻${changedDates.length}`,'ok');
   } catch(e) {
-    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
-    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
+    setSyncStatus('failed',T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
+    toast(T('❌ 上傳失敗：','❌ Upload failed: ','❌ ការផ្ទុកឡើងបរាជ័យ៖ ')+e.message,'err');
   }
   setTimeout(() => setProgress(0, false), 2000);
 }

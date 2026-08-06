@@ -1422,6 +1422,8 @@ async function cloudUpload(){
   }catch(e){ setSync(''); toast('上傳失敗：'+e.message,'error'); }
   btn.disabled=false; btn.classList.remove('opacity-50');
 }
+function contractMergeKey(r,kind){r=r||{};return [kind,r._k||r.id||r.employeeId||r.empId||r.number||r.name||'',r.joinDate||r.startDate||r.endDate||r.expiryDate||''].join('|')}
+function contractMergeList(kind,a,b){const m=new Map(),o=[];[...(a||[]),...(b||[])].forEach(r=>{const k=contractMergeKey(r,kind);if(!m.has(k))o.push(k);m.set(k,Object.assign({},m.get(k)||{},r))});return o.map(k=>m.get(k))}
 async function cloudDownload(){
   if(!GAS_URL){ toast('尚未設定 GAS URL（設定頁）','error'); return; }
   const btn=qs('#btn-cloud-down'); btn.disabled=true; btn.classList.add('opacity-50');
@@ -1436,10 +1438,10 @@ async function cloudDownload(){
     else{
       const localCount=flatRecords().length;
       if(localCount && !confirm(`雲端將載入 ${recs.length} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`)){setSync('');return;}
-      PROBS  = recs.filter(r=>r._kind==='prob');
-      CONTS  = recs.filter(r=>r._kind==='cont');
-      FINISH = recs.filter(r=>r._kind==='finish');
-      if(inner.decisions && typeof inner.decisions==='object') DECISIONS=inner.decisions;
+      PROBS  = contractMergeList('prob',PROBS,recs.filter(r=>r._kind==='prob'));
+      CONTS  = contractMergeList('cont',CONTS,recs.filter(r=>r._kind==='cont'));
+      FINISH = contractMergeList('finish',FINISH,recs.filter(r=>r._kind==='finish'));
+      if(inner.decisions && typeof inner.decisions==='object') DECISIONS=Object.assign({},DECISIONS,inner.decisions);
       await persist(); renderAll();
       setSync('✓ '+new Date().toLocaleTimeString());
       toast('☁ 已載入雲端資料 — 試用 '+PROBS.length+' / 合約 '+CONTS.length+' / 終止 '+FINISH.length);

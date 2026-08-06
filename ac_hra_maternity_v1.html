@@ -1419,6 +1419,8 @@ function digRecords(data){
   if(d.data&&Array.isArray(d.data))return d.data;
   return [];
 }
+function maternityMergeKey(kind,r){r=r||{};const id=r.employeeId||r.empId||r.idNo||r.cardId||r.id||r.name||'';const date=r.date||r.joinDate||r.startDate||r.period||r.payMonth||'';return [kind,id,date,r.type||''].join('|')}
+function maternityMergeList(kind,a,b){var m={},o=[];[].concat(a||[],b||[]).forEach(function(r){var k=maternityMergeKey(kind,r);if(!m[k])o.push(k);m[k]=Object.assign({},m[k]||{},r)});return o.map(function(k){return m[k]})}
 function cloudUpload(){
   var recs=flatRecords();
   if(!recs.length){ toast(L('沒有資料可上傳','Nothing to upload'),'warn'); return; }
@@ -1468,7 +1470,7 @@ function cloudDownload(){
       else if(t==='salary'){ sal.push(r); }
       else { emp.push(r); }
     });
-    EMP=emp.map(ensureEmpKey); NUR=nur.map(ensureNurKey); if(sal.length)SAL=sal;
+    EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey); NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey); if(sal.length)SAL=maternityMergeList('salary',SAL,sal);
     saveEmp2(); saveNur(); META.downloadedAt=nowStamp(); saveMeta();
     rebuildFilterOptions(); renderAll();
     setTxt('cloud-stat', '☁ '+recs.length);
