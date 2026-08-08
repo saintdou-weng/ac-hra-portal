@@ -370,6 +370,9 @@ function addMonths(d,n){ const x=new Date(d.getFullYear(), d.getMonth()+n, 1);
 function daysBetween(a,b){ return Math.round((b - a)/86400000); }
 
 function toast(msg,type){
+  // Toasts are created after the normal render pass, so translate them here
+  // as well; otherwise English/Khmer can still receive a Chinese error.
+  if(typeof uiTranslateText==='function') msg=uiTranslateText(msg);
   const box=qs('#toast'); const el=document.createElement('div');
   el.className='toast-item '+(type==='error'?'bg-rose-600':type==='warn'?'bg-amber-600':'bg-slate-800');
   el.textContent=msg; box.appendChild(el);
@@ -506,6 +509,13 @@ function findHeader(rows, re, maxScan){
   }
   return null;
 }
+function normalizeGender(v){
+  const s=String(v==null?'':v).trim().toLowerCase();
+  if(!s)return '';
+  if(/^(f|female|woman|girl|女|ស្រី)$/.test(s)||/ស្រី/.test(s))return 'F';
+  if(/^(m|male|man|boy|男|ប្រុស)$/.test(s)||/ប្រុស/.test(s))return 'M';
+  return '';
+}
 
 // ── Parser: Probation List ──────────────────────────────────
 function parseProb(wb, fileName){
@@ -517,6 +527,10 @@ function parseProb(wb, fileName){
     const h=findHeader(rows, /factory\s*id/i, 10);
     if(!h) continue;
     const c=h.c;                       // ID column index
+    const hr=rows[h.r]||[];
+    const genderIdx=hr.findIndex(x=>typeof x==='string'&&/gender|sex|ភេទ/i.test(x));
+    const deptIdx=hr.findIndex(x=>typeof x==='string'&&/department|dept|section/i.test(x));
+    const remarkIdx=hr.findIndex(x=>typeof x==='string'&&/remark|comment|note/i.test(x));
     const sheetPeriod = periodFromSheetName(sn, fbYear) || filePeriod;
     for(let i=h.r+1;i<rows.length;i++){
       const row=rows[i]||[];
@@ -532,11 +546,12 @@ function parseProb(wb, fileName){
       const score   =row[c+6]==null?'':N(row[c+6]);
       const resRaw  =String(row[c+7]||'').trim().toLowerCase();
       const result  = /pass/.test(resRaw)?'pass' : /fail/.test(resRaw)?'fail' : (resRaw?resRaw:'pending');
-      const dept    =String(row[c+8]||'').trim();
-      const remarks =String(row[c+9]||'').trim();
+      const gender  =genderIdx>=0?normalizeGender(row[genderIdx]):'';
+      const dept    =String(row[deptIdx>=0?deptIdx:c+8]||'').trim();
+      const remarks =String(row[remarkIdx>=0?remarkIdx:c+9]||'').trim();
       out.push({ _k:'P|'+idStr+'|'+(probEnd||joinDate||sheetPeriod), _kind:'prob',
         factoryId:idStr, name:(surname+' '+given).trim(), surname, given,
-        joinDate, probEnd, evalDate, score, result, dept, remarks,
+        joinDate, probEnd, evalDate, score, result, gender, dept, remarks,
         period: sheetPeriod, updatedAt: nowISO() });
     }
   }
@@ -551,6 +566,8 @@ function parseCont(wb, fileName){
   const rows=rowsOf(wb.Sheets[sn]);
   const h=findHeader(rows, /^\s*id\s*$/i, 10) || findHeader(rows, /deparment|department/i, 10);
   let c = h ? (h.c) : 1;
+  const hr=h?(rows[h.r]||[]):[];
+  const genderIdx=hr.findIndex(x=>typeof x==='string'&&/gender|sex|ភេទ/i.test(x));
   if(h && /deparment|department/i.test(String(rows[h.r][h.c]))) c = h.c-2;   // ID is 2 left of Dept
   let totalIdx = -1, fiveIdx = -1, annualPaidIdx = -1, netPayIdx = -1;
   if(h){
@@ -571,6 +588,7 @@ function parseCont(wb, fileName){
     /* 原始欄位：ID / Name / Dept / Section / Position / Join date /
        Average Salary / ... / Total Salary / 5% Paid / Annual Paid / Net Pay。
        舊版從 c+3 開始讀，導致日期與薪資全部錯位。 */
+    const gender = genderIdx>=0?normalizeGender(row[genderIdx]):'';
     const dept = String(row[c+2]||'').trim();
     const section = String(row[c+3]||'').trim();
     const position = String(row[c+4]||'').trim();
@@ -583,7 +601,7 @@ function parseCont(wb, fileName){
     /* 畫面／Telegram 對應 Excel 左側彙總 Net Pay，不是 Total Salary × 5%。 */
     const reserve = netPayIdx>=0 ? netPay : fivePercentPaid;
     out.push({ _k:'C|'+idStr, _kind:'cont',
-      factoryId:idStr, name, dept, section, position, joinDate, avgSalary, totalSalary,
+      factoryId:idStr, name, gender, dept, section, position, joinDate, avgSalary, totalSalary,
       fivePercentPaid, annualPaid, netPay,
       severance5: Math.round(reserve*100)/100,
       contractEnd: '',                       // computed on demand (rolling +6M)
@@ -601,6 +619,7 @@ function parseFinish(wb, fileName){
   if(!h) return out;
   const c=h.c;
   const hr=rows[h.r]||[];
+  const genderIdx=hr.findIndex(x=>typeof x==='string'&&/gender|sex|ភេទ/i.test(x));
   const iAmt = hr.findIndex(x=>typeof x==='string'&&/amount/i.test(x));
   const iSal = hr.findIndex(x=>typeof x==='string'&&/salary/i.test(x));
   const iAL  = hr.findIndex(x=>typeof x==='string'&&/annual\s*leave/i.test(x));
@@ -616,7 +635,7 @@ function parseFinish(wb, fileName){
     const name=String(row[c+1]||'').trim();
     if(!name || /^total$/i.test(name)) continue;
     out.push({ _k:'F|'+idStr+'|'+(filePeriod||''), _kind:'finish',
-      factoryId:idStr, name,
+      factoryId:idStr, name, gender:genderIdx>=0?normalizeGender(row[genderIdx]):'',
       section: iSec>=0?String(row[iSec]||'').trim():'',
       amount : iAmt>=0?N(row[iAmt]):0,
       salary : iSal>=0?N(row[iSal]):0,
@@ -643,7 +662,7 @@ async function smartImport(input){
   const files=[...input.files]; input.value='';
   if(!files.length) return;
   const st=qs('#imp-status'), rep=qs('#imp-report');
-  st.textContent='⏳ 解析 '+files.length+' 個檔案中…'; st.className='text-[12px] mt-2 text-sky-600';
+  st.textContent='⏳ '+L('解析','Parsing','កំពុងវិភាគ')+' '+files.length+' '+L('個檔案中…','file(s)…','ឯកសារ…'); st.className='text-[12px] mt-2 text-sky-600';
   rep.classList.add('hidden'); rep.innerHTML='';
   const log=[];
   for(const file of files){
@@ -651,12 +670,12 @@ async function smartImport(input){
       const buf=await file.arrayBuffer();
       const wb=XLSX.read(new Uint8Array(buf),{type:'array',cellDates:false,raw:true});
       const det=detectType(wb, file.name);
-      if(!det.type){ log.push({ok:false,f:file.name,msg:'無法判斷檔案類型（需為 Probation / Contract 5% / Finish Contract）'}); continue; }
+      if(!det.type){ log.push({ok:false,f:file.name,msg:L('無法判斷檔案類型（需為 Probation / Contract 5% / Finish Contract）','Could not identify the file type (use Probation / Contract 5% / Finish Contract)','មិនអាចស្គាល់ប្រភេទឯកសារ (ប្រើ Probation / Contract 5% / Finish Contract)')}); continue; }
       let recs=[], res;
       if(det.type==='prob')   recs=parseProb(wb,file.name);
       if(det.type==='cont')   recs=parseCont(wb,file.name);
       if(det.type==='finish') recs=parseFinish(wb,file.name);
-      if(!recs.length){ log.push({ok:false,f:file.name,msg:'已辨識為「'+labelType(det.type)+'」但未讀到任何員工資料列'}); continue; }
+      if(!recs.length){ log.push({ok:false,f:file.name,msg:L('已辨識為「'+labelType(det.type)+'」但未讀到任何員工資料列','Recognized as “'+labelType(det.type)+'” but no employee rows were found','បានស្គាល់ជា “'+labelType(det.type)+'” ប៉ុន្តែមិនរកឃើញជួរដេកបុគ្គលិកទេ')}); continue; }
       if(det.type==='prob'){   res=mergeInto(PROBS,recs);  PROBS=res.arr; }
       if(det.type==='cont'){   res=mergeInto(CONTS,recs);  CONTS=res.arr; }
       if(det.type==='finish'){ res=mergeInto(FINISH,recs); FINISH=res.arr; }
@@ -665,15 +684,15 @@ async function smartImport(input){
   }
   await persist();
   const okN=log.filter(x=>x.ok).length;
-  st.textContent = okN? ('✅ 完成 — 成功 '+okN+' / '+log.length+' 個檔案') : '⚠ 沒有檔案成功匯入';
+  st.textContent = okN? ('✅ '+L('完成 — 成功','Completed — succeeded','បានបញ្ចប់ — ជោគជ័យ')+' '+okN+' / '+log.length+' '+L('個檔案','file(s)','ឯកសារ')) : '⚠ '+L('沒有檔案成功匯入','No files were imported successfully','មិនមានឯកសារណាត្រូវបាននាំចូលដោយជោគជ័យទេ');
   st.className='text-[12px] mt-2 '+(okN?'text-emerald-600':'text-rose-600');
   rep.classList.remove('hidden');
   rep.innerHTML = log.map(x=> x.ok
-    ? '<div class="text-emerald-700">✅ <b>'+esc(x.f)+'</b> → '+labelType(x.type)+'（'+esc(x.why)+'）· 讀取 '+x.n+' 筆（新增 '+x.added+' / 更新 '+x.updated+'）</div>'
+    ? '<div class="text-emerald-700">✅ <b>'+esc(x.f)+'</b> → '+labelType(x.type)+' ('+esc(x.why)+') · '+L('讀取','read','អាន')+' '+x.n+' '+L('筆','records','កំណត់ត្រា')+' ('+L('新增','added','បានបន្ថែម')+' '+x.added+' / '+L('更新','updated','បានធ្វើបច្ចុប្បន្នភាព')+' '+x.updated+')</div>'
     : '<div class="text-rose-700">❌ <b>'+esc(x.f)+'</b> — '+esc(x.msg)+'</div>').join('');
   renderAll();
 }
-function labelType(t){ return t==='prob'?'試用期 Probation' : t==='cont'?'合約 5% Contract' : t==='finish'?'到期終止 Finish' : t; }
+function labelType(t){ return t==='prob'?L('試用期 Probation','Probation','សាកល្បង') : t==='cont'?L('合約 5% Contract','Contract 5%','កិច្ចសន្យា 5%') : t==='finish'?L('到期終止 Finish','Finished contract','កិច្ចសន្យាបញ្ចប់') : t; }
 
 function setupDropZone(){
   const dz=qs('#dz'); if(!dz) return;
@@ -681,7 +700,7 @@ function setupDropZone(){
   ['dragleave','drop'].forEach(ev=>dz.addEventListener(ev,e=>{e.preventDefault();dz.classList.remove('over');}));
   dz.addEventListener('drop',e=>{
     const f=[...(e.dataTransfer?.files||[])].filter(x=>/\.xlsx?$/i.test(x.name));
-    if(!f.length){ toast('請拖入 .xlsx 檔案','warn'); return; }
+    if(!f.length){ toast(L('請拖入 .xlsx 檔案','Drop an .xlsx file here','សូមទម្លាក់ឯកសារ .xlsx នៅទីនេះ'),'warn'); return; }
     const dt=new DataTransfer(); f.forEach(x=>dt.items.add(x));
     const inp=qs('#file-in'); inp.files=dt.files; smartImport(inp);
   });
@@ -779,7 +798,7 @@ function navJump(tab,val){
   st.pivot=new Date(y,mo,dd||1);
   navRender(tab); renderTab(tab);
 }
-function renderTab(tab){ if(tab==='prob') renderProb(); else if(tab==='cont') renderCont(); else renderFinish(); }
+function renderTab(tab){ if(tab==='prob') renderProb(); else if(tab==='cont') renderCont(); else renderFinish(); if(typeof applyUiLanguage==='function') applyUiLanguage(); }
 
 // ── Payroll-style period report (shown in 月 / 年 mode) ──────
 function rowsForPeriod(tab, key){
@@ -902,15 +921,19 @@ function alertToggleAll(on){
 }
 function alertToggle(key){ if(ALERT_SEL.has(key)) ALERT_SEL.delete(key); else ALERT_SEL.add(key); renderAlert(); }
 function alertSetDecision(d){
-  if(!ALERT_SEL.size){ toast('請先勾選項目','warn'); return; }
+  if(!ALERT_SEL.size){ toast(L('請先勾選項目','Please select at least one item','សូមជ្រើសរើសយ៉ាងហោចណាស់មួយធាតុ'),'warn'); return; }
   let note='';
-  if(d==='reject'){ note=prompt('退回原因 Reason（可留空）：','')||''; }
+  if(d==='reject'){ note=prompt(L('退回原因 Reason（可留空）：','Rejection reason (optional):','មូលហេតុបដិសេធ (អាចទុកទទេ)៖'),'')||''; }
   ALERT_SEL.forEach(k=>{
     if(!d) delete DECISIONS[k];
     else DECISIONS[k]={d, note, at:nowISO()};
   });
   persist(); renderAlert();
-  toast(d==='approve'?'已標記核可 '+ALERT_SEL.size+' 筆':d==='reject'?'已標記退回 '+ALERT_SEL.size+' 筆':'已清除標記');
+  toast(d==='approve'
+    ? L('已標記核可','Marked approved','បានសម្គាល់អនុម័ត')+' '+ALERT_SEL.size
+    : d==='reject'
+    ? L('已標記退回','Marked rejected','បានសម្គាល់បដិសេធ')+' '+ALERT_SEL.size
+    : L('已清除標記','Marks cleared','បានលុបសញ្ញាសម្គាល់'));
 }
 
 function renderAlert(){
@@ -979,6 +1002,7 @@ function renderAlert(){
   }
   qs('#al-selcnt').textContent = ALERT_SEL.size ? ('已選 '+ALERT_SEL.size+' 筆') : '';
   const allBox=qs('#al-all'); if(allBox) allBox.checked = items.length>0 && ALERT_SEL.size===items.length;
+  if(typeof applyUiLanguage==='function') applyUiLanguage();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -990,6 +1014,7 @@ function renderAll(){
   qs('#cnt-fin').textContent  = FINISH.length?'('+FINISH.length+')':'';
   renderDash(); navRender('prob'); navRender('cont'); navRender('finish');
   renderProb(); renderCont(); renderFinish(); renderAlert(); renderCfgStat();
+  if(typeof applyUiLanguage==='function') applyUiLanguage();
 }
 
 function renderDash(){
@@ -1107,11 +1132,11 @@ function renderCont(){
 }
 function editEnd(k){
   const r=CONTS.find(x=>x._k===k); if(!r) return;
-  const v=prompt('合約到期日 (YYYY-MM-DD)，留空恢復自動推算：', r.contractEnd||contractEndOf(r));
+  const v=prompt(L('合約到期日 (YYYY-MM-DD)，留空恢復自動推算：','Contract end date (YYYY-MM-DD); leave blank to restore automatic calculation:','កាលបរិច្ឆេទបញ្ចប់កិច្ចសន្យា (YYYY-MM-DD); ទុកទទេដើម្បីគណនាដោយស្វ័យប្រវត្តិ៖'), r.contractEnd||contractEndOf(r));
   if(v===null) return;
   if(v.trim()==='') r.contractEnd='';
   else if(/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) r.contractEnd=v.trim();
-  else { toast('日期格式需為 YYYY-MM-DD','error'); return; }
+  else { toast(L('日期格式需為 YYYY-MM-DD','Date must use YYYY-MM-DD format','កាលបរិច្ឆេទត្រូវប្រើទម្រង់ YYYY-MM-DD'),'error'); return; }
   persist(); renderCont(); renderDash(); renderAlert();
 }
 function renderFinish(){
@@ -1184,7 +1209,12 @@ var km={/*柬文對照 Khmer map*/}, KM_T={ '合約':'កិច្ចសន្�
  '待評估':'រង់ចាំវាយតម្លៃ','續約':'បន្តកិច្ចសន្យា','不續':'មិនបន្ត','到期':'ផុតកំណត់','人':'នាក់',
  '總覽':'ទិដ្ឋភាពរួម','設定':'ការកំណត់','匯入':'នាំចូល','匯出':'នាំចេញ','儲存':'រក្សាទុក','取消':'បោះបង់',
  '新增':'បន្ថែម','編輯':'កែ','刪除':'លុប','搜尋':'ស្វែងរក','部門':'ផ្នែក','姓名':'ឈ្មោះ','工號':'លេខសម្គាល់',
- '年資':'អាយុការងារ','金額':'ចំនួនទឹកប្រាក់','狀態':'ស្ថានភាព','日':'ថ្ងៃ','週':'សប្តាហ៍','月':'ខែ','年':'ឆ្នាំ' };
+ '年資':'អាយុការងារ','金額':'ចំនួនទឹកប្រាក់','狀態':'ស្ថានភាព','日':'ថ្ងៃ','週':'សប្តាហ៍','月':'ខែ','年':'ឆ្នាំ',
+ '女':'ស្រី','男':'ប្រុស','女性':'ស្រី','男性':'ប្រុស','比例':'ភាគរយ','平均':'មធ្យម','平均年齡':'អាយុមធ្យម',
+ '平均年資':'អាយុការងារមធ្យម','本月':'ខែនេះ','本期':'អំឡុងពេលនេះ','新增':'បន្ថែម','離職':'ឈប់ធ្វើការ',
+ '薪資':'ប្រាក់ខែ','平均薪資':'ប្រាក់ខែមធ្យម','累計薪資':'ប្រាក់ខែសរុប','5% 提存':'ប្រាក់បម្រុង 5%',
+ '到期人數':'ចំនួនផុតកំណត់','未來 90 天':'90 ថ្ងៃខាងមុខ','無資料':'គ្មានទិន្នន័យ','備註':'កំណត់សម្គាល់',
+ '通過率':'អត្រាជាប់','分數':'ពិន្ទុ','評估':'វាយតម្លៃ','到職':'ចូលធ្វើការ','到期日':'ថ្ងៃផុតកំណត់' };
 function KM(zh,en){ return KM_T[zh]||en||zh; }
 function L(zh,en,km){ return LANG==='km'?(km||KM(zh,en)):LANG==='en'?en:zh; }
 function tgPeriodVal(){ const el=qs('#tg-period'); return el&&el.value ? el.value : 'ALL'; }
@@ -1199,6 +1229,40 @@ function approvalItemsForRows(tab, rows){
       extra:tab==='cont' ? ('5% reserve $'+fmt(r.severance5)) : ''
     };
   });
+}
+
+function pct(n,d){ return d ? Math.round(n/d*100)+'%' : '—'; }
+function genderStats(rows){
+  const f=rows.filter(r=>r.gender==='F').length, m=rows.filter(r=>r.gender==='M').length;
+  const u=Math.max(0,rows.length-f-m);
+  if(!f&&!m) return L('性別：來源沒有性別欄位','Gender: source has no gender field','ភេទ៖ ឯកសារមិនមានជួរឈរភេទ');
+  return L('女 Female','Female','ស្រី')+' '+f+' ('+pct(f,rows.length)+') · '+
+    L('男 Male','Male','ប្រុស')+' '+m+' ('+pct(m,rows.length)+')'+(u?' · '+L('未填','N/A','មិនបំពេញ')+' '+u:'');
+}
+function deptStats(rows){
+  const map={};
+  rows.forEach(r=>{
+    const d=String(r.dept||r.section||'Other').trim()||'Other';
+    const x=map[d]||(map[d]={n:0,f:0,m:0,u:0,salary:0,reserve:0,amount:0});
+    x.n++; if(r.gender==='F')x.f++; else if(r.gender==='M')x.m++; else x.u++;
+    x.salary+=N(r.avgSalary); x.reserve+=N(r.severance5); x.amount+=N(r.amount);
+  });
+  return Object.entries(map).sort((a,b)=>b[1].n-a[1].n);
+}
+function avgTenure(rows){
+  const t=today0(), vals=rows.map(r=>{const j=parseYMD(r.joinDate);return j?Math.max(0,(t-j)/86400000/365.25):0;}).filter(Boolean);
+  return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length).toFixed(1):'—';
+}
+function expiryStats(tab,rows){
+  if(tab==='finish')return null;
+  const t=today0(), d30=new Date(t);d30.setDate(t.getDate()+30);const d90=new Date(t);d90.setDate(t.getDate()+90);
+  const dates=rows.map(r=>parseYMD(tab==='prob'?r.probEnd:contractEndOf(r))).filter(Boolean);
+  const count=(lim)=>dates.filter(d=>d>=t&&d<=lim).length;
+  return {all:dates.length, d30:count(d30), d90:count(d90)};
+}
+function resultStats(rows){
+  const p=rows.filter(r=>r.result==='pass').length, f=rows.filter(r=>r.result==='fail').length;
+  return {p,f,pending:Math.max(0,rows.length-p-f),rate:pct(p,rows.length),avgScore:(()=>{const a=rows.map(r=>N(r.score)).filter(v=>v>0);return a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'—';})()};
 }
 
 function buildText(src){
@@ -1240,14 +1304,18 @@ function buildText(src){
     const t0=today0(), in30=new Date(t0); in30.setDate(t0.getDate()+30);
     const ps=PROBS.filter(r=>{const d=parseYMD(probEndOf(r));return d&&d>=t0&&d<=in30;}).length;
     const cs=CONTS.filter(r=>{const d=parseYMD(contractEndOf(r));return d&&d>=t0&&d<=in30;}).length;
+    const all=PROBS.concat(CONTS), departments=deptStats(all);
+    let dt=departments.slice(0,12).map(([d,v])=>esc(d)+' '+v.n+' · F '+v.f+' / M '+v.m).join('\n');
     return {text:'📊 <b>'+L('合約 / 試用期總覽','Contract & Probation Overview')+'</b>\n'+SEP
       +'\n⏳ '+L('試用期人數','Probation')+'：'+PROBS.length
       +'（'+L('通過','Pass')+' '+PROBS.filter(r=>r.result==='pass').length
       +' / '+L('未通過','Fail')+' '+PROBS.filter(r=>r.result==='fail').length+'）'
       +'\n📋 '+L('合約員工','Contract staff')+'：'+CONTS.length
       +'\n🏁 '+L('已終止合約','Finished')+'：'+FINISH.length
+      +'\n👥 '+L('試用＋合約性別','Probation + contract gender')+'：'+genderStats(all)
       +'\n🔔 '+L('30 天內到期','Expiring in 30 days')+'：'+L('試用','Prob.')+' '+ps+' · '+L('合約','Cont.')+' '+cs
       +'\n💰 '+L('5% 資遣提存合計','5% severance reserve')+'：$'+fmt(CONTS.reduce((s,r)=>s+N(r.severance5),0))
+      +'\n'+SEP+'\n<b>'+L('各部門人數','By Department')+'</b>\n'+dt
       +'\n'+SEP+FOOT};
   }
 
@@ -1259,24 +1327,40 @@ function buildText(src){
   const head = tab==='prob' ? '⏳ <b>'+L('試用期名單','Probation List')+'</b>'
              : tab==='cont' ? '📋 <b>'+L('合約名單','Contract List')+'</b>'
              :                '🏁 <b>'+L('到期終止','Finished Contracts')+'</b>';
-  const dm={}; rows.forEach(r=>{const d=(r.dept||r.section||'Other');dm[d]=(dm[d]||0)+1;});
+  const departments=deptStats(rows), ex=expiryStats(tab,rows);
   let t=head+'\n🗓 '+L('期間','Period')+'：'+esc(label)
-       +'\n👥 '+L('人數','Headcount')+'：<b>'+rows.length+'</b>\n';
+       +'\n👥 '+L('人數','Headcount')+'：<b>'+rows.length+'</b>'
+       +'\n⚧ '+genderStats(rows)
+       +'\n📆 '+L('平均年資','Avg tenure','អាយុការងារមធ្យម')+'：'+avgTenure(rows)+' '+L('年','yr','ឆ្នាំ')+'\n';
   if(tab==='prob'){
-    const p=rows.filter(r=>r.result==='pass').length, f=rows.filter(r=>r.result==='fail').length;
-    t+='✅ '+L('通過','Pass')+' '+p+'　❌ '+L('未通過','Fail')+' '+f
-      +'　◻ '+L('待評估','Pending')+' '+(rows.length-p-f)
-      +'　📈 '+L('通過率','Pass rate')+' '+(rows.length?Math.round(p/rows.length*100):0)+'%\n';
+    const rs=resultStats(rows);
+    t+='✅ '+L('通過','Pass')+' '+rs.p+'　❌ '+L('未通過','Fail')+' '+rs.f
+      +'　◻ '+L('待評估','Pending')+' '+rs.pending
+      +'　📈 '+L('通過率','Pass rate')+' '+rs.rate
+      +'\n🧮 '+L('平均評分','Average score','ពិន្ទុមធ្យម')+'：'+rs.avgScore;
   }
-  t+=SEP+'\n<b>'+L('各部門明細','By Department')+'</b>\n';
-  Object.entries(dm).sort((a,b)=>b[1]-a[1]).forEach(([d,n])=>{
-    t+=esc(d)+'：'+n+' '+L('人','staff')+'\n'; });
+  if(ex) t+='\n⏰ '+L('30 天內到期','Expiring in 30 days')+'：'+ex.d30
+      +' · '+L('90 天內到期','Expiring in 90 days')+'：'+ex.d90;
   if(tab==='cont'){
-    t+=SEP+'\n💰 '+L('5% 資遣提存','5% reserve')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.severance5),0));
+    const totalSalary=rows.reduce((s,r)=>s+N(r.totalSalary),0);
+    t+='\n💰 '+L('平均薪資','Average salary')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.avgSalary),0)/(rows.length||1))
+      +' · '+L('累計薪資','Total salary')+'：$'+fmt(totalSalary)
+      +'\n🛡 '+L('5% 資遣提存','5% reserve')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.severance5),0));
   }
   if(tab==='finish'){
-    t+=SEP+'\n💰 '+L('合計金額','Total amount')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.amount),0));
+    const amount=rows.reduce((s,r)=>s+N(r.amount),0);
+    t+='\n💰 '+L('薪資','Salary')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.salary),0))
+      +' · '+L('年假','Annual leave')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.annualLeave),0))
+      +'\n🛡 '+L('5% 資遣','5% severance')+'：$'+fmt(rows.reduce((s,r)=>s+N(r.severance5),0))
+      +' · '+L('合計金額','Total amount')+'：$'+fmt(amount);
   }
+  t+=SEP+'\n<b>'+L('各部門明細','By Department','តាមផ្នែក')+'</b>\n'
+    +'<i>'+L('部門｜人數｜女／男｜女性比例','Dept | Staff | F/M | Female %','ផ្នែក | បុគ្គលិក | ស្រី/ប្រុស | ភាគរយស្រី')+'</i>\n';
+  departments.forEach(([d,v])=>{
+    t+=esc(d)+'：'+v.n+' '+L('人','staff','នាក់')+' · F '+v.f+' / M '+v.m+' · '+L('女性','F','ស្រី')+' '+pct(v.f,v.n)
+      +(v.u?' · '+L('未填','N/A','មិនបំពេញ')+' '+v.u:'')+'\n';
+  });
+  t+='📌 '+L('部門數','Departments','ចំនួនផ្នែក')+'：'+departments.length;
   t+=FOOT;
   /* 名單模式也要回傳逐筆項目；否則選「送出核可」時會被判定為空批次。 */
   return {text:t, items:approvalItemsForRows(tab,rows)};
@@ -1306,7 +1390,7 @@ function previewTg(){
   qs('#tg-preview').textContent = r.err ? ('⚠ '+r.err) : r.text.replace(/<\/?b>/g,'');
 }
 async function sendTG(text){
-  if(!GAS_URL){ toast('尚未設定 GAS URL（請到設定頁）','error'); return false; }
+  if(!GAS_URL){ toast(L('尚未設定 GAS URL（請到設定頁）','GAS URL is not configured (open Settings)','មិនទាន់កំណត់ GAS URL (បើកការកំណត់)'),'error'); return false; }
   try{
     const body={action:'telegram', text};
     if(TG_CHAT) body.chatId=TG_CHAT;
@@ -1314,14 +1398,14 @@ async function sendTG(text){
       headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
     let d=null; try{ d=await r.json(); }catch(e){}
     if(!r.ok){ toast('Telegram HTTP '+r.status,'error'); return false; }
-    if(!d){ toast('Telegram 回傳不是 JSON，請檢查 GAS Web App URL','error'); return false; }
-    if(d && d.ok===false){ toast('GAS 回報失敗：'+(d.error||''),'error'); return false; }
-    if(d && d.data && d.data.sent===false){ toast('GAS 回報未送出，請確認 Bot 在群組內','error'); return false; }
-    toast('✅ 已傳送至 Telegram'); return true;
-  }catch(e){ toast('傳送失敗：'+e.message,'error'); return false; }
+    if(!d){ toast(L('Telegram 回傳不是 JSON，請檢查 GAS Web App URL','Telegram did not return JSON; check the GAS Web App URL','Telegram មិនបានត្រឡប់ JSON; សូមពិនិត្យ GAS Web App URL'),'error'); return false; }
+    if(d && d.ok===false){ toast(L('GAS 回報失敗：','GAS reported an error:','GAS រាយការណ៍កំហុស៖')+(d.error||''),'error'); return false; }
+    if(d && d.data && d.data.sent===false){ toast(L('GAS 回報未送出，請確認 Bot 在群組內','GAS did not send it; confirm the bot is in the group','GAS មិនបានផ្ញើទេ; សូមបញ្ជាក់ថា Bot នៅក្នុងក្រុម'),'error'); return false; }
+    toast(L('✅ 已傳送至 Telegram','✅ Sent to Telegram','✅ បានផ្ញើទៅ Telegram')); return true;
+  }catch(e){ toast(L('傳送失敗：','Send failed:','ការផ្ញើបរាជ័យ៖')+e.message,'error'); return false; }
 }
 async function sendApproval(payloadText, items, win){
-  if(!GAS_URL){ toast('尚未設定 GAS URL','error'); return false; }
+  if(!GAS_URL){ toast(L('尚未設定 GAS URL','GAS URL is not configured','មិនទាន់កំណត់ GAS URL'),'error'); return false; }
   if(!items || !items.length){ toast(L('沒有可送審的項目','No items to submit','គ្មានធាតុ'),'warn'); return false; }
   const today=new Date(), lds=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   function dayDiff(a,b){ if(!a||!b)return 0; return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
@@ -1368,23 +1452,23 @@ async function sendApproval(payloadText, items, win){
     const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)});
     let d=null; try{ d=await r.json(); }catch(e){}
-    if(!r.ok){ toast('核可請求 HTTP '+r.status,'error'); return false; }
-    if(!d){ toast('GAS 回傳不是 JSON，請確認已部署最新完整 GS','error'); return false; }
-    if(d && d.ok===false){ toast('GAS 回報失敗：'+(d.error||''),'error'); return false; }
+    if(!r.ok){ toast('Approval request HTTP '+r.status,'error'); return false; }
+    if(!d){ toast(L('GAS 回傳不是 JSON，請確認已部署最新完整 GS','GAS did not return JSON; confirm the latest complete GS is deployed','GAS មិនបានត្រឡប់ JSON; សូមបញ្ជាក់ថា GS ពេញលេញចុងក្រោយបានដាក់ឲ្យដំណើរការ'),'error'); return false; }
+    if(d && d.ok===false){ toast(L('GAS 回報失敗：','GAS reported an error:','GAS រាយការណ៍កំហុស៖')+(d.error||''),'error'); return false; }
     const bid=(d&&d.data&&d.data.batchId)||'';
     toast('✅ '+L('已送出核可請求','Approval request sent','បានផ្ញើសំណើ')+(bid?(' · '+bid):''));
     return true;
-  }catch(e){ toast('傳送失敗：'+e.message,'error'); return false; }
+  }catch(e){ toast(L('傳送失敗：','Send failed:','ការផ្ញើបរាជ័យ៖')+e.message,'error'); return false; }
 }
 async function confirmSendTg(){
   const src=qs('#tg-src').value;
   const r=buildText(src);
   if(r.err){ toast(r.err,'error'); return; }
-  const btn=qs('#tg-send'); btn.disabled=true; btn.textContent='傳送中…';
+  const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=L('傳送中…','Sending…','កំពុងផ្ញើ…');
   let ok;
   if(TG_MODE==='approval') ok=await sendApproval(r.text, r.items, r.win);
   else ok=await sendTG(r.text);
-  btn.disabled=false; btn.textContent='確認傳送';
+  btn.disabled=false; btn.textContent=L('確認傳送','Send','ផ្ញើ');
   if(ok) closeTgModal();
 }
 
@@ -1399,11 +1483,11 @@ function flatRecords(){
   );
 }
 async function cloudUpload(){
-  if(!GAS_URL){ toast('尚未設定 GAS URL（設定頁）','error'); return; }
+  if(!GAS_URL){ toast(L('尚未設定 GAS URL（設定頁）','GAS URL is not configured (Settings)','មិនទាន់កំណត់ GAS URL (ការកំណត់)'),'error'); return; }
   const recs=flatRecords();
-  if(!recs.length){ toast('尚無資料可上傳','error'); return; }
+  if(!recs.length){ toast(L('尚無資料可上傳','There is no data to upload','គ្មានទិន្នន័យសម្រាប់បញ្ចូល'),'error'); return; }
   const btn=qs('#btn-cloud-up'); btn.disabled=true; btn.classList.add('opacity-50');
-  setSync('☁ 上傳中…');
+  setSync('☁ '+L('上傳中…','Uploading…','កំពុងបញ្ចូល…'));
   try{
     const body={ action:'push', tool:'contract', records:recs, recordCount:recs.length,
       coverage:HRACloudGuard.coverage(recs,'contract'),
@@ -1416,37 +1500,37 @@ async function cloudUpload(){
       return r.json();
     },LANG==='en'?'en':(LANG==='km'?'km':'zh'));
     if(d && d.cancelled){toast(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return;}
-    if(d && d.ok===false) throw new Error(d.error||'GAS 回報失敗');
+    if(d && d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported an error','GAS រាយការណ៍កំហុស'));
     setSync('✓ '+new Date().toLocaleTimeString());
-    toast('☁ 已上傳雲端 — '+recs.length+' 筆');
-  }catch(e){ setSync(''); toast('上傳失敗：'+e.message,'error'); }
+    toast('☁ '+L('已上傳雲端','Uploaded to cloud','បានបញ្ចូល Cloud')+' — '+recs.length+' '+L('筆','records','កំណត់ត្រា'));
+  }catch(e){ setSync(''); toast(L('上傳失敗：','Upload failed:','ការបញ្ចូលបរាជ័យ៖')+e.message,'error'); }
   btn.disabled=false; btn.classList.remove('opacity-50');
 }
 function contractMergeKey(r,kind){r=r||{};return [kind,r._k||r.id||r.employeeId||r.empId||r.number||r.name||'',r.joinDate||r.startDate||r.endDate||r.expiryDate||''].join('|')}
 function contractMergeList(kind,a,b){const m=new Map(),o=[];[...(a||[]),...(b||[])].forEach(r=>{const k=contractMergeKey(r,kind);if(!m.has(k))o.push(k);m.set(k,Object.assign({},m.get(k)||{},r))});return o.map(k=>m.get(k))}
 async function cloudDownload(){
-  if(!GAS_URL){ toast('尚未設定 GAS URL（設定頁）','error'); return; }
+  if(!GAS_URL){ toast(L('尚未設定 GAS URL（設定頁）','GAS URL is not configured (Settings)','មិនទាន់កំណត់ GAS URL (ការកំណត់)'),'error'); return; }
   const btn=qs('#btn-cloud-down'); btn.disabled=true; btn.classList.add('opacity-50');
-  setSync('☁ 下載中…');
+  setSync('☁ '+L('下載中…','Downloading…','កំពុងទាញយក…'));
   try{
     const r=await fetch(GAS_URL+'?action=pull&tool=contract&meta=1',{method:'GET',redirect:'follow'});
     const txt=await r.text(); let d; try{ d=JSON.parse(txt); }catch(e){ throw new Error('GAS 回傳非 JSON'); }
     console.log('[contract cloudDownload]', JSON.stringify(d).slice(0,300));
     const inner = d?.data?.data || d?.data || {};
     const recs  = inner.records || [];
-    if(!Array.isArray(recs) || !recs.length){ toast('雲端尚無資料 — 請先上傳','warn'); setSync(''); }
+    if(!Array.isArray(recs) || !recs.length){ toast(L('雲端尚無資料 — 請先上傳','No cloud data — upload first','គ្មានទិន្នន័យ Cloud — សូមបញ្ចូលជាមុន'),'warn'); setSync(''); }
     else{
       const localCount=flatRecords().length;
-      if(localCount && !confirm(`雲端將載入 ${recs.length} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`)){setSync('');return;}
+      if(localCount && !confirm(L(`雲端將載入 ${recs.length} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`, `Cloud will load ${recs.length} record(s); this device currently has ${localCount}.\n\nLocal data will be updated after download. Continue?`, `Cloud នឹងផ្ទុក ${recs.length} កំណត់ត្រា; ឧបករណ៍នេះមាន ${localCount}។\n\nទិន្នន័យក្នុងឧបករណ៍នឹងត្រូវបានធ្វើបច្ចុប្បន្នភាពបន្ទាប់ពីទាញយក។ បន្ត?`))){setSync('');return;}
       PROBS  = contractMergeList('prob',PROBS,recs.filter(r=>r._kind==='prob'));
       CONTS  = contractMergeList('cont',CONTS,recs.filter(r=>r._kind==='cont'));
       FINISH = contractMergeList('finish',FINISH,recs.filter(r=>r._kind==='finish'));
       if(inner.decisions && typeof inner.decisions==='object') DECISIONS=Object.assign({},DECISIONS,inner.decisions);
       await persist(); renderAll();
       setSync('✓ '+new Date().toLocaleTimeString());
-      toast('☁ 已載入雲端資料 — 試用 '+PROBS.length+' / 合約 '+CONTS.length+' / 終止 '+FINISH.length);
+      toast('☁ '+L('已載入雲端資料','Cloud data loaded','បានទាញយកទិន្នន័យ Cloud')+' — '+L('試用','Probation','សាកល្បង')+' '+PROBS.length+' / '+L('合約','Contract','កិច្ចសន្យា')+' '+CONTS.length+' / '+L('終止','Finished','បញ្ចប់')+' '+FINISH.length);
     }
-  }catch(e){ setSync(''); toast('下載失敗：'+e.message,'error'); }
+  }catch(e){ setSync(''); toast(L('下載失敗：','Download failed:','ការទាញយកបរាជ័យ៖')+e.message,'error'); }
   btn.disabled=false; btn.classList.remove('opacity-50');
 }
 function setSync(t){ const el=qs('#sync-tip'); if(el) el.textContent=t||''; }
@@ -1461,28 +1545,28 @@ function saveCfg(){
   localStorage.setItem(CFG.gas,GAS_URL);
   localStorage.setItem(CFG.chat,TG_CHAT);
   localStorage.setItem(CFG.approver,APPROVER);
-  toast('✅ 設定已儲存');
+  toast(L('✅ 設定已儲存','✅ Settings saved','✅ បានរក្សាទុកការកំណត់'));
 }
 async function testGas(){
-  if(!GAS_URL){ toast('請先填入 GAS URL','error'); return; }
+  if(!GAS_URL){ toast(L('請先填入 GAS URL','Enter the GAS URL first','សូមបញ្ចូល GAS URL ជាមុន'),'error'); return; }
   try{
     const r=await fetch(GAS_URL+'?action=heartbeat',{method:'GET',redirect:'follow'});
     const d=await r.json();
-    toast(d && d.ok ? '✅ GAS 連線正常' : '⚠ GAS 回應異常', d&&d.ok?'':'error');
-  }catch(e){ toast('連線失敗：'+e.message,'error'); }
+    toast(d && d.ok ? L('✅ GAS 連線正常','✅ GAS connection OK','✅ ការតភ្ជាប់ GAS ប្រក្រតី') : L('⚠ GAS 回應異常','⚠ Unexpected GAS response','⚠ ការឆ្លើយតប GAS មិនប្រក្រតី'), d&&d.ok?'':'error');
+  }catch(e){ toast(L('連線失敗：','Connection failed:','ការតភ្ជាប់បរាជ័យ៖')+e.message,'error'); }
 }
 function renderCfgStat(){
   const el=qs('#cfg-stat'); if(!el) return;
-  el.innerHTML='試用期 '+PROBS.length+' 筆 · 合約 '+CONTS.length+' 筆 · 終止 '+FINISH.length+' 筆'
-    +'<br>核可標記 '+Object.keys(DECISIONS).length+' 筆'
-    +'<br>儲存量 '+(JSON.stringify(flatRecords()).length/1024).toFixed(0)+' KB';
+  el.innerHTML=L('試用期','Probation','សាកល្បង')+' '+PROBS.length+' '+L('筆','records','កំណត់ត្រា')+' · '+L('合約','Contract','កិច្ចសន្យា')+' '+CONTS.length+' '+L('筆','records','កំណត់ត្រា')+' · '+L('終止','Finished','បញ្ចប់')+' '+FINISH.length+' '+L('筆','records','កំណត់ត្រា')
+    +'<br>'+L('核可標記','Approval marks','សញ្ញាអនុម័ត')+' '+Object.keys(DECISIONS).length+' '+L('筆','records','កំណត់ត្រា')
+    +'<br>'+L('儲存量','Storage','ទំហំផ្ទុក')+' '+(JSON.stringify(flatRecords()).length/1024).toFixed(0)+' KB';
 }
 function exportJSON(){
   const blob=new Blob([JSON.stringify({probs:PROBS,conts:CONTS,finish:FINISH,decisions:DECISIONS,
     exportedAt:nowISO()},null,2)],{type:'application/json'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download='ac_hra_contract_backup_'+lds(new Date())+'.json'; a.click();
-  toast('已匯出備份');
+  toast(L('已匯出備份','Backup exported','បាននាំចេញទិន្នន័យបម្រុងទុក'));
 }
 function importJSON(input){
   const f=input.files[0]; input.value=''; if(!f) return;
@@ -1491,19 +1575,19 @@ function importJSON(input){
     try{
       const d=JSON.parse(rd.result);
       PROBS=d.probs||[]; CONTS=d.conts||[]; FINISH=d.finish||[]; DECISIONS=d.decisions||{};
-      await persist(); renderAll(); toast('✅ 已還原備份');
-    }catch(e){ toast('還原失敗：'+e.message,'error'); }
+      await persist(); renderAll(); toast(L('✅ 已還原備份','✅ Backup restored','✅ បានស្តារទិន្នន័យបម្រុងទុក'));
+    }catch(e){ toast(L('還原失敗：','Restore failed:','ការស្តារបរាជ័យ៖')+e.message,'error'); }
   };
   rd.readAsText(f);
 }
 async function clearAll(){
-  if(!confirm('確定清除全部合約/試用期資料？此動作無法復原。')) return;
+  if(!confirm(L('確定清除全部合約/試用期資料？此動作無法復原。','Clear all contract/probation data? This cannot be undone.','លុបទិន្នន័យកិច្ចសន្យា/សាកល្បងទាំងអស់? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។'))) return;
   PROBS=[]; CONTS=[]; FINISH=[]; DECISIONS={};
-  await persist(); renderAll(); toast('已清除全部資料');
+  await persist(); renderAll(); toast(L('已清除全部資料','All data cleared','បានលុបទិន្នន័យទាំងអស់'));
 }
 function exportCSV(tab){
   const rows=filterRows(tab);
-  if(!rows.length){ toast('目前期間無資料','warn'); return; }
+  if(!rows.length){ toast(L('目前期間無資料','No data for the current period','គ្មានទិន្នន័យសម្រាប់រយៈពេលបច្ចុប្បន្ន'),'warn'); return; }
   const cols = tab==='prob' ? ['factoryId','name','dept','joinDate','probEnd','evalDate','score','result','remarks']
              : tab==='cont' ? ['factoryId','name','dept','joinDate','contractEnd','avgSalary','totalSalary','severance5']
              : ['factoryId','name','section','period','salary','annualLeave','severance5','amount','remarks'];
@@ -1542,8 +1626,82 @@ const I18N={
   alTtl:['🔔 半月到期提醒視窗','🔔 Semi-monthly Expiry Window'],
   alAll:['全選','Select all'],
 };
+/*
+ * Static UI fallback translation.
+ * The original page mixes literal Chinese, Chinese/English labels and
+ * dynamically rendered HTML.  The normal data-i/T() translations therefore
+ * cannot cover every button, table header and placeholder.  This small
+ * token map runs after each render so switching to English or Khmer never
+ * leaves the surrounding interface in Chinese.
+ */
+const UI_TEXT=[
+  ['AC HRA · 合約與試用期管理 Contract & Probation','AC HRA · Contract & Probation','AC HRA · ការគ្រប់គ្រងកិច្ចសន្យា និងការសាកល្បង'],
+  ['合約與試用期管理','Contract & Probation','ការគ្រប់គ្រងកិច្ចសន្យា និងការសាកល្បង'],
+  ['雲端下載 Download','Cloud Download','ទាញយកពី Cloud'],['雲端上傳 Upload','Cloud Upload','បញ្ចូលទៅ Cloud'],['傳送 Telegram','Send to Telegram','ផ្ញើទៅ Telegram'],
+  ['總覽','Dashboard','ទិដ្ឋភាពរួម'],['試用期','Probation','សាកល្បង'],['合約','Contract','កិច្ចសន្យា'],['到期終止','Finished','បញ្ចប់'],['半月到期提醒','Semi-monthly Alerts','ការជូនដំណឹងផុតកំណត់ពាក់កណ្តាលខែ'],['設定','Settings','ការកំណត់'],
+  ['智慧匯入 — 三種檔案直接拖入，系統自動判斷','Smart Import — drop any of the 3 file types','នាំចូលឆ្លាតវៃ — ទម្លាក់ឯកសារ 3 ប្រភេទ ប្រព័ន្ធនឹងស្គាល់ដោយស្វ័យប្រវត្តិ'],
+  ['Probation List（試用期）· ContractList Six Months（合約 5%）· Finish Contract（到期終止）','Probation List · Contract 6-Month (5%) · Finish Contract','បញ្ជីសាកល្បង · កិច្ចសន្យា 6 ខែ (5%) · កិច្ចសន្យាបញ្ចប់'],
+  ['選擇檔案 / Select Files','Select Files','ជ្រើសរើសឯកសារ'],['部門分佈 By Department','By Department','តាមផ្នែក'],['未來 6 個月到期趨勢 Upcoming Expiry','Upcoming 6-month Expiry','ការផុតកំណត់ 6 ខែខាងមុខ'],
+  ['搜尋 工號/姓名/部門…','Search ID / name / department…','ស្វែងរក លេខសម្គាល់ / ឈ្មោះ / ផ្នែក…'],['全部結果','All results','លទ្ធផលទាំងអស់'],['Pass 通過','Pass','ជាប់'],['Fail 未通過','Fail','មិនជាប់'],['待評估','Pending','រង់ចាំវាយតម្លៃ'],
+  ['工號 ID','ID','លេខសម្គាល់'],['姓名 Name','Name','ឈ្មោះ'],['部門 Dept','Department','ផ្នែក'],['到職 Join','Join date','ថ្ងៃចូលធ្វើការ'],['試用到期 Prob.End','Probation end','ថ្ងៃបញ្ចប់សាកល្បង'],['評估 Eval','Evaluation','ការវាយតម្លៃ'],['分數','Score','ពិន្ទុ'],['結果','Result','លទ្ធផល'],['備註','Remarks','កំណត់សម្គាល់'],
+  ['只看 90 天內到期','Expiring within 90 days','មើលតែការផុតកំណត់ក្នុង 90 ថ្ងៃ'],['合約到期日依「到職日 + 6 個月」滾動推算至下一次續約日，可點日期手動修改。','Contract end is calculated by Join date + 6 months and rolled to the next renewal date. Click a date to edit.','ថ្ងៃបញ្ចប់កិច្ចសន្យាគណនាតាមថ្ងៃចូលធ្វើការ + 6 ខែ ហើយបន្តទៅថ្ងៃបន្តកិច្ចសន្យាបន្ទាប់។ ចុចកាលបរិច្ឆេទដើម្បីកែ។'],
+  ['合約到期 End','Contract end','ថ្ងៃបញ្ចប់កិច្ចសន្យា'],['剩餘天數','Days left','ចំនួនថ្ងៃនៅសល់'],['平均薪資','Average salary','ប្រាក់ខែមធ្យម'],['累計薪資','Total salary','ប្រាក់ខែសរុប'],['5% 資遣提存','5% reserve','ប្រាក់បម្រុង 5%'],
+  ['部門 Section','Department / Section','ផ្នែក / ក្រុម'],['終止期間','Finish period','រយៈពេលបញ្ចប់'],['薪資 Salary','Salary','ប្រាក់ខែ'],['年假 A/L','Annual leave','ច្បាប់ឈប់សម្រាកប្រចាំឆ្នាំ'],['5% 資遣','5% severance','ប្រាក់បំណាច់ 5%'],['合計 Amount','Total amount','ចំនួនទឹកប្រាក់សរុប'],
+  ['半月到期提醒視窗','Semi-monthly Expiry Window','បង្អួចជូនដំណឹងផុតកំណត់ពាក់កណ្តាលខែ'],['回到本期','Back to current window','ត្រឡប់ទៅរយៈពេលនេះ'],['試用 + 合約','Probation + Contract','សាកល្បង + កិច្ចសន្យា'],['只看試用期','Probation only','មើលតែសាកល្បង'],['只看合約','Contract only','មើលតែកិច្ចសន្យា'],
+  ['全選','Select all','ជ្រើសរើសទាំងអស់'],['標記核可','Mark approved','សម្គាល់អនុម័ត'],['標記退回','Mark rejected','សម្គាល់បដិសេធ'],['清除標記','Clear marks','លុបសញ្ញាសម្គាល់'],['送出通知 / 核可','Send notification / approval','ផ្ញើការជូនដំណឹង / អនុម័ត'],
+  ['類型','Type','ប្រភេទ'],['工號','ID','លេខសម្គាល់'],['部門','Department','ផ្នែក'],['到職','Join date','ថ្ងៃចូលធ្វើការ'],['到期日','Expiry date','ថ្ងៃផុតកំណត់'],['剩餘','Remaining','នៅសល់'],['狀態/決定','Status / decision','ស្ថានភាព / សេចក្តីសម្រេច'],['退回原因','Rejection reason','មូលហេតុបដិសេធ'],
+  ['雲端 / Telegram 設定','Cloud / Telegram Settings','ការកំណត់ Cloud / Telegram'],['GAS Web App URL（/exec 結尾）','GAS Web App URL (ending in /exec)','GAS Web App URL (បញ្ចប់ដោយ /exec)'],['Telegram 群組 Chat ID（留空用 GAS 預設群組）','Telegram group Chat ID (blank uses GAS default group)','Chat ID ក្រុម Telegram (ទុកទទេប្រើក្រុមលំនាំដើម GAS)'],['核可人 Telegram ID','Approver Telegram ID','Telegram ID អ្នកអនុម័ត'],['儲存設定','Save settings','រក្សាទុកការកំណត់'],['測試連線','Test connection','សាកល្បងការតភ្ជាប់'],
+  ['資料管理','Data Management','ការគ្រប់គ្រងទិន្នន័យ'],['匯出 JSON 備份','Export JSON backup','នាំចេញ JSON បម្រុងទុក'],['還原 JSON','Restore JSON','ស្តារទិន្នន័យ JSON'],['清除全部資料','Clear all data','លុបទិន្នន័យទាំងអស់'],['資料存於本機 IndexedDB，並同步鏡射至 localStorage','Data is stored in local IndexedDB and mirrored to localStorage','ទិន្នន័យរក្សាទុកក្នុង IndexedDB និងចម្លងទៅ localStorage'],['供 COMPLETE 整合模組讀取。','Used by the COMPLETE integration module.','ប្រើសម្រាប់ម៉ូឌុល COMPLETE។'],
+  ['傳送 Telegram','Send to Telegram','ផ្ញើទៅ Telegram'],['摘要通知','Summary notification','ការជូនដំណឹងសង្ខេប'],['送出核可請求','Submit approval request','ដាក់ស្នើសុំអនុម័ត'],['內容來源','Source','ប្រភព'],['半月到期提醒（目前視窗）','Semi-monthly expiry alert (current window)','ការជូនដំណឹងផុតកំណត់ពាក់កណ្តាលខែ (បង្អួចបច្ចុប្បន្ន)'],['試用期名單','Probation list','បញ្ជីសាកល្បង'],['合約名單','Contract list','បញ្ជីកិច្ចសន្យា'],['到期終止','Finished contracts','កិច្ចសន្យាបញ្ចប់'],['總覽摘要','Dashboard summary','សង្ខេបទិដ្ឋភាពរួម'],['期間 Period','Period','រយៈពេល'],['中英雙語','Chinese / English','ចិន / អង់គ្លេស'],['核可路徑 Route','Approval route','ផ្លូវអនុម័ត'],['群組審核','Group review','ពិនិត្យក្នុងក្រុម'],['直送核可','Direct approval','អនុម័តដោយផ្ទាល់'],['預覽 Preview','Preview','មើលជាមុន'],['取消 Cancel','Cancel','បោះបង់'],['確認傳送','Send','ផ្ញើ'],
+  ['期間報表','Period Report','របាយការណ៍តាមរយៈពេល'],['月報','Monthly','ប្រចាំខែ'],['年報','Yearly','ប្រចាំឆ្នាំ'],['個期間','periods','រយៈពេល'],['點列可切換','click a row to switch','ចុចជួរដេកដើម្បីប្តូរ'],['尚無資料','No data','គ្មានទិន្នន័យ'],['本期間無資料 — 請先匯入或調整期間','No data for this period — import data or adjust the period','គ្មានទិន្នន័យក្នុងរយៈពេលនេះ — នាំចូលទិន្នន័យ ឬកែរយៈពេល'],
+  ['依到期日篩選','Filtered by expiry date','ត្រងតាមថ្ងៃផុតកំណត់'],['全部期間','All periods','គ្រប់រយៈពេល'],['全年','Full year','ពេញមួយឆ្នាំ'],['今天','Today','ថ្ងៃនេះ'],['日','Day','ថ្ងៃ'],['週','Week','សប្តាហ៍'],['月','Month','ខែ'],['年','Year','ឆ្នាំ'],
+  ['本期到期總數','Expiring in this window','ចំនួនផុតកំណត់ក្នុងបង្អួចនេះ'],['已標記 核可/退回','Approved / rejected','អនុម័ត / បដិសេធ'],['核可','Approved','អនុម័ត'],['退回','Rejected','បដិសេធ'],['未決','Pending','កំពុងរង់ចាំ'],['本視窗無到期人員','No expiries in this window','គ្មានអ្នកផុតកំណត់ក្នុងបង្អួចនេះ'],
+  ['新增','New','បន្ថែម'],['編輯','Edit','កែ'],['刪除','Delete','លុប'],['線別 Line','Line','ខ្សែផលិតកម្ម'],['職務 Position','Position','តួនាទី'],['性別 Gender','Gender','ភេទ'],['合約起 Start','Contract start','ចាប់ផ្តើមកិច្ចសន្យា'],['合約迄 End','Contract end','បញ្ចប់កិច្ចសន្យា'],['試用到期 Prob End','Probation end','បញ្ចប់សាកល្បង'],['金額 Amount','Amount','ចំនួនទឹកប្រាក់'],['5% 提存 Reserve','5% reserve','ប្រាក់បម្រុង 5%'],['評估結果 Result','Evaluation result','លទ្ធផលវាយតម្លៃ'],['備註 Remark','Remark','កំណត់សម្គាល់'],['取消','Cancel','បោះបង់'],['儲存 Save','Save','រក្សាទុក']
+  ,['試用期 Probation','Probation','សាកល្បង'],['合約 Contract','Contract','កិច្ចសន្យា'],['合約 5% Contract','Contract 5%','កិច្ចសន្យា 5%'],['到期終止 Finish','Finished','បញ្ចប់'],['試用期總數 Probation','Total probation','សាកល្បងសរុប'],['試用通過 / 未通過','Probation pass / fail','សាកល្បងជាប់ / មិនជាប់'],['30 天內試用到期','Probation expiring within 30 days','សាកល្បងផុតកំណត់ក្នុង 30 ថ្ងៃ'],['合約員工 Contract','Contract staff','បុគ្គលិកកិច្ចសន្យា'],['30 天內合約到期','Contracts expiring within 30 days','កិច្ចសន្យាផុតកំណត់ក្នុង 30 ថ្ងៃ'],['5% 資遣提存合計','Total 5% reserve','ប្រាក់បម្រុង 5% សរុប'],['試用到期','Probation expiry','ផុតសាកល្បង'],['合約到期','Contract expiry','ផុតកិច្ចសន្យា'],['傳送中…','Sending…','កំពុងផ្ញើ…'],['已傳送至 Telegram','Sent to Telegram','បានផ្ញើទៅ Telegram'],['上傳中…','Uploading…','កំពុងបញ្ចូល…'],['下載中…','Downloading…','កំពុងទាញយក…'],['已上傳雲端','Uploaded to cloud','បានបញ្ចូល Cloud'],['已載入雲端資料','Cloud data loaded','បានទាញយកទិន្នន័យ Cloud'],['測試 Telegram','Test Telegram','សាកល្បង Telegram'],
+  ['到職日 Join','Join date','ថ្ងៃចូលធ្វើការ'],['女 F','Female','ស្រី'],['男 M','Male','ប្រុស'],['通過 Pass','Pass','ជាប់'],['未通過 Fail','Fail','មិនជាប់'],['點擊修改','Click to edit','ចុចដើម្បីកែ'],['工作表標題','Worksheet title','ចំណងជើង Worksheet'],['檔名','Filename','ឈ្មោះឯកសារ'],['讀取','read','អាន'],['更新','updated','បានធ្វើបច្ចុប្បន្នភាព'],['筆','records','កំណត់ត្រា'],['目前期間無資料','No data for current period','គ្មានទិន្នន័យសម្រាប់រយៈពេលបច្ចុប្បន្ន'],['核可標記','Approval marks','សញ្ញាអនុម័ត'],['儲存量','Storage','ទំហំផ្ទុក'],['規則：每月','Rule: monthly','ច្បាប់៖ ប្រចាំខែ'],['本視窗','window','បង្អួច'],['已選','Selected','បានជ្រើស'],['由伺服器管理 Managed by server','Managed by server','គ្រប់គ្រងដោយ Server'],['試用','Probation','សាកល្បង'],['合約','Contract','កិច្ចសន្យា'],['終止','Finished','បញ្ចប់'],['核可','Approved','អនុម័ត'],['退回','Rejected','បដិសេធ']
+];
+function uiTranslateText(text){
+  let s=String(text==null?'':text), idx=LANG==='en'?1:LANG==='km'?2:0;
+  // Prioritize the longest Chinese/English label first.  Sorting by Khmer
+  // translation length lets short tokens such as 到職 rewrite a longer
+  // label such as 到職日 Join before it can be translated as a whole.
+  const list=UI_TEXT.slice();
+  [0,1,2].forEach(sourceIndex=>{
+    // Chinese mode is rendered directly by T()/data-i; only translate its
+    // source-0 labels so bilingual labels are not duplicated on re-render.
+    if(idx===0 && sourceIndex!==0) return;
+    list.slice().sort((a,b)=>(b[sourceIndex]||'').length-(a[sourceIndex]||'').length).forEach(v=>{
+      const src=v[sourceIndex];
+      // If the original bilingual/Chinese label is still present, its
+      // source-0 pass already owns the whole phrase; do not translate a
+      // shorter English/Khmer fragment inside it a second time.
+      if(sourceIndex!==0 && v[0] && s.includes(v[0])) return;
+      let target=v[idx]||v[1]||v[0];
+      // Chinese mode intentionally keeps the Chinese label, but many map
+      // entries are bilingual (e.g. 工號 ID).  When converting an already
+      // English/Khmer DOM back to Chinese, use the Chinese part only so ID
+      // does not become “工號 工號 ID”.
+      if(idx===0 && sourceIndex!==0 && /[\u4e00-\u9fff]/.test(target) && /[A-Za-z]/.test(target)){
+        const parts=target.match(/[\u4e00-\u9fff]+/g); if(parts&&parts.length) target=parts.join('');
+      }
+      if(src && src!==target && s.includes(src))s=s.split(src).join(target);
+    });
+  });
+  return s;
+}
+function applyUiLanguage(){
+  const root=document.body; if(!root)return;
+  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
+  const nodes=[]; let n; while(n=walker.nextNode())nodes.push(n);
+  nodes.forEach(x=>{if(x.parentElement&&!/^(SCRIPT|STYLE)$/.test(x.parentElement.tagName))x.nodeValue=uiTranslateText(x.nodeValue);});
+  root.querySelectorAll('input,textarea,select,button,[title],[aria-label]').forEach(el=>{
+    ['placeholder','title','aria-label'].forEach(a=>{if(el.hasAttribute(a))el.setAttribute(a,uiTranslateText(el.getAttribute(a)));});
+  });
+  document.title=uiTranslateText(document.title);
+}
 function setLang(l){
   LANG=(['zh','en','km'].indexOf(l)>=0)?l:'zh'; localStorage.setItem(CFG.lang,LANG); try{localStorage.setItem('ac_hra_lang',LANG);}catch(e){}
+  document.documentElement.lang=LANG==='km'?'km':LANG==='en'?'en':'zh-TW';
   ['zh','en','km'].forEach(function(x){var b=document.getElementById('lang-'+x);if(b){b.className='px-2.5 py-1.5 text-[12px] '+(x===LANG?'bg-slate-800 text-white font-semibold':'bg-white text-slate-600');}});
   qs('#lang-zh').className='px-2.5 py-1.5 text-[12px] '+(l==='zh'?'bg-slate-800 text-white':'bg-white text-slate-600');
   qs('#lang-en').className='px-2.5 py-1.5 text-[12px] '+(l==='en'?'bg-slate-800 text-white':'bg-white text-slate-600');
@@ -1551,6 +1709,7 @@ function setLang(l){
     const k=el.dataset.i; if(I18N[k]) el.textContent = l==='en'?I18N[k][1]:I18N[k][0];
   });
   renderAll();
+  applyUiLanguage();
 }
 
 async function init(){

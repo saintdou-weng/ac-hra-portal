@@ -1527,6 +1527,20 @@ function pregBlock(P,bi){
   var t='🤰 <b>'+esc(BL('孕婦','Pregnant',bi))+'：'+P.length+'</b>\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
   if(dl.length){ t+='<b>'+esc(BL('部門 Top','Top depts',bi))+'</b>\n'; dl.forEach(function(k){t+='· '+esc(k)+'：'+dm[k]+'\n';}); }
+  /* Telegram 摘要不能只有部門數；列出工號、姓名、部門、職務、登記日、預產期與孕期。 */
+  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
+  var show=P.slice(0,30);
+  show.forEach(function(r){
+    var d=r.dept||r.group||lineOf(r)||'—';
+    t+='· <code>'+esc(r.idNo||'—')+'</code> '+esc(r.name||'—')+' · '+esc(d);
+    if(r.position)t+=' · '+esc(r.position);
+    if(r.registerTime||r.applyDate)t+=' · '+esc(BL('登記','Reg.','ចុះឈ្មោះ',bi))+' '+esc(r.registerTime||r.applyDate);
+    if(r.edd)t+=' · '+esc(BL('預產','EDD','ថ្ងៃសម្រាល',bi))+' '+esc(r.edd);
+    if(r.pregnantPeriod)t+=' · '+esc(BL('孕期','Month#','ខែមានផ្ទៃពោះ',bi))+' '+esc(r.pregnantPeriod);
+    if(r.age)t+=' · '+esc(BL('年齡','Age','អាយុ',bi))+' '+esc(r.age);
+    t+='\n';
+  });
+  if(P.length>show.length)t+='· … '+(P.length-show.length)+' '+esc(BL('人未列出','more not shown','មិនបានបង្ហាញ',bi))+'\n';
   return t;
 }
 function matBlock(M,bi){
@@ -1540,6 +1554,19 @@ function matBlock(M,bi){
   if(payTot>0)t+='💵 '+esc(BL('產假給付合計','Payment total',bi))+'：$'+fmt(payTot)+'\n';
   t+='📅 '+esc(BL('30天內回歸','Return ≤30d',bi))+'：'+ret30+'\n';
   t+='⏱ '+esc(BL('平均產假天數','Avg days',bi))+'：'+avgD+'\n';
+  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
+  var show=M.slice(0,30);
+  show.forEach(function(r){
+    var d=r.dept||r.group||lineOf(r)||'—';
+    t+='· <code>'+esc(r.idNo||'—')+'</code> '+esc(r.name||'—')+' · '+esc(d);
+    if(r.position)t+=' · '+esc(r.position);
+    if(r.leaveStart||r.applyDate)t+=' · '+esc(BL('開始','Start','ចាប់ផ្តើម',bi))+' '+esc(r.leaveStart||r.applyDate);
+    if(r.returnDate)t+=' · '+esc(BL('回歸','Return','ត្រឡប់',bi))+' '+esc(r.returnDate);
+    t+=' · '+esc(BL('天數','Days','ថ្ងៃ',bi))+' '+fmt0(r.totalDays||90);
+    if(+r.matAmount)t+=' · $'+fmt(r.matAmount);
+    t+='\n';
+  });
+  if(M.length>show.length)t+='· … '+(M.length-show.length)+' '+esc(BL('人未列出','more not shown','មិនបានបង្ហាញ',bi))+'\n';
   return t;
 }
 function nurBlock(Nr,bi){
@@ -1547,6 +1574,19 @@ function nurBlock(Nr,bi){
   var amt=Nr.reduce(function(s,r){return s+(+r.amount||0);},0);
   var t='💊 <b>'+esc(BL('護理費','Nursing',bi))+'：'+Nr.length+' '+esc(BL('筆','records',bi))+'</b>\n';
   t+='👥 '+esc(BL('人數','People',bi))+'：'+ppl+'　💵 '+esc(BL('金額','Amount',bi))+'：$'+fmt(amt)+'\n';
+  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
+  var show=Nr.slice(0,30);
+  show.forEach(function(r){
+    var emp=EMP.filter(function(e){return e.idNo===r.cardId;})[0]||{};
+    var d=r.dept||emp.dept||emp.group||lineOf(emp)||'—';
+    t+='· <code>'+esc(r.cardId||'—')+'</code> '+esc(r.name||emp.name||'—')+' · '+esc(d);
+    if(r.payMonth)t+=' · '+esc(BL('付款月','Pay month','ខែបង់',bi))+' '+esc(r.payMonth);
+    if(r.monthNo)t+=' · '+esc(BL('第','Month ','ខែទី',bi))+esc(r.monthNo);
+    if(+r.amount)t+=' · $'+fmt(r.amount);
+    if(r.babyDob)t+=' · '+esc(BL('寶寶生日','Baby DOB','ថ្ងៃកំណើតទារក',bi))+' '+esc(r.babyDob);
+    t+='\n';
+  });
+  if(Nr.length>show.length)t+='· … '+(Nr.length-show.length)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';
   return t;
 }
 function apprStats(p,scope){

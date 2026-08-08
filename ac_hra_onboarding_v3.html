@@ -261,6 +261,7 @@ tbody tr:hover{background:#f8fafc}
     <button onclick="apprMark('ok')"  class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">✔ 標記核可</button>
     <button onclick="openReject()"    class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">✖ 標記退回</button>
     <button onclick="apprMark('')"    class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺ 清除</button>
+    <button id="btn-decision-sync" onclick="manualDecisionSync()" data-t="sync_dec" class="text-xs px-2.5 py-1.5 rounded-md border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100">🔄 同步已核可</button>
     <button onclick="openTg('approval')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️ 送出核可請求</button>
     <span id="appr-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -522,7 +523,7 @@ var I18N={
      k_join:'入職 Join',k_resign:'離職 Resign',k_net:'淨增減 Net',k_hc:'期末在職 HC',k_to:'流動率 Turnover',k_ten:'平均在職天數',
      c_trend:'入離職趨勢',c_type:'離職類型',c_rpt:'期間報表',c_rpt2:'點選任一列可切換期間',
      c_reasondist:'離職原因分佈',c_deptten:'部門 / 年資分佈',c_deptdist:'部門 / 線別分佈',c_refdist:'介紹人統計',
-     t_joindet:'入職明細',t_resdet:'離職明細',t_settle:'結算單對照',t_appr:'核可清單',
+     t_joindet:'入職明細',t_resdet:'離職明細',t_settle:'結算單對照',t_appr:'核可清單',sync_dec:'🔄 同步已核可',
      dim:'統計維度',dimside:'對象',c_dim:'維度分佈',c_to:'流動率趨勢',c_dimtbl:'維度明細',c_totbl:'月度流動率',
      s_cloud:'雲端 / Telegram',s_hc:'在職人數基準',s_ov:'逐月在職人數覆寫',s_about:'相容性',
      dz1:'智慧匯入 Smart Import',
@@ -533,7 +534,7 @@ var I18N={
      k_join:'Joins',k_resign:'Resigns',k_net:'Net Change',k_hc:'Closing HC',k_to:'Turnover Rate',k_ten:'Avg Tenure (days)',
      c_trend:'Join / Resign Trend',c_type:'Resign Type',c_rpt:'Period Report',c_rpt2:'Click a row to switch period',
      c_reasondist:'Reason Distribution',c_deptten:'Dept / Tenure',c_deptdist:'Dept / Line',c_refdist:'Introducer Stats',
-     t_joindet:'Join Records',t_resdet:'Resign Records',t_settle:'Settlement Audit',t_appr:'Approval List',
+     t_joindet:'Join Records',t_resdet:'Resign Records',t_settle:'Settlement Audit',t_appr:'Approval List',sync_dec:'🔄 Sync approvals',
      dim:'Dimension',dimside:'Scope',c_dim:'Distribution',c_to:'Turnover Trend',c_dimtbl:'Dimension Table',c_totbl:'Monthly Turnover',
      s_cloud:'Cloud / Telegram',s_hc:'Headcount Baseline',s_ov:'Monthly HC Override',s_about:'Compatibility',
      dz1:'Smart Import',
@@ -545,7 +546,7 @@ var I18N={
      k_join:'🟢 ចូលធ្វើការ',k_resign:'🔴 ចេញពីការងារ',k_hc:'👥 បុគ្គលិកសរុប',k_to:'📉 អត្រាចេញ',k_ten:'⏱ រយៈពេលមធ្យម',
      c_trend:'និន្នាការចូល/ចេញ',c_type:'ប្រភេទចេញ',c_rpt:'របាយការណ៍តាមដំណាក់កាល',c_rpt2:'ចុចជួរដើម្បីប្តូរ',
      c_reasondist:'ចែកតាមមូលហេតុ',c_deptten:'ផ្នែក / អាយុការងារ',c_deptdist:'ផ្នែក / ខ្សែ',c_refdist:'អ្នកណែនាំ',
-     t_joindet:'បញ្ជីចូលធ្វើការ',t_resdet:'បញ្ជីចេញពីការងារ',t_settle:'បញ្ជីទូទាត់',t_appr:'បញ្ជីអនុម័ត',
+     t_joindet:'បញ្ជីចូលធ្វើការ',t_resdet:'បញ្ជីចេញពីការងារ',t_settle:'បញ្ជីទូទាត់',t_appr:'បញ្ជីអនុម័ត',sync_dec:'🔄 ធ្វើសមកាលកម្មការអនុម័ត',
      dim:'វិមាត្រ',dimside:'វិសាលភាព',s_cloud:'ពពក / Telegram',s_about:'ភាពត្រូវគ្នា',
      dz1:'នាំចូលឆ្លាតវៃ',dz2:'អូសទម្លាក់ ឬចុច · ប្រភេទឯកសារស្គាល់ដោយស្វ័យប្រវត្តិ',
      dz3:'មិនទាន់នាំចូលឯកសារ។ អាចទម្លាក់ច្រើនឯកសារក្នុងពេលតែមួយ។',
@@ -791,6 +792,17 @@ function syncDecisionsToGas(){
     })
     .catch(function(e){console.warn('[DEC SYNC]',e.message||e);return null;})
     .then(function(d){_decSyncBusy=false;return d;});
+}
+function manualDecisionSync(){
+  var b=el('btn-decision-sync'); if(b)b.disabled=true;
+  syncDecisionsToGas().then(function(d){
+    if(d&&d.ok){
+      var x=d.data||d;
+      toast(L('已同步核可狀態：更新 '+(x.updated||0)+' 筆','Approval statuses synced: '+(x.updated||0)+' updated','បានធ្វើសមកាលកម្ម៖ បានធ្វើបច្ចុប្បន្នភាព '+(x.updated||0)),'ok');
+    }else{
+      toast(L('沒有可同步的本機核可，或 GAS 尚未連線','No local approvals to sync, or GAS is not connected','គ្មានការអនុម័តក្នុងម៉ាស៊ីនសម្រាប់ធ្វើសមកាលកម្ម ឬ GAS មិនបានតភ្ជាប់'),'warn');
+    }
+  }).finally(function(){if(b)b.disabled=false;});
 }
 function scheduleDecisionSync(){
   if(_decSyncTimer)clearTimeout(_decSyncTimer);
@@ -2652,6 +2664,7 @@ Object.assign(window,{
   renderJoin:renderJoin, renderResign:renderResign, renderAnly:renderAnly, renderAppr:renderAppr,
   resetFilters:resetFilters,
   cloudUpload:cloudUpload, cloudDownload:cloudDownload,
+  manualDecisionSync:manualDecisionSync,
   openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods, syncTgSendBtn:syncTgSendBtn, setTgRoute:setTgRoute,
   previewTg:previewTg, confirmTg:confirmTg,
   apprToggle:apprToggle, apprSelectAll:apprSelectAll, apprMark:apprMark,
