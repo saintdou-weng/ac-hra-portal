@@ -836,6 +836,38 @@ function lineOf(r){
   var n=normalizeGroup(r.section||r.dept||'');
   return n || L('未分類','Unassigned');
 }
+/* 部門／線別篩選不能用原始字串直接比對：同一組可能被寫成
+   Line 4、LINE4、L04，或有些檔案放在 dept、有些放在 section。 */
+function groupKey(v){
+  var s=String(v==null?'':v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim();
+  if(!s)return '';
+  var compact=s.toUpperCase().replace(/[\s_\-–—\/]+/g,'');
+  var m=compact.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);
+  if(m)return 'LINE'+(+m[1]);
+  var n=normalizeGroup(s);
+  return String(n||s).replace(/[\s\u00a0]+/g,'').toUpperCase();
+}
+function groupLabel(v){
+  var s=String(v==null?'':v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim().replace(/\s+/g,' ');
+  var k=groupKey(s),m=k.match(/^LINE(\d+)$/);
+  return m?'Line '+(+m[1]):(s||L('未分類','Unassigned'));
+}
+function rowGroupMatches(r,wanted){
+  if(!wanted)return true;
+  var k=groupKey(wanted);
+  return [r.dept,r.section,r.group].some(function(v){return groupKey(v)===k;});
+}
+function groupOptions(rows,includeSection){
+  var map={};
+  rows.forEach(function(r){
+    [r.dept,includeSection?r.section:'',includeSection?r.group:''].forEach(function(v){
+      var k=groupKey(v); if(k&&!map[k])map[k]=groupLabel(v);
+    });
+  });
+  return Object.keys(map).map(function(k){return {value:k,label:map[k]};}).sort(function(a,b){
+    return a.label.localeCompare(b.label,undefined,{numeric:true});
+  });
+}
 function reasonCatOf(raw){
   var s=String(raw||'').toLowerCase(); if(!s)return '';
   /* 細分類：先比對具體樣式，最後才落到概括類 */
@@ -1370,11 +1402,18 @@ function fillSel(id,vals,keepFirst){
   s.innerHTML=head+vals.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
   if(vals.indexOf(cur)>=0)s.value=cur;
 }
+function fillGroupSel(id,rows,includeSection){
+  var s=el(id); if(!s)return;
+  var cur=groupKey(s.value), head=s.options[0]?s.options[0].outerHTML:'';
+  var opts=groupOptions(rows,includeSection);
+  s.innerHTML=head+opts.map(function(o){return '<option value="'+esc(o.value)+'">'+esc(o.label)+'</option>';}).join('');
+  if(opts.some(function(o){return o.value===cur;}))s.value=cur;
+}
 function uniqSorted(arr){ var s={}; arr.forEach(function(v){ if(v)s[v]=1; }); return Object.keys(s).sort(); }
 function rebuildFilterOptions(){
-  fillSel('f-join-dept',uniqSorted(JOINS.map(function(r){return r.dept;})));
-  fillSel('f-join-sec', uniqSorted(JOINS.map(function(r){return r.section;})));
-  fillSel('f-res-dept', uniqSorted(RESIGNS.map(function(r){return r.dept;})));
+  fillGroupSel('f-join-dept',JOINS,true);
+  fillGroupSel('f-join-sec',JOINS,true);
+  fillGroupSel('f-res-dept',RESIGNS,true);
   fillSel('f-res-reason',uniqSorted(RESIGNS.map(function(r){return r.reasonCat;})));
 }
 
@@ -1569,8 +1608,8 @@ function joinFiltered(){
   var fd=el('f-join-dept').value, fs=el('f-join-sec').value, fg=el('f-join-gen').value,
       fq=(el('f-join-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&r.dept!==fd)return false;
-    if(fs&&r.section!==fs)return false;
+    if(fd&&!rowGroupMatches(r,fd))return false;
+    if(fs&&!rowGroupMatches(r,fs))return false;
     if(fg&&(r.gender||'')!==fg)return false;
     if(fq&&((r.empId||'')+' '+(r.name||'')).toLowerCase().indexOf(fq)<0)return false;
     return true;
@@ -1581,7 +1620,7 @@ function resignFiltered(){
   var fd=el('f-res-dept').value, ft=el('f-res-type').value, fr=el('f-res-reason').value,
       fg=el('f-res-gen').value, fq=(el('f-res-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&r.dept!==fd)return false;
+    if(fd&&!rowGroupMatches(r,fd))return false;
     if(ft&&(r.resignType||'resign')!==ft)return false;
     if(fr&&(r.reasonCat||'')!==fr)return false;
     if(fg&&(r.gender||'')!==fg)return false;
@@ -1640,7 +1679,7 @@ function renderResignKpi(rows){
   });
   h+='</tbody></table>'; setHtml('res-reason-bd', h);
   /* 部門 / 年資分佈 */
-  var dm={}; rows.forEach(function(r){ var d=r.dept||'—'; if(!dm[d])dm[d]={n:0,days:0,dn:0}; dm[d].n++; if(+r.workingDays>0){dm[d].days+=+r.workingDays;dm[d].dn++;} });
+  var dm={}; rows.forEach(function(r){ var d=groupLabel(r.section||r.dept||r.group); if(!dm[d])dm[d]={n:0,days:0,dn:0}; dm[d].n++; if(+r.workingDays>0){dm[d].days+=+r.workingDays;dm[d].dn++;} });
   var dl=Object.keys(dm).sort(function(a,b){return dm[b].n-dm[a].n;});
   var h2='<table><thead><tr><th>'+L('部門','Dept')+'</th><th class="text-right">'+L('人數','Count')+'</th><th class="text-right">'+L('平均年資','Avg Tenure')+'</th></tr></thead><tbody>';
   if(!dl.length)h2+='<tr><td colspan="3" class="text-center text-slate-400 py-6">'+L('無資料','No data')+'</td></tr>';
@@ -1743,7 +1782,7 @@ function renderSettles(){
 /* ═══════════ 流動分析 ═══════════ */
 var RESIGN_ONLY_DIMS={reasonCat:1,resignType:1,tenureBand:1,salaryBand:1};
 function dimValue(r,dim,kind){
-  if(dim==='dept')      return r.dept||L('未分類','Unassigned');
+  if(dim==='dept')      return groupLabel(r.section||r.dept||r.group);
   if(dim==='line')      return lineOf(r);
   if(dim==='position')  return r.position||L('未分類','Unassigned');
   if(dim==='gender')    return (r.gender||'').toUpperCase()==='M'?L('男','Male'):(r.gender||'').toUpperCase()==='F'?L('女','Female'):L('未填','—');
@@ -2222,7 +2261,7 @@ function joinBlock(J,bi){
   var sew=J.filter(function(r){return isSewLine(normalizeGroup(r.section||r.dept));}).length;
   var m=J.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=J.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
-  var dm={}; J.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
+  var dm={}; J.forEach(function(r){var k=groupLabel(r.section||r.dept||r.group);dm[k]=(dm[k]||0)+1;});
   var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+'：'+J.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing',bi))+' '+sew+'）'):'')+'\n';
   t+='· '+esc(BL('男','Male','ប្រុស',bi))+' '+m+' · '+esc(BL('女','Female','ស្រី',bi))+' '+f+'\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
@@ -2236,7 +2275,7 @@ function resignBlock(R,p,bi){
   var tc={}; R.forEach(function(r){var k=r.resignType||'resign';tc[k]=(tc[k]||0)+1;});
   /* ★ 部門明細：人數 + 結算金額 */
   var dm={}; R.forEach(function(r){
-    var k=r.dept||'—'; if(!dm[k])dm[k]={n:0,amt:0};
+    var k=groupLabel(r.section||r.dept||r.group); if(!dm[k])dm[k]={n:0,amt:0};
     dm[k].n++; dm[k].amt+=(+r.amount||0);
   });
   var rc={}; R.forEach(function(r){var k=r.reasonCat||'Other';rc[k]=(rc[k]||0)+1;});

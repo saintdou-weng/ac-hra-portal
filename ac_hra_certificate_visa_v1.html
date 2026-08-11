@@ -649,8 +649,21 @@ function statusKey(s){return {active:'statusActive',complete:'statusComplete',co
 function badge(s,label){const cls=['approved','complete','completed','active'].includes(s)?'b-'+(s==='completed'?'complete':s):['pending','due','not_in_latest'].includes(s)?'b-'+s:['expired','rejected','resigned'].includes(s)?'b-'+s:['stopped','draft'].includes(s)?'b-'+s:'b-draft';return `<span class="badge ${cls}">${esc(label||tr(statusKey(s)))}</span>`}
 function eventState(e){if(e.completed)return'complete';if(e.days<0)return'expired';if(e.days<=Number(STATE.settings.reminderDays||45))return'due';return'active'}
 function emptyRow(cols,msg='noData'){return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">📭</div>${esc(tr(msg))}</div></td></tr>`}
+/* 部門／線別同樣可能有空白、不同大小寫或 Line 4 / LINE4 / L04 的差異。 */
+function departmentKey(v){
+  const s=clean(v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ');
+  if(!s)return'';
+  const compact=s.toUpperCase().replace(/[\s_\-–—\/]+/g,'');
+  const m=compact.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);
+  return m?`LINE${+m[1]}`:compact;
+}
+function departmentLabel(v){
+  const s=clean(v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim(),k=departmentKey(s),m=k.match(/^LINE(\d+)$/);
+  return m?`Line ${+m[1]}`:(s||tr('unknown'));
+}
+function sameDepartment(a,b){return departmentKey(a)===departmentKey(b)}
 function distinctDepartments(){
-  return [...new Set([...STATE.certificates.map(x=>x.department||x.category),...STATE.people.map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))
+  return [...new Set([...STATE.certificates.map(x=>x.department||x.category),...STATE.people.map(x=>x.department)].filter(Boolean).map(departmentLabel))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}))
 }
 function fillSelect(id,values,allKey){
   const e=document.getElementById(id);if(!e)return;const keep=e.value;e.innerHTML=`<option value="">${esc(tr(allKey))}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if([...e.options].some(o=>o.value===keep))e.value=keep
@@ -670,7 +683,7 @@ function renderDashboard(){
   document.getElementById('recentImports').innerHTML=STATE.imports.length?STATE.imports.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,6).map(x=>{const summary=x.stats?tr('fileImported',{file:x.file,...x.stats}):(x.summary||'');return `<li><b>${esc(x.file)}</b><br><span class="muted">${fmtDate(String(x.at).slice(0,10))} · ${esc(summary)}</span></li>`}).join(''):`<li class="muted">${tr('noData')}</li>`
 }
 function eventFilter(events,field,dept){
-  const {start,end}=periodRange();return events.filter(e=>dateObj(e.date)>=start&&dateObj(e.date)<end&&(field==='all'||e.type===field)&&(!dept||e.department===dept))
+  const {start,end}=periodRange();return events.filter(e=>dateObj(e.date)>=start&&dateObj(e.date)<end&&(field==='all'||e.type===field)&&(!dept||sameDepartment(e.department,dept)))
 }
 function renderTimeline(){
   const field=document.getElementById('eventField').value,dept=document.getElementById('timelineDept').value;
@@ -681,7 +694,7 @@ function setListMode(m){LIST_MODE=m;document.getElementById('monthListBtn').clas
 function periodKey(date,mode){return mode==='year'?date.slice(0,4):date.slice(0,7)}
 function renderPeriodList(){
   const field=document.getElementById('listField').value,dept=document.getElementById('listDept').value;
-  let ev=allEvents().filter(e=>(field==='all'||e.type===field)&&(!dept||e.department===dept));
+  let ev=allEvents().filter(e=>(field==='all'||e.type===field)&&(!dept||sameDepartment(e.department,dept)));
   const years=ev.map(e=>+e.date.slice(0,4)).filter(Boolean);let min=Math.min(new Date().getFullYear(),...(years.length?years:[new Date().getFullYear()])),max=Math.max(new Date().getFullYear(),...(years.length?years:[new Date().getFullYear()]));
   min=Math.max(2000,min-1);max=Math.min(2100,max+1);
   const keys=[];if(LIST_MODE==='year'){for(let y=max;y>=min;y--)keys.push(String(y))}else{for(let y=max;y>=min;y--)for(let m=12;m>=1;m--)keys.push(`${y}-${String(m).padStart(2,'0')}`)}
@@ -696,12 +709,12 @@ function renderPeriodList(){
 function jumpToPeriod(k){const a=k.split('-').map(Number);PERIOD_ANCHOR=new Date(a[0],(a[1]||1)-1,1);PERIOD_MODE=k.length===4?'year':'month';document.querySelectorAll('#periodModes button').forEach(x=>x.classList.toggle('on',x.dataset.mode===PERIOD_MODE));setTab('timeline');renderAll()}
 function renderCertificates(){
   const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;
-  const rows=STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
+  const rows=STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||sameDepartment(c.department||c.category,dep))).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
   document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${money(c.cost)}</td><td>${badge(c.status||'active')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button></td></tr>`).join(''):emptyRow(10)
 }
 function renderPeople(){
   const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;
-  const rows=STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
+  const rows=STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||sameDepartment(p.department,dep))&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
   document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${badge(p.status||'active')}</td><td><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button></td></tr>`).join(''):emptyRow(10)
 }
 function renderApprovals(){
@@ -710,7 +723,7 @@ function renderApprovals(){
 }
 function renderAnalysis(){
   if(ACTIVE_TAB!=='analysis')return;const field=document.getElementById('analysisField').value;const ev=allEvents().filter(e=>field==='all'||e.type===field);
-  const groups={};ev.forEach(e=>groups[e.department]=(groups[e.department]||0)+1);const labels=Object.keys(groups).sort((a,b)=>groups[b]-groups[a]).slice(0,20),data=labels.map(x=>groups[x]);
+  const groups={};ev.forEach(e=>{const d=departmentLabel(e.department);groups[d]=(groups[d]||0)+1});const labels=Object.keys(groups).sort((a,b)=>groups[b]-groups[a]).slice(0,20),data=labels.map(x=>groups[x]);
   if(chartDept)chartDept.destroy();if(window.Chart)chartDept=new Chart(document.getElementById('deptChart'),{type:'bar',data:{labels,datasets:[{label:tr('totalDue'),data,backgroundColor:'#35b6cf',borderColor:'#167fa2',borderWidth:1}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}});
   const statuses={active:0,due:0,expired:0,complete:0};ev.forEach(e=>statuses[eventState(e)]++);
   if(chartStatus)chartStatus.destroy();if(window.Chart)chartStatus=new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:Object.keys(statuses).map(statusKey).map(tr),datasets:[{data:Object.values(statuses),backgroundColor:['#2d98c3','#e5a128','#d94b50','#2a996a']}]},options:{responsive:true,maintainAspectRatio:false}});
@@ -897,8 +910,8 @@ async function savePerson(e){
 }
 function selectItem(kind,id,on){(kind==='certificate'?selectedCerts:selectedPeople)[on?'add':'delete'](id)}
 function visibleIds(kind){
-  if(kind==='certificate'){const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;return STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).map(x=>x.id)}
-  const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;return STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).map(x=>x.id)
+  if(kind==='certificate'){const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;return STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||sameDepartment(c.department||c.category,dep))).map(x=>x.id)}
+  const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;return STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||sameDepartment(p.department,dep))&&(!st||p.status===st)).map(x=>x.id)
 }
 function toggleAll(kind,on){const set=kind==='certificate'?selectedCerts:selectedPeople;visibleIds(kind).forEach(id=>set[on?'add':'delete'](id));kind==='certificate'?renderCertificates():renderPeople()}
 function nextRequestNo(){const d=new Date(),prefix=`CV-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}-`;const n=STATE.requests.filter(r=>String(r.number).startsWith(prefix)).length+1;return prefix+String(n).padStart(3,'0')}

@@ -392,9 +392,12 @@ function matchPeriod(p,mode,key){
   var d=s.slice(0,10);
   return d>=_lds(st)&&d<=_lds(en);
 }
-function allDepartments(){return [...new Set([...STATE.members.map(x=>x.department),...STATE.unionDues.map(x=>x.department),...STATE.suggestions.map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))}
+function departmentKey(v){const s=clean(v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ');if(!s)return'';const compact=s.toUpperCase().replace(/[\s_\-–—\/]+/g,'');const m=compact.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);return m?`LINE${+m[1]}`:compact}
+function departmentLabel(v){const s=clean(v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim(),k=departmentKey(s),m=k.match(/^LINE(\d+)$/);return m?`Line ${+m[1]}`:(s||tr('unknown'))}
+function sameDepartment(a,b){return departmentKey(a)===departmentKey(b)}
+function allDepartments(){return [...new Set([...STATE.members.map(x=>x.department),...STATE.unionDues.map(x=>x.department),...STATE.suggestions.map(x=>x.department)].filter(Boolean).map(departmentLabel))].sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}))}
 function fillSelect(id,values,key='allDepartments'){const e=document.getElementById(id),keep=e.value;e.innerHTML=`<option value="">${esc(tr(key))}</option>`+values.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('');if([...e.options].some(o=>o.value===keep))e.value=keep}
-function filterDept(x,dept){return !dept||x.department===dept}
+function filterDept(x,dept){return !dept||sameDepartment(x.department,dept)}
 function statsFor(key,mode='month',dept=''){
   const members=STATE.members.filter(x=>matchPeriod(x.period,mode,key)&&filterDept(x,dept)),mov=STATE.movements.filter(x=>matchPeriod(x.date,mode,key)&&filterDept(x,dept)),union=STATE.unionDues.filter(x=>matchPeriod(x.period,mode,key)&&filterDept(x,dept)),sugs=STATE.suggestions.filter(x=>matchPeriod(x.period,mode,key)&&filterDept(x,dept));
   const summaries=STATE.summaries.filter(x=>matchPeriod(x.period,mode,key));const noDept=!dept;
@@ -450,9 +453,9 @@ function openSuggestionMonth(p){const rows=STATE.suggestions.filter(x=>x.period=
 function openLightbox(src){document.getElementById('lightboxImage').src=src;openModal('lightboxModal')}
 function renderAnalysis(){
   if(ACTIVE_TAB!=='analysis')return;const key=selectedKey(),mode=PERIOD_MODE,field=val('analysisField'),groups={};allDepartments().forEach(d=>groups[d]=0);
-  if(field==='transport'||field==='accommodation')STATE.members.filter(x=>matchPeriod(x.period,mode,key)&&x[field]).forEach(x=>groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+1);
-  else if(field==='unionCount'||field==='unionAmount')STATE.unionDues.filter(x=>matchPeriod(x.period,mode,key)).forEach(x=>groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+(field==='unionAmount'?num(x.amount):1));
-  else STATE.suggestions.filter(x=>matchPeriod(x.period,mode,key)).forEach(x=>groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+1);
+  if(field==='transport'||field==='accommodation')STATE.members.filter(x=>matchPeriod(x.period,mode,key)&&x[field]).forEach(x=>{const d=departmentLabel(x.department);groups[d]=(groups[d]||0)+1});
+  else if(field==='unionCount'||field==='unionAmount')STATE.unionDues.filter(x=>matchPeriod(x.period,mode,key)).forEach(x=>{const d=departmentLabel(x.department);groups[d]=(groups[d]||0)+(field==='unionAmount'?num(x.amount):1)});
+  else STATE.suggestions.filter(x=>matchPeriod(x.period,mode,key)).forEach(x=>{const d=departmentLabel(x.department);groups[d]=(groups[d]||0)+1});
   const labels=Object.keys(groups).filter(x=>groups[x]).sort((a,b)=>groups[b]-groups[a]).slice(0,20);if(deptChart)deptChart.destroy();if(window.Chart)deptChart=new Chart(document.getElementById('deptChart'),{type:'bar',data:{labels,datasets:[{data:labels.map(x=>groups[x]),backgroundColor:'#24a5a0'}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});
   const year=String(ANCHOR.getFullYear()),months=Array.from({length:12},(_,i)=>`${year}-${String(i+1).padStart(2,'0')}`),series=months.map(p=>{const s=statsFor(p,'month','');return field==='transport'?s.transport:field==='accommodation'?s.accommodation:field==='unionCount'?s.unionMembers:field==='unionAmount'?s.unionAmount:s.suggestions});if(trendChart)trendChart.destroy();if(window.Chart)trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:months.map(monthLabel),datasets:[{data:series,borderColor:'#e39a17',backgroundColor:'rgba(227,154,23,.18)',fill:true,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}})
 }

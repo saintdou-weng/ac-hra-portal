@@ -722,6 +722,28 @@ function esc(s){
 function stripHtml(s){const d=document.createElement('div');d.innerHTML=s;return d.textContent||''}
 function norm(s){return String(s==null?'':s).replace(/\s+/g,' ').trim()}
 function normKey(s){return norm(s).toUpperCase().replace(/[^A-Z0-9\u1780-\u17FF\u4E00-\u9FFF]+/g,'')}
+/* 部門／線別欄位在不同 Excel 版本可能放在 dept 或 section，
+   並可能寫成 Line 4、LINE4、L04；所有下拉與統計使用同一標準鍵。 */
+function deptKey(v){
+  const s=norm(v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ');
+  if(!s)return'';
+  const compact=s.toUpperCase().replace(/[\s_\-–—\/]+/g,'');
+  const m=compact.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);
+  return m?`LINE${+m[1]}`:normKey(s);
+}
+function deptLabel(v){
+  const s=norm(v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' '),k=deptKey(s),m=k.match(/^LINE(\d+)$/);
+  return m?`Line ${+m[1]}`:(s||L('未分類','Unclassified','មិនបានបែងចែក'));
+}
+function deptMatches(r,wanted){
+  if(!wanted)return true;
+  const k=deptKey(wanted);
+  return [r.dept,r.section,r.group].some(v=>deptKey(v)===k);
+}
+function sameGroupValue(kind,r,dim,value){
+  if(dim==='dept'||dim==='section')return deptKey(groupValue(kind,r,dim))===deptKey(value);
+  return groupValue(kind,r,dim)===value;
+}
 function normName(s){return norm(s).toUpperCase().replace(/[^A-Z0-9\u1780-\u17FF\u4E00-\u9FFF]+/g,'')}
 function digits(s){return String(s==null?'':s).replace(/\D/g,'')}
 function validId(v){return /^\d{2,8}$/.test(digits(v))}
@@ -1569,8 +1591,8 @@ function plansForState(state,allowFallback=true){
 }
 function groupValue(kind,r,dim){
   if(dim==='overall')return L('全廠','Factory','រោងចក្រ');
-  if(dim==='dept')return norm(r.dept)||norm(r.section)||L('未分類','Unclassified','មិនបានបែងចែក');
-  if(dim==='section')return norm(r.section)||norm(r.dept)||L('未分類','Unclassified','មិនបានបែងចែក');
+  if(dim==='dept')return deptLabel(r.dept||r.section||r.group);
+  if(dim==='section')return deptLabel(r.section||r.dept||r.group);
   if(dim==='position')return norm(r.position)||L('未分類','Unclassified','មិនបានបែងចែក');
   if(dim==='gender')return norm(r.gender).toUpperCase()||L('未填','Unknown','មិនស្គាល់');
   if(dim==='referral')return norm(r.referral)||L('未填','Unknown','មិនស្គាល់');
@@ -1580,9 +1602,9 @@ function groupValue(kind,r,dim){
 }
 function matchesGroup(kind,r,group){
   if(!group)return true;
-  if(Array.isArray(group.filters)&&group.filters.some(f=>f&&f.value!=null&&groupValue(kind,r,f.dim)!==f.value))return false;
+  if(Array.isArray(group.filters)&&group.filters.some(f=>f&&f.value!=null&&!sameGroupValue(kind,r,f.dim,f.value)))return false;
   if(group.dim==='overall'||group.value==null)return true;
-  return groupValue(kind,r,group.dim)===group.value;
+  return sameGroupValue(kind,r,group.dim,group.value);
 }
 function averageActual(state,planRows,dailyRows){
   const dailyVals=dailyRows.map(r=>r.actual).filter(v=>v!==null&&v!==undefined&&n(v)>0);
@@ -1701,7 +1723,8 @@ function fillSelect(id,values,allZh,allEn,allKm){
   if(old&&!values.includes(old))s.value='';
 }
 function populateFilters(){
-  const depts=uniq([...DB.plans,...DB.candidates,...DB.joins,...DB.resigns].map(r=>r.dept||r.section)).sort();
+  const depts=uniq([...DB.plans,...DB.candidates,...DB.joins,...DB.resigns]
+    .flatMap(r=>[r.dept,r.section,r.group]).filter(Boolean).map(deptLabel)).sort();
   const positions=uniq([...DB.plans,...DB.candidates,...DB.joins,...DB.resigns].map(r=>r.position)).sort();
   fillSelect('mpDept',depts,'全部部門','All departments','ផ្នែកទាំងអស់');
   fillSelect('mpPosition',positions,'全部職位','All positions','តំណែងទាំងអស់');
@@ -1827,7 +1850,7 @@ function renderManpower(){
   const q=norm(el('mpSearch').value).toLowerCase(),dept=el('mpDept').value,pos=el('mpPosition').value;
   let rows=plansForState(st,false);
   if(!rows.length&&['day','week'].includes(st.mode))rows=plansForState(st,true);
-  rows=rows.filter(r=>(!dept||r.dept===dept)&&(!pos||r.position===pos)&&(!q||`${r.dept} ${r.section} ${r.position}`.toLowerCase().includes(q)))
+  rows=rows.filter(r=>(!dept||deptMatches(r,dept))&&(!pos||r.position===pos)&&(!q||`${r.dept} ${r.section} ${r.position}`.toLowerCase().includes(q)))
     .sort((a,b)=>b.period.localeCompare(a.period)||String(a.dept).localeCompare(String(b.dept),undefined,{numeric:true})||String(a.position).localeCompare(String(b.position)));
   el('manpowerBody').innerHTML=rows.map(r=>{
     const gap=n(r.required)-n(r.actual),rate=n(r.required)?n(r.actual)/n(r.required)*100:0;
@@ -1854,7 +1877,7 @@ function renderRecruit(){
   ].join('');
   const q=norm(el('rcSearch').value).toLowerCase(),dept=el('rcDept').value,res=el('rcResult').value,gender=el('rcGender').value;
   const rows=DB.candidates.filter(r=>inState(r.registerDate,st))
-    .filter(r=>(!dept||(r.dept||r.section)===dept)&&(!gender||r.gender===gender))
+    .filter(r=>(!dept||deptMatches(r,dept))&&(!gender||r.gender===gender))
     .filter(r=>!res||(res==='joined'?r.joined:r.interviewResult===res))
     .filter(r=>!q||`${r.name} ${r.phone} ${r.dept} ${r.section} ${r.position}`.toLowerCase().includes(q))
     .sort((a,b)=>b.registerDate.localeCompare(a.registerDate)||a.name.localeCompare(b.name));
@@ -1888,7 +1911,7 @@ function renderMovement(){
   let rows=[];
   if(type!=='resign')rows.push(...DB.joins.filter(r=>inState(r.joinDate,st)).map(r=>({...r,_viewKind:'join',_date:r.joinDate})));
   if(type!=='join')rows.push(...DB.resigns.filter(r=>inState(r.resignDate,st)).map(r=>({...r,_viewKind:'resign',_date:r.resignDate})));
-  rows=rows.filter(r=>(!dept||(r.dept||r.section)===dept)&&(!q||`${r.empId} ${r.name} ${r.dept} ${r.section}`.toLowerCase().includes(q)))
+  rows=rows.filter(r=>(!dept||deptMatches(r,dept))&&(!q||`${r.empId} ${r.name} ${r.dept} ${r.section}`.toLowerCase().includes(q)))
     .sort((a,b)=>b._date.localeCompare(a._date)||String(a.empId).localeCompare(String(b.empId),undefined,{numeric:true}));
   el('movementBody').innerHTML=rows.map(r=>{
     const isJoin=r._viewKind==='join',rl=resignLabel(r.resignType),matched=isJoin?ob.joinIds.has(r.empId):ob.resignIds.has(r.empId);
@@ -1928,7 +1951,7 @@ function setReportGrain(grain){
 function reportGroupValues(dim,deptFilter){
   if(dim==='overall')return[null];
   const rows=[...DB.plans.map(r=>['plan',r]),...DB.candidates.map(r=>['candidate',r]),...DB.joins.map(r=>['join',r]),...DB.resigns.map(r=>['resign',r])];
-  return uniq(rows.filter(([kind,r])=>!deptFilter||groupValue(kind,r,'dept')===deptFilter).map(([kind,r])=>groupValue(kind,r,dim))).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
+  return uniq(rows.filter(([kind,r])=>!deptFilter||deptMatches(r,deptFilter)).map(([kind,r])=>groupValue(kind,r,dim))).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
 }
 function jumpReportPeriod(key){
   NAV.report=stateFromKey(REPORT_GRAIN,key);populatePeriodNav();renderReport();

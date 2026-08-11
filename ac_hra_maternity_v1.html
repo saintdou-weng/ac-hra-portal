@@ -634,6 +634,32 @@ function normalizeGroup(s){
   return n;
 }
 function lineOf(r){ var n=normalizeGroup(r.group||r.dept||''); return n||L('未分類','Unassigned'); }
+/* 部門／線別可能來自不同欄位，且 Excel 常見 Line 4、LINE4、L04 等寫法；
+   篩選器與統計一律使用同一個標準鍵，避免總表有資料、單獨篩選卻變成 0。 */
+function groupKey(v){
+  var s=String(v==null?'':v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim();
+  if(!s)return '';
+  var compact=s.toUpperCase().replace(/[\s_\-–—\/]+/g,'');
+  var m=compact.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);
+  if(m)return 'LINE'+(+m[1]);
+  var n=normalizeGroup(s);
+  return String(n||s).replace(/[\s\u00a0]+/g,'').toUpperCase();
+}
+function groupLabel(v){
+  var s=String(v==null?'':v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim().replace(/\s+/g,' ');
+  var k=groupKey(s),m=k.match(/^LINE(\d+)$/);
+  return m?'Line '+(+m[1]):(s||L('未分類','Unassigned'));
+}
+function rowGroupMatches(r,wanted){
+  if(!wanted)return true;
+  var k=groupKey(wanted);
+  return [r.group,r.dept,r.section].some(function(v){return groupKey(v)===k;});
+}
+function groupOptions(rows){
+  var map={};
+  rows.forEach(function(r){[r.group,r.dept,r.section].forEach(function(v){var k=groupKey(v);if(k&&!map[k])map[k]=groupLabel(v);});});
+  return Object.keys(map).map(function(k){return {value:k,label:map[k]};}).sort(function(a,b){return a.label.localeCompare(b.label,undefined,{numeric:true});});
+}
 
 /* ── 期間導覽（每分頁獨立 state） ── */
 function pBounds(st){
@@ -1019,11 +1045,18 @@ function fillSel(id,vals){
   s.innerHTML=head+vals.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
   if(vals.indexOf(cur)>=0)s.value=cur;
 }
+function fillGroupSel(id,rows){
+  var s=el(id);if(!s)return;
+  var cur=groupKey(s.value),head=s.options[0]?s.options[0].outerHTML:'';
+  var opts=groupOptions(rows);
+  s.innerHTML=head+opts.map(function(o){return '<option value="'+esc(o.value)+'">'+esc(o.label)+'</option>';}).join('');
+  if(opts.some(function(o){return o.value===cur;}))s.value=cur;
+}
 function uniqSorted(arr){ var s={}; arr.forEach(function(v){if(v)s[v]=1;}); return Object.keys(s).sort(); }
 function rebuildFilterOptions(){
-  fillSel('f-preg-dept',uniqSorted(EMP.map(function(r){return r.dept;})));
-  fillSel('f-mat-dept',uniqSorted(EMP.filter(function(r){return r.status==='maternity';}).map(function(r){return r.dept;})));
-  fillSel('f-nur-dept',uniqSorted(NUR.map(function(r){return r.dept;})));
+  fillGroupSel('f-preg-dept',EMP);
+  fillGroupSel('f-mat-dept',EMP.filter(function(r){return r.status==='maternity'||r.status==='returned';}));
+  fillGroupSel('f-nur-dept',NUR);
 }
 
 /* ═══════════ 資料選取（依期間） ═══════════ */
@@ -1143,7 +1176,7 @@ function pregFiltered(){
   var st=NAV.preg,rows=empIn(st);
   var fd=el('f-preg-dept').value,fs=el('f-preg-stat').value,fq=(el('f-preg-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&r.dept!==fd)return false;
+    if(fd&&!rowGroupMatches(r,fd))return false;
     if(fs&&r.status!==fs)return false;
     if(fq&&((r.idNo||'')+' '+(r.name||'')).toLowerCase().indexOf(fq)<0)return false;
     return true;
@@ -1206,7 +1239,7 @@ function matFiltered(){
   var st=NAV.mat,rows=empIn(st).filter(function(r){return r.status==='maternity'||r.status==='returned';});
   var fd=el('f-mat-dept').value,fq=(el('f-mat-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&r.dept!==fd)return false;
+    if(fd&&!rowGroupMatches(r,fd))return false;
     if(fq&&((r.idNo||'')+' '+(r.name||'')).toLowerCase().indexOf(fq)<0)return false;
     return true;
   });
@@ -1261,7 +1294,7 @@ function nurFiltered(){
   var st=NAV.nur,rows=nurIn(st);
   var fd=el('f-nur-dept').value,fq=(el('f-nur-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&r.dept!==fd)return false;
+    if(fd&&!rowGroupMatches(r,fd))return false;
     if(fq&&((r.cardId||'')+' '+(r.name||'')).toLowerCase().indexOf(fq)<0)return false;
     return true;
   });
@@ -1301,7 +1334,7 @@ function renderNurKpi(rows){
 
 /* ═══════════ 分析（維度 × 對象） ═══════════ */
 function dimKeyOf(r,dim){
-  if(dim==='dept')return r.dept||L('未分類','Unassigned');
+  if(dim==='dept')return groupLabel(r.group||r.dept||r.section);
   if(dim==='line')return lineOf(r);
   if(dim==='position')return r.position||L('未填','—');
   if(dim==='status')return L((STATUS[r.status]||['—'])[0],(STATUS[r.status]||['','—'])[1]);
@@ -1525,7 +1558,7 @@ function periodData(p){
           E:E, Nr:Nr, isYear:isYear};
 }
 function pregBlock(P,bi){
-  var dm={}; P.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
+  var dm={}; P.forEach(function(r){var k=groupLabel(r.group||r.dept||r.section);dm[k]=(dm[k]||0)+1;});
   var t='🤰 <b>'+esc(BL('孕婦','Pregnant',bi))+'：'+P.length+'</b>\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
   if(dl.length){ t+='<b>'+esc(BL('部門 Top','Top depts',bi))+'</b>\n'; dl.forEach(function(k){t+='· '+esc(k)+'：'+dm[k]+'\n';}); }
@@ -1533,7 +1566,7 @@ function pregBlock(P,bi){
   t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
   var show=P.slice(0,30);
   show.forEach(function(r){
-    var d=r.dept||r.group||lineOf(r)||'—';
+    var d=groupLabel(r.group||r.dept||r.section);
     t+='· <code>'+esc(r.idNo||'—')+'</code> '+esc(r.name||'—')+' · '+esc(d);
     if(r.position)t+=' · '+esc(r.position);
     if(r.registerTime||r.applyDate)t+=' · '+esc(BL('登記','Reg.','ចុះឈ្មោះ',bi))+' '+esc(r.registerTime||r.applyDate);
@@ -1559,7 +1592,7 @@ function matBlock(M,bi){
   t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
   var show=M.slice(0,30);
   show.forEach(function(r){
-    var d=r.dept||r.group||lineOf(r)||'—';
+    var d=groupLabel(r.group||r.dept||r.section);
     t+='· <code>'+esc(r.idNo||'—')+'</code> '+esc(r.name||'—')+' · '+esc(d);
     if(r.position)t+=' · '+esc(r.position);
     if(r.leaveStart||r.applyDate)t+=' · '+esc(BL('開始','Start','ចាប់ផ្តើម',bi))+' '+esc(r.leaveStart||r.applyDate);

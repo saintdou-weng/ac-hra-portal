@@ -170,6 +170,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="tab" onclick="goTab('group',this)">📊 <span data-zh="組別分析" data-en="Group">組別分析</span></div>
   <div class="tab" onclick="goTab('records',this)">📋 <span data-zh="所有記錄" data-en="Records">所有記錄</span></div>
   <div class="tab" onclick="goTab('sewcmp',this)">🔵 <span data-zh="出勤×車縫" data-en="Att×Sewing">出勤×車縫</span></div>
+  <div class="tab" onclick="goTab('jrcmp',this)">🔎 <span data-zh="入離職對照" data-en="Join/Resign Check" data-km="ពិនិត្យចូល／ចាកចេញ">入離職對照</span></div>
 </div>
 
 <!-- ══ UPLOAD ══ -->
@@ -693,6 +694,7 @@ function renderTab(name,force){
       else if(name==='group')renderGroupAnalysis();
       else if(name==='records')renderRecords();
       else if(name==='sewcmp')await initSewCmp();
+      else if(name==='jrcmp')renderJRCompare();
       TAB_RENDER_REV[name]=DATA_REV;
     }catch(e){
       console.error('[renderTab]',name,e);
@@ -2576,12 +2578,9 @@ function isSCLine(lineId) {
 // ── Period key helpers ───────────────────────────────────
 function scPeriodKey(dateStr) {
   if (!dateStr) return '';
+  dateStr=String(dateStr).slice(0,10);
   if (SC_MODE==='day')   return dateStr.slice(0,10);
-  if (SC_MODE==='week') {
-    const d=new Date(dateStr), jan=new Date(d.getFullYear(),0,1);
-    const w=Math.ceil(((d-jan)/86400000+jan.getDay()+1)/7);
-    return `${d.getFullYear()}-W${String(w).padStart(2,'0')}`;
-  }
+  if (SC_MODE==='week') return weekStartKey(dateStr);
   if (SC_MODE==='month') return dateStr.slice(0,7);
   if (SC_MODE==='year')  return dateStr.slice(0,4);
   return dateStr.slice(0,10);
@@ -2717,7 +2716,9 @@ async function renderSewCmp() {
       attRowCount++;
     });
 
-    // 4. Build sewMap: lineId → {wSum, days, pcs}
+    // 4. Build sewMap: lineId → daily headcount, days, pcs.
+    // A sewing system can contain several style/order rows for one line/day;
+    // summing workers across those rows counts the same people repeatedly.
     const sewMap = {};
     let sewRowCount = 0;
     sew.forEach(r => {
@@ -2725,9 +2726,13 @@ async function renderSewCmp() {
       const lid = normSCLine(String(r.lineNo||r.line||'').trim());
       if (!isSCLine(lid)) return;
       if (lineFilter && lid !== lineFilter) return;
-      if (!sewMap[lid]) sewMap[lid] = {wSum:0, days:new Set(), pcs:0};
+      if (!sewMap[lid]) sewMap[lid] = {dayWorkers:{}, days:new Set(), pcs:0};
       const w = +r.workers||0;
-      if (w > 0) { sewMap[lid].wSum += w; sewMap[lid].days.add(toDateStr(r.date)); }
+      const day=toDateStr(r.date);
+      if (w > 0 && day) {
+        sewMap[lid].days.add(day);
+        sewMap[lid].dayWorkers[day]=Math.max(sewMap[lid].dayWorkers[day]||0,w);
+      }
       sewMap[lid].pcs += (+r.pieces||0);
       sewRowCount++;
     });
@@ -2738,7 +2743,8 @@ async function renderSewCmp() {
       attLineHC[lid] = Math.round(v.hcSum / (v.days.size||1));
     });
     Object.entries(sewMap).forEach(([lid,v]) => {
-      sewLineW[lid] = Math.round(v.wSum / (v.days.size||1));
+      const daily=Object.values(v.dayWorkers);
+      sewLineW[lid] = Math.round(daily.reduce((s,n)=>s+n,0) / (daily.length||1));
     });
 
     // 6. Totals
@@ -2880,6 +2886,42 @@ async function renderSewCmp() {
   }
 }
 
+// ══════════════════════════════════════════════════════════
+// JOIN / RESIGN ↔ ATTENDANCE CHECK
+// Attendance remains the master table; Join/Resign is used for validation.
+// ══════════════════════════════════════════════════════════
+let JR_MODE='month',JR_PERIODS=[];
+function jrDate(v){
+  if(!v)return'';
+  if(v instanceof Date&&!isNaN(v))return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
+  const s=String(v).trim();if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  const d=new Date(s);return isNaN(d)?s.slice(0,10):`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function jrKey(d){d=jrDate(d);if(!d)return'';if(JR_MODE==='week')return weekStartKey(d);if(JR_MODE==='month')return d.slice(0,7);if(JR_MODE==='year')return d.slice(0,4);return d;}
+function jrLabel(k){return JR_MODE==='week'?k+' ~ '+jrDate(new Date(new Date(k+'T00:00:00Z').getTime()+6*86400000)):JR_MODE==='year'?k+'年':k;}
+function jrRows(key){
+  let joins=[],resigns=[];try{joins=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[]}catch(e){}try{resigns=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[]}catch(e){}
+  return{joins:joins.filter(r=>jrKey(r.joinDate)===key),resigns:resigns.filter(r=>jrKey(r.resignDate)===key)};
+}
+function jrUniqueCount(rows,dateField){const seen=new Set();rows.forEach(r=>{const d=jrDate(r[dateField]),id=String(r.empId||r.idNo||r.name||'').trim();if(d)seen.add((id||'row')+'|'+d);});return seen.size;}
+function jrDatesForKey(key){return allDates().filter(d=>jrKey(d)===key);}
+function jrMetric(key){const dates=jrDatesForKey(key),grands=dates.map(grandForDate).filter(Boolean),src=jrRows(key);return{key,days:dates.length,attJoin:grands.reduce((s,r)=>s+(+r.join||0),0),attResign:grands.reduce((s,r)=>s+(+r.resign||0),0),portalJoin:jrUniqueCount(src.joins,'joinDate'),portalResign:jrUniqueCount(src.resigns,'resignDate'),src};}
+function jrBuildPeriods(){
+  const keys=new Set(allDates().map(jrKey));
+  [['ac_hra_joins','joinDate'],['ac_hra_resigns','resignDate']].forEach(([k,f])=>{try{(JSON.parse(localStorage.getItem(k)||'[]')||[]).forEach(r=>keys.add(jrKey(r[f])))}catch(e){}});
+  JR_PERIODS=[...keys].filter(Boolean).sort().reverse();const sel=document.getElementById('jr-sel');if(!sel)return;const old=sel.value;sel.innerHTML=JR_PERIODS.map(k=>`<option value="${k}">${jrLabel(k)}</option>`).join('');if(JR_PERIODS.includes(old))sel.value=old;
+}
+function jrMode(mode){JR_MODE=mode;jrBuildPeriods();renderJRCompare();}
+function renderJRCompare(){
+  const sel=document.getElementById('jr-sel');if(!sel)return;jrBuildPeriods();const key=sel.value||JR_PERIODS[0];if(!key)return;
+  ['jr-d','jr-w','jr-m','jr-y'].forEach(id=>{const b=document.getElementById(id),on=id.endsWith(JR_MODE[0]);if(b){b.style.background=on?'#f0fdf8':'#fff';b.style.color=on?'#1a6e5c':'';b.style.fontWeight=on?'600':'400';}});
+  const rows=JR_PERIODS.map(jrMetric),x=jrMetric(key),jd=x.portalJoin-x.attJoin,rd=x.portalResign-x.attResign;
+  document.getElementById('jr-kpi').innerHTML=kpiHtml(T('考勤新進','Attendance Join','ចូលតាមវត្តមាន'),x.attJoin,`Portal: ${x.portalJoin}`,jd===0?'good':'bad')+kpiHtml(T('考勤離職','Attendance Resign','ចាកចេញតាមវត្តមាន'),x.attResign,`Portal: ${x.portalResign}`,rd===0?'good':'bad')+kpiHtml(T('新進差異','Join Difference','ខុសគ្នាចូល'),(jd>0?'+':'')+jd,'Portal − Attendance',jd===0?'good':'bad')+kpiHtml(T('離職差異','Resign Difference','ខុសគ្នាចាកចេញ'),(rd>0?'+':'')+rd,'Portal − Attendance',rd===0?'good':'bad');
+  document.getElementById('jr-note').textContent=T('Attendance 是主表；Portal Join／Resign 只作核對。差異不會自動修改，需回查日期、工號及是否漏匯入。','Attendance is the master table. Portal Join/Resign is validation only; differences are not auto-corrected. Check dates, IDs and missing imports.','វត្តមានជាតារាងមេ។ Join/Resign គ្រាន់តែផ្ទៀងផ្ទាត់។');
+  document.getElementById('jr-body').innerHTML=rows.map(r=>{const a=r.portalJoin-r.attJoin,b=r.portalResign-r.attResign,ok=a===0&&b===0;return`<tr class="${r.key===key?'active':''}" onclick="document.getElementById('jr-sel').value='${r.key}';renderJRCompare()"><td style="text-align:left"><b>${r.key===key?'◀ ':''}${jrLabel(r.key)}</b></td><td>${r.attJoin}</td><td>${r.portalJoin}</td><td style="color:${a?'#ef4444':'#10b981'};font-weight:700">${a>0?'+':''}${a}</td><td>${r.attResign}</td><td>${r.portalResign}</td><td style="color:${b?'#ef4444':'#10b981'};font-weight:700">${b>0?'+':''}${b}</td><td>${ok?'✅ '+T('一致','Match','ត្រូវគ្នា'):'⚠️ '+T('需核查','Check','ត្រូវពិនិត្យ')}</td></tr>`}).join('')||`<tr><td colspan="8">${T('尚無可比較資料','No comparable data','មិនមានទិន្នន័យ')}</td></tr>`;
+  const detail=[];if(jd)detail.push(`Join: Attendance ${x.attJoin} / Portal ${x.portalJoin}`);if(rd)detail.push(`Resign: Attendance ${x.attResign} / Portal ${x.portalResign}`);document.getElementById('jr-detail').innerHTML=detail.length?`<b>${T('目前期間差異','Current period differences','ភាពខុសគ្នារយៈពេលនេះ')}</b><br>${detail.join('<br>')}`:`✅ ${T('目前期間入職與離職人數一致','Join and resign counts match for this period','ចំនួនចូល និងចាកចេញត្រូវគ្នា')}`;
+}
+
 </script>
 
 <!-- ══════════ TAB: 出勤×車縫比較 ══════════ -->
@@ -2921,6 +2963,24 @@ async function renderSewCmp() {
     <div class="ct" id="sc-tbl-title" data-zh="各組別比較明細" data-en="Line Comparison Details" data-km="ព័ត៌មានប្រៀបធៀបក្រុម">各組別比較明細</div>
     <div class="twrap" id="sc-table" style="overflow-x:auto"></div>
   </div>
+</div>
+
+<!-- ══════════ TAB: 入離職對照 ══════════ -->
+<div class="sec" id="sec-jrcmp">
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#fff;border:1px solid #e2e6f0;border-radius:10px">
+    <div style="display:flex;gap:4px">
+      <button id="jr-w" onclick="jrMode('week')" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;background:#fff;cursor:pointer" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</button>
+      <button id="jr-m" onclick="jrMode('month')" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;background:#f0fdf8;color:#1a6e5c;font-weight:600;cursor:pointer" data-zh="月" data-en="Month" data-km="ខែ">月</button>
+      <button id="jr-y" onclick="jrMode('year')" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;background:#fff;cursor:pointer" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</button>
+    </div>
+    <button onclick="jrBuildPeriods();renderJRCompare()" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer">◀</button>
+    <select id="jr-sel" onchange="renderJRCompare()" style="font-family:monospace;font-size:12px;border:1px solid #d0d5e8;border-radius:6px;padding:4px 8px;min-width:130px"></select>
+    <button onclick="jrBuildPeriods();renderJRCompare()" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer">▶</button>
+  </div>
+  <div id="jr-kpi" class="kpi-strip"></div>
+  <div class="card" style="margin-bottom:12px"><div id="jr-note" style="font-size:12px;line-height:1.7;color:#6b7a9e"></div></div>
+  <div class="card"><div class="ct" data-zh="Join／Resign 與 Attendance 期間對照" data-en="Join/Resign vs Attendance Period Check" data-km="ការពិនិត្យ Join/Resign និងវត្តមានតាមរយៈពេល">Join／Resign 與 Attendance 期間對照</div><div class="twrap"><table class="dtbl" style="min-width:850px"><thead><tr><th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th><th>Att Join</th><th>Portal Join</th><th>Join Diff</th><th>Att Resign</th><th>Portal Resign</th><th>Resign Diff</th><th data-zh="結果" data-en="Status" data-km="ស្ថានភាព">結果</th></tr></thead><tbody id="jr-body"></tbody></table></div></div>
+  <div class="card" style="margin-top:12px"><div class="ct" data-zh="目前期間核查" data-en="Current Period Check" data-km="ការពិនិត្យរយៈពេលបច្ចុប្បន្ន">目前期間核查</div><div id="jr-detail" style="font-size:12px;line-height:1.8;color:#6b7a9e"></div></div>
 </div>
 
 <script>
