@@ -564,7 +564,7 @@ function money(v){if(v===''||v==null||Number(v)===0)return '—';return '$'+Numb
 function dayDiff(s,from=new Date()){const d=dateObj(s);if(!d)return Infinity;const a=new Date(from.getFullYear(),from.getMonth(),from.getDate());return Math.round((d-a)/86400000)}
 function defaultState(){return{
   version:APP_VERSION,certificates:[],people:[],requests:[],imports:[],
-  settings:{reminderDays:45,approverTelegramId:'',defaultDepartment:'',latestRosterRank:0,latestRosterYear:''},
+  settings:{reminderDays:45,approverTelegramId:'',defaultDepartment:'',latestRosterRank:0,latestRosterYear:'',lastCloudUpdatedAt:''},
   updatedAt:new Date().toISOString()
 }}
 function openDb(){return new Promise((resolve,reject)=>{const q=indexedDB.open(DB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(DB_STORE))q.result.createObjectStore(DB_STORE)};q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)})}
@@ -632,8 +632,10 @@ function itemName(kind,id){
 function isEventCompleted(e){
   const rec=e.kind==='certificate'?STATE.certificates.find(x=>x.id===e.recordId):STATE.people.find(x=>x.id===e.recordId);
   if(!rec)return false;
-  if(['stopped','resigned','not_in_latest'].includes(rec.status))return true;
-  if(rec.completedForDate&&rec.completedForDate>=e.date)return true;
+  const status=String(rec.status||'').toLowerCase();
+  /* Older saved rows can have status=complete without completedForDate. */
+  if(['complete','completed','stopped','resigned','not_in_latest'].includes(status))return true;
+  if(rec.completedForDate&&String(rec.completedForDate).slice(0,10)>=String(e.date).slice(0,10))return true;
   return STATE.requests.some(r=>r.status==='approved'&&r.items?.some(i=>i.id===e.recordId)&&r.dueDate&&r.dueDate>=e.date)
 }
 function allEvents(){
@@ -964,9 +966,48 @@ function gasUrl(){return localStorage.getItem(GAS_KEY)||''}
 async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
-function certMergeKey(r,kind){r=r||{};return [kind,r.id||r.employeeId||r.number||r.name||'',r.issueDate||r.joinDate||r.dueDate||r.expiryDate||''].join('|')}
-function certMergeList(kind,a,b){const m=new Map(),o=[];[...(a||[]),...(b||[])].forEach((r,i)=>{const k=certMergeKey(r,kind);if(!m.has(k))o.push(k);m.set(k,Object.assign({},m.get(k)||{},r))});return o.map(k=>m.get(k))}
-function mergeCertificateState(local,incoming){return Object.assign(defaultState(),incoming||{},local||{},{certificates:certMergeList('certificates',local?.certificates,incoming?.certificates),people:certMergeList('people',local?.people,incoming?.people),requests:certMergeList('requests',local?.requests,incoming?.requests),imports:[...(local?.imports||[]),...(incoming?.imports||[])],settings:Object.assign({},local?.settings||{},incoming?.settings||{})})}
+function certStable(v){return norm(String(v??''))}
+function certMergeKey(r,kind){
+  r=r||{};
+  if(kind==='certificates')return ['certificate',certStable(r.category||''),certStable(r.name||'')].join('|');
+  if(kind==='people'){
+    const eid=certStable(r.employeeId),pass=certStable(r.passport),name=certStable(r.nameEn||r.nameKh||r.nickname),dob=certStable(r.dob);
+    return ['person',eid||pass||(name+'|'+dob)].join('|');
+  }
+  if(kind==='requests'){
+    const items=(r.items||[]).map(i=>certStable(i.id||i.employeeId||i.passport||i.name||i.title)).sort().join(',');
+    return ['request',certStable(r.number)||certStable(r.title)+'|'+certStable(r.type)+'|'+certStable(r.dueDate)+'|'+items].join('|');
+  }
+  if(kind==='imports')return ['import',certStable(r.file||r.sourceFile||r.summary||r.id)].join('|');
+  return [kind,certStable(r.id||r.number||r.name||JSON.stringify(r))].join('|');
+}
+function certMergeRow(oldRow,newRow){
+  oldRow=oldRow||{};newRow=newRow||{};
+  const ot=new Date(oldRow.updatedAt||oldRow.at||0).getTime(),nt=new Date(newRow.updatedAt||newRow.at||0).getTime();
+  const newer=nt>=ot?newRow:oldRow,older=nt>=ot?oldRow:newRow,merged=Object.assign({},older,newer);
+  Object.keys(older).forEach(k=>{if((merged[k]===undefined||merged[k]===null||merged[k]==='')&&older[k]!==undefined)merged[k]=older[k]});
+  /* Keep the local ID when the cloud copy was created on another device. */
+  if(oldRow.id)merged.id=oldRow.id;
+  if(Array.isArray(oldRow.items)||Array.isArray(newRow.items)){
+    const im=new Map(),io=[];[...(oldRow.items||[]),...(newRow.items||[])].forEach(i=>{const k=certStable(i.id||i.employeeId||i.passport||i.name||i.title||JSON.stringify(i));if(!im.has(k))io.push(k);im.set(k,Object.assign({},im.get(k)||{},i))});merged.items=io.map(k=>im.get(k));
+  }
+  return merged;
+}
+function certMergeList(kind,a,b){
+  const m=new Map(),o=[];
+  [...(a||[]),...(b||[])].forEach(r=>{const k=certMergeKey(r,kind);if(!m.has(k)){o.push(k);m.set(k,r)}else m.set(k,certMergeRow(m.get(k),r))});
+  return o.map(k=>m.get(k));
+}
+function mergeCertificateState(local,incoming){
+  const l=local||{},i=incoming||{},out=Object.assign(defaultState(),i,l);
+  out.certificates=certMergeList('certificates',l.certificates,i.certificates);
+  out.people=certMergeList('people',l.people,i.people);
+  out.requests=certMergeList('requests',l.requests,i.requests);
+  out.imports=certMergeList('imports',l.imports,i.imports);
+  out.settings=Object.assign({},defaultState().settings,i.settings||{},l.settings||{});
+  out.updatedAt=new Date(Math.max(new Date(l.updatedAt||0).getTime(),new Date(i.updatedAt||0).getTime())).toISOString();
+  return out;
+}
 async function cloudPush(){
   showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');
   try{
@@ -977,6 +1018,8 @@ async function cloudPush(){
     const d=await HRACloudGuard.push(payload,function(p){return postGas(p)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
     if(d && d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消覆蓋，雲端資料已保留。',5000);return}
     if(!d || d.ok===false)throw new Error(d&&d.error||'GAS error');
+    const pushCloudAt=d?.timestamp||d?.updatedAt||d?.data?.timestamp||d?.data?.updatedAt||'';
+    if(pushCloudAt){STATE.settings.lastCloudUpdatedAt=pushCloudAt;await persist()}
     toast(`✅ ${tr('cloudSent')}`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
@@ -985,10 +1028,15 @@ async function cloudPull(){
   try{
     const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');
     let records=d.data?.records||d.data?.data?.records||d.records||[];let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.certificates)snap=d.data.data;if(!snap?.certificates)throw new Error('No Certificate & Visa snapshot');
+    const cloudPayload=d.data?.data||d.data||{},cloudUpdatedAt=cloudPayload.updatedAt||d.data?.updatedAt||d.updatedAt||'';
+    const previousCloudAt=STATE.settings?.lastCloudUpdatedAt||'';
+    if(cloudUpdatedAt&&previousCloudAt&&new Date(cloudUpdatedAt).getTime()<=new Date(previousCloudAt).getTime()){
+      toast(LANG==='en'?'✅ Already up to date.':LANG==='km'?'✅ ទិន្នន័យទាន់សម័យរួចហើយ។':'✅ 已是最新，不重複下載。');return;
+    }
     const incomingCount=(snap.certificates?.length||0)+(snap.people?.length||0)+(snap.requests?.length||0);
     const localCount=(STATE.certificates?.length||0)+(STATE.people?.length||0)+(STATE.requests?.length||0);
     if(localCount && !confirm(`雲端將載入 ${incomingCount} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`))return;
-    STATE=mergeCertificateState(STATE,snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
+    STATE=mergeCertificateState(STATE,snap);STATE.settings.lastCloudUpdatedAt=cloudUpdatedAt||new Date().toISOString();await persist();renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
 
