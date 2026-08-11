@@ -2134,18 +2134,17 @@ async function testConnection() {
 async function checkCloudVersion() {
   if (!GAS_URL || !DB.length) return;
   try {
-    const r = await fetch(GAS_URL + '?action=status', { method:'GET', redirect:'follow' });
-    const d = await r.json();
-    if (!d.ok || !d.attendance) return;
-    cloudSnap = d.attendance;
-    const cloudTs = new Date(d.attendance.timestamp);
-    const localTs = new Date(localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || 0);
-    if (cloudTs > localTs && d.attendance.recordCount > DB.length) {
+    const d = await attendanceMeta();
+    if (!d || !Number(d.recordCount||0)) return;
+    cloudSnap = d;
+    const cloudTs = new Date(d.updatedAt || 0);
+    const localTs = new Date(DB_META.cloudUpdatedAt || localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || 0);
+    if (cloudTs > localTs) {
       // Cloud is newer — show banner
-      showCloudUpdateBanner(d.attendance);
+      showCloudUpdateBanner({recordCount:d.recordCount,timestamp:d.updatedAt});
     }
     setSyncStatus('synced', '');
-    document.getElementById('cloudTs').textContent = formatTs(d.attendance.timestamp);
+    document.getElementById('cloudTs').textContent = formatTs(d.updatedAt);
   } catch(e) {}
 }
 
@@ -2174,6 +2173,14 @@ async function attendanceMeta(){
   if(!d?.ok)throw new Error(d?.error||'Attendance meta unavailable');
   return d.data||{};
 }
+async function attendanceDiffRequest(dateStats,dates,metaOnly){
+  const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({
+    action:'attendanceDiff',tool:'attendance',dateStats:dateStats||{},dates:Array.isArray(dates)?dates:[],metaOnly:!!metaOnly
+  })});
+  const d=await r.json();
+  if(!d?.ok)throw new Error(d?.error||'Attendance difference unavailable');
+  return d.data||{};
+}
 async function sendAttendanceChunk(payload,index,total){
   let last;
   for(let attempt=1;attempt<=3;attempt++){
@@ -2198,27 +2205,33 @@ async function pushCloud() {
   setProgress(0, true);
   try {
     const localStats=attendanceDateStats(DB),remote=await attendanceMeta(),remoteStats=remote.dateStats||{};
+    if(Number(remote.recordCount||0)>0&&!Object.keys(remoteStats).length){
+      throw new Error(T('無法取得雲端日期索引，為避免整包覆蓋，已停止上傳。請先部署最新 GS。','Cloud date index is unavailable. Upload stopped to prevent a full overwrite. Deploy the latest GS first.','មិនអាចអានសន្ទស្សន៍កាលបរិច្ឆេទ Cloud បានទេ។ បានបញ្ឈប់ការផ្ទុកឡើង ដើម្បីការពារការជំនួសទិន្នន័យទាំងមូល។ សូមដាក់ពង្រាយ GS ថ្មីបំផុត។'));
+    }
     const localDates=Object.keys(localStats).sort(),remoteDates=new Set(Object.keys(remoteStats));
     const newDates=localDates.filter(d=>!remoteDates.has(d));
     const changedDates=localDates.filter(d=>remoteStats[d]&&(
       Number(remoteStats[d].count)!==Number(localStats[d].count)||String(remoteStats[d].hash||'')!==String(localStats[d].hash||'')));
+    const remoteOnlyDates=Object.keys(remoteStats).filter(d=>!localStats[d]).sort();
     if(!newDates.length&&!changedDates.length){
       setSyncStatus('synced',T('雲端已是最新','Cloud is already up to date','Cloud មានទិន្នន័យថ្មីបំផុត'));
       toast(T('☁️ 沒有新增或修改的日期，不需重新上傳','☁️ No new or changed dates; nothing to upload','☁️ គ្មានថ្ងៃថ្មី ឬកែប្រែ មិនចាំបាច់ផ្ទុកឡើងទេ'),'ok');
       setProgress(0,false);
       return;
     }
-    if(changedDates.length&&!confirm(T(
-      `偵測到 ${changedDates.length} 個日期的資料有變更，會先替換這些日期；${newDates.length} 個新日期會直接加入。繼續？`,
-      `${changedDates.length} date(s) changed and will be replaced; ${newDates.length} new date(s) will be added. Continue?`,
-      `${changedDates.length} ថ្ងៃបានកែប្រែ និង ${newDates.length} ថ្ងៃថ្មី។ បន្ត?`))){setSyncStatus('idle','');setProgress(0,false);return}
+    if(!confirm(T(
+      `雲端差異確認\n\n雲端缺少本機資料：${newDates.length} 個日期（會新增）\n本機資料有變更：${changedDates.length} 個日期（會替換該日期）\n雲端有、本機沒有：${remoteOnlyDates.length} 個日期（保留雲端，不刪除）\n預計只上傳：${newDates.concat(changedDates).length} 個日期、${DB.filter(r=>new Set(newDates.concat(changedDates)).has(attField(r?.date).slice(0,10))).length} 筆\n\n確定補上／更新差異資料嗎？`,
+      `Cloud difference check\n\nMissing in cloud: ${newDates.length} date(s) (add)\nChanged locally: ${changedDates.length} date(s) (replace those dates)\nCloud-only dates: ${remoteOnlyDates.length} (keep cloud data; do not delete)\nOnly these differences will be uploaded.\n\nContinue?`,
+      `ពិនិត្យភាពខុសគ្នា Cloud\n\nខ្វះនៅ Cloud: ${newDates.length} ថ្ងៃ\nបានកែប្រែនៅម៉ាស៊ីន: ${changedDates.length} ថ្ងៃ\nមានតែនៅ Cloud: ${remoteOnlyDates.length} ថ្ងៃ (រក្សាទុក)\nបន្តបញ្ចូលទិន្នន័យខុសគ្នា?`))){setSyncStatus('idle','');setProgress(0,false);return}
     const selectedDates=new Set([...newDates,...changedDates]),selected=DB.filter(r=>selectedDates.has(attField(r?.date).slice(0,10)));
     const _latestAttDate=localDates.at(-1)||'',_firstAttDate=localDates[0]||'',summary=buildCloudSummary();
     const _PUSH_CHUNK=Math.min(CHUNK_SIZE,3000),totalChunks=Math.ceil(selected.length/_PUSH_CHUNK);
     const _pushUpdatedAt=new Date().toISOString();
+    const _syncId='att-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
     toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+`: ${selected.length} records · ${newDates.length+changedDates.length} date(s)`, 'info');
     for (let i = 0; i < totalChunks; i++) {
       const chunk = selected.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
+      const isLast = i === totalChunks - 1;
       setProgress((i / totalChunks) * 100);
       setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
 
@@ -2227,15 +2240,19 @@ async function pushCloud() {
         tool        : 'attendance',
         chunk       : i,
         totalChunks,
+        syncId      : _syncId,
+        mode        : 'merge',
         records     : chunk,
-        recordCount : DB.length,
+        // Keep non-final chunk requests small.  The server only needs the
+        // metadata when it commits the final merged payload.
+        recordCount : isLast ? DB.length : undefined,
         updatedAt   : _pushUpdatedAt,
-        coverage    : {firstDate:_firstAttDate, latestDate:_latestAttDate, source:'attendance'},
-        importLog   : IMPORT_LOG,
-        dateStats   : localStats,
-        replaceDates: changedDates,
-        summary     : summary,
-        pushedBy    : 'attendance_cloud_v1',
+        coverage    : isLast ? {firstDate:_firstAttDate, latestDate:_latestAttDate, source:'attendance'} : undefined,
+        importLog   : isLast ? IMPORT_LOG : undefined,
+        dateStats   : isLast ? localStats : undefined,
+        replaceDates: isLast ? changedDates : [],
+        summary     : isLast ? summary : undefined,
+        pushedBy    : isLast ? 'attendance_cloud_v1' : undefined,
       };
       const d=await sendAttendanceChunk(payload,i,totalChunks);
       if(!d||d.cancelled)throw new Error(T('使用者取消上傳','Upload cancelled','បានបោះបង់ការផ្ទុកឡើង'));
@@ -2266,15 +2283,19 @@ function attendanceMergeKey(r){
   if(!date)return null;
   return [date,r.dept||'',r.sect||'',r.line||'',r.isSubtotal?'S':'',r.isGrand?'G':''].join('|');
 }
-function mergeAttendanceLocalCloud(localRows,cloudRows){
+function mergeAttendanceLocalCloud(localRows,cloudRows,replaceDates){
   const map=new Map(),order=[];
+  const replace=new Set((replaceDates||[]).map(d=>String(d).slice(0,10)));
   function put(r,prefer){
     const k=attendanceMergeKey(r);
     if(!k){order.push({key:null,row:r});return;}
     if(!map.has(k))order.push({key:k,row:r});
     if(prefer||!map.has(k))map.set(k,r);
   }
-  (localRows||[]).forEach(r=>put(r,false));
+  (localRows||[]).forEach(r=>{
+    if(replace.has(String(r?.date||'').slice(0,10)))return;
+    put(r,false);
+  });
   (cloudRows||[]).forEach(r=>put(r,true));
   const seen=new Set(),out=[];
   order.forEach(x=>{
@@ -2291,56 +2312,48 @@ async function pullCloud(silent) {
   setProgress(0, true);
 
   try {
-    // Step 1: Get meta
-    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
-    const d1 = await r1.json();
-
-    if (!d1.ok) { setSyncStatus('failed', T('下載失敗','Download failed','ទាញយកបរាជ័យ')); toast(T('❌ 下載失敗','❌ Download failed','❌ ទាញយកបរាជ័យ'), 'err'); return; }
-    if (!d1.data || d1.data.data === null || d1.data.message === '尚無雲端資料') {
+    // Step 1: Get only the cloud date index, never the full attendance file.
+    const localStats=attendanceDateStats(DB),remote=await attendanceMeta(),remoteStats=remote.dateStats||{};
+    if(Number(remote.recordCount||0)>0&&!Object.keys(remoteStats).length){
+      throw new Error(T('無法取得雲端日期索引，已停止完整下載。請先部署最新 GS。','Cloud date index is unavailable, so the full download was stopped. Deploy the latest GS first.','មិនអាចអានសន្ទស្សន៍កាលបរិច្ឆេទ Cloud បានទេ ដូច្នេះបានបញ្ឈប់ការទាញយកទាំងមូល។ សូមដាក់ពង្រាយ GS ថ្មីបំផុត។'));
+    }
+    if (!Number(remote.recordCount||0) && !Object.keys(remoteStats).length) {
       setSyncStatus('idle', T('雲端尚無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
       if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
       setProgress(0, false); return;
     }
-
-    // Step 2: Confirm only if manual pull (not silent auto-sync)
-    const cloudTs2 = d1.data?.chunked ? (d1.data?.meta?.timestamp||'') : (d1.data?.data?.updatedAt||'');
-    if (!silent && DB.length > 0) {
-      const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
-      if (!confirm(T(
-        `雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n會合併雲端與本機資料，本機只有而雲端沒有的日期會保留，不會被刪除。\n確定拉取？`,
-        `Cloud has ${cloudRecs} records (${formatTs(cloudTs2)}).\nLocal has ${DB.length} records.\n\nCloud and local data will be merged. Local-only dates will be kept.\nContinue?`,
-        `Cloud: ${cloudRecs} / Local: ${DB.length}\nបន្តទាញយក?`
-      ))) {
-        setSyncStatus('idle', ''); setProgress(0, false); return;
-      }
+    const localDates=new Set(Object.keys(localStats));
+    const cloudDates=Object.keys(remoteStats).sort();
+    const cloudOnlyDates=cloudDates.filter(d=>!localDates.has(d));
+    const changedDates=cloudDates.filter(d=>localStats[d]&&(
+      Number(localStats[d].count)!==Number(remoteStats[d].count)||String(localStats[d].hash||'')!==String(remoteStats[d].hash||'')));
+    const diffDates=[...cloudOnlyDates,...changedDates];
+    if(!diffDates.length){
+      const cloudTs2=remote.updatedAt||'';
+      saveMeta({cloudUpdatedAt:cloudTs2,updatedAt:_latestInDB(DB),source:'cloud'});
+      setSyncStatus('synced',T('雲端已是最新','Cloud is already up to date','Cloud មានទិន្នន័យថ្មីបំផុត'));
+      if(!silent)toast(T('☁️ 沒有新的或變更的資料，不需重新下載','☁️ No new or changed data; nothing to download','☁️ គ្មានទិន្នន័យថ្មី ឬកែប្រែ មិនចាំបាច់ទាញយកទេ'),'ok');
+      setProgress(0,false);return;
+    }
+    const diffRecordCount=diffDates.reduce((n,d)=>n+      +Number(remoteStats[d]?.count||0),0);
+    if(!silent&&!confirm(T(
+      `雲端差異確認\n\n雲端新增、本機沒有：${cloudOnlyDates.length} 個日期\n雲端內容變更：${changedDates.length} 個日期（會替換該日期）\n預計只下載：約 ${diffRecordCount} 筆\n本機其他未變更資料會保留，不會整包覆蓋。\n\n確定下載差異資料嗎？`,
+      `Cloud difference check\n\nNew on cloud, missing locally: ${cloudOnlyDates.length} date(s)\nChanged on cloud: ${changedDates.length} date(s) (replace those dates)\nAbout ${diffRecordCount} records will be downloaded.\nUnchanged local data will be kept.\n\nContinue?`,
+      `ពិនិត្យភាពខុសគ្នា Cloud\n\nថ្មីនៅ Cloud: ${cloudOnlyDates.length} ថ្ងៃ\nបានកែប្រែនៅ Cloud: ${changedDates.length} ថ្ងៃ\nប្រហែល ${diffRecordCount} កំណត់ត្រានឹងទាញយក។\nបន្តទាញយកទិន្នន័យខុសគ្នា?`))){
+      setSyncStatus('idle','');setProgress(0,false);return;
     }
 
-    let pullDB    = [];
-    let pullLog   = [];
-    let recordCount = 0;
-
-    if (!d1.data?.chunked) {
-      // Non-chunked: d1.data.data = the pushed payload object
-      const payload = d1.data?.data || {};
-      pullDB  = payload.records || payload.employees || [];
-      pullLog = payload.importLog || [];
-      recordCount = pullDB.length;
-      setProgress(100);
-    } else {
-      // Chunked
-      const meta   = d1.data?.meta || {};
-      const chunks = meta.totalChunks || 1;
-      pullLog = meta.importLog || [];
-      recordCount = meta.recordCount || 0;
-
-      for (let i = 0; i < chunks; i++) {
-        setProgress((i / chunks) * 80);
-        const r = await fetch(`${GAS_URL}?action=pull&tool=attendance&chunk=${i}`, { method:'GET', redirect:'follow' });
-        const d = await r.json();
-        pullDB.push(...(d.data?.records || d.records || []));
-      }
-      setProgress(90);
+    let pullDB=[];
+    const PULL_DATE_BATCH=30;
+    for(let i=0;i<diffDates.length;i+=PULL_DATE_BATCH){
+      const batch=diffDates.slice(i,i+PULL_DATE_BATCH);
+      setProgress((i/diffDates.length)*90);
+      // Dates were already identified from the lightweight meta response;
+      // do not resend the 1,600-date local index on every batch request.
+      const d=await attendanceDiffRequest({},batch,false);
+      pullDB.push(...(d.records||[]));
     }
+    setProgress(92);
 
     // Step 3: Load pulled data into memory.  Merge instead of replacing the
     // phone's snapshot, so an older cloud copy cannot erase 8/1+ local data.
@@ -2354,7 +2367,7 @@ async function pullCloud(silent) {
     // Load ALL records into memory; cloud wins only for the same daily-row
     // key, while local-only rows/dates remain available on the phone.
     const localCountBefore=DB.length;
-    DB = mergeAttendanceLocalCloud(DB,pullDB);
+    DB = mergeAttendanceLocalCloud(DB,pullDB,changedDates);
 
     // Build IMPORT_LOG from pulled data
     IMPORT_LOG = [...new Set(DB.map(r => r.date).filter(Boolean))];
@@ -2372,9 +2385,8 @@ async function pullCloud(silent) {
     lastSyncTs = new Date().toISOString();
     localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
     setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-    // Save EXACT cloudTs so next startup !== check won't re-pull
-    const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
-    const _exactCloudTs = cloudTs2||_cloudMeta?.updatedAt||_cloudMeta?.timestamp||lastSyncTs;
+    // Save the exact remote timestamp so a later check does not re-pull.
+    const _exactCloudTs = remote.updatedAt||lastSyncTs;
     saveMeta({cloudUpdatedAt:_exactCloudTs, updatedAt:_latestInDB(DB), source:'cloud'});
     console.log('[pullCloud] merged local='+localCountBefore+' cloud='+pullDB.length+' result='+DB.length+' cloudUpdatedAt='+_exactCloudTs);
     updateSyncBadge(_latestInDB(DB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
