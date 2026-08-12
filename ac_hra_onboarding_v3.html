@@ -756,9 +756,19 @@ function loadData(){
   if(!SETS.basis)SETS.basis='avg';
   if(!SETS.hcOverride)SETS.hcOverride={};
   JOINS.forEach(ensureJoinKey); RESIGNS.forEach(ensureResignKey);
+  JOINS=mergeInto([],JOINS).arr;
+  RESIGNS=mergeInto([],RESIGNS).arr;
 }
-function ensureJoinKey(r){ if(!r._k) r._k='J|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='j_'+uid(); return r; }
-function ensureResignKey(r){ if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='r_'+uid(); return r; }
+function ensureJoinKey(r){
+  if(r.empId && r.joinDate) r._k='J|'+r.empId+'|'+r.joinDate;
+  else if(!r._k) r._k='J|'+(r.empId||('x'+(r.id||uid())));
+  if(!r.id)r.id='j_'+uid(); return r;
+}
+function ensureResignKey(r){
+  if(r.empId && r.resignDate) r._k='R|'+r.empId+'|'+r.resignDate;
+  else if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid())));
+  if(!r.id)r.id='r_'+uid(); return r;
+}
 /* ⑦ 寫入仍是 v2 的 key 與欄位名稱 → COMPLETE 模組照常讀得到 */
 function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
 function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
@@ -1200,8 +1210,19 @@ function mergeInto(target,incoming){
   var added=0, updated=0, dupEvent=[];
   incoming.forEach(function(r){
     var k=r._k;
-    if(map[k]){
-      var ex=map[k];
+    var matchKey=k;
+    /* 舊版線上資料可能只有 J|工號 / R|工號；若新 Excel 補上日期，
+       先和同一工號唯一的無日期鍵合併，避免歷史資料被拆成兩筆。 */
+    if(!map[matchKey]){
+      var parts=String(k||'').split('|'), base=parts.slice(0,2).join('|');
+      if(map[base]) matchKey=base;
+      else if(parts.length===2){
+        var cand=Object.keys(map).filter(function(x){return x.indexOf(base+'|')===0;});
+        if(cand.length===1)matchKey=cand[0];
+      }
+    }
+    if(map[matchKey]){
+      var ex=map[matchKey];
       /* 同工號但離職日相差過大 → 視為另一次離職事件，保留為 #n，不覆蓋 */
       if(r.resignDate && ex.resignDate && r.resignDate!==ex.resignDate){
         var gap=Math.abs(dayDiff(ex.resignDate,r.resignDate)||0);
@@ -1967,6 +1988,7 @@ function cloudUpload(){
   var summary={joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,
                decisions:Object.keys(DEC).length,updatedAt:nowStamp()};
   var total=Math.max(1,Math.ceil(recs.length/CHUNK));
+  var syncId='onb-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
   var seq=Promise.resolve(), sent=0;
   for(var i=0;i<total;i++){
     (function(idx){
@@ -1975,6 +1997,7 @@ function cloudUpload(){
         var p={action:'push',type:'push',tool:TOOL,records:slice,recordCount:recs.length,
                summary:summary,coverage:HRACloudGuard.coverage(recs,'onboarding'),updatedAt:lds(new Date()),decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride}};
         if(total>1){ p.chunk=idx; p.totalChunks=total; }
+        p.syncId=syncId;
         return HRACloudGuard.push(p,function(safePayload){return gasPushJson(safePayload);},LANG==='en'?'en':(LANG==='km'?'km':'zh')).then(function(d){
           if(d && d.cancelled) throw new Error(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'));
           if(!d || d.ok===false) throw new Error(d&&d.error||'GAS error');
