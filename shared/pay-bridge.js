@@ -5,10 +5,16 @@
  * projections written by AC-HRA-PAY when both pages share the same origin,
  * and it also accepts a small, generic XLSX/JSON export. Missing fields stay
  * null and are shown as "—"; the bridge never invents hours or money.
+ *
+ * The Attendance page can also explicitly pull the HRA Pay Projection store.
+ * This matters when the user opened HRA Pay in another tab/device and the
+ * projection is already in GAS/Drive but is not present in this page's local
+ * storage yet.
  */
 (function(root){
   'use strict';
   const STORE_KEY='ac_hra_pay_bridge_v1';
+  const HRA_PAY_GAS_DEFAULT='https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
   const state={rows:[],pending:[],loaded:false};
 
   function el(id){return document.getElementById(id)}
@@ -51,6 +57,7 @@
     const k=kindOf(o,kind), ym=month(str(o,['period','periodKey','payMonth','month','月份','薪資月份'])||period);
     if(!ym)return null;
     const id=str(o,['employeeId','empId','employeeID','id','工號','工号','ID']);
+    const mealBatch=str(o,['mealBatch','batch','batchNo','批次']);
     const dept=str(o,['dept','department','division','section','部門','部门','分區','分区'])||'';
     const sect=str(o,['sect','group','line','組別','組别','組','線別','lineName'])||'';
     const position=str(o,['position','job','title','職位','职位','職稱','职称'])||'';
@@ -59,6 +66,9 @@
     let totalHours=num(val(o,['totalHours','hoursWorked','attendanceHours','工時','總工時','总工时','hours']));
     if(totalHours==null&&normalHours!=null&&otHours!=null)totalHours=Math.round((normalHours+otHours)*100)/100;
     const mealFee=num(val(o,['mealFee','mealAmount','mealTotal','餐費','餐费','伙食費','伙食费']));
+    let mealDays=num(val(o,['mealDays','mealDayCount','mealDaysCount','用餐天數','用餐日數','餐日']));
+    if(mealDays==null&&Array.isArray(o.days))mealDays=o.days.filter(d=>num(val(d,['present','出勤','att','count']))>0).length;
+    const mealRiel=num(val(o,['mealRiel','riel','餐費瑞爾','餐费瑞尔']));
     let normalMeal=num(val(o,['normalMealFee','weekdayMealFee','regularMealFee','normalMeal','平日伙食費','平日餐費','正常餐費']));
     let otMeal=num(val(o,['overtimeMealFee','otMealFee','otMeal','加班伙食費','加班餐費','加班餐']));
     const advance=num(val(o,['advanceAmount','advance','prepaidSalary','預付薪資','預支薪資','預支','預付']));
@@ -66,8 +76,10 @@
     const workDays=num(val(o,['workDays','days','工作天數','工作天']));
     if(mealFee!=null&&normalMeal==null&&otMeal==null){normalMeal=null;otMeal=null}
     const identity=id||`${dept}|${sect}|${position}|${index}`;
-    return{_key:`${k}|${ym}|${identity}`,kind:k,period:ym,employeeId:id,name:str(o,['name','nameLat','nameKh','姓名','名字']),dept,sect,position,
-      normalHours,otHours,totalHours,workDays,advance,netPay,mealFee,normalMeal,otMeal,source:source||''};
+    const batchKey=k==='meal'&&mealBatch?`|B${mealBatch}`:'';
+    return{_key:`${k}|${ym}|${identity}${batchKey}`,kind:k,period:ym,employeeId:id,name:str(o,['name','nameLat','nameKh','姓名','名字']),dept,sect,position,
+      mealBatch,
+      normalHours,otHours,totalHours,workDays,advance,netPay,mealFee,mealDays,mealRiel,normalMeal,otMeal,source:source||''};
   }
   function merge(a,b){
     const out=Object.assign({},a);Object.keys(b||{}).forEach(k=>{
@@ -83,13 +95,19 @@
   }
   function upsert(rows){
     load();const map=new Map(state.rows.map(r=>[r._key,r]));
-    (rows||[]).filter(Boolean).forEach(r=>map.set(r._key,map.has(r._key)?merge(map.get(r._key),r):r));
+    const incoming=(rows||[]).filter(Boolean);
+    // Migrate old Meal Fee bridge rows that had no batch in their key. When
+    // a new Projection supplies batch-aware rows, the old single-half row
+    // must not be counted together with both halves.
+    const batchedMealIds=new Set(incoming.filter(r=>r.kind==='meal'&&r.mealBatch).map(r=>`${r.period}|${r.employeeId}`));
+    [...map.values()].forEach(r=>{if(r.kind==='meal'&&!r.mealBatch&&batchedMealIds.has(`${r.period}|${r.employeeId}`))map.delete(r._key)});
+    incoming.forEach(r=>map.set(r._key,map.has(r._key)?merge(map.get(r._key),r):r));
     state.rows=[...map.values()].sort((a,b)=>a.period.localeCompare(b.period)||a.kind.localeCompare(b.kind)||a._key.localeCompare(b._key));save();
   }
   function projectionRows(p,kind,source){
     if(!p||typeof p!=='object')return[];const out=[];
     const add=(arr,period)=>{(Array.isArray(arr)?arr:[]).forEach((r,i)=>{const x=normalize(r,kind,period,i,source);if(x)out.push(x)})};
-    if(kind==='meal'&&Array.isArray(p.batches))p.batches.forEach(b=>add(b.rows||[],b.period||p.period));
+    if(kind==='meal'&&Array.isArray(p.batches))p.batches.forEach(b=>add((b.rows||[]).map(r=>Object.assign({mealBatch:b.mealBatch||b.batch||''},r)),b.period||p.period));
     else add(p.rows||p.records||[],p.period||p.periodKey);
     return out;
   }
@@ -100,12 +118,66 @@
     });
     return out;
   }
+  function hydrateLocal(){const rows=localProjections();if(rows.length)upsert(rows);return rows}
+
+  function unwrapProjectionStore(d){
+    const a=d&&d.data;
+    if(a&&a.items)return a;
+    if(a&&a.data&&a.data.items)return a.data;
+    return null;
+  }
+  function projectionStoreRows(store,kind,source){
+    const out=[];if(!store||!store.items)return out;
+    Object.values(store.items).forEach(p=>out.push(...projectionRows(p,kind,source)));
+    return out;
+  }
+  function rawCloudRows(d,kind,source){
+    const data=d&&d.data||{},out=[];
+    if(kind==='meal'&&Array.isArray(data.batches)){
+      data.batches.forEach(b=>out.push(...projectionRows({period:b.period||data.period,batches:[b]},'meal',source)));
+    }else if(kind==='payroll'&&Array.isArray(data.payroll)){
+      out.push(...projectionRows({period:data.period,rows:data.payroll},'payroll',source));
+    }else if(kind==='advance'&&Array.isArray(data.advance)){
+      out.push(...projectionRows({period:data.period,rows:data.advance},'advance',source));
+    }
+    return out;
+  }
+  async function loadCloudRows(){
+    const url=(()=>{try{return localStorage.getItem('hrpay_gas_url')||HRA_PAY_GAS_DEFAULT}catch(e){return HRA_PAY_GAS_DEFAULT}})();
+    if(!url)return[];
+    const out=[];
+    for(const [module,kind] of [['payroll','payroll'],['advance','advance'],['meal','meal']]){
+      try{
+        const r=await fetch(url+'?action=pullProjection&module='+encodeURIComponent(module),{redirect:'follow'});
+        const d=await r.json();const store=unwrapProjectionStore(d);
+        if(store)out.push(...projectionStoreRows(store,kind,'HRA Pay Cloud Projection'));
+      }catch(e){console.warn('[pay-bridge] projection pull failed',module,e)}
+    }
+    // Older deployments may not expose pullProjection. Keep a compatible
+    // fallback for the original module payloads.
+    if(!out.length){
+      for(const [tool,kind] of [['hrpay_payroll','payroll'],['hrpay_meal','meal']]){
+        try{
+          const r=await fetch(url+'?action=pull&tool='+encodeURIComponent(tool),{redirect:'follow'});
+          const d=await r.json();out.push(...rawCloudRows(d,kind,'HRA Pay Cloud'));
+        }catch(e){console.warn('[pay-bridge] legacy pull failed',tool,e)}
+      }
+    }
+    return out;
+  }
   function collectObject(o,fallback,period,source,out,depth){
     if(depth>4||o==null)return;
     if(Array.isArray(o)){o.forEach(x=>collectObject(x,fallback,period,source,out,depth+1));return}
     if(typeof o!=='object')return;
     const k=kindOf(o,fallback),p=month(str(o,['period','periodKey','payMonth','month'])||period)||period;
-    if(Array.isArray(o.batches)){o.batches.forEach(b=>collectObject(b,'meal',b.period||p,source,out,depth+1));return}
+    if(Array.isArray(o.batches)){
+      o.batches.forEach(b=>{
+        const batch=b&&typeof b==='object'?(b.mealBatch||b.batch||''):'';
+        const rows=Array.isArray(b&&b.rows)?b.rows.map(r=>Object.assign({mealBatch:batch},r)):[];
+        collectObject(Object.assign({},b,{rows}),'meal',b&&b.period||p,source,out,depth+1);
+      });
+      return;
+    }
     const arr=o.rows||o.records;
     if(Array.isArray(arr)){arr.forEach((r,i)=>{const x=normalize(r,k,p,i,source);if(x)out.push(x)});return}
     const x=normalize(o,k,p,0,source);if(x)out.push(x);
@@ -128,6 +200,50 @@
   function toast(m,type){if(typeof root.toast==='function')root.toast(m,type||'info');else alert(m)}
   function fmt(v,d){return v==null?'—':Number(v).toLocaleString(undefined,{minimumFractionDigits:d==null?2:d,maximumFractionDigits:d==null?2:d})}
   function sum(rows,k){let ok=false,total=0;(rows||[]).forEach(r=>{const v=num(r[k]);if(v!=null){ok=true;total+=v}});return ok?Math.round(total*100)/100:null}
+  function mealSummaryForPeriod(ym){
+    hydrateLocal();
+    const rows=state.rows.filter(r=>r.kind==='meal'&&r.period===ym);
+    const ids=new Set(rows.map(r=>r.employeeId).filter(Boolean));
+    return{period:ym,known:rows.length>0,rows:rows.length,people:ids.size,
+      days:sum(rows,'mealDays'),fee:sum(rows,'mealFee'),riel:sum(rows,'mealRiel')};
+  }
+  function mealForPeriod(grain,key){
+    if(grain==='month')return mealSummaryForPeriod(key);
+    if(grain!=='year')return{period:key,known:false,rows:0,people:0,days:null,fee:null,riel:null};
+    hydrateLocal();
+    const months=[...new Set(state.rows.filter(r=>r.kind==='meal'&&String(r.period||'').startsWith(String(key))).map(r=>r.period))].sort();
+    const all=months.map(mealSummaryForPeriod),known=all.filter(x=>x.known);
+    return{period:key,known:known.length>0,rows:known.reduce((s,x)=>s+x.rows,0),people:known.reduce((s,x)=>s+x.people,0),
+      days:sum(known.map(x=>({v:x.days})).filter(x=>x.v!=null),'v'),fee:sum(known.map(x=>({v:x.fee})).filter(x=>x.v!=null),'v'),riel:sum(known.map(x=>({v:x.riel})).filter(x=>x.v!=null),'v')};
+  }
+  function projectionHourSummary(ym){
+    hydrateLocal();
+    const rows=state.rows.filter(r=>r.kind==='payroll'&&r.period===ym),known=rows.filter(r=>r.totalHours!=null);
+    const groups={};let total=0,normal=0,ot=0,normalKnown=false,otKnown=false;
+    known.forEach(r=>{
+      total+=Number(r.totalHours)||0;
+      if(r.normalHours!=null){normal+=Number(r.normalHours)||0;normalKnown=true}
+      if(r.otHours!=null){ot+=Number(r.otHours)||0;otKnown=true}
+      const dept=r.dept||'—',sect=r.sect||'',position=r.position||'',key=[dept,sect,position].join('¦');
+      const g=groups[key]||(groups[key]={dept,sect,position,hours:0,rows:0});
+      g.hours+=Number(r.totalHours)||0;g.rows++;
+    });
+    return{period:ym,known:known.length>0,sourceRows:rows.length,total:known.length?Math.round(total*100)/100:null,
+      normal:normalKnown?Math.round(normal*100)/100:null,ot:otKnown?Math.round(ot*100)/100:null,
+      rows:known.length,groups:Object.values(groups)};
+  }
+  function projectionHoursForPeriod(grain,key){
+    if(grain==='month')return projectionHourSummary(key);
+    if(grain!=='year')return{period:key,known:false,total:null,normal:null,ot:null,rows:0,groups:[]};
+    hydrateLocal();
+    const months=[...new Set(state.rows.filter(r=>r.kind==='payroll'&&String(r.period||'').startsWith(String(key))).map(r=>r.period))].sort();
+    const all=months.map(projectionHourSummary),known=all.filter(x=>x.known),groups={};
+    let total=0,normal=0,ot=0,normalKnown=false,otKnown=false,rows=0;
+    all.forEach(x=>{if(!x.known)return;total+=x.total||0;rows+=x.rows;if(x.normal!=null){normal+=x.normal;normalKnown=true}if(x.ot!=null){ot+=x.ot;otKnown=true}x.groups.forEach(g=>{const k=[g.dept,g.sect,g.position].join('¦');const z=groups[k]||(groups[k]={dept:g.dept,sect:g.sect,position:g.position,hours:0,rows:0});z.hours+=g.hours;z.rows+=g.rows})});
+    return{period:key,known:known.length>0,sourceRows:rows,total:known.length?Math.round(total*100)/100:null,
+      normal:normalKnown?Math.round(normal*100)/100:null,ot:otKnown?Math.round(ot*100)/100:null,
+      rows,groups:Object.values(groups)};
+  }
   function attGroups(ym){
     const out={};if(typeof root.periodDates!=='function'||typeof root.hoursSourceRows!=='function')return out;
     const rows=root.hoursSourceRows(root.periodDates('month',ym));
@@ -167,11 +283,17 @@
     const body=gs.map(x=>{const p=sum(x.payroll,'totalHours'),nh=sum(x.payroll,'normalHours'),oh=sum(x.payroll,'otHours'),a=sum(x.advance,'advance'),nm=sum(x.meal,'normalMeal'),om=sum(x.meal,'otMeal'),mf=sum(x.meal,'mealFee');let diff='—';if(x.attendanceKnown&&p!=null)diff=fmt(x.attendanceHours-p);const st=rowStatus(x),cls=st===T3('一致','Match','ត្រូវគ្នា')?'rg':(st===T3('需核查','Check','ត្រូវពិនិត្យ')||st==='Check'?'rb':'rw');return`<tr><td class="dept-cell">${esc(x.dept)}</td><td>${esc(x.section||'—')}</td><td>${x.attendanceKnown?fmt(x.attendanceHours):'—'}</td><td>${fmt(nh)}</td><td>${fmt(oh)}</td><td>${fmt(p)}</td><td>${fmt(a)}</td><td>${fmt(nm)}</td><td>${fmt(om)}</td><td>${fmt(mf)}</td><td><b>${diff}</b><br><span class="${cls}">${esc(st)}</span></td></tr>`}).join('');
     rootEl.innerHTML=h+(body||`<tr><td colspan="11">${T3('尚無月度資料；請先按「讀取 HRA Pay」或匯入 Projection。','No monthly data. Load HRA Pay or import a projection first.','មិនមានទិន្នន័យប្រចាំខែ។')}</td></tr>`)+'</tbody></table>';
   }
-  async function loadLocal(){const rows=localProjections();if(!rows.length){toast(T3('找不到 HRA Pay 的月度 Projection；請先在 HRA Pay 讀取／下載資料。','No HRA Pay monthly projection found. Load/download data in HRA Pay first.','រកមិនឃើញ Projection ប្រចាំខែ'));return}upsert(rows);populate();render();toast(T3(`✅ 已讀取 ${rows.length} 筆 HRA Pay 月度 Projection`,`✅ Loaded ${rows.length} HRA Pay projection rows`,`✅ បានអាន ${rows.length} ជួរ`),'ok')}
+  async function loadLocal(){
+    const local=hydrateLocal();let cloud=[];
+    try{cloud=await loadCloudRows();if(cloud.length)upsert(cloud)}catch(e){console.warn('[pay-bridge] cloud load failed',e)}
+    const n=local.length+cloud.length;populate();render();
+    if(!n)toast(T3('找不到 HRA Pay 月度 Projection；請先在 HRA Pay 讀取／下載資料或匯入 Projection。','No HRA Pay monthly projection found. Load/download it in HRA Pay or import a projection.','រកមិនឃើញ Projection ប្រចាំខែ'),'err');
+    else toast(T3(`✅ 已讀取 ${n} 筆 HRA Pay 月度資料（本機／雲端）`,`✅ Loaded ${n} HRA Pay monthly rows (local/cloud)`,`✅ បានអានទិន្នន័យប្រចាំខែ HRA Pay ${n} ជួរ`),'ok');
+  }
   async function importFiles(input){const files=[...(input?.files||[])];if(input)input.value='';if(!files.length)return;const out=[];for(const f of files){try{out.push(...await importFile(f))}catch(e){toast(`${f.name}: ${e.message}`,'err')}}if(out.length){upsert(out);populate();render();toast(T3(`✅ 已匯入 ${out.length} 筆月度資料`,`✅ Imported ${out.length} monthly rows`,`✅ បាននាំចូល ${out.length} ជួរ`),'ok')}else toast(T3('沒有辨識到月度資料','No monthly rows recognised','មិនស្គាល់ទិន្នន័យប្រចាំខែ'),'err')}
   function clear(){if(!confirm(T3('確定清除本機月度對照資料？不會刪除 Attendance 或 HRA Pay 原始資料。','Clear only the local monthly bridge? Attendance and HRA Pay source data will remain.','លុបទិន្នន័យប្រៀបធៀបប្រចាំខែតែប៉ុណ្ណោះ?')))return;state.rows=[];save();populate();render();toast(T3('已清除對照資料','Bridge data cleared','បានលុបទិន្នន័យប្រៀបធៀប'),'ok')}
   function exportCsv(){load();const ym=el('pbMonth')?.value||'';const gs=groups(ym);const rows=[['period','department','section','attendanceHours','payrollNormalHours','payrollOtHours','payrollTotalHours','advance','weekdayMeal','otMeal','mealTotal','status']];gs.forEach(x=>rows.push([ym,x.dept,x.section,x.attendanceKnown?x.attendanceHours:'',sum(x.payroll,'normalHours')??'',sum(x.payroll,'otHours')??'',sum(x.payroll,'totalHours')??'',sum(x.advance,'advance')??'',sum(x.meal,'normalMeal')??'',sum(x.meal,'otMeal')??'',sum(x.meal,'mealFee')??'',rowStatus(x)]));const csv='\uFEFF'+rows.map(r=>r.map(v=>`"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`AC_HRA_Monthly_Bridge_${ym||'all'}.csv`;a.click();}
-  function refresh(){load();populate();render()}
-  root.payBridgeRefresh=refresh;root.payBridgeLoadLocal=loadLocal;root.payBridgeImportFiles=importFiles;root.payBridgeClear=clear;root.payBridgeExport=exportCsv;root.payBridgeMonthChange=render;root.payBridgeDeptChange=render;
+  function refresh(){hydrateLocal();load();populate();render()}
+  root.payBridgeRefresh=refresh;root.payBridgeLoadLocal=loadLocal;root.payBridgeLoad=loadLocal;root.payBridgeImportFiles=importFiles;root.payBridgeClear=clear;root.payBridgeExport=exportCsv;root.payBridgeMonthChange=render;root.payBridgeDeptChange=render;root.payBridgeHoursForPeriod=projectionHoursForPeriod;root.payBridgeMealForPeriod=mealForPeriod;
   window.addEventListener('storage',e=>{if(/^hrpay:result:/.test(e.key||'')){state.loaded=false;refresh()}});
 })(window);
