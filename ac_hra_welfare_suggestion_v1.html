@@ -758,7 +758,13 @@ async function sendWelfareApproval(){
       headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});
     var d=null; try{ d=await r.json(); }catch(e){}
     if(d&&d.ok===false){ toast('❌ '+(d.error||'GAS error')); return; }
-    var bid=(d&&d.data&&d.data.batchId)||'';
+    var info=d&&d.data||d||{};
+    if(info.closed){ toast('⚠️ '+(LANG==='en'?'This batch was already closed — not resent':'此批次已結案，未重複送出')); return; }
+    if(!info.messageId || info.sentToGroup===false){
+      toast('❌ '+(LANG==='en'?'Telegram returned no group message ID; delivery is not confirmed. Please send again.':'GAS 已收到，但 Telegram 沒有回傳群組訊息編號，未確認送達，請再送一次。'));
+      return;
+    }
+    var bid=info.batchId||'';
     toast('✅ '+(LANG==='en'?'Approval request sent':LANG==='km'?'បានផ្ញើសំណើអនុម័ត':'已送出核可請求')+(bid?(' · '+bid):''));
     await cloudPush({auto:true});
   }catch(e){ toast('❌ '+e.message); }

@@ -1711,7 +1711,18 @@ async function sendApproval(payloadText, items, win){
     if(!r.ok){ toast('Approval request HTTP '+r.status,'error'); return false; }
     if(!d){ toast(L('GAS 回傳不是 JSON，請確認已部署最新完整 GS','GAS did not return JSON; confirm the latest complete GS is deployed','GAS មិនបានត្រឡប់ JSON; សូមបញ្ជាក់ថា GS ពេញលេញចុងក្រោយបានដាក់ឲ្យដំណើរការ'),'error'); return false; }
     if(d && d.ok===false){ toast(L('GAS 回報失敗：','GAS reported an error:','GAS រាយការណ៍កំហុស៖')+(d.error||''),'error'); return false; }
-    const bid=(d&&d.data&&d.data.batchId)||'';
+    const info=d.data||d;
+    if(info.closed){
+      toast(L('這批先前已核可並關閉，未重複送出','This batch was already approved and closed — not resent','បាច់នេះបានអនុម័ត និងបិទរួចហើយ — មិនបានផ្ញើស្ទួន'),'warn');
+      return false;
+    }
+    if(!info.messageId || info.sentToGroup===false){
+      toast(L('GAS 已收到，但 Telegram 沒有回傳群組訊息編號，未確認送達；請再送一次。',
+              'GAS accepted the request, but Telegram returned no group message ID. Delivery is not confirmed; send again.',
+              'GAS បានទទួលសំណើ ប៉ុន្តែ Telegram មិនបានត្រឡប់លេខសារក្រុមទេ។ មិនទាន់បញ្ជាក់ការផ្ញើ សូមផ្ញើម្តងទៀត'),'error');
+      return false;
+    }
+    const bid=info.batchId||'';
     toast('✅ '+L('已送出核可請求','Approval request sent','បានផ្ញើសំណើ')+(bid?(' · '+bid):''));
     return true;
   }catch(e){ toast(L('傳送失敗：','Send failed:','ការផ្ញើបរាជ័យ៖')+e.message,'error'); return false; }

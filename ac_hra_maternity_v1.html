@@ -2082,6 +2082,17 @@ function confirmTg(){
   }).then(function(d){
     if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
     var dd=d.data||d;
+    if(!_tgMode || _tgMode==='approval'){
+      if(!dd.closed && (!dd.messageId || dd.sentToGroup===false)){
+        throw new Error(L('GAS 已收到，但 Telegram 沒有回傳群組訊息編號，未確認送達；請再按一次送出。',
+                          'GAS accepted the request, but Telegram returned no group message ID. Delivery is not confirmed; please send again.',
+                          'GAS បានទទួលសំណើ ប៉ុន្តែ Telegram មិនបានត្រឡប់លេខសារក្រុមទេ។ មិនទាន់បញ្ជាក់ថាបានផ្ញើ សូមផ្ញើម្តងទៀត។'));
+      }
+    }else if(!dd.sent || !dd.messageId){
+      throw new Error(L('Telegram 沒有回傳群組訊息編號，未確認送達；請檢查 Bot／群組設定。',
+                        'Telegram returned no group message ID, so delivery is not confirmed. Check the bot/group settings.',
+                        'Telegram មិនបានត្រឡប់លេខសារក្រុមទេ ដូច្នេះមិនទាន់បញ្ជាក់ការផ្ញើ។ សូមពិនិត្យ Bot និងក្រុម។'));
+    }
     if(dd.reused){
       toast(L('這批資料先前已送出，已重新整理群組裡那則訊息','Already submitted — refreshed the existing group message')
             +(dd.batchId?(' · '+dd.batchId):''),'warn');

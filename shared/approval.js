@@ -127,10 +127,18 @@
     return post(payload).then(function (res) {
       var d = (res && res.data) ? res.data : res;
       var batchId = d && d.batchId;
+      var closed = !!(d && d.closed);
+      var delivered = !!(d && d.messageId) && d.sentToGroup !== false;
+      /* 批次建立成功不代表群組真的收到。只接受 Telegram message_id
+         作為送達證據；失敗時保留批次，下一次可由 GAS 補發。 */
+      if (!closed && !delivered) {
+        throw new Error(t('failed') + ': Telegram message_id was not returned');
+      }
       if (batchId) rememberBatch({ batchId: batchId, module: payload.module, period: payload.period,
                                    count: live.length, at: nowStamp() });
       return { ok: !!(res && (res.ok || batchId)), batchId: batchId,
-               sent: live.length, waived: waived.length, reused: !!(d && d.reused) };
+               sent: delivered ? live.length : 0, waived: waived.length,
+               reused: !!(d && d.reused), closed: closed, messageId: d && d.messageId || null };
     });
   }
 
