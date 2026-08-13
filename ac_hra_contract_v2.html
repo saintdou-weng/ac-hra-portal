@@ -6,6 +6,7 @@
 <title>AC HRA · 合約與試用期管理 Contract & Probation</title>
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/inspector.js"></script>
+<script src="shared/status-link.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -123,7 +124,7 @@ tr.sel{background:#eff6ff}
         <th class="px-3 py-2">#</th><th class="px-3 py-2">工號 ID</th><th class="px-3 py-2">姓名 Name</th>
         <th class="px-3 py-2">部門 Dept</th><th class="px-3 py-2">職務 Position</th><th class="px-3 py-2">到職 Join</th>
         <th class="px-3 py-2">試用到期 Prob.End</th><th class="px-3 py-2">評估 Eval</th>
-        <th class="px-3 py-2 text-right">分數</th><th class="px-3 py-2">結果</th><th class="px-3 py-2">備註</th><th class="px-3 py-2">操作 Actions</th>
+        <th class="px-3 py-2 text-right">分數</th><th class="px-3 py-2">結果</th><th class="px-3 py-2">備註</th><th class="px-3 py-2">離職 Resign</th><th class="px-3 py-2">操作 Actions</th>
       </tr></thead><tbody id="tb-prob"></tbody>
     </table></div>
   </div>
@@ -152,7 +153,7 @@ tr.sel{background:#eff6ff}
         <th class="px-3 py-2">部門 Dept</th><th class="px-3 py-2">職務 Position</th><th class="px-3 py-2">到職 Join</th>
         <th class="px-3 py-2">合約到期 End</th><th class="px-3 py-2 text-right">剩餘天數</th>
         <th class="px-3 py-2 text-right">平均薪資</th><th class="px-3 py-2 text-right">累計薪資</th>
-        <th class="px-3 py-2 text-right">5% 資遣提存</th><th class="px-3 py-2">操作 Actions</th>
+        <th class="px-3 py-2 text-right">5% 資遣提存</th><th class="px-3 py-2">離職 Resign</th><th class="px-3 py-2">操作 Actions</th>
       </tr></thead><tbody id="tb-cont"></tbody>
     </table></div>
   </div>
@@ -558,7 +559,7 @@ function parseProb(wb, fileName){
       const gender  =genderIdx>=0?normalizeGender(row[genderIdx]):'';
       const dept    =String(row[deptIdx>=0?deptIdx:c+8]||'').trim();
       const remarks =String(row[remarkIdx>=0?remarkIdx:c+9]||'').trim();
-      out.push({ _k:'P|'+idStr+'|'+(probEnd||joinDate||sheetPeriod), _kind:'prob',
+      out.push({ _k:'P|'+idStr, _kind:'prob',
         factoryId:idStr, name:(surname+' '+given).trim(), surname, given,
         position: positionIdx>=0?String(row[positionIdx]||'').trim():'',
         joinDate, probEnd, evalDate, score, result, gender, dept, remarks,
@@ -673,8 +674,8 @@ function contractId(r){ return String((r&&(r.factoryId||r.empId||r.employeeId||r
 function contractCanonicalKey(kind,r){
   r=r||{}; const id=contractId(r);
   if(kind==='prob'){
-    const d=contractDate10(r.probEnd)||contractDate10(r.joinDate)||contractPeriod7(r.period);
-    return 'P|'+id+'|'+d;
+    /* 同一工號只保留一筆目前試用資料；更新到期日應更新原列，不另增一筆。 */
+    return 'P|'+id;
   }
   if(kind==='cont') return 'C|'+id;
   const p=contractPeriod7(r.period)||contractDate10(r.contractEnd)||contractDate10(r.joinDate);
@@ -745,6 +746,40 @@ function normalizeContractCollections(){
   FINISH=contractMergeRows('finish',[],FINISH).arr;
 }
 
+/* 匯入／線上編輯遇到同鍵不同內容時先確認；完全相同的重複列直接略過。 */
+function contractStableValue(v){
+  if(Array.isArray(v))return v.map(contractStableValue);
+  if(v&&typeof v==='object'){
+    const o={};
+    Object.keys(v).sort().forEach(function(k){
+      if(['_k','_kind','updatedAt','source','sourceFiles'].includes(k))return;
+      o[k]=contractStableValue(v[k]);
+    });
+    return o;
+  }
+  return v;
+}
+function contractStableRow(r){return JSON.stringify(contractStableValue(r||{}));}
+function contractConflictRows(kind,target,incoming){
+  const by=new Map();
+  (target||[]).forEach(function(row){const r=normalizeContractRow(kind,Object.assign({},row));by.set(r._k,r);});
+  const conflicts=[];
+  (incoming||[]).forEach(function(row){const r=normalizeContractRow(kind,Object.assign({},row)),old=by.get(r._k);
+    if(old&&contractStableRow(old)!==contractStableRow(r))conflicts.push({old,new:r});
+    by.set(r._k,r);
+  });
+  return conflicts;
+}
+function confirmContractConflicts(kind,target,incoming){
+  const conflicts=contractConflictRows(kind,target,incoming);
+  if(!conflicts.length)return true;
+  const sample=conflicts.slice(0,8).map(function(x){return (x.new.factoryId||'—')+' '+(x.new.name||'')+' · '+(x.new.contractEnd||x.new.probEnd||x.new.period||'—');}).join('\n');
+  return typeof window.confirm!=='function'||window.confirm(L(
+    '發現 '+conflicts.length+' 筆相同工號／類型但內容不同的資料。\n\n'+sample+'\n\n是否確認用新資料更新？',
+    'Found '+conflicts.length+' record(s) with the same employee/type but different details.\n\n'+sample+'\n\nUpdate them with the new data?',
+    'រកឃើញ '+conflicts.length+' កំណត់ត្រា មានលេខសម្គាល់/ប្រភេទដូចគ្នា ប៉ុន្តែព័ត៌មានខុសគ្នា។\n\n'+sample+'\n\nធ្វើបច្ចុប្បន្នភាពដោយទិន្នន័យថ្មី?'));
+}
+
 async function smartImport(input){
   const files=[...input.files]; input.value='';
   if(!files.length) return;
@@ -763,6 +798,11 @@ async function smartImport(input){
       if(det.type==='cont')   recs=parseCont(wb,file.name);
       if(det.type==='finish') recs=parseFinish(wb,file.name);
       if(!recs.length){ log.push({ok:false,f:file.name,msg:L('已辨識為「'+labelType(det.type)+'」但未讀到任何員工資料列','Recognized as “'+labelType(det.type)+'” but no employee rows were found','បានស្គាល់ជា “'+labelType(det.type)+'” ប៉ុន្តែមិនរកឃើញជួរដេកបុគ្គលិកទេ')}); continue; }
+      const current=det.type==='prob'?PROBS:det.type==='cont'?CONTS:FINISH;
+      if(!confirmContractConflicts(det.type,current,recs)){
+        log.push({ok:false,f:file.name,msg:L('已取消覆蓋相同工號的變更','Update cancelled for conflicting employee records','បានបោះបង់ការធ្វើបច្ចុប្បន្នភាព')});
+        continue;
+      }
       if(det.type==='prob'){   res=contractMergeRows('prob',PROBS,recs);  PROBS=res.arr; }
       if(det.type==='cont'){   res=contractMergeRows('cont',CONTS,recs);  CONTS=res.arr; }
       if(det.type==='finish'){ res=contractMergeRows('finish',FINISH,recs); FINISH=res.arr; }
@@ -997,7 +1037,8 @@ function alertItems(win, kind){
       const d=probEndOf(r); if(!d) return;
       if(d>=win.from && d<=win.to)
         out.push({key:'P|'+r.factoryId+'|'+d, kind:'prob', factoryId:r.factoryId, name:r.name,
-          dept:r.dept, position:r.position, joinDate:r.joinDate, expiry:d, extra:r.result});
+          dept:r.dept, position:r.position, joinDate:r.joinDate, expiry:d, extra:r.result,
+          resigned:!!linkedResign(r,d), resignDate:(linkedResign(r,d)||{})._statusDate||''});
     });
   }
   if(kind!=='prob'){
@@ -1005,7 +1046,8 @@ function alertItems(win, kind){
       const d=contractEndOf(r); if(!d) return;
       if(d>=win.from && d<=win.to)
         out.push({key:'C|'+r.factoryId+'|'+d, kind:'cont', factoryId:r.factoryId, name:r.name,
-          dept:r.dept, position:r.position, joinDate:r.joinDate, expiry:d, extra:''});
+          dept:r.dept, position:r.position, joinDate:r.joinDate, expiry:d, extra:'',
+          resigned:!!linkedResign(r,d), resignDate:(linkedResign(r,d)||{})._statusDate||''});
     });
   }
   return out.sort((a,b)=> a.expiry===b.expiry ? String(a.dept).localeCompare(String(b.dept)) : a.expiry.localeCompare(b.expiry));
@@ -1186,6 +1228,18 @@ function filterRows(tab){
     return true;
   });
 }
+function linkedResign(r, refDate){
+  if(!window.HRAStatusLink || !HRAStatusLink.forEmployee) return null;
+  return HRAStatusLink.forEmployee(r, refDate||'');
+}
+function linkedResignCell(r, refDate){
+  if(!window.HRAStatusLink || !HRAStatusLink.html) return '';
+  return HRAStatusLink.html(r, refDate, LANG==='en'?'en':LANG==='km'?'km':'zh');
+}
+function linkedResignText(r, refDate){
+  const x=linkedResign(r,refDate);
+  return x ? L('已離職','Resigned','បានចាកចេញ')+(x._statusDate?' '+x._statusDate:'') : '';
+}
 function renderProb(){
   renderSummary('prob');
   let rows=filterRows('prob');
@@ -1206,8 +1260,9 @@ function renderProb(){
       +'<td class="px-3 py-2 text-right jmono">'+(r.score===''||r.score==null?'—':r.score)+'</td>'
       +'<td class="px-3 py-2 font-semibold '+rc+'">'+esc((r.result||'pending').toUpperCase())+'</td>'
       +'<td class="px-3 py-2 text-slate-500 text-[11.5px]">'+esc(r.remarks||r.remark||'')+'</td>'
+      +'<td class="px-3 py-2">'+(linkedResignCell(r,probationEndOf(r))||'<span class="text-slate-300">—</span>')+'</td>'
       +'<td class="px-3 py-2"><button class="text-sky-600 hover:text-sky-800" onclick="openCt(\'prob\',\''+esc(r._k)+'\')" title="編輯 Edit">✏️</button></td></tr>';
-  }).join('') : emptyRow(12);
+  }).join('') : emptyRow(13);
 }
 function renderCont(){
   renderSummary('cont');
@@ -1233,8 +1288,9 @@ function renderCont(){
       +'<td class="px-3 py-2 text-right jmono">'+fmt(r.avgSalary)+'</td>'
       +'<td class="px-3 py-2 text-right jmono">'+fmt(r.totalSalary)+'</td>'
       +'<td class="px-3 py-2 text-right jmono text-sky-600">'+fmt(r.severance5)+'</td>'
+      +'<td class="px-3 py-2">'+(linkedResignCell(r,end)||'<span class="text-slate-300">—</span>')+'</td>'
       +'<td class="px-3 py-2"><button class="text-sky-600 hover:text-sky-800" onclick="openCt(\'cont\',\''+esc(r._k)+'\')" title="編輯 Edit">✏️</button></td></tr>';
-  }).join('') : emptyRow(12);
+  }).join('') : emptyRow(13);
 }
 function editEnd(k){
   const r=CONTS.find(x=>x._k===k); if(!r) return;
@@ -1337,7 +1393,8 @@ function approvalItemsForRows(tab, rows){
       dept:r.dept||r.section||'', position:r.position||'', joinDate:r.joinDate||'', expiry,
       days:left, result:r.result||'', decision:rowDecision(tab,r).d||'',
       anomaly:issues.length?issues[0].reasons.join(', '):'',
-      extra:tab==='cont' ? ('5% reserve $'+fmt(r.severance5)) : ''
+      extra:tab==='cont' ? ('5% reserve $'+fmt(r.severance5)) : '',
+      resigned:!!linkedResign(r,expiry), resignDate:(linkedResign(r,expiry)||{})._statusDate||''
     };
   });
 }
@@ -1379,7 +1436,7 @@ function rowExpiry(tab,r){ return tab==='prob'?probationEndOf(r):tab==='cont'?co
 function rowDecision(tab,r){
   const d=rowExpiry(tab,r), id=String(r.factoryId||r.id||''), keys=[];
   if(r._k)keys.push(r._k);
-  if(tab==='prob') keys.push('P|'+id+'|'+(d||r.joinDate||r.period||''),'prob|'+id+'|'+(d||''));
+  if(tab==='prob') keys.push('P|'+id,'P|'+id+'|'+(d||r.joinDate||r.period||''),'prob|'+id+'|'+(d||''));
   else if(tab==='cont') keys.push('C|'+id,'cont|'+id+'|'+(d||''));
   else keys.push('F|'+id+'|'+(r.period||d||''),'finish|'+id+'|'+(r.period||d||''));
   for(const k of keys)if(k&&DECISIONS[k])return DECISIONS[k];
@@ -1410,16 +1467,19 @@ function detailText(tab,rows,limit){
   let s=''; list.slice(0,max).forEach(r=>{
     const e=rowExpiry(tab,r), dec=rowDecision(tab,r), left=e&&parseYMD(e)?daysBetween(today0(),parseYMD(e)):null;
     const status=tab==='finish'?L('已終止','Finished','បានបញ្ចប់'):tab==='prob'?(r.result||'pending').toUpperCase():(dec.d==='approve'?L('已核可','Approved','បានអនុម័ត'):left!=null&&left<0?L('逾期','Overdue','ហួសកំណត់'):L('待處理','Pending','រង់ចាំ'));
+    const resigned=linkedResignText(r,e);
     s+='• '+esc(r.factoryId||'—')+' '+esc(r.name||'—')+' · '+esc(r.dept||r.section||r.line||'—')+' · '+esc(r.position||'—')
       +' · '+L('入職','Join','ចូល')+' '+esc(r.joinDate||'—')+' · '+L('到期','End','បញ្ចប់')+' '+esc(e||'—')
-      +' · '+status+(left==null?'':' ('+(left<0?L('逾期','overdue','ហួសកំណត់'):left+' '+L('天','days','ថ្ងៃ'))+')')+'\n';
+      +' · '+status+(left==null?'':' ('+(left<0?L('逾期','overdue','ហួសកំណត់'):left+' '+L('天','days','ថ្ងៃ'))+')')
+      +(resigned?' · ⚠ '+esc(resigned):'')+'\n';
   });
   if(list.length>max) s+='… '+L('其餘','and','និង')+' '+(list.length-max)+' '+L('筆','more','ទៀត')+'\n';
   return s;
 }
 function exceptionText(items,limit){
   const max=limit||30, s=(items||[]).slice(0,max).map(x=>{
-    const r=x.row; return '⚠ '+esc(r.factoryId||'—')+' '+esc(r.name||'—')+' · '+esc(r.dept||r.section||r.line||'—')+' · '+esc(r.position||'—')+' · '+x.reasons.join(', ')+(x.expiry?' · '+x.expiry:'')+'\n';
+    const r=x.row, rs=linkedResignText(r,x.expiry);
+    return '⚠ '+esc(r.factoryId||'—')+' '+esc(r.name||'—')+' · '+esc(r.dept||r.section||r.line||'—')+' · '+esc(r.position||'—')+' · '+x.reasons.join(', ')+(x.expiry?' · '+x.expiry:'')+(rs?' · ⚠ '+esc(rs):'')+'\n';
   }).join('');
   return s+((items||[]).length>max?'… '+L('其餘','and','និង')+' '+((items||[]).length-max)+' '+L('筆異常','more exceptions','ករណីទៀត')+'\n':'');
 }
@@ -1447,6 +1507,7 @@ function buildText(src){
         const dec=DECISIONS[i.key]||{};
         const mark = dec.d==='approve'?' ✔':dec.d==='reject'?' ✖':'';
       t+='　'+(i.kind==='prob'?'⏳':'📋')+' '+esc(i.factoryId)+' '+esc(i.name)+' · '+esc(i.dept||'—')+' · '+esc(i.position||'—')+' · '+L('入職','Join','ចូល')+' '+esc(i.joinDate||'—')+' — '+i.expiry+mark
+          +(i.resigned?' · ⚠ '+L('已離職','Resigned','បានចាកចេញ')+(i.resignDate?' '+i.resignDate:''):'')
           +(dec.note?'（'+esc(dec.note)+'）':'')+'\n';
       });
     });
@@ -1462,7 +1523,6 @@ function buildText(src){
   if(src==='anomaly'){
     const issues=[...exceptionRows('prob',PROBS),...exceptionRows('cont',CONTS),...exceptionRows('finish',FINISH)];
     let t='⚠ <b>'+L('試用／合約異常摘要','Probation / Contract Exception Report','របាយការណ៍ភាពមិនប្រក្រតី')+'</b>\n'
-      +'🗓 '+L('檢查日','Checked','បានពិនិត្យ')+'：'+lds(today0())+'\n'
       +'⚠ '+L('異常筆數','Exceptions','ករណី')+'：<b>'+issues.length+'</b>\n'+SEP+'\n';
     t+=issues.length?exceptionText(issues):'✅ '+L('目前沒有發現異常','No current exceptions found','មិនរកឃើញភាពមិនប្រក្រតី')+'\n';
     return {text:t+SEP+FOOT};
@@ -1474,6 +1534,7 @@ function buildText(src){
     const ps=PROBS.filter(r=>{const d=parseYMD(probEndOf(r));return d&&d>=t0&&d<=in30;}).length;
     const cs=CONTS.filter(r=>{const d=parseYMD(contractEndOf(r));return d&&d>=t0&&d<=in30;}).length;
     const all=PROBS.concat(CONTS), departments=deptStats(all);
+    const resignedAll=all.filter(r=>!!linkedResign(r,rowExpiry(PROBS.includes(r)?'prob':'cont',r))).length;
     let dt=departments.slice(0,12).map(([d,v])=>esc(d)+' '+v.n+' · F '+v.f+' / M '+v.m).join('\n');
     const dueRows=all.filter(r=>{const tab=PROBS.includes(r)?'prob':'cont',d=rowExpiry(tab,r),x=d?parseYMD(d):null;return x&&x>=t0&&x<=in30;});
     const issues=[...exceptionRows('prob',PROBS),...exceptionRows('cont',CONTS)];
@@ -1483,6 +1544,7 @@ function buildText(src){
       +' / '+L('未通過','Fail')+' '+PROBS.filter(r=>r.result==='fail').length+'）'
       +'\n📋 '+L('合約員工','Contract staff')+'：'+CONTS.length
       +'\n🏁 '+L('已終止合約','Finished')+'：'+FINISH.length
+      +'\n⚠ '+L('名單中已離職','Already resigned in active lists')+'：'+resignedAll
       +'\n👥 '+L('試用＋合約性別','Probation + contract gender')+'：'+genderStats(all)
       +'\n🔔 '+L('30 天內到期','Expiring in 30 days')+'：'+L('試用','Prob.')+' '+ps+' · '+L('合約','Cont.')+' '+cs
       +'\n💰 '+L('5% 資遣提存合計','5% severance reserve')+'：$'+fmt(CONTS.reduce((s,r)=>s+N(r.severance5),0))
@@ -1663,7 +1725,11 @@ async function confirmSendTg(){
   if(TG_MODE==='approval') ok=await sendApproval(r.text, r.items, r.win);
   else ok=await sendTG(r.text);
   btn.disabled=false; btn.textContent=L('確認傳送','Send','ផ្ញើ');
-  if(ok) closeTgModal();
+  if(ok){
+    closeTgModal();
+    /* 核可／摘要成功後，把尚未同步的本機資料一併送到雲端。 */
+    await cloudUpload({auto:true});
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1676,16 +1742,17 @@ function flatRecords(){
     FINISH.map(r=>Object.assign({},r,{_kind:'finish'}))
   );
 }
-async function cloudUpload(){
+async function cloudUpload(options={}){
   if(!GAS_URL){ toast(L('尚未設定 GAS URL（設定頁）','GAS URL is not configured (Settings)','មិនទាន់កំណត់ GAS URL (ការកំណត់)'),'error'); return; }
   normalizeContractCollections();
-  const recs=flatRecords();
-  if(!recs.length){ toast(L('尚無資料可上傳','There is no data to upload','គ្មានទិន្នន័យសម្រាប់បញ្ចូល'),'error'); return; }
+  const allRecs=flatRecords(), recs=HRACloudGuard.deltaRecords('contract_records',allRecs);
+  const decisionChanged=HRACloudGuard.stateChanged('contract_decisions',DECISIONS);
+  if(!recs.length&&!decisionChanged){ if(!options.auto)toast(L('沒有新增、變更或新的核可，不需重複上傳','No new/changed records or decisions; upload skipped','គ្មានទិន្នន័យថ្មី/កែប្រែ ឬការអនុម័តថ្មី មិនចាំបាច់ផ្ទុកឡើងវិញ'),'info'); return; }
   const btn=qs('#btn-cloud-up'); btn.disabled=true; btn.classList.add('opacity-50');
   setSync('☁ '+L('上傳中…','Uploading…','កំពុងបញ្ចូល…'));
   try{
-    const body={ action:'push', tool:'contract', records:recs, recordCount:recs.length,
-      coverage:HRACloudGuard.coverage(recs,'contract'),
+    const body={ action:'push', tool:'contract', records:recs, recordCount:allRecs.length,
+      coverage:HRACloudGuard.coverage(allRecs,'contract'),
       summary:{probs:PROBS.length,conts:CONTS.length,finish:FINISH.length,
                decisions:Object.keys(DECISIONS).length},
       decisions: DECISIONS, updatedAt: nowISO() };
@@ -1696,6 +1763,8 @@ async function cloudUpload(){
     },LANG==='en'?'en':(LANG==='km'?'km':'zh'));
     if(d && d.cancelled){toast(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return;}
     if(d && d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported an error','GAS រាយការណ៍កំហុស'));
+    HRACloudGuard.markRecords('contract_records',allRecs);
+    HRACloudGuard.markState('contract_decisions',DECISIONS);
     setSync('✓ '+new Date().toLocaleTimeString());
     toast('☁ '+L('已上傳雲端','Uploaded to cloud','បានបញ្ចូល Cloud')+' — '+recs.length+' '+L('筆','records','កំណត់ត្រា'));
   }catch(e){ setSync(''); toast(L('上傳失敗：','Upload failed:','ការបញ្ចូលបរាជ័យ៖')+e.message,'error'); }
@@ -1717,11 +1786,15 @@ async function cloudDownload(){
     else{
       const localCount=flatRecords().length;
       if(localCount && !confirm(L(`雲端將載入 ${recs.length} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`, `Cloud will load ${recs.length} record(s); this device currently has ${localCount}.\n\nLocal data will be updated after download. Continue?`, `Cloud នឹងផ្ទុក ${recs.length} កំណត់ត្រា; ឧបករណ៍នេះមាន ${localCount}។\n\nទិន្នន័យក្នុងឧបករណ៍នឹងត្រូវបានធ្វើបច្ចុប្បន្នភាពបន្ទាប់ពីទាញយក។ បន្ត?`))){setSync('');return;}
-      PROBS  = contractMergeList('prob',PROBS,recs.filter(r=>r._kind==='prob'));
-      CONTS  = contractMergeList('cont',CONTS,recs.filter(r=>r._kind==='cont'));
-      FINISH = contractMergeList('finish',FINISH,recs.filter(r=>r._kind==='finish'));
+      const pRows=recs.filter(r=>r._kind==='prob'),cRows=recs.filter(r=>r._kind==='cont'),fRows=recs.filter(r=>r._kind==='finish');
+      if(!confirmContractConflicts('prob',PROBS,pRows)||!confirmContractConflicts('cont',CONTS,cRows)||!confirmContractConflicts('finish',FINISH,fRows)){setSync('');return;}
+      PROBS  = contractMergeList('prob',PROBS,pRows);
+      CONTS  = contractMergeList('cont',CONTS,cRows);
+      FINISH = contractMergeList('finish',FINISH,fRows);
       if(inner.decisions && typeof inner.decisions==='object') DECISIONS=Object.assign({},DECISIONS,inner.decisions);
       await persist(); renderAll();
+      HRACloudGuard.markRecords('contract_records',flatRecords());
+      HRACloudGuard.markState('contract_decisions',DECISIONS);
       setSync('✓ '+new Date().toLocaleTimeString());
       toast('☁ '+L('已載入雲端資料','Cloud data loaded','បានទាញយកទិន្នន័យ Cloud')+' — '+L('試用','Probation','សាកល្បង')+' '+PROBS.length+' / '+L('合約','Contract','កិច្ចសន្យា')+' '+CONTS.length+' / '+L('終止','Finished','បញ្ចប់')+' '+FINISH.length);
     }
@@ -1961,6 +2034,7 @@ function saveCt(){
   rec=normalizeContractRow(_ctKind,rec);
   var tgt=_ctKind==='prob'?PROBS:_ctKind==='cont'?CONTS:FINISH;
   var keep=tgt.filter(function(x){return !_ctId || (x._k!==_ctId && x.factoryId!==_ctId);});
+  if(!_ctId && !confirmContractConflicts(_ctKind,keep,[rec]))return;
   var merged=contractMergeRows(_ctKind,keep,[rec]);
   if(_ctKind==='prob')PROBS=merged.arr; else if(_ctKind==='cont')CONTS=merged.arr; else FINISH=merged.arr;
   if(typeof saveAll==='function')saveAll(); else if(typeof persist==='function')persist();

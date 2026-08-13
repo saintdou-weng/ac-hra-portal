@@ -546,7 +546,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         <span class="summary-chip"><b>Resign</b>：Resigned</span>
         <span class="summary-chip"><b>Daily</b>：General list / Chat</span>
       </div>
-      <p class="panel-note" style="margin-top:10px" data-zh="匯入採 Upsert：同一唯一鍵存在時更新原記錄。主要資料存入 IndexedDB（瀏覽器內建的大容量資料庫）；第一次開啟會自動搬移舊版 localStorage 資料，成功後刪除重複副本。人力鍵＝月份＋部門＋職位；入職鍵＝工號；離職鍵＝工號＋離職日；應徵鍵＝登記日＋姓名＋電話。" data-en="Imports use upsert: matching keys update existing records. Primary data is stored in IndexedDB, the browser's larger built-in database. Existing localStorage data is migrated automatically and duplicate legacy copies are removed after success." data-km="ការនាំចូលធ្វើបច្ចុប្បន្នភាពកំណត់ត្រាដែលមានស្រាប់។ ទិន្នន័យសំខាន់រក្សាទុកក្នុង IndexedDB ហើយទិន្នន័យចាស់ត្រូវបានផ្ទេរដោយស្វ័យប្រវត្តិ។">匯入採 Upsert：同一唯一鍵存在時更新原記錄。主要資料存入 IndexedDB（瀏覽器內建的大容量資料庫）；第一次開啟會自動搬移舊版 localStorage 資料，成功後刪除重複副本。人力鍵＝月份＋部門＋職位；入職鍵＝工號；離職鍵＝工號＋離職日；應徵鍵＝登記日＋姓名＋電話。</p>
+      <p class="panel-note" style="margin-top:10px" data-zh="匯入採 Upsert：同一唯一鍵存在時更新原記錄。主要資料存入 IndexedDB（瀏覽器內建的大容量資料庫）；第一次開啟會自動搬移舊版 localStorage 資料，成功後刪除重複副本。人力鍵＝月份＋部門＋職位；入職／離職鍵＝工號＋月份（同月不重複）；應徵鍵＝登記日＋姓名＋電話。" data-en="Imports use upsert: matching keys update existing records. Join and resign use employee ID plus month, so the same employee cannot be counted twice in one month. Primary data is stored in IndexedDB." data-km="ការនាំចូលធ្វើបច្ចុប្បន្នភាពកំណត់ត្រាដែលមានស្រាប់។ Join និង Resign ប្រើលេខសម្គាល់បុគ្គលិកបូកខែ ដើម្បីមិនរាប់ស្ទួនក្នុងខែតែមួយ។">匯入採 Upsert：同一唯一鍵存在時更新原記錄。主要資料存入 IndexedDB（瀏覽器內建的大容量資料庫）；第一次開啟會自動搬移舊版 localStorage 資料，成功後刪除重複副本。人力鍵＝月份＋部門＋職位；入職／離職鍵＝工號＋月份（同月不重複）；應徵鍵＝登記日＋姓名＋電話。</p>
     </div>
     <div class="panel">
       <div class="panel-head"><div class="panel-title" data-zh="最近匯入記錄" data-en="Recent import log" data-km="ប្រវត្តិនាំចូល">最近匯入記錄</div></div>
@@ -755,6 +755,94 @@ function arrayValue(raw){
   if(raw&&Array.isArray(raw.records))return raw.records;
   if(raw&&typeof raw==='object')return Object.values(raw).filter(x=>x&&typeof x==='object');
   return[];
+}
+
+/* Join / Resign are shared business records, not two independent copies.
+   One employee may have at most one Join and one Resign event per month.
+   The month key also lets an Excel correction update the date/details instead
+   of creating a second movement row. */
+function movementKindPrefix(kind){return kind==='resign'?'R':'J'}
+function movementDate(kind,r){return parseDate(r&&(kind==='resign'?r.resignDate:r.joinDate))||''}
+function movementKey(kind,r){
+  const id=digits(r&&(r.empId||r.employeeId||r.idNo));
+  const date=movementDate(kind,r);
+  return id?`${movementKindPrefix(kind)}|${id}${date?'|'+date.slice(0,7):''}`:(r&&r._k)||'';
+}
+function ensureMovementKey(r,kind){
+  if(!r||typeof r!=='object')return r;
+  r._kind=kind;r.empId=digits(r.empId||r.employeeId||r.idNo||'')||r.empId||'';
+  r._k=movementKey(kind,r)||r._k||`${movementKindPrefix(kind)}|x${Date.now()}`;
+  return r;
+}
+function normalizeMovementArray(rows,kind){
+  const map=new Map();
+  arrayValue(rows).forEach(raw=>{
+    const r={...raw};ensureMovementKey(r,kind);
+    const key=r._k,old=map.get(key);
+    if(!old)map.set(key,r);
+    else map.set(key,mergeRecord(old,r));
+  });
+  return [...map.values()];
+}
+function normalizeMovementCollections(){
+  DB.joins=normalizeMovementArray(DB.joins,'join');
+  DB.resigns=normalizeMovementArray(DB.resigns,'resign');
+}
+function readSharedMovement(key){
+  try{return arrayValue(JSON.parse(lsGet(key)||'[]'))}catch(e){return[]}
+}
+function syncSharedMovement(){
+  const joins=DB.joins.map(r=>({...r,_kind:'join'}));
+  const resigns=DB.resigns.map(r=>({...r,_kind:'resign'}));
+  lsSet(ONBOARD_JOIN_KEY,JSON.stringify(joins));
+  lsSet(ONBOARD_RESIGN_KEY,JSON.stringify(resigns));
+}
+function mergeSharedMovement(){
+  const joins=normalizeMovementArray(readSharedMovement(ONBOARD_JOIN_KEY),'join');
+  const resigns=normalizeMovementArray(readSharedMovement(ONBOARD_RESIGN_KEY),'resign');
+  const stats={join:upsertArray(DB.joins,joins,'join'),resign:upsertArray(DB.resigns,resigns,'resign')};
+  normalizeMovementCollections();
+  return stats;
+}
+/* A storage event carries the complete shared collection.  When another
+   page deleted a movement, an upsert-only merge would keep the stale row in
+   Manpower forever.  Reconcile on the event path so add/update/delete all
+   have the same meaning across the two pages; initial loading remains
+   conservative and keeps legacy local-only rows through mergeSharedMovement. */
+function replaceSharedMovement(kind, rows){
+  const next=normalizeMovementArray(rows,kind), key=kind==='join'?'joins':'resigns';
+  const before=Array.isArray(DB[key])?DB[key]:[], oldMap=new Map(before.map(r=>[r._k,stableRecord(r)]));
+  const nextMap=new Map(next.map(r=>[r._k,stableRecord(r)]));
+  let added=0,updated=0,removed=0;
+  next.forEach(r=>{if(!oldMap.has(r._k))added++;else if(oldMap.get(r._k)!==nextMap.get(r._k))updated++;});
+  before.forEach(r=>{if(!nextMap.has(r._k))removed++;});
+  DB[key]=next;
+  return{added,updated,removed};
+}
+function prepareMovementRows(target,incoming,kind,interactive){
+  const map=new Map(),skip=new Set(),conflicts=[];
+  arrayValue(incoming).forEach(raw=>{
+    const r={...raw};ensureMovementKey(r,kind);const old=map.get(r._k);
+    if(old){
+      const od=movementDate(kind,old),nd=movementDate(kind,r);
+      if(od&&nd&&od!==nd)conflicts.push({old,new:r});
+    }
+    map.set(r._k,r);
+  });
+  const existing=new Map(arrayValue(target).map(r=>{ensureMovementKey(r,kind);return[r._k,r]}));
+  map.forEach(r=>{
+    const old=existing.get(r._k),od=movementDate(kind,old),nd=movementDate(kind,r);
+    if(old&&od&&nd&&od!==nd)conflicts.push({old,new:r});
+  });
+  if(conflicts.length&&interactive&&typeof window.confirm==='function'){
+    const examples=conflicts.slice(0,4).map(x=>`${x.new.empId} (${movementDate(kind,x.old)} → ${movementDate(kind,x.new)})`).join('\n');
+    const ok=window.confirm(L(
+      `同一工號同一月份已有${kind==='join'?'入職':'離職'}資料，是否以新資料更新？\n\n${examples}`,
+      `The same employee already has a ${kind==='join'?'join':'resign'} record in the same month. Update it with the new data?\n\n${examples}`,
+      `មានទិន្នន័យ ${kind==='join'?'ចូល':'ចាកចេញ'} របស់បុគ្គលិកដដែលក្នុងខែនេះ។ ធ្វើបច្ចុប្បន្នភាពដោយទិន្នន័យថ្មី?\n\n${examples}`));
+    if(!ok)conflicts.forEach(x=>skip.add(x.new._k));
+  }
+  return [...map.values()].filter(r=>!skip.has(r._k));
 }
 function parseDate(v){
   if(v==null||v==='')return'';
@@ -1090,7 +1178,12 @@ async function loadDB(){
       STORAGE.initialWarning={error:probe.error||idbError,mode:'memory'};
     }
   }
+  normalizeMovementCollections();
+  const shared=mergeSharedMovement();
   relinkCandidates();
+  if(shared.join.added||shared.join.updated||shared.resign.added||shared.resign.updated){
+    try{await persistSnapshot(cloneData(DB));}catch(e){console.warn('Shared movement mirror:',e)}
+  }
   await refreshStorageEstimate();
   return DB;
 }
@@ -1121,6 +1214,8 @@ async function persistSnapshot(snapshot){
 }
 function saveDB(){
   DB.updatedAt=new Date().toISOString();
+  normalizeMovementCollections();
+  syncSharedMovement();
   const snapshot=cloneData(DB);
   SAVE_QUEUE=SAVE_QUEUE.catch(()=>({ok:false})).then(()=>persistSnapshot(snapshot));
   return SAVE_QUEUE;
@@ -1199,13 +1294,16 @@ function upsertArray(target,incoming,kind){
   target.splice(0,target.length,...map.values());
   return{added,updated,unchanged,skipped};
 }
-function mergeParsed(parsed){
+function mergeParsed(parsed,options={}){
   const stats={};
   stats.plan=upsertArray(DB.plans,parsed.plans||[],'plan');
   stats.candidate=upsertArray(DB.candidates,parsed.candidates||[],'candidate');
-  stats.join=upsertArray(DB.joins,parsed.joins||[],'join');
-  stats.resign=upsertArray(DB.resigns,parsed.resigns||[],'resign');
+  const joins=prepareMovementRows(DB.joins,parsed.joins||[],'join',!!options.interactive);
+  const resigns=prepareMovementRows(DB.resigns,parsed.resigns||[],'resign',!!options.interactive);
+  stats.join=upsertArray(DB.joins,joins,'join');
+  stats.resign=upsertArray(DB.resigns,resigns,'resign');
   stats.daily=upsertArray(DB.daily,parsed.daily||[],'daily');
+  normalizeMovementCollections();
   relinkCandidates();
   return stats;
 }
@@ -1385,7 +1483,7 @@ function parseJoinSheet(ws,fileName,source='joining-list'){
     const row=rows[r]||[],id=digits(cell(row,cId)),date=parseDate(cell(row,cDate)),name=norm(cell(row,cName));
     if(!validId(id)||!date||!name||/^total$/i.test(name))continue;
     out.push({
-      _kind:'join',_k:`J|${id}`,empId:id,joinDate:date,name,
+      _kind:'join',_k:`J|${id}|${date.slice(0,7)}`,empId:id,joinDate:date,name,
       dept:norm(cell(row,cDept)),section:norm(cell(row,cSection)),position:norm(cell(row,cPos)),
       gender:norm(cell(row,cGender)).toUpperCase().slice(0,1),dob:parseDate(cell(row,cDob)),
       age:n(cell(row,cAge)),address:norm(cell(row,cAddress)),phone:digits(cell(row,cPhone)),
@@ -1415,7 +1513,7 @@ function parseResignSheet(ws,fileName){
     else if(tick(cell(row,cDismiss)))resignType='dismiss';
     else if(tick(cell(row,cResign)))resignType='resign';
     out.push({
-      _kind:'resign',_k:`R|${id}|${date}`,empId:id,resignDate:date,name,
+      _kind:'resign',_k:`R|${id}|${date.slice(0,7)}`,empId:id,resignDate:date,name,
       joinDate:parseDate(cell(row,cJoin)),dept:norm(cell(row,cSection)),section:norm(cell(row,cSection)),
       position:norm(cell(row,cPos)),gender:norm(cell(row,cGender)).toUpperCase().slice(0,1),
       dob:parseDate(cell(row,cDob)),age:n(cell(row,cAge)),resignType,workingDays:n(cell(row,cDays)),
@@ -1542,7 +1640,7 @@ async function smartImport(input){
       const parsed=detected.type==='monthly'?parseMonthlyWorkbook(wb,file.name):parseRecruitWorkbook(wb,file.name);
       const pc=parsedCounts(parsed),total=Object.values(pc).reduce((a,b)=>a+b,0);
       if(!total)throw new Error(L('沒有讀到有效資料','No valid records found','រកមិនឃើញទិន្នន័យ'));
-      const stats=mergeParsed(parsed);
+      const stats=mergeParsed(parsed,{interactive:true});
       const dates=[
         ...parsed.plans.map(r=>r.snapshotDate),...parsed.candidates.map(r=>r.registerDate),
         ...parsed.joins.map(r=>r.joinDate),...parsed.resigns.map(r=>r.resignDate),...parsed.daily.map(r=>r.date)
@@ -2133,12 +2231,12 @@ function requiredOnline(kind,r){
 function onlineKey(kind,r){
   if(kind==='plan')return `P|${r.snapshotDate.slice(0,7)}|${normKey(r.dept)}|${normKey(r.position)}`;
   if(kind==='candidate')return `C|${r.registerDate}|${normName(r.name)}|${digits(r.phone)||r.dob||normName(r.name)}`;
-  if(kind==='join')return `J|${digits(r.empId)}`;
-  if(kind==='resign')return `R|${digits(r.empId)}|${r.resignDate}`;
+  if(kind==='join')return movementKey('join',r);
+  if(kind==='resign')return movementKey('resign',r);
   return `D|${r.date}`;
 }
 async function saveOnlineRecord(){
-  const kind=el('recordType').value,r=readOnlineForm(kind);
+  const kind=el('recordType').value;let r=readOnlineForm(kind);
   if(!requiredOnline(kind,r)){toast(L('請填完必要欄位，工號須為數字','Complete required fields; employee ID must be numeric','សូមបំពេញទិន្នន័យ'),'warn');return}
   if(kind==='plan'){
     r.period=r.snapshotDate.slice(0,7);r.hired=r.hired||r.hiredNoExp+r.hiredExp;
@@ -2148,6 +2246,11 @@ async function saveOnlineRecord(){
   if(['join','resign'].includes(kind))r.empId=digits(r.empId);
   r._kind=kind;r._k=onlineKey(kind,r);Object.assign(r,sourceMeta('online','online'));
   const arr=collection(kind);
+  if(kind==='join'||kind==='resign'){
+    const prepared=prepareMovementRows(arr,[r],kind,true);
+    if(!prepared.length)return;
+    r=prepared[0];r._kind=kind;r._k=onlineKey(kind,r);
+  }
   let result;
   if(EDITING.key&&EDITING.key===r._k){
     const i=arr.findIndex(x=>x._k===EDITING.key);
@@ -2193,12 +2296,13 @@ async function testCloud(){
   const url=norm(el('gasUrl').value)||gasUrl();if(!url){toast(L('請先填入 GAS URL','Enter GAS URL first','សូមបញ្ចូល URL'),'warn');return}
   setCloudState('',L('連線中…','Connecting…','កំពុងភ្ជាប់…'));
   try{
-    const r=await fetch(`${url}?action=heartbeat`,{redirect:'follow'}),d=await r.json();
+    const d=await cloudAction(url,'heartbeat',{});
     if(d?.ok===false)throw new Error(d.error||'GAS error');
     setCloudState('ok',L('雲端正常','Cloud ready','Cloud រួចរាល់'));toast(L('雲端連線成功','Cloud connection successful','ភ្ជាប់ជោគជ័យ'),'ok');
   }catch(e){setCloudState('err',L('雲端失敗','Cloud error','Cloud មានបញ្ហា'));toast(e.message,'err')}
 }
 function flatCloudRecords(){
+  normalizeMovementCollections();
   return[
     ...DB.plans.map(r=>({...r,_kind:'plan'})),
     ...DB.candidates.map(r=>({...r,_kind:'candidate'})),
@@ -2207,22 +2311,76 @@ function flatCloudRecords(){
     ...DB.daily.map(r=>({...r,_kind:'daily'}))
   ];
 }
-async function cloudUpload(){
-  const url=gasUrl(),btn=el('cloudUpBtn'),records=flatCloudRecords();
+const CLOUD_MANIFEST_KEY='ac_hra_manpower_cloud_manifest_v2';
+function cloudRecordId(r){return `${r?._kind||'record'}|${r?._k||r?.id||r?.date||JSON.stringify(r)}`}
+function cloudManifest(){
+  try{return JSON.parse(lsGet(CLOUD_MANIFEST_KEY)||'{}')||{}}catch(e){return{}}
+}
+function cloudDeltaRecords(records){
+  const old=cloudManifest();
+  return records.filter(r=>old[cloudRecordId(r)]!==stableRecord(r));
+}
+function markCloudManifest(records){
+  const m=cloudManifest();
+  records.forEach(r=>{m[cloudRecordId(r)]=stableRecord(r)});
+  const keys=Object.keys(m);if(keys.length>30000)keys.slice(0,keys.length-30000).forEach(k=>delete m[k]);
+  lsSet(CLOUD_MANIFEST_KEY,JSON.stringify(m));
+}
+async function postCloudJson(url,payload){
+  const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+  const text=await r.text();let d;
+  try{d=JSON.parse(text)}catch(e){throw new Error(`GAS returned non-JSON (HTTP ${r.status})`)}
+  if(!r.ok)throw new Error(`GAS HTTP ${r.status}`);
+  return d;
+}
+async function cloudAction(url,action,params){
+  const q=new URLSearchParams(Object.assign({action},params||{}));
+  const r=await fetch(`${url}?${q.toString()}`,{redirect:'follow'}),text=await r.text();
+  let d;try{d=JSON.parse(text)}catch(e){throw new Error(`GAS returned non-JSON (HTTP ${r.status})`)}
+  /* 新版 GAS 同時支援 GET 與 POST；若手機仍指向舊部署，POST 是最後的相容嘗試。 */
+  if(d?.ok===false&&/unknown action/i.test(String(d.error||''))){
+    return postCloudJson(url,Object.assign({action},params||{}));
+  }
+  if(!r.ok)throw new Error(`GAS HTTP ${r.status}`);
+  return d;
+}
+async function cloudUpload(options={}){
+  const url=gasUrl(),btn=el('cloudUpBtn'),allRecords=flatCloudRecords();let records=cloudDeltaRecords(allRecords);
   if(!url){toast(L('請先到設定填 GAS URL','Set GAS URL first','កំណត់ GAS URL ជាមុន'),'warn');goTab('settings');return}
-  if(!records.length){toast(L('沒有資料可上傳','No data to upload','គ្មានទិន្នន័យ'),'warn');return}
-  btn.classList.add('busy');btn.disabled=true;setCloudState('',L('上傳中…','Uploading…','កំពុងផ្ទុក…'));
+  const mainPick=await selectCloudDelta(url,'manpower',records);records=mainPick.records;
+  /* Join/Resign 另外以 onboarding ledger 同步；即使 Manpower 本身已是最新，
+     也要檢查平台 ledger 是否缺少這些 movement。 */
+  const movementPick=await selectCloudDelta(url,'onboarding',allRecords.filter(r=>r._kind==='join'||r._kind==='resign'));
+  const movement=movementPick.records;
+  if(!records.length&&!movement.length){
+    markCloudManifest([...mainPick.known,...allRecords.filter(r=>r._kind!=='join'&&r._kind!=='resign')]);
+    if(!options.auto)toast(L('沒有新增或變更資料，不需重複上傳','No new or changed records; upload skipped','គ្មានទិន្នន័យថ្មី ឬកែប្រែ មិនចាំបាច់ផ្ទុកឡើងឡើងវិញ'),'info');
+    return{skipped:true};
+  }
+  if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('上傳中…','Uploading…','កំពុងផ្ទុក…'));
   try{
-    const payload={action:'push',tool:'manpower',records,recordCount:records.length,coverage:HRACloudGuard.coverage(records,'manpower'),summary:counts(),updatedAt:new Date().toISOString()};
-    const d=await HRACloudGuard.push(payload,async function(safePayload){
-      const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(safePayload)});
-      return r.json();
-    },LANG==='en'?'en':(LANG==='km'?'km':'zh'));
-    if(d?.cancelled){toast(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
-    if(d?.ok===false)throw new Error(d.error||'Upload failed');
-    setCloudState('ok',`${L('已上傳','Uploaded','បានផ្ទុក')} ${records.length}`);toast(L('雲端上傳完成','Cloud upload complete','ផ្ទុករួចរាល់'),'ok');
-  }catch(e){setCloudState('err',L('上傳失敗','Upload failed','ផ្ទុកបរាជ័យ'));toast(e.message,'err')}
-  finally{btn.classList.remove('busy');btn.disabled=false}
+    if(records.length){
+      const payload={action:'push',tool:'manpower',records,recordCount:allRecords.length,coverage:HRACloudGuard.coverage(allRecords,'manpower'),summary:counts(),updatedAt:new Date().toISOString(),syncId:'mp-'+Date.now(),overwriteConfirmed:!!mainPick.confirmed};
+      const d=await HRACloudGuard.push(payload,async function(safePayload){return postCloudJson(url,safePayload)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
+      if(d?.cancelled){toast(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
+      if(d?.ok===false)throw new Error(d.error||'Upload failed');
+    }
+    /* Manpower movement 同時寫入 onboarding ledger，讓平台另一側也能看到。 */
+    if(movement.length){
+      const movementPayload={action:'push',tool:'onboarding',records:movement,recordCount:movement.length,
+        coverage:HRACloudGuard.coverage(movement,'onboarding'),summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},
+        updatedAt:new Date().toISOString(),syncId:'mp-movement-'+Date.now(),overwriteConfirmed:!!movementPick.confirmed};
+      const md=await HRACloudGuard.push(movementPayload,function(safePayload){return postCloudJson(url,safePayload)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
+      if(md?.cancelled){toast(L('已取消入離職覆蓋，雲端資料已保留','Movement overwrite cancelled; cloud data was kept','បានបោះបង់ការជំនួស movement; Cloud ត្រូវបានរក្សាទុក'),'warn');return}
+      if(md?.ok===false)throw new Error(md.error||'Onboarding movement sync failed');
+    }
+    markCloudManifest([...records,...mainPick.known]);
+    const sent=records.length+movement.length;
+    setCloudState('ok',`${L('已上傳新增／變更','Uploaded new/changed','បានផ្ទុកថ្មី/កែប្រែ')} ${sent}`);
+    if(!options.auto)toast(L('雲端上傳完成；只送新增或變更資料','Cloud upload complete; only new/changed data sent','ផ្ទុក Cloud រួច; ផ្ញើតែទិន្នន័យថ្មី/កែប្រែ'),'ok');
+    return{ok:true,sent};
+  }catch(e){setCloudState('err',L('上傳失敗','Upload failed','ផ្ទុកបរាជ័យ'));toast(e.message,'err');return{ok:false,error:e}}
+  finally{if(btn){btn.classList.remove('busy');btn.disabled=false}}
 }
 function splitCloudRecords(records){
   const p={plans:[],candidates:[],joins:[],resigns:[],daily:[]};
@@ -2253,37 +2411,64 @@ function migrateCloudLegacy(payload){
   });
   return parsed;
 }
+async function pullCloudRecords(url,tool){
+  const d=await cloudAction(url,'pull',{tool,meta:1});
+  if(d?.ok===false)throw new Error(d.error||'Download failed');
+  const outer=d?.data||d;let records=[];
+  if(outer?.chunked&&outer?.meta?.totalChunks){
+    for(let i=0;i<outer.meta.totalChunks;i++){
+      const cd=await cloudAction(url,'pull',{tool,chunk:i});
+      records.push(...arrayValue(cd?.data?.records||cd?.records||cd?.data));
+    }
+  }else{
+    const payload=cloudPayloadFromResponse(d);if(payload)records=arrayValue(payload.records);
+  }
+  return records;
+}
+async function selectCloudDelta(url,tool,records){
+  const incoming=Array.isArray(records)?records:[],known=[],changed=[],selected=[];
+  if(!incoming.length)return{records:[],known:[],confirmed:false};
+  let remote=[];
+  try{remote=await pullCloudRecords(url,tool)}catch(e){
+    /* 舊版 GAS 暫時不能 pull 時仍允許上傳；部署新版 GS 後會重新比對。 */
+    console.warn(`[${tool}] remote comparison unavailable:`,e);
+    return{records:incoming,known:[],confirmed:false};
+  }
+  const byKey=new Map();remote.forEach(r=>byKey.set(cloudRecordId(r),r));
+  incoming.forEach(r=>{
+    const old=byKey.get(cloudRecordId(r));
+    if(!old){selected.push(r);return;}
+    if(stableRecord(old)===stableRecord(r))known.push(r);
+    else{selected.push(r);changed.push({old,new:r});}
+  });
+  if(changed.length&&typeof window.confirm==='function'){
+    const sample=changed.slice(0,6).map(x=>`${x.new.empId||x.new.id||'—'} ${x.new.name||''} · ${x.new._kind||''}`).join('\n');
+    const ok=window.confirm(L(
+      `雲端已有 ${changed.length} 筆相同鍵值但內容不同的 Manpower／入離職資料。\n\n${sample}\n\n是否確認以本機新資料更新？`,
+      `Cloud already has ${changed.length} record(s) with the same key but different details.\n\n${sample}\n\nUpdate them with the local data?`,
+      `Cloud មាន ${changed.length} កំណត់ត្រាដែលមានលេខសម្គាល់ដូចគ្នា ប៉ុន្តែព័ត៌មានខុសគ្នា។\n\n${sample}\n\nធ្វើបច្ចុប្បន្នភាពដោយទិន្នន័យក្នុងម៉ាស៊ីន?`));
+    if(!ok){
+      const changedKeys=new Set(changed.map(x=>cloudRecordId(x.new)));
+      return{records:selected.filter(r=>!changedKeys.has(cloudRecordId(r))),known,confirmed:false};
+    }
+    return{records:selected,known,confirmed:true};
+  }
+  return{records:selected,known,confirmed:false};
+}
 async function cloudDownload(){
   const url=gasUrl(),btn=el('cloudDownBtn');if(!url){toast(L('請先到設定填 GAS URL','Set GAS URL first','កំណត់ GAS URL ជាមុន'),'warn');goTab('settings');return}
-  btn.classList.add('busy');btn.disabled=true;setCloudState('',L('下載中…','Downloading…','កំពុងទាញយក…'));
+  if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('下載中…','Downloading…','កំពុងទាញយក…'));
   try{
-    const r=await fetch(`${url}?action=pull&tool=manpower&meta=1`,{redirect:'follow'}),d=await r.json();
-    if(d?.ok===false)throw new Error(d.error||'Download failed');
-    const outer=d?.data||d;
-    let records=[];
-    if(outer?.chunked&&outer?.meta?.totalChunks){
-      for(let i=0;i<outer.meta.totalChunks;i++){
-        const cr=await fetch(`${url}?action=pull&tool=manpower&chunk=${i}`,{redirect:'follow'}),cd=await cr.json();
-        records.push(...arrayValue(cd?.data?.records||cd?.records||cd?.data));
-      }
-    }else{
-      const payload=cloudPayloadFromResponse(d);
-      if(payload)records=arrayValue(payload.records);
-      if(!records.length&&payload){
-        const parsed=migrateCloudLegacy(payload),stats=mergeParsed(parsed);
-        const saved=await saveDB();populateFilters();renderAll();
-        setCloudState(saved.ok?'ok':'err',saved.ok?L('已下載並合併','Downloaded & merged','បានទាញយក'):L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
-        if(saved.ok)toast(statText(stats),'ok');
-        return;
-      }
-    }
-    if(!records.length)throw new Error(L('雲端尚無 Manpower 資料','No Manpower data in cloud','មិនមានទិន្នន័យក្នុង Cloud'));
-    const parsed=splitCloudRecords(records),stats=mergeParsed(parsed);
+    const records=await pullCloudRecords(url,'manpower');
+    let movement=[];try{movement=await pullCloudRecords(url,'onboarding')}catch(e){console.warn('Onboarding movement pull:',e)}
+    const all=[...records,...movement.filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate))];
+    if(!all.length)throw new Error(L('雲端尚無 Manpower／入離職資料','No Manpower or movement data in cloud','មិនមានទិន្នន័យ Manpower/ចូលចេញក្នុង Cloud'));
+    const parsed=splitCloudRecords(all),stats=mergeParsed(parsed,{interactive:true});
     const saved=await saveDB();populateFilters();renderAll();
-    setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${records.length}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
-    if(saved.ok)toast(`${L('雲端下載完成','Cloud download complete','ទាញយករួចរាល់')} · ${statText(stats)}`,'ok');
+    setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${all.length}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
+    if(saved.ok){markCloudManifest(all);toast(`${L('雲端下載完成；Manpower 與平台入離職已合併','Cloud download complete; Manpower and platform movement merged','ទាញយករួច; Manpower និង Join/Resign បានបញ្ចូល')} · ${statText(stats)}`,'ok');}
   }catch(e){setCloudState('err',L('下載失敗','Download failed','ទាញយកបរាជ័យ'));toast(e.message,'err')}
-  finally{btn.classList.remove('busy');btn.disabled=false}
+  finally{if(btn){btn.classList.remove('busy');btn.disabled=false}}
 }
 function tgBi(zh,en,lang){
   if(lang==='zh')return zh;if(lang==='en')return en;return `${zh} ${en}`;
@@ -2315,6 +2500,17 @@ function buildTelegramHtml(){
     t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n`;
     t+=`${tgBi('入職','Joined',lang)}：${fmt(m.joined)}　${tgBi('離職','Resigned',lang)}：${fmt(m.resigned)}　${tgBi('淨增減','Net',lang)}：${m.net>0?'+':''}${fmt(m.net)}\n`;
     t+=`${tgBi('流動率','Turnover',lang)}：${pct(m.turnover)}\n`;
+    const joins=DB.joins.filter(r=>inState(r.joinDate,state)).sort((a,b)=>String(a.joinDate).localeCompare(String(b.joinDate)));
+    const resigns=DB.resigns.filter(r=>inState(r.resignDate,state)).sort((a,b)=>String(a.resignDate).localeCompare(String(b.resignDate)));
+    const movementRows=[...joins.map(r=>({type:tgBi('入職','Join',lang),date:r.joinDate,r})),...resigns.map(r=>({type:tgBi('離職','Resign',lang),date:r.resignDate,r}))].slice(0,16);
+    if(movementRows.length){
+      t+=`${tgBi('人員明細','People details',lang)}：\n`;
+      movementRows.forEach(x=>{
+        const r=x.r,where=[r.dept||r.section,r.section&&r.section!==r.dept?r.section:'',r.position].filter(Boolean).join(' / ')||'—';
+        t+=`· ${x.type} ${r.empId||'—'} ${r.name||'—'} · ${where} · ${x.date||'—'}\n`;
+      });
+      if(joins.length+resigns.length>movementRows.length)t+=`· … +${joins.length+resigns.length-movementRows.length}\n`;
+    }
   }
   if(el('tgDept').checked){
     const latest=latestPlanRows(plansForState(state,true)),dm={};
@@ -2323,6 +2519,20 @@ function buildTelegramHtml(){
     if(rows.length){
       t+=`\n📋 <b>${tgBi('部門摘要','By Department',lang)}</b>\n`;
       rows.forEach(r=>{t+=`${esc(r.d)}：${r.actual}/${r.required} · ${tgBi('缺口','Gap',lang)} ${r.gap}\n`});
+    }
+    const detail=latestPlanRows(plansForState(state,true)).reduce((acc,r)=>{
+      const dept=r.dept||'—',section=r.section&&r.section!==dept?r.section:'',position=r.position||'—';
+      const key=[dept,section,position].join('¦');
+      if(!acc[key])acc[key]={dept,section,position,required:0,actual:0};
+      acc[key].required+=n(r.required);acc[key].actual+=n(r.actual);return acc;
+    },{});
+    const detailRows=Object.values(detail).sort((a,b)=>(b.required-b.actual)-(a.required-a.actual)).slice(0,16);
+    if(detailRows.length){
+      t+=`${tgBi('部門／組別／職位','Department / Section / Position',lang)}：\n`;
+      detailRows.forEach(r=>{
+        const label=[r.dept,r.section,r.position].filter(Boolean).join(' / ');
+        t+=`· ${esc(label)}：${r.actual}/${r.required} · ${tgBi('缺口','Gap',lang)} ${r.required-r.actual}\n`;
+      });
     }
   }
   return t.trim();
@@ -2343,6 +2553,8 @@ async function sendTelegram(){
     const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',tool:'manpower',text:LAST_TG_HTML})});
     const d=await r.json();if(d?.ok===false)throw new Error(d.error||'Telegram failed');
     toast(L('Telegram 摘要已傳送群組','Telegram summary sent','បានផ្ញើទៅ Telegram'),'ok');closeModal('tgModal');
+    /* 摘要成功後只把本次尚未同步的新增／變更資料送到雲端。 */
+    await cloudUpload({auto:true});
   }catch(e){toast(e.message,'err')}
   finally{btn.disabled=false;btn.innerHTML=`✈ <span>${L('傳送群組','Send to group','ផ្ញើទៅក្រុម')}</span>`}
 }
@@ -2430,6 +2642,23 @@ async function init(){
   }
   refreshStorageEstimate();
 }
+
+/* Same-origin bridge: if Onboarding edits Join/Resign in another tab/page,
+   Manpower refreshes its movement tables without waiting for a manual export. */
+window.addEventListener('storage',async function(e){
+  if(e.key!==ONBOARD_JOIN_KEY&&e.key!==ONBOARD_RESIGN_KEY)return;
+  const kind=e.key===ONBOARD_JOIN_KEY?'join':'resign';
+  const rows=readSharedMovement(e.key);
+  const stats=replaceSharedMovement(kind,rows);
+  if(stats.added||stats.updated||stats.removed){
+    await saveDB();populateFilters();renderAll();
+    const detail=L(
+      `平台${kind==='join'?'入職':'離職'}已同步：新增 ${stats.added}、更新 ${stats.updated}、刪除 ${stats.removed}`,
+      `Platform ${kind==='join'?'join':'resign'} synced: ${stats.added} added, ${stats.updated} updated, ${stats.removed} deleted`,
+      `បានធ្វើសមកាលកម្ម ${kind==='join'?'ចូល':'ចាកចេញ'}៖ បន្ថែម ${stats.added} កែ ${stats.updated} លុប ${stats.removed}`);
+    toast(detail,'ok');
+  }
+});
 
 Object.assign(window,{
   setLang,smartImport,goTab,setPeriodMode,movePeriod,todayPeriod,jumpPeriod,

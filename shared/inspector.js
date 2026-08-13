@@ -18,7 +18,8 @@
       v = String(v).trim();
       if (v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
     }
-    return v || '未填寫 / Not specified';
+    /* 空白就是空白；不要把「未填寫」當成檢查人寫進摘要。 */
+    return v;
   }
   function target(body) {
     if (!body || typeof body !== 'object') return false;
@@ -33,8 +34,9 @@
           var body = JSON.parse(init.body);
           if (target(body)) {
             var name = ensure();
-            body.inspector = body.inspector || name;
-            body.checker = body.checker || name;
+            /* 明確傳空字串，讓 GAS 知道本次不落款；不要沿用舊的假檢查人。 */
+            if (body.inspector === undefined) body.inspector = name;
+            if (body.checker === undefined) body.checker = name;
             body.bilingual = true;
             init = Object.assign({}, init, { body: JSON.stringify(body) });
           }

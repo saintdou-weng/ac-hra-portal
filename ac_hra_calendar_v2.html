@@ -2201,7 +2201,7 @@ function gasUrl(){return localStorage.getItem('ac_hra_gas_url')||''}
 async function postCalendarGas(payload){const url=gasUrl();if(!url)throw new Error(lang==='en'?'Please configure the GAS URL in Cloud Sync first.':'請先在雲端同步設定 GAS URL。');const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');return d}
 async function sendTelegram(){
   const stEl=document.getElementById('tg-status'),msg=buildTgMsg();stEl.innerHTML=`<div class="warn-box">${lang==='en'?'Sending manually…':'手動發送中…'} ✈️</div>`;
-  try{await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value});stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已發送到 Telegram 群組。'}</div>`}
+  try{await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value});stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已發送到 Telegram 群組。'}</div>`;if(window.calPush)await window.calPush()}
   catch(e){stEl.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}</div>`}setTimeout(()=>stEl.innerHTML='',8000)
 }
 function renderScheduleStatus(){
@@ -2634,6 +2634,11 @@ init();
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
       saveDB(false);
+      var localCloudState={db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS};
+      if(!HRACloudGuard.stateChanged('calendar_state',localCloudState)){
+        calLog(lang==='en'?'Already synced; no new or changed calendar data':'雲端已同步；沒有新增或變更的日曆資料','i');
+        return;
+      }
       var count=flatDB().length;
       var snapshot={kind:'calendarSnapshot',version:3,db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS,updatedAt:new Date().toISOString()};
       var payload = {action:'push',tool:'calendar',records:[snapshot],
@@ -2645,6 +2650,7 @@ init();
         return r.json();
       }, lang === 'en' ? 'en' : 'zh');
       if(d && d.ok && !d.cancelled){
+        HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
         var meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
         localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
         calLog('✓ '+(lang==='en'?'Manual upload complete':'手動上傳完成')+' ('+count+'筆)','ok');
@@ -2686,6 +2692,7 @@ init();
       else if(Array.isArray(recs)&&recs.length){DB=dbFromFlat(recs);}
       else throw new Error(lang==='en'?'No calendar snapshot found':'雲端沒有可用的日曆資料');
       LAST_SAVED_DB=clone(DB);saveDB(false);init();
+      HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
       var count=flatDB().length,meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
       localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
       calLog('✓ '+(lang==='en'?'Latest cloud data downloaded':'已下載最新雲端資料')+' ('+count+'筆)','ok');

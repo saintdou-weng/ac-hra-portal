@@ -31,6 +31,28 @@
     return typeof w.confirm === 'function' ? w.confirm(message) : false;
   }
 
+  function stableValue(v) {
+    if (Array.isArray(v)) return v.map(stableValue);
+    if (v && typeof v === 'object') {
+      var o = {};
+      Object.keys(v).sort().forEach(function (k) {
+        if (k === 'updatedAt' || k === 'sourceFiles' || k === 'sources' || k === '_legacyIndex') return;
+        o[k] = stableValue(v[k]);
+      });
+      return o;
+    }
+    return v;
+  }
+  function fingerprint(v) { return JSON.stringify(stableValue(v)); }
+  function stateKey(key) { return 'ac_hra_cloud_state_' + String(key || 'default'); }
+  function readState(key) {
+    try { return JSON.parse(localStorage.getItem(stateKey(key)) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function writeState(key, value) {
+    try { localStorage.setItem(stateKey(key), JSON.stringify(value)); } catch (e) {}
+  }
+  function recordId(r) { return String((r && (r._k || r.key || r.id || r.employeeId || r.empId || r.idNo)) || JSON.stringify(r || {})); }
+
   w.HRACloudGuard = {
     coverage(records, source) {
       var dates = [];
@@ -52,11 +74,27 @@
       walk(records, 0); dates.sort();
       return {firstDate:dates[0]||'', latestDate:dates[dates.length-1]||'', source:source||'web'};
     },
+    fingerprint: fingerprint,
+    stateChanged(key, value) { return readState(key).fingerprint !== fingerprint(value); },
+    markState(key, value) { writeState(key, { fingerprint:fingerprint(value), updatedAt:new Date().toISOString() }); },
+    deltaRecords(key, records) {
+      var old = readState(key), map = old.records || {};
+      return (records || []).filter(function (r) { return map[recordId(r)] !== fingerprint(r); });
+    },
+    markRecords(key, records) {
+      var old = readState(key), map = old.records || {};
+      (records || []).forEach(function (r) { map[recordId(r)] = fingerprint(r); });
+      writeState(key, { records:map, updatedAt:new Date().toISOString() });
+    },
     /* send(payload) must return the parsed GAS JSON response. */
     async push(payload, send, lang) {
       var result = await send(payload);
-      if (result && result.needsConfirmation) {
-        if (!ask(result.conflict, lang)) return Object.assign({}, result, { cancelled: true });
+      /* GAS wraps responses as {ok:true,data:{...}}.  Older pages returned
+         the guard object at the top level, so accept both shapes. */
+      var guard = result && result.needsConfirmation ? result
+        : result && result.data && result.data.needsConfirmation ? result.data : null;
+      if (guard) {
+        if (!ask(guard.conflict, lang)) return Object.assign({}, result, { cancelled: true });
         return send(Object.assign({}, payload, { force: true, overwriteConfirmed: true }));
       }
       return result;
