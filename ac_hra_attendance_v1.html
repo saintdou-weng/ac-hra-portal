@@ -169,7 +169,6 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="tab" onclick="goTab('yearly',this)">📈 <span data-zh="年度分析" data-en="Yearly">年度分析</span></div>
   <div class="tab" onclick="goTab('dept',this)">🏢 <span data-zh="部門分析" data-en="Dept">部門分析</span></div>
   <div class="tab" onclick="goTab('hours',this)">⏱️ <span data-zh="考勤總時數" data-en="Attendance Hours" data-km="ម៉ោងវត្តមាន">考勤總時數</span></div>
-  <div class="tab" onclick="goTab('paycmp',this)">💵 <span data-zh="薪資／伙食對照" data-en="Payroll / Meal Check" data-km="ពិនិត្យប្រាក់ខែ / អាហារ">薪資／伙食對照</span></div>
   <div class="tab" onclick="goTab('group',this)">📊 <span data-zh="組別分析" data-en="Group">組別分析</span></div>
   <div class="tab" onclick="goTab('records',this)">📋 <span data-zh="所有記錄" data-en="Records">所有記錄</span></div>
   <div class="tab" onclick="goTab('sewcmp',this)">🔵 <span data-zh="出勤×車縫" data-en="Att×Sewing">出勤×車縫</span></div>
@@ -293,7 +292,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
           <th data-zh="天數" data-en="Days" data-km="ថ្ងៃ">天數</th>
           <th data-zh="平均在職" data-en="Avg Headcount" data-km="បុគ្គលិកមធ្យម">平均在職</th>
           <th data-zh="平均出勤" data-en="Avg Attendance" data-km="វត្តមានមធ្យម">平均出勤</th>
-          <th data-zh="總時數" data-en="Total Hours" data-km="ម៉ោងសរុប">總時數</th>
+          <th class="hours-field" data-zh="總時數" data-en="Total Hours" data-km="ម៉ោងសរុប">總時數</th>
           <th data-zh="出勤率" data-en="Attendance Rate" data-km="អត្រាវត្តមាន">出勤率</th>
           <th data-zh="缺勤" data-en="Absence" data-km="អវត្តមាន">缺勤</th>
           <th data-zh="新進" data-en="Join" data-km="ចូលថ្មី">新進</th>
@@ -386,31 +385,10 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
     <select id="hoursSel" onchange="renderHours()" style="min-width:125px"></select>
     <button class="btn btn-g" onclick="navHours(1)" style="padding:6px 12px;font-size:16px">▶</button>
     <select id="hoursDeptSel" onchange="renderHours()" style="min-width:150px"></select>
-    <button class="btn btn-p" onclick="payBridgeLoadLocal().then(()=>{populateHoursPeriodSel();renderHours()})"><span data-zh="☁ 讀取 HRA Pay 工時" data-en="☁ Load HRA Pay Hours" data-km="☁ អានម៉ោង HRA Pay">☁ 讀取 HRA Pay 工時</span></button>
   </div>
   <div id="hoursKpi" class="kpi-strip"></div>
   <div id="hoursSourceNote" class="tip" style="margin-bottom:12px"></div>
   <div class="card"><div class="ct" data-zh="部門／組別考勤總時數" data-en="Attendance Hours by Department / Section" data-km="ម៉ោងវត្តមានតាមផ្នែក / ក្រុម">部門／組別考勤總時數</div><div class="twrap" id="hoursTable"></div></div>
-</div>
-
-<!-- ══ MONTHLY PAYROLL / MEAL BRIDGE ══ -->
-<div class="sec" id="sec-paycmp">
-  <div class="card">
-    <div class="ct"><span data-zh="月度考勤 × HRA Pay 對照" data-en="Monthly Attendance × HRA Pay Check" data-km="ការពិនិត្យវត្តមាន × HRA Pay ប្រចាំខែ">月度考勤 × HRA Pay 對照</span></div>
-    <div class="frow">
-      <button class="btn btn-p" onclick="payBridgeLoadLocal()"><span data-zh="☁ 讀取 HRA Pay（本機／雲端）" data-en="☁ Load HRA Pay (Local / Cloud)" data-km="☁ អាន HRA Pay (Local / Cloud)">☁ 讀取 HRA Pay（本機／雲端）</span></button>
-      <label class="btn btn-g" style="cursor:pointer"><span data-zh="📥 匯入 Projection／Excel／JSON" data-en="📥 Import Projection / Excel / JSON" data-km="📥 នាំចូល Projection / Excel / JSON">📥 匯入 Projection／Excel／JSON</span><input type="file" accept=".xlsx,.xls,.csv,.json" multiple style="display:none" onchange="payBridgeImportFiles(this)"></label>
-      <button class="btn btn-g" onclick="payBridgeExport()"><span data-zh="⬇ 匯出對照 CSV" data-en="⬇ Export Check CSV" data-km="⬇ នាំចេញ CSV">⬇ 匯出對照 CSV</span></button>
-      <button class="btn btn-g" onclick="payBridgeClear()"><span data-zh="清除對照資料" data-en="Clear Bridge Data" data-km="លុបទិន្នន័យប្រៀបធៀប">清除對照資料</span></button>
-    </div>
-    <div id="pbNote" class="tip" style="background:#f0f9ff;border-color:#bae6fd;line-height:1.7"></div>
-    <div class="frow" style="margin-top:12px;margin-bottom:0">
-      <label style="color:#6b7a9e" data-zh="月份" data-en="Month" data-km="ខែ">月份</label><select id="pbMonth" onchange="payBridgeMonthChange()" style="min-width:125px"></select>
-      <label style="color:#6b7a9e" data-zh="部門" data-en="Department" data-km="ផ្នែក">部門</label><select id="pbDept" onchange="payBridgeDeptChange()" style="min-width:170px"></select>
-    </div>
-  </div>
-  <div id="pbKpi" class="kpi-strip"></div>
-  <div class="card"><div class="ct"><span data-zh="部門月度明細" data-en="Monthly Department Details" data-km="ព័ត៌មានលម្អិតតាមផ្នែកប្រចាំខែ">部門月度明細</span></div><div class="twrap" id="pbTable"></div></div>
 </div>
 
 <!-- ══ GROUP ══ -->
@@ -500,7 +478,10 @@ const LS={
 function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))return 0;if(n>0&&n<1)return 0;return Math.round(n);}
 
 // ── Data store ──
-let DB=LS.get('db')||[];// Array of parsed row objects
+// Legacy Attendance snapshots may contain a manually imported Hours field.
+// Drop it on load so old values cannot override the automatic HRA Pay bridge.
+function stripAttendanceHours(rows){return(Array.isArray(rows)?rows:[]).map(r=>({...r,hours:null,hoursPresent:false}))}
+let DB=stripAttendanceHours(LS.get('db')||[]);// Array of parsed row objects
 let IMPORT_LOG=LS.get('log')||[];
 // DB_META — tracks source, version, updatedAt for cloud vs local comparison
 let DB_META=LS.get('meta')||{updatedAt:'',cloudUpdatedAt:'',version:0,source:'local'};
@@ -628,7 +609,7 @@ async function loadFromIDB() {
 // Local-only startup. Cloud upload/download is always initiated by the user.
 (async function smartStartup() {
   try {
-    const recs = await loadFromIDB();
+    const recs = stripAttendanceHours(await loadFromIDB());
     if (recs.length > 0 && recs.length >= DB.length) {
       DB = recs;
       IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
@@ -644,6 +625,7 @@ async function loadFromIDB() {
 
 
 function saveDB(){
+  DB=stripAttendanceHours(DB);
   markDataChanged();
   LS.set('log', IMPORT_LOG);
   updateHeader();
@@ -736,8 +718,7 @@ function renderTab(name,force){
       else if(name==='monthly'){populateMonthSel();renderMonthly();}
       else if(name==='yearly'){populateYearSel();renderYearly();}
       else if(name==='dept'){populateDeptPeriodSel();renderDept();}
-      else if(name==='hours'){populateHoursPeriodSel();renderHours();}
-      else if(name==='paycmp'){if(typeof payBridgeRefresh==='function')payBridgeRefresh();}
+      else if(name==='hours'){populateHoursPeriodSel();renderHours();if(typeof payBridgeAutoSync==='function')payBridgeAutoSync();}
       else if(name==='group')renderGroupAnalysis();
       else if(name==='records')renderRecords();
       else if(name==='sewcmp')await initSewCmp();
@@ -754,6 +735,35 @@ function renderAll(){
   Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
   renderTab(ACTIVE_TAB,true);
 }
+
+// HRA Pay is the only accepted source for Attendance total-hours fields.
+// Until the automatic bridge finishes, leave the controls alone; after it
+// finishes, hide the complete hours surface when no usable source exists.
+function attendanceHoursAvailable(){return typeof payBridgeHasHours==='function'&&payBridgeHasHours()}
+function setAttendanceHoursVisibility(available){
+  const show=!!available;
+  document.querySelectorAll('.hours-field').forEach(el=>{el.style.display=show?'':'none'});
+  const tab=document.querySelector(".tab[onclick=\"goTab('hours',this)\"]");
+  if(tab)tab.style.display=show?'':'none';
+  const sec=document.getElementById('sec-hours');
+  if(sec&&!show){
+    sec.style.display='none';
+    if(ACTIVE_TAB==='hours'){
+      const first=document.querySelector(".tab[onclick=\"goTab('daily',this)\"]");
+      if(first)goTab('daily',first);
+    }
+  }else if(sec)sec.style.display='';
+}
+function hoursKpi(grain,key){
+  if(!attendanceHoursAvailable())return '';
+  const x=periodHoursValue(grain,key);
+  return kpiHtml(T('考勤總時數','Total Hours','ម៉ោងសរុប'),formatHours(x.value),hoursSourceSub(grain,key));
+}
+window.addEventListener('ac-hra-pay-updated',e=>{
+  setAttendanceHoursVisibility(!!(e.detail&&e.detail.available));
+  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
+  renderAll();
+});
 
 // ═══════ NAV ═══════
 function fillPeriodSelect(id,values,labelFn){
@@ -819,7 +829,7 @@ function renderDaily(){
     kpiHtml(T('新進','Join','ចូលថ្មី'),g?g.join:0,_sw.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_sw.joinSum}`:'')+
     kpiHtml(T('離職','Resign','លាឈប់'),g?g.resign:0,(g&&ttl>0?T('流失率:','Turnover:','អត្រាចាកចេញ:')+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?` ${T('車縫','Sewing','ដេរ')}:`+_sw.resignSum:''))+ 
     kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0)+
-    kpiHtml(T('考勤總時數','Total Hours','ម៉ោងសរុប'),formatHours(periodHoursValue('day',d).value),hoursSourceSub('day',d));
+    hoursKpi('day',d);
 
   // Leave pie — smaller with person count labels
   if(g){
@@ -866,7 +876,7 @@ function renderWeekly(){
     kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swW.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.joinSum}`:'',totalJoin>0?'good':'')+
     kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swW.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.resignSum}`:'',totalResign>0?'bad':'')+
     kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—')+
-    kpiHtml(T('考勤總時數','Total Hours','ម៉ោងសរុប'),formatHours(periodHoursValue('week',wk).value),hoursSourceSub('week',wk));
+    hoursKpi('week',wk);
 
   // Trend
   mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -905,7 +915,7 @@ function renderMonthly(){
     kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swM.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.joinSum}`:'')+
     kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swM.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.resignSum}`:'',totalResign>0?'bad':'')+
     kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%')+
-    kpiHtml(T('考勤總時數','Total Hours','ម៉ោងសរុប'),formatHours(periodHoursValue('month',m).value),hoursSourceSub('month',m));
+    hoursKpi('month',m);
 
   // Daily rate trend
   mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:T('目標92%','Target 92%','គោលដៅ 92%'),data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -919,21 +929,10 @@ function renderMonthly(){
 }
 
 function hoursForDate(date){
-  const rows=rowsForDate(date),grand=grandForDate(date);
-  const hv=r=>{
-    if(!r||r.hours==null||r.hours==='')return null;
-    const x=Number(r&&r.hours);
-    // New imports carry hoursPresent so an explicit 0 remains distinguishable
-    // from an old workbook that had no hours column at all.
-    if(!isFinite(x)||x<0)return null;
-    if(r&&r.hoursPresent===true)return x;
-    return x>0?x:null; // legacy rows: only positive values prove availability
-  };
-  if(grand&&hv(grand)!=null)return hv(grand);
-  const detail=rows.filter(r=>!r.isGrand&&!r.isSubtotal&&hv(r)!=null);
-  if(detail.length)return detail.reduce((s,r)=>s+hv(r),0);
-  const sub=rows.filter(r=>r.isSubtotal&&hv(r)!=null);
-  return sub.length?sub.reduce((s,r)=>s+hv(r),0):null;
+  // Attendance workbooks are intentionally not a work-hours source. HRA Pay
+  // is read in the background and supplies this value through the bridge.
+  const x=typeof payBridgeHoursForPeriod==='function'?payBridgeHoursForPeriod('day',date):null;
+  return x&&x.known?x.total:null;
 }
 function totalHoursForDates(dates){
   const vals=(dates||[]).map(hoursForDate).filter(v=>v!=null);
@@ -945,23 +944,16 @@ function sumKnownHours(vals){
   return a.length?a.reduce((s,v)=>s+Number(v||0),0):null;
 }
 function periodHoursValue(grain,key){
-  const actual=totalHoursForDates(periodDates(grain,key));
-  if(actual!=null)return{value:actual,source:'attendance',known:true};
   if(typeof payBridgeHoursForPeriod==='function'){
     const p=payBridgeHoursForPeriod(grain,key);
-    if(p&&p.known)return{value:p.total,source:'payroll',known:true,projection:p};
+    if(p&&p.known)return{value:p.total,source:p.source||'payroll',known:true,projection:p};
   }
-  const meal=typeof payBridgeMealForPeriod==='function'?payBridgeMealForPeriod(grain,key):null;
-  return{value:null,source:meal&&meal.known?'meal':'none',known:false,meal};
+  return{value:null,source:'none',known:false};
 }
 function hoursSourceSub(grain,key){
   const x=periodHoursValue(grain,key);
-  if(x.source==='attendance')return T('來源：考勤實際工時','Source: actual Attendance hours','ប្រភព៖ ម៉ោង Attendance ពិត');
-  if(x.source==='payroll')return T('來源：HRA Pay Payroll（月度）','Source: HRA Pay Payroll (monthly)','ប្រភព៖ HRA Pay Payroll (ប្រចាំខែ)');
-  if(x.source==='meal'&&x.meal){
-    const d=x.meal.days==null?'—':Number(x.meal.days).toLocaleString();
-    return T(`餐日參考：${d}（不是工時）`,`Meal-days reference: ${d} (not hours)`,`យោងថ្ងៃអាហារ៖ ${d} (មិនមែនម៉ោង)`);
-  }
+  if(x.source==='payroll')return T('來源：HRA Pay Payroll／工作日推算','Source: HRA Pay Payroll / work-days derived','ប្រភព៖ HRA Pay Payroll / គណនាពីថ្ងៃធ្វើការ');
+  if(x.source==='meal')return T('來源：HRA Pay Meal Fee／餐日推算','Source: HRA Pay Meal Fee / meal-days derived','ប្រភព៖ HRA Pay Meal Fee / គណនាពីថ្ងៃអាហារ');
   return T('尚無可用工時','No hours available','មិនមានម៉ោង');
 }
 function attendancePeriodMetrics(grain,key){
@@ -1000,7 +992,7 @@ function renderAttendancePeriodList(){
     const turnover=x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%';
     return`<tr class="${key===active?'active':''}" onclick="jumpAttendancePeriod('${key}')">
       <td style="text-align:left">${key===active?'◀ ':''}<b>${key}</b></td>
-      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td><td>${formatHours(x.hours)}</td>
+      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td><td class="hours-field">${formatHours(x.hours)}</td>
       <td>${rateBadge(x.rate)}</td><td>${x.absence}</td><td>${x.join}</td><td>${x.resign}</td><td>${turnover}</td>
     </tr>`;
   }).join('');
@@ -1148,32 +1140,27 @@ function hoursSourceRows(dates){
 }
 function renderHours(){
   const mode=document.getElementById('hoursMode')?.value||'month',key=document.getElementById('hoursSel')?.value;if(!key)return;
-  const dates=periodDates(mode,key),wanted=document.getElementById('hoursDeptSel')?.value||'',actualRows=hoursSourceRows(dates);
+  const dates=periodDates(mode,key),wanted=document.getElementById('hoursDeptSel')?.value||'';
   const bridge=typeof payBridgeHoursForPeriod==='function'?payBridgeHoursForPeriod(mode,key):null;
-  const meal=typeof payBridgeMealForPeriod==='function'?payBridgeMealForPeriod(mode,key):null;
-  const useBridge=!actualRows.length&&!!(bridge&&bridge.known);
-  const sourceRows=useBridge?(bridge.groups||[]):actualRows,groups={};
-  const filtered=useBridge?sourceRows.filter(g=>!wanted||[g.dept||'',g.sect||''].join('¦')===wanted):sourceRows.filter(r=>!wanted||[r.dept||'',r.sect||''].join('¦')===wanted);
+  const sourceRows=bridge&&bridge.known?(bridge.groups||[]):[],groups={};
+  const filtered=sourceRows.filter(g=>!wanted||[g.dept||'',g.sect||''].join('¦')===wanted);
   filtered.forEach(r=>{
-    const dept=r.dept||'—',sect=r.sect||'—',line=useBridge?(r.position||'—'):(r.line||'—'),gk=[dept,sect,line].join('¦');
+    const dept=r.dept||'—',sect=r.sect||'—',line=r.position||'—',gk=[dept,sect,line].join('¦');
     if(!groups[gk])groups[gk]={dept,sect,line,hours:0,att:0,days:0,rows:0};
-    groups[gk].hours+=Number(r.hours||0);groups[gk].att+=Number(r.att||0);groups[gk].days+=useBridge?0:1;groups[gk].rows+=Number(r.rows||1);
+    groups[gk].hours+=Number(r.hours||0);groups[gk].rows+=Number(r.rows||1);
   });
   const total=Object.values(groups).reduce((s,r)=>s+r.hours,0),att=Object.values(groups).reduce((s,r)=>s+r.att,0);
-  const known=actualRows.length>0||useBridge, title=useBridge?T('HRA Pay Payroll 月度工時','HRA Pay Payroll Monthly Hours','ម៉ោង Payroll ប្រចាំខែ'):T('考勤總時數','Total Attendance Hours','ម៉ោងវត្តមានសរុប');
+  const known=!!(bridge&&bridge.known), title=bridge?.source==='meal'?T('HRA Pay Meal Fee 推算工時','HRA Pay Meal Fee Derived Hours','ម៉ោងគណនាពី HRA Pay Meal Fee'):T('HRA Pay Payroll 工時','HRA Pay Payroll Hours','ម៉ោង HRA Pay Payroll');
   document.getElementById('hoursKpi').innerHTML=
     kpiHtml(title,known?formatHours(total):'—',`${T('期間','Period','រយៈពេល')} ${key}`)+
     kpiHtml(T('平均每日時數','Average per Day','មធ្យមក្នុងមួយថ្ងៃ'),known&&dates.length?formatHours(total/dates.length):'—',`${dates.length} ${T('天','days','ថ្ងៃ')}`)+
-    kpiHtml(T('涵蓋部門／組別','Departments / Sections','ផ្នែក / ក្រុម'),Object.keys(groups).length,`${T(useBridge?'Payroll 筆數':'出勤人次',useBridge?'Payroll rows':'Attendance count',useBridge?'ជួរ Payroll':'ចំនួនវត្តមាន')}: ${useBridge?(bridge.rows||0):att}`);
-  document.getElementById('hoursSourceNote').innerHTML=useBridge
-    ?'⚠️ '+T('此期間考勤檔沒有實際工時，已改顯示 HRA Pay Payroll 提供的月度工時；Meal Fee 只有餐費／用餐天數，不會換算成工時。月度資料不能精準拆成日／週。','The Attendance file has no actual hours for this period, so the HRA Pay Payroll monthly hours are shown. Meal Fee is meal cost/days and is not converted into hours. Monthly data cannot be split precisely into day/week.','ឯកសារ Attendance មិនមានម៉ោងពិតសម្រាប់រយៈពេលនេះទេ ដូច្នេះបង្ហាញម៉ោង Payroll ប្រចាំខែ។ Meal Fee មិនត្រូវបានបម្លែងជាម៉ោងទេ។')
-    :actualRows.length
-      ?'✅ '+T('工時欄位已從考勤匯入檔讀取；表格按部門／分區／組別彙總。','Hours were read from the imported Attendance workbook and grouped by department / section / line.','បានអានម៉ោងពីឯកសារ Attendance ហើយបែងចែកតាមផ្នែក / ក្រុម / បន្ទាត់។')
-      :'⚠️ '+T('目前沒有可辨識的實際工時；若 HRA Pay Payroll 也沒有 Hours 欄位，會顯示「—」，不再顯示假性的 0。請匯入含 Total Hours／工時欄的考勤或 Payroll Projection。','No actual hours are available. If HRA Pay Payroll also has no Hours column, the result stays “—” instead of a misleading 0. Import Attendance or Payroll data with Total Hours / Work Hours.','មិនមានម៉ោងពិតទេ។ ប្រសិនបើ Payroll មិនមានជួរឈរ Hours ដែរ លទ្ធផលនឹងបង្ហាញ “—”។')+
-        (meal&&meal.known?`<br>🍽️ ${T('Meal Fee 參考','Meal Fee reference','យោង Meal Fee')}：${T('餐日','meal-days','ថ្ងៃអាហារ')} ${meal.days==null?'—':Number(meal.days).toLocaleString()} · ${meal.fee==null?'—':fmt(meal.fee)}（${T('不是工時','not work hours','មិនមែនម៉ោងការងារ')}）`:'');
+    kpiHtml(T('涵蓋部門／組別','Departments / Sections','ផ្នែក / ក្រុម'),Object.keys(groups).length,`${T('HRA Pay 資料筆數','HRA Pay source rows','ជួរទិន្នន័យ HRA Pay')}: ${bridge?.rows||0}`);
+  document.getElementById('hoursSourceNote').innerHTML=known
+    ?'✅ '+T('工時由 HRA Pay 背景資料自動整理；優先使用 Payroll 工時，其次用工作日或 Meal Fee 餐日推算，並按部門／組別彙總。','Hours were assembled automatically from HRA Pay in the background: Payroll hours first, then work-days or Meal Fee meal-days, grouped by department / section.','ម៉ោងត្រូវបានរៀបចំដោយស្វ័យប្រវត្តិពី HRA Pay៖ Payroll ជាមុន បន្ទាប់មកថ្ងៃធ្វើការ ឬថ្ងៃអាហារ ហើយបែងចែកតាមផ្នែក / ក្រុម។')
+    :'⚠️ '+T('目前沒有可讀取的 HRA Pay 工時來源；總工時欄位會自動隱藏，不要求你重新整理或匯入任何新格式。','No readable HRA Pay hours source is available. Total-hours fields are hidden automatically; no new format or manual import is required.','មិនមានប្រភពម៉ោង HRA Pay ដែលអាចអានបានទេ។ វាលម៉ោងសរុបនឹងលាក់ដោយស្វ័យប្រវត្តិ។');
   const vals=Object.values(groups).sort((a,b)=>b.hours-a.hours);
   let html='<table class="dtbl"><thead><tr><th>'+T('部門','Department','ផ្នែក')+'</th><th>'+T('分區','Section','ក្រុម')+'</th><th>'+T('組別／職稱','Line / Title','បន្ទាត់ / តួនាទី')+'</th><th>'+T('總時數','Total Hours','ម៉ោងសរុប')+'</th><th>'+T('平均每日','Avg / Day','មធ្យម/ថ្ងៃ')+'</th><th>'+T('出勤','Attendance','វត្តមាន')+'</th><th>'+T('資料天數','Days','ថ្ងៃ')+'</th></tr></thead><tbody>';
-  vals.forEach(g=>{html+=`<tr><td>${g.dept}</td><td>${g.sect}</td><td>${g.line}</td><td><b>${formatHours(g.hours)}</b></td><td>${known&&dates.length?formatHours(g.hours/dates.length):'—'}</td><td>${useBridge?'—':g.att}</td><td>${useBridge?g.rows:g.days}</td></tr>`});
+  vals.forEach(g=>{html+=`<tr><td>${g.dept}</td><td>${g.sect}</td><td>${g.line}</td><td><b>${formatHours(g.hours)}</b></td><td>${known&&dates.length?formatHours(g.hours/dates.length):'—'}</td><td>—</td><td>${g.rows}</td></tr>`});
   if(!vals.length)html+=`<tr><td colspan="7">${T('此期間沒有可用工時資料','No hours data for this period','មិនមានទិន្នន័យម៉ោងសម្រាប់រយៈពេលនេះ')}</td></tr>`;
   html+='</tbody></table>';document.getElementById('hoursTable').innerHTML=html;
 }
@@ -1182,11 +1169,11 @@ function renderHours(){
 function renderRecords(){
   const zh_r=LANG==='zh';document.getElementById('recInfo').textContent=zh_r?`共 ${DB.length} 筆記錄，${allDates().length} 天`:`${DB.length} records · ${allDates().length} days`;
   const dates=allDates().reverse();
-  let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th>Hours</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
+  let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th class="hours-field">Hours</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
   // Show latest 500 rows
   const show=dates.slice(0,5).flatMap(rowsForDate).slice(0,500);
   show.forEach(r=>{const c=calc(r);const rc=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
-    html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td>${Number(r.hours||0).toFixed(2)}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
+    html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td class="hours-field">${Number(r.hours||0).toFixed(2)}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
   html+='</tbody></table>';document.getElementById('recTable').innerHTML=html;
 }
 
@@ -1197,14 +1184,14 @@ function renderAttTable(rows,date,containerId){
   let html=`<table class="dtbl"><thead><tr>
   <th rowspan="2" style="min-width:120px">${deptH}</th><th rowspan="2" style="min-width:100px">${sectH}</th><th rowspan="2" style="min-width:180px">${lineH}</th>
   <th colspan="3">${hcH}</th><th>${T('新進','Join','ចូលថ្មី')}</th><th>T-In</th><th>${T('培訓','Training','បណ្តុះបណ្តាល')}</th><th>T-Out</th><th>${T('離職','Resign','លាឈប់')}</th><th>${reportH}</th>
-  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>${T('停工','Idle','ផ្អាក')}</th><th>${absH}</th><th>${attH}</th><th>${T('總時數','Hours','ម៉ោង')}</th><th style="background:#14574a;color:#fff">${T('出勤率','Rate','អត្រា')}%</th></tr>
+  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>${T('停工','Idle','ផ្អាក')}</th><th>${absH}</th><th>${attH}</th><th class="hours-field">${T('總時數','Hours','ម៉ោង')}</th><th style="background:#14574a;color:#fff">${T('出勤率','Rate','អត្រា')}%</th></tr>
   <tr><th>M</th><th>F</th><th>TTL</th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const c=calc(r),rc=c.rate===null?'':c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb',rs=c.rate===null?'—':(c.rate*100).toFixed(1)+'%';
     const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
     html+=`<tr class="${cls}"><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td>
     <td>${r.m}</td><td>${r.f}</td><td><b>${c.ttl}</b></td><td>${r.join}</td><td>${r.ti}</td><td>${r.tr}</td><td>${r.to}</td><td>${r.resign}</td><td>${c.report}</td>
-    <td>${r.al}</td><td>${r.pl}</td><td>${r.sl}</td><td>${r.np}</td><td>${r.bus}</td><td>${r.fl}</td><td class="${r.ml>0?'ml-h':''}">${r.ml}</td><td class="${r.idle>0?'idle-h':''}">${r.idle}</td><td>${c.absent}</td><td><b>${r.att}</b></td><td>${Number(r.hours||0).toFixed(2)}</td><td class="${rc}"><b>${rs}</b></td></tr>`;});
+    <td>${r.al}</td><td>${r.pl}</td><td>${r.sl}</td><td>${r.np}</td><td>${r.bus}</td><td>${r.fl}</td><td class="${r.ml>0?'ml-h':''}">${r.ml}</td><td class="${r.idle>0?'idle-h':''}">${r.idle}</td><td>${c.absent}</td><td><b>${r.att}</b></td><td class="hours-field">${Number(r.hours||0).toFixed(2)}</td><td class="${rc}"><b>${rs}</b></td></tr>`;});
   html+='</tbody></table>';document.getElementById(containerId).innerHTML=html;
 }
 
@@ -1251,7 +1238,7 @@ function renderYearly(){
     kpiHtml(T('年度新進','Year Join','ចូលថ្មីប្រចាំឆ្នាំ'),yJ,_swY.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.joinSum}`:'',yJ>0?'good':'')+
     kpiHtml(T('年度離職','Year Resign','លាឈប់ប្រចាំឆ្នាំ'),yR,_swY.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.resignSum}`:'',yR>0?'bad':'')+
     kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%')+
-    kpiHtml(T('年度考勤總時數','Annual Attendance Hours','ម៉ោងវត្តមានប្រចាំឆ្នាំ'),formatHours(yHours),'');
+    (attendanceHoursAvailable()?kpiHtml(T('年度考勤總時數','Annual Attendance Hours','ម៉ោងវត្តមានប្រចឆ្នាំ'),formatHours(yHours),''):'');
 
   // Monthly rate trend
   mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
@@ -1460,7 +1447,9 @@ const COL_MATCHERS={
   fl:   c=>/特假|\bfl\b/i.test(c),
   ml:   c=>/產假|maternity|\bml\b/i.test(c)&&!/出勤率|rate/i.test(c),
   idle: c=>/停工|suspend|\bidle\b/i.test(c),
-  hours: c=>/(total\s*hours|work\s*hours|hours?\s*worked|attendance\s*hours|工時|時數|總時數|hrs?)/i.test(c)&&!/rate|出勤率/i.test(c),
+  // Attendance is not a work-hours import source. HRA Pay is read by the
+  // background bridge, so Total Hours / 工時 columns are deliberately ignored.
+  hours: c=>false,
   // att: "出勤人數/Actual Attend" - MUST contain 出勤 or attend but NOT 出勤率/rate
   att:  c=>((/出勤.{0,8}人數|actual.{0,5}attend/i.test(c))||(/^att\.?$/i.test(c)))&&!/率|rate/i.test(c),
   rate: c=>/出勤率|attendance.rate|rate%/i.test(c),
@@ -1531,7 +1520,7 @@ function parseSheet(data,dateStr){
     const isSubtotal=!isGrand&&combined.includes('小計');
     const m=gn(row,'m'),f=gn(row,'f');
     if(!dept&&!sect&&!line&&m===0&&f===0&&!isSubtotal&&!isGrand)continue;
-    rows.push({date:dateStr,dept:normDept(dept),sect:normDept(sect),line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),hours:gh(row,'hours'),hoursPresent:COL.hours>=0,isSubtotal,isGrand});
+    rows.push({date:dateStr,dept:normDept(dept),sect:normDept(sect),line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),hours:null,hoursPresent:false,isSubtotal,isGrand});
     if(isGrand)break;
   }
   return rows;
@@ -2200,7 +2189,7 @@ function renderGroupAnalysis(){
 
 // ═══════ BACKUP / RESTORE ═══════
 function backupJSON(){const data={db:DB,log:IMPORT_LOG,ts:new Date().toISOString()};const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vrt_att_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('📦 已備份','ok');}
-function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=stripAttendanceHours(d.db);IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
 function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB();toast('🗑 已清除','ok');}
 function exportAllCSV(){if(!DB.length){toast('無資料','err');return;}
   const h=['date','dept','sect','line','m','f','ttl','join','resign','report','al','pl','sl','np','bus','fl','ml','idle','absent','att','rate','isSubtotal','isGrand'];
@@ -3179,6 +3168,10 @@ function renderJRCompare(){
 <script>
 setLang(LANG);
 setSyncStatus('idle','');
+// HRA Pay hours are read automatically after the Attendance page is ready.
+// There is no import/export/compare action for the user to perform.
+setAttendanceHoursVisibility(false);
+setTimeout(()=>{if(typeof payBridgeAutoSync==='function')payBridgeAutoSync()},0);
 </script>
 </body>
 </html>
