@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
 <script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
@@ -2048,43 +2049,22 @@ function cloudUpload(options){
   options=options||{};
   var url=gasUrl(),btn=el('btn-cloud-up');
   if(!url){if(!options.auto)toast(L('請先設定 GAS URL','Set GAS URL first'),'warn');return Promise.resolve({skipped:true});}
-  var allRecs=flatRecords(),recs=cloudDelta(allRecs),state=cloudState();
-  var decisionChanged=state.__decisions!==JSON.stringify(DEC);
-  if(!recs.length&&!decisionChanged){if(!options.auto)toast(L('沒有新增、變更或新的核可，不需重複上傳','No new/changed records or decisions; upload skipped'),'info');return Promise.resolve({skipped:true});}
+  var allRecs=flatRecords(),summary={joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,
+    decisions:Object.keys(DEC).length,updatedAt:nowStamp()};
   if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
-  var summary={joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,
-               decisions:Object.keys(DEC).length,updatedAt:nowStamp()};
-  var total=Math.max(1,Math.ceil(recs.length/CHUNK));
-  var syncId='onb-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
-  var seq=Promise.resolve(), sent=0;
-  for(var i=0;i<total;i++){
-    (function(idx){
-      seq=seq.then(function(){
-        var slice=recs.slice(idx*CHUNK,(idx+1)*CHUNK);
-        var p={action:'push',type:'push',tool:TOOL,records:slice,recordCount:allRecs.length,
-               summary:summary,coverage:HRACloudGuard.coverage(allRecs,'onboarding'),updatedAt:lds(new Date()),decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride}};
-        if(total>1){ p.chunk=idx; p.totalChunks=total; }
-        p.syncId=syncId;
-        return HRACloudGuard.push(p,function(safePayload){return gasPushJson(safePayload);},LANG==='en'?'en':(LANG==='km'?'km':'zh')).then(function(d){
-          if(d && d.cancelled) throw new Error(L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'));
-          if(!d || d.ok===false) throw new Error(d&&d.error||'GAS error');
-          sent+=slice.length;
-        });
-      });
-    })(i);
-  }
-  return seq.then(function(){
+  return HRASmartSync.push({url:url,tool:'onboarding',records:allRecs,recordCount:allRecs.length,
+    summary:summary,meta:{decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride},
+      coverage:HRACloudGuard.coverage(allRecs,'onboarding')},
+    onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(d){
+    if(d && d.cancelled) throw new Error(L('已取消變更，雲端資料已保留','Change cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'));
+    if(d && d.needsPull) throw new Error(L('雲端有新資料，已保留；請稍後再同步','Cloud has newer data; it was kept. Sync again later','Cloud មានទិន្នន័យថ្មីជាង; បានរក្សាទុក'));
     META.cloudUpdatedAt=summary.updatedAt; META.updatedAt=summary.updatedAt; saveMeta();
-    markCloudState(recs);
-    setTxt('cloud-stat', '☁ '+summary.updatedAt);
-    if(!options.auto)toast('☁↑ '+L('已上傳新增／變更','Uploaded new/changed')+' '+sent+' '+L('筆','records'),'ok');
-    return{ok:true,sent:sent};
-  }).catch(function(e){
-    toast(L('上傳失敗：','Upload failed: ')+e.message,'error');
-    return{ok:false,error:e};
-  }).then(function(){
-    if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
-  });
+    markCloudState(allRecs);
+    setTxt('cloud-stat','☁ '+summary.updatedAt);
+    if(!options.auto)toast('☁↑ '+L('只上傳新增／變更，並保留雲端資料','Only new/changed data uploaded; cloud data kept')+' '+(d.uploaded||0)+' '+L('筆','records'),'ok');
+    return d||{ok:true};
+  }).catch(function(e){toast(L('上傳失敗：','Upload failed: ')+e.message,'error');return{ok:false,error:e};})
+    .then(function(d){if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}return d;});
 }
 function digRecords(d){
   /* ⚠ 必須逐層往下挖 data.data.records */
@@ -2114,32 +2094,15 @@ function applyCloud(recs,silent){
     ' ('+L('新增','new')+' '+(mj.added+mr.added+ms.added)+' / '+L('更新','upd')+' '+(mj.updated+mr.updated+ms.updated)+')','ok');
 }
 function cloudDownload(silent){
-  var btn=el('btn-cloud-down'); if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50');}
-  var base=gasUrl()+'?action=pull&tool='+TOOL;
-  return fetch(base+'&meta=1').then(function(r){return r.json();}).then(function(d){
-    var info=(d&&d.data)||{};
-    if(info.chunked&&info.meta&&info.meta.totalChunks){
-      var n=info.meta.totalChunks, acc=[], seq=Promise.resolve();
-      for(var i=0;i<n;i++){
-        (function(idx){ seq=seq.then(function(){
-          return fetch(base+'&chunk='+idx).then(function(r2){return r2.json();}).then(function(d2){
-            var rec=digRecords(d2)||[]; acc=acc.concat(rec);
-          });
-        }); })(i);
-      }
-      return seq.then(function(){ return acc; });
-    }
-    return digRecords(d)||[];
-  }).then(function(recs){
-    if(!recs||!recs.length){ if(!silent)toast(L('雲端尚無資料','No cloud data'),'warn'); return; }
-    applyCloud(recs,silent);
-    META.cloudUpdatedAt=nowStamp(); saveMeta();
-    setTxt('cloud-stat', '☁ '+META.cloudUpdatedAt);
-  }).catch(function(e){
-    if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');
-  }).then(function(){
-    if(btn&&!silent){btn.disabled=false;btn.classList.remove('opacity-50');}
-  });
+  var btn=el('btn-cloud-down');if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50');}
+  var url=gasUrl(),local=flatRecords();
+  return HRASmartSync.pull({url:url,tool:'onboarding',localRecords:local,onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(res){
+    if(res&&res.cancelled)return;
+    if(!res||res.noCloud){if(!silent)toast(L('雲端尚無資料','No cloud data'),'warn');return;}
+    applyCloud(res.records||[],silent);
+    META.cloudUpdatedAt=nowStamp();saveMeta();setTxt('cloud-stat','☁ '+META.cloudUpdatedAt);
+  }).catch(function(e){if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');})
+    .then(function(){if(btn&&!silent){btn.disabled=false;btn.classList.remove('opacity-50');}});
 }
 /* 啟動靜默同步：⚠ 比較一定用 !==，不要用 > */
 function autoSync(){

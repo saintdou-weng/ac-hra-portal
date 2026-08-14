@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🇰🇭 柬埔寨假日行事曆管理系統</title>
 <script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -2628,27 +2629,25 @@ init();
     calShowStatus();
   };
 
+  function calendarSmartMergeRows(a,b){
+    function snap(rows){var x=(rows||[]).find(function(r){return r&&r.kind==='calendarSnapshot'});return x||{db:dbFromFlat(rows||[]),changeLog:[],settings:{}};}
+    var l=snap(a),r=snap(b),db=dbFromFlat(HRASmartSync.mergeRows(flatDB(l.db),flatDB(r.db))),cm={};
+    [].concat(l.changeLog||[],r.changeLog||[]).forEach(function(x){var k=String(x.id||x.recordId||x.at||JSON.stringify(x));cm[k]=x;});
+    return [{kind:'calendarSnapshot',version:3,db:db,changeLog:Object.keys(cm).map(function(k){return cm[k]}),settings:Object.assign({},l.settings||{},r.settings||{}),updatedAt:new Date().toISOString()}];
+  }
+
   window.calPush = async function(){
     if(!gasUrl){ calLog('請先設定 GAS URL','err'); return; }
     var btn = document.getElementById('calPushBtn');
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
       saveDB(false);
-      var localCloudState={db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS};
-      if(!HRACloudGuard.stateChanged('calendar_state',localCloudState)){
-        calLog(lang==='en'?'Already synced; no new or changed calendar data':'雲端已同步；沒有新增或變更的日曆資料','i');
-        return;
-      }
       var count=flatDB().length;
       var snapshot={kind:'calendarSnapshot',version:3,db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS,updatedAt:new Date().toISOString()};
-      var payload = {action:'push',tool:'calendar',records:[snapshot],
-        recordCount:count,coverage:HRACloudGuard.coverage(DB,'calendar'),updatedAt:snapshot.updatedAt};
-      var d = await HRACloudGuard.push(payload, async function(safePayload){
-        var r = await fetch(gasUrl, {method:'POST',redirect:'follow',
-          headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body:JSON.stringify(safePayload)});
-        return r.json();
-      }, lang === 'en' ? 'en' : 'zh');
+      var d = await HRASmartSync.push({url:gasUrl,tool:'calendar',records:[snapshot],recordCount:count,
+        summary:{calendarDays:count,changes:CHANGE_LOG.length},meta:{coverage:HRACloudGuard.coverage(DB,'calendar')},
+        mergeRecords:calendarSmartMergeRows,
+        onStatus:function(s){calLog(s,'i')}});
       if(d && d.ok && !d.cancelled){
         HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
         var meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
@@ -2666,29 +2665,17 @@ init();
 
   window.calPull = async function(){
     if(!gasUrl){ calLog('請先設定 GAS URL','err'); return; }
-    if(!confirm(lang==='en'?'Download the latest cloud calendar? Local records will be replaced.':'下載最新雲端日曆？本機資料會被覆蓋。')) return;
     var btn = document.getElementById('calPullBtn');
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
-      var r1 = await fetch(gasUrl+'?action=pull&tool=calendar&meta=1',{method:'GET',redirect:'follow'});
-      var d1 = await r1.json();
-      if(!d1.ok) throw new Error(d1.error||'GAS error');
-      var dd = d1.data || d1;
-      if(dd.data===null){ calLog('☁️ 雲端尚無資料','i'); return; }
-      var recs = dd.records || (dd.data&&dd.data.records) || dd.data || [];
-      if(!dd.chunked){
-        // non-chunked
-      } else {
-        var chunks = (dd.meta&&dd.meta.totalChunks)||1;
-        recs = [];
-        for(var i=0;i<chunks;i++){
-          var rc = await fetch(gasUrl+'?action=pull&tool=calendar&chunk='+i,{method:'GET',redirect:'follow'});
-          var dc = await rc.json();
-          recs = recs.concat(dc.data&&dc.data.records || dc.records || []);
-        }
-      }
+      var res = await HRASmartSync.pull({url:gasUrl,tool:'calendar',localRecords:[{kind:'calendarSnapshot',db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS}],
+        mergeRecords:calendarSmartMergeRows,
+        onStatus:function(s){calLog(s,'i')}});
+      if(res&&res.cancelled){calLog('⚠ '+(lang==='en'?'Download cancelled':'已取消下載'),'err');return;}
+      if(!res||res.noCloud){calLog('☁️ '+(lang==='en'?'No cloud calendar data':'雲端尚無資料'),'i');return;}
+      var recs = res.records || [];
       var snap=Array.isArray(recs)?recs.find(function(x){return x&&x.kind==='calendarSnapshot'}):null;
-      if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:[];CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{});}
+      if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:CHANGE_LOG;CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{});}
       else if(Array.isArray(recs)&&recs.length){DB=dbFromFlat(recs);}
       else throw new Error(lang==='en'?'No calendar snapshot found':'雲端沒有可用的日曆資料');
       LAST_SAVED_DB=clone(DB);saveDB(false);init();

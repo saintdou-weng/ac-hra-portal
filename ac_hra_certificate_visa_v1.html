@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1008,22 +1009,19 @@ function mergeCertificateState(local,incoming){
   out.updatedAt=new Date(Math.max(new Date(l.updatedAt||0).getTime(),new Date(i.updatedAt||0).getTime())).toISOString();
   return out;
 }
+function certSmartRows(state){const rows=[];['certificates','people','requests','imports'].forEach(section=>{(state?.[section]||[]).forEach(row=>rows.push(Object.assign({},row,{_hraSection:section,_k:'certificate|'+section+'|'+certMergeKey(row,section)})))});rows.push({_hraSection:'settings',_k:'certificate|settings',payload:state?.settings||{}});return rows}
+function certRowsToState(rows){const out=defaultState();(rows||[]).forEach(row=>{if(row?.kind==='snapshot'&&row.payload){Object.assign(out,mergeCertificateState(out,row.payload));return}const section=row?._hraSection;if(section==='settings'){out.settings=Object.assign({},out.settings,row.payload||{});return}if(out[section]&&Array.isArray(out[section])){const copy=Object.assign({},row);delete copy._hraSection;delete copy._k;out[section].push(copy)}});return out}
+function certSmartMergeRows(a,b){return HRASmartSync.mergeRows(certSmartRows(certRowsToState(a)),certSmartRows(certRowsToState(b)))}
 async function cloudPush(options={}){
-  if(!HRACloudGuard.stateChanged('certificate_state',STATE)){
-    if(!options.auto)toast(LANG==='en'?'No new or changed certificate data; upload skipped.':'沒有新增或變更的證書／簽證資料，不需重複上傳。');
-    return {skipped:true};
-  }
   showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');
   try{
-    const payload={action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],
-      recordCount:STATE.certificates.length+STATE.people.length+STATE.requests.length,
-      coverage:HRACloudGuard.coverage(STATE,'certificate_visa'),
-      updatedAt:new Date().toISOString()};
-    const d=await HRACloudGuard.push(payload,function(p){return postGas(p)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
-    if(d && d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消覆蓋，雲端資料已保留。',5000);return}
-    if(!d || d.ok===false)throw new Error(d&&d.error||'GAS error');
+    const rows=certSmartRows(STATE),d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:rows,recordCount:rows.length,
+      summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},
+      meta:{coverage:HRACloudGuard.coverage(STATE,'certificate_visa')},
+      onStatus:s=>showLoading((LANG==='en'?'Uploading… ':'上傳中… ')+s)});
+    if(d&&d.needsPull)throw new Error(LANG==='en'?'Cloud changed; data was kept. Download/merge first.':'雲端已有變更，資料已保留，請先下載合併。');
     HRACloudGuard.markState('certificate_state',STATE);
-    const pushCloudAt=d?.timestamp||d?.updatedAt||d?.data?.timestamp||d?.data?.updatedAt||'';
+    const pushCloudAt=d?.timestamp||d?.updatedAt||'';
     if(pushCloudAt){STATE.settings.lastCloudUpdatedAt=pushCloudAt;await persist()}
     toast(`✅ ${tr('cloudSent')}`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
@@ -1031,18 +1029,12 @@ async function cloudPush(options={}){
 async function cloudPull(){
   const url=gasUrl();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading manually…':'手動下載中…');
   try{
-    const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');
-    let records=d.data?.records||d.data?.data?.records||d.records||[];let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.certificates)snap=d.data.data;if(!snap?.certificates)throw new Error('No Certificate & Visa snapshot');
-    const cloudPayload=d.data?.data||d.data||{},cloudUpdatedAt=cloudPayload.updatedAt||d.data?.updatedAt||d.updatedAt||'';
-    const previousCloudAt=STATE.settings?.lastCloudUpdatedAt||'';
-    if(cloudUpdatedAt&&previousCloudAt&&new Date(cloudUpdatedAt).getTime()<=new Date(previousCloudAt).getTime()){
-      HRACloudGuard.markState('certificate_state',STATE);
-      toast(LANG==='en'?'✅ Already up to date.':LANG==='km'?'✅ ទិន្នន័យទាន់សម័យរួចហើយ។':'✅ 已是最新，不重複下載。');return;
-    }
-    const incomingCount=(snap.certificates?.length||0)+(snap.people?.length||0)+(snap.requests?.length||0);
-    const localCount=(STATE.certificates?.length||0)+(STATE.people?.length||0)+(STATE.requests?.length||0);
-    if(localCount && !confirm(`雲端將載入 ${incomingCount} 筆，本機目前 ${localCount} 筆。\n\n下載後會更新本機資料，請確認是否繼續？`))return;
-    STATE=mergeCertificateState(STATE,snap);STATE.settings.lastCloudUpdatedAt=cloudUpdatedAt||new Date().toISOString();await persist();HRACloudGuard.markState('certificate_state',STATE);renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
+    const res=await HRASmartSync.pull({url:url,tool:TOOL_ID,localRecords:certSmartRows(STATE),mergeRecords:certSmartMergeRows,
+      onStatus:s=>showLoading((LANG==='en'?'Downloading… ':'下載中… ')+s)});
+    if(res&&res.cancelled)return;if(!res||res.noCloud)throw new Error('No Certificate & Visa cloud data');
+    const incoming=certRowsToState(res.records||[]),cloudUpdatedAt=res.meta?.updatedAt||new Date().toISOString();
+    if((res.remoteRecords||[]).length&&(STATE.certificates.length||STATE.people.length)&&!confirm(`雲端有 ${(res.remoteRecords||[]).length} 筆變更；本機資料會保留並合併。確定下載？`))return;
+    STATE=mergeCertificateState(STATE,incoming);STATE.settings.lastCloudUpdatedAt=cloudUpdatedAt;await persist();HRACloudGuard.markState('certificate_state',STATE);renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
 

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Portal v3</title>
 <script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <style>
@@ -610,7 +611,7 @@ async function pushAll() {
   btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
   let ok = 0, fail = 0;
   for (const m of MODS) {
-    if (m.metaOnly) continue; // large IndexedDB modules sync from their own manual buttons
+    if (m.metaOnly || m.id === 'attendance') continue; // large/specialized modules sync from their own smart buttons
     try {
       let records = [];
       const raw = localStorage.getItem(m.lsKey);
@@ -623,17 +624,9 @@ async function pushAll() {
         if (r2) records = records.concat(JSON.parse(r2)||[]);
       }
       if (!records.length) continue;
-      const payload = { action:'push', tool:m.id, records, recordCount:records.length,
-        coverage:HRACloudGuard.coverage(records,m.id), updatedAt:new Date().toISOString() };
-      const dd = await HRACloudGuard.push(payload, async function(safePayload){
-        const r = await fetch(GAS_URL, {
-          method:'POST', redirect:'follow',
-          headers:{'Content-Type':'text/plain;charset=utf-8'},
-          body: JSON.stringify(safePayload),
-        });
-        return r.json();
-      }, LANG === 'en' ? 'en' : (LANG === 'km' ? 'km' : 'zh'));
-      if (dd && dd.ok && !dd.cancelled) { ok++; log(`✓ ${m.id} (${records.length} 筆)`, 'ok'); }
+      const dd = await HRASmartSync.push({url:GAS_URL,tool:m.id,records,recordCount:records.length,
+        meta:{coverage:HRACloudGuard.coverage(records,m.id)},onStatus:s=>log(`${m.id}: ${s}`,'info')});
+      if (dd && dd.ok && !dd.cancelled) { ok++; log(`✓ ${m.id} (${records.length} 筆，僅變更)`, 'ok'); }
       else { fail++; log(`⚠ ${m.id}: ${dd&&dd.cancelled?'已取消覆蓋':(dd&&dd.error||'上傳失敗')}`, 'err'); }
     } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
   }
@@ -652,28 +645,18 @@ async function pullAll() {
   btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
   let ok = 0, fail = 0;
   for (const m of MODS) {
-    if (m.metaOnly) continue; // module owns its IndexedDB snapshot
+    if (m.metaOnly || m.id === 'attendance') continue; // module owns its snapshot/date-diff sync
     try {
-      const r1 = await fetch(`${GAS_URL}?action=pull&tool=${m.id}&meta=1`, { redirect:'follow' });
-      const d1 = await r1.json();
-      if (!d1.ok || !d1.data || d1.data.data===null) continue;
-      let records = d1.data?.records || d1.data?.data?.records || d1.data?.data || [];
-      if (!Array.isArray(records)) records = [];
-      if (records.length) {
-        let localRecords = [];
-        try {
-          const localRaw = localStorage.getItem(m.lsKey);
-          const localData = localRaw ? JSON.parse(localRaw) : null;
-          localRecords = Array.isArray(localData) ? localData : (localData?.records || localData?.employees || []);
-        } catch(e) {}
-        const cloudCount = Number(d1.data?.meta?.recordCount || d1.data?.data?.recordCount || records.length) || records.length;
-        if (localRecords.length && cloudCount < localRecords.length) {
-          const okReplace = confirm(`⚠️ ${m.id}\n雲端只有 ${cloudCount} 筆，本機有 ${localRecords.length} 筆。\n\n若繼續，可能用較少資料取代本機資料。\n確定要下載嗎？`);
-          if (!okReplace) { log(`↩ ${m.id}: 已保留本機較完整資料`, 'info'); continue; }
-        }
-        localStorage.setItem(m.lsKey, JSON.stringify(records));
-        ok++; log(`✓ ${m.id} 拉取 ${records.length} 筆`, 'ok');
-      }
+      let localData=null,localRecords=[];
+      try{const raw=localStorage.getItem(m.lsKey);localData=raw?JSON.parse(raw):null;localRecords=Array.isArray(localData)?localData:(localData?.records||localData?.employees||[]);}catch(e){}
+      const res=await HRASmartSync.pull({url:GAS_URL,tool:m.id,localRecords,onStatus:s=>log(`${m.id}: ${s}`,'info')});
+      if(!res||res.noCloud)continue;
+      const records=res.records||[];
+      if(m.id==='onboarding'){
+        localStorage.setItem(m.lsKey,JSON.stringify(records.filter(r=>r._kind==='join'||r.joinDate&&!r.resignDate)));
+        if(m.extra)localStorage.setItem(m.extra,JSON.stringify(records.filter(r=>r._kind==='resign'||r.resignDate)));
+      }else localStorage.setItem(m.lsKey,JSON.stringify(records));
+      ok++; log(`✓ ${m.id} 拉取變更 ${res.downloaded||0} 筆`, 'ok');
     } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
   }
   updateStats(null);

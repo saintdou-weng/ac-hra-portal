@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Welfare &amp; Suggestion</title>
 <script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -565,37 +566,31 @@ function welfareKey(kind,x){x=x||{};const eid=x.employeeId||x.empId||x.idNo||'';
 function welfareMergeRow(a,b){a=a||{};b=b||{};const at=new Date(a.updatedAt||0).getTime(),bt=new Date(b.updatedAt||0).getTime(),newer=bt>=at?b:a,older=bt>=at?a:b,out=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((out[k]===undefined||out[k]===null||out[k]==='')&&older[k]!==undefined)out[k]=older[k]});if(Array.isArray(a.photos)||Array.isArray(b.photos))out.photos=[...new Set([...(a.photos||[]),...(b.photos||[])])];return out}
 function welfareMergeList(kind,a,b){const map=new Map(),order=[];[...(Array.isArray(a)?a:[])].forEach(x=>{const k=welfareKey(kind,x);if(!map.has(k))order.push(k);map.set(k,x)});[...(Array.isArray(b)?b:[])].forEach(x=>{const k=welfareKey(kind,x);if(map.has(k))map.set(k,welfareMergeRow(map.get(k),x));else{order.push(k);map.set(k,x)}});return order.map(k=>map.get(k))}
 function mergeWelfareState(local,incoming){const out=Object.assign(defaultState(),local||{},incoming||{});['members','movements','unionDues','suggestions','summaries'].forEach(k=>out[k]=welfareMergeList(k,local?.[k],incoming?.[k]));out.imports=welfareMergeList('imports',local?.imports,incoming?.imports);out.settings=Object.assign({},local?.settings||{},incoming?.settings||{});out.updatedAt=new Date(Math.max(new Date(local?.updatedAt||0).getTime(),new Date(incoming?.updatedAt||0).getTime())).toISOString();return out}
+function welfareSmartRows(state){const rows=[];['members','movements','unionDues','suggestions','summaries','imports'].forEach(section=>{(state?.[section]||[]).forEach(row=>rows.push(Object.assign({},row,{_hraSection:section,_k:'welfare|'+section+'|'+welfareKey(section,row)})))});rows.push({_hraSection:'settings',_k:'welfare|settings',payload:state?.settings||{}});return rows}
+function welfareRowsToState(rows){const out=defaultState();(rows||[]).forEach(row=>{if(row?.kind==='snapshot'&&row.payload){Object.assign(out,mergeWelfareState(out,row.payload));return}const section=row?._hraSection;if(section==='settings'){out.settings=Object.assign({},out.settings,row.payload||{});return}if(out[section]&&Array.isArray(out[section])){const copy=Object.assign({},row);delete copy._hraSection;delete copy._k;out[section].push(copy)}});return out}
+function welfareSmartMergeRows(a,b){return HRASmartSync.mergeRows(welfareSmartRows(welfareRowsToState(a)),welfareSmartRows(welfareRowsToState(b)))}
 async function cloudPush(options={}){
-  if(!HRACloudGuard.stateChanged('welfare_state',STATE)){
-    if(!options.auto)toast(LANG==='en'?'No new or changed welfare data; upload skipped.':'沒有新增或變更的福利／意見箱資料，不需重複上傳。');
-    return {skipped:true};
-  }
   showLoading(LANG==='en'?'Uploading data and photos manually…':'手動上傳資料與照片中…');
   try{
-    const payload={action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],
-      recordCount:STATE.members.length+STATE.unionDues.length+STATE.suggestions.length,
-      coverage:HRACloudGuard.coverage(STATE,'welfare_suggestion'),
-      updatedAt:new Date().toISOString()};
-    const d=await HRACloudGuard.push(payload,function(p){return postGas(p)},LANG==='en'?'en':(LANG==='km'?'km':'zh'));
-    if(d && d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消覆蓋，雲端資料已保留。',5000);return}
-    if(!d || d.ok===false)throw new Error(d&&d.error||'GAS error');
+    const rows=welfareSmartRows(STATE),d=await HRASmartSync.push({url:gasUrlValue(),tool:TOOL_ID,records:rows,recordCount:rows.length,
+      summary:{members:STATE.members.length,movements:STATE.movements.length,unionDues:STATE.unionDues.length,suggestions:STATE.suggestions.length,photos:STATE.suggestions.reduce((n,x)=>n+(x.photos?.length||0),0)},
+      meta:{coverage:HRACloudGuard.coverage(STATE,'welfare_suggestion')},
+      onStatus:s=>showLoading((LANG==='en'?'Uploading… ':'上傳中… ')+s)});
+    if(d&&d.needsPull)throw new Error(LANG==='en'?'Cloud changed; data was kept. Download/merge first.':'雲端已有變更，資料已保留，請先下載合併。');
     HRACloudGuard.markState('welfare_state',STATE);
-    toast(`✅ ${tr('cloudSent')}`)
+    toast(`✅ ${tr('cloudSent')} · ${d?.uploaded||0} changed records`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
 async function cloudPull(){
   const url=gasUrlValue();if(!url){toast(tr('gasMissing'));return}
   showLoading(LANG==='en'?'Downloading data and photos manually…':'手動下載資料與照片中…');
   try{
-    const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();
-    if(d.ok===false)throw new Error(d.error||'GAS error');
-    const records=d.data?.records||d.data?.data?.records||d.records||[];
-    let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;
-    if(!snap&&d.data?.data?.members)snap=d.data.data;
-    if(!snap?.members)throw new Error('No welfare snapshot');
-    const incomingCount=(snap.members?.length||0)+(snap.movements?.length||0)+(snap.unionDues?.length||0)+(snap.suggestions?.length||0),localCount=(STATE.members?.length||0)+(STATE.movements?.length||0)+(STATE.unionDues?.length||0)+(STATE.suggestions?.length||0);
-    if(localCount&&!confirm(`雲端 ${incomingCount} 筆，本機 ${localCount} 筆。\n\n會合併雙方資料；本機或雲端單獨存在的意見箱、照片與明細都會保留。確定下載？`))return;
-    STATE=mergeWelfareState(STATE,snap);await persist();HRACloudGuard.markState('welfare_state',STATE);renderAll();
+    const res=await HRASmartSync.pull({url:url,tool:TOOL_ID,localRecords:welfareSmartRows(STATE),mergeRecords:welfareSmartMergeRows,
+      onStatus:s=>showLoading((LANG==='en'?'Downloading… ':'下載中… ')+s)});
+    if(res&&res.cancelled)return;if(!res||res.noCloud)throw new Error('No welfare cloud data');
+    const incoming=welfareRowsToState(res.records||[]),remoteCount=(res.remoteRecords||[]).length;
+    if(remoteCount&&(STATE.members.length||STATE.suggestions.length)&&!confirm(`雲端有 ${remoteCount} 筆變更；本機資料與照片會保留並合併。確定下載？`))return;
+    STATE=mergeWelfareState(STATE,incoming);await persist();HRACloudGuard.markState('welfare_state',STATE);renderAll();
     const photoCount=STATE.suggestions.reduce((n,x)=>n+(x.photos?.length||0),0);
     toast(`✅ ${tr('cloudReceived')} · ${STATE.suggestions.length} suggestions / ${photoCount} photos`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}

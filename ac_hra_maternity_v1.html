@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
 <script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
@@ -1629,6 +1630,7 @@ function apprMark(dec){
   var ks=Object.keys(_apprSel); if(!ks.length){ toast(L('請先勾選項目','Select items first'),'warn'); return; }
   ks.forEach(function(k){ if(dec)DEC[k]={d:dec,at:nowStamp()}; else delete DEC[k]; });
   saveDec(); _apprSel={}; renderAppr(); renderAll();
+  cloudUpload({auto:true});
   toast(L('已更新','Updated')+' '+ks.length+' '+L('筆','rows'),'ok');
 }
 function openReject(){
@@ -1671,48 +1673,28 @@ function maternityMergeKey(kind,r){r=r||{};const id=r.employeeId||r.empId||r.idN
 function maternityMergeList(kind,a,b){var m={},o=[];[].concat(a||[],b||[]).forEach(function(r){var k=maternityMergeKey(kind,r);if(!m[k])o.push(k);m[k]=Object.assign({},m[k]||{},r)});return o.map(function(k){return m[k]})}
 function cloudUpload(options){
   options=options||{};
-  var allRecs=flatRecords(), recs=HRACloudGuard.deltaRecords('maternity_records',allRecs);
-  if(!recs.length){ if(!options.auto)toast(L('沒有新增或變更資料，不需重複上傳','No new or changed records; upload skipped'),'info'); return Promise.resolve({skipped:true}); }
+  var allRecs=flatRecords();
   var btn=el('btn-cloud-up'); if(btn)btn.disabled=true;
-  var chunks=[]; for(var i=0;i<recs.length;i+=CHUNK)chunks.push(recs.slice(i,i+CHUNK));
   var coverage=HRACloudGuard.coverage(allRecs,'maternity');
   setTxt('cloud-stat', '☁↑…');
-  var seq=Promise.resolve(),okAll=true;
-  chunks.forEach(function(ck,idx){
-    seq=seq.then(function(){
-      var payload={action:'push',tool:TOOL,chunk:idx,totalChunks:chunks.length,records:ck,
-        recordCount:allRecs.length,summary:{employees:EMP.length,nursing:NUR.length,healthFee:HF.length,salary:SAL.length},
-        coverage:coverage,updatedAt:coverage.latestDate||new Date().toISOString(),pushedBy:'maternity_v1'};
-      return HRACloudGuard.push(payload,function(safePayload){return gasJson(safePayload);},LANG==='en'?'en':'zh').then(function(d){
-        if(!d||d.ok===false||d.cancelled){okAll=false;throw new Error(d&&d.cancelled?L('已取消覆蓋，雲端資料已保留','Upload cancelled; cloud data was kept'):d&&d.error||'GAS error');}
-      });
-    });
-  });
-  seq.then(function(){
-    if(okAll)HRACloudGuard.markRecords('maternity_records',allRecs);
-    META.uploadedAt=nowStamp(); META.count=allRecs.length; saveMeta();
-    setTxt('cloud-stat', '☁ '+allRecs.length);
-    toast(okAll?(L('已上傳新增／變更','Uploaded new/changed')+' '+recs.length+' '+L('筆','rows')):L('上傳部分完成（請重試）','Partial upload'),okAll?'ok':'warn');
+  HRASmartSync.push({url:gasUrl(),tool:'maternity',records:allRecs,recordCount:allRecs.length,
+    summary:{employees:EMP.length,nursing:NUR.length,healthFee:HF.length,salary:SAL.length,decisions:Object.keys(DEC).length},
+    meta:{decisions:DEC,coverage:coverage},
+    onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(d){
+    if(d&&d.needsPull)throw new Error(L('雲端有新資料，已保留；請先下載合併','Cloud has newer data and was kept; download to merge first'));
+    HRACloudGuard.markRecords('maternity_records',allRecs);META.uploadedAt=nowStamp();META.count=allRecs.length;saveMeta();
+    setTxt('cloud-stat','☁ '+allRecs.length);toast(L('只上傳新增／變更並保留雲端資料','Only new/changed data uploaded; cloud data kept')+' '+(d&&d.uploaded||0)+' '+L('筆','rows'),'ok');
   }).catch(function(e){ toast(L('上傳失敗','Upload failed')+'：'+e.message,'error'); setTxt('cloud-stat', '☁✖'); })
     .then(function(){ if(btn)btn.disabled=false; });
 }
 function cloudDownload(){
   var btn=el('btn-cloud-down'); if(btn)btn.disabled=true;
   setTxt('cloud-stat', '☁↓…');
-  gasGet('?action=pull&tool='+TOOL+'&meta=1').then(function(data){
-    var info=(data&&data.data)||data||{};
-    if(info.data===null){return []}
-    if(info.chunked&&info.meta&&info.meta.totalChunks){
-      var chunks=info.meta.totalChunks,seq=Promise.resolve(),all=[];
-      for(var i=0;i<chunks;i++){ (function(idx){ seq=seq.then(function(){return gasGet('?action=pull&tool='+TOOL+'&chunk='+idx);}).then(function(d){all=all.concat(digRecords(d));}); })(i); }
-      return seq.then(function(){return all;});
-    }
-    return digRecords(info.data||info);
-  }).then(function(recs){
-    if(!recs||!recs.length){ toast(L('雲端沒有資料','No cloud data'),'warn'); setTxt('cloud-stat', '☁∅'); return; }
-    if((EMP.length||NUR.length||HF.length||SAL.length) && !confirm(L('雲端資料將合併載入本機，請確認是否繼續？','Cloud data will be merged into this device. Continue?'))){
-      setTxt('cloud-stat','☁↩'); return;
-    }
+  HRASmartSync.pull({url:gasUrl(),tool:'maternity',localRecords:flatRecords(),onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(res){
+    if(res&&res.cancelled){setTxt('cloud-stat','☁↩');return;}
+    if(!res||res.noCloud){toast(L('雲端沒有資料','No cloud data'),'warn');setTxt('cloud-stat','☁∅');return;}
+    var recs=res.records||[],remote=res.remoteRecords||[];
+    if(remote.length&&(EMP.length||NUR.length||HF.length||SAL.length) && !confirm(L('雲端有新增或變更資料，合併載入本機？','Cloud has new or changed data. Merge it into this device?'))){setTxt('cloud-stat','☁↩');return;}
     var emp=[],nur=[],hf=[],sal=[];
     recs.forEach(function(r){
       var t=(r.type||'').toLowerCase();
@@ -1722,11 +1704,12 @@ function cloudDownload(){
       else { emp.push(r); }
     });
     EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey); NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey); HF=maternityMergeList('health_fee',HF,hf).map(ensureHealthKey); if(sal.length)SAL=maternityMergeList('salary',SAL,sal);
+    if(res.meta&&res.meta.decisions)DEC=Object.assign({},DEC,res.meta.decisions);
     saveEmp2(); saveNur(); saveHealth(); META.downloadedAt=nowStamp(); saveMeta();
     HRACloudGuard.markRecords('maternity_records',flatRecords());
     rebuildFilterOptions(); renderAll();
-    setTxt('cloud-stat', '☁ '+recs.length);
-    toast(L('已合併下載','Merged download')+'：🤰 '+EMP.length+' · 💊 '+NUR.length+' · 🏥 '+HF.length,'ok');
+    setTxt('cloud-stat', '☁ '+(res.downloaded||0));
+    toast(L('只下載變更並保留本機資料','Only changed data downloaded; local data kept')+'：🤰 '+EMP.length+' · 💊 '+NUR.length+' · 🏥 '+HF.length,'ok');
   }).catch(function(e){ toast(L('下載失敗','Download failed')+'：'+e.message,'error'); setTxt('cloud-stat', '☁✖'); })
     .then(function(){ if(btn)btn.disabled=false; });
 }
