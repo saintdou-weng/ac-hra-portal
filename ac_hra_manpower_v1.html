@@ -64,6 +64,7 @@ button{cursor:pointer}
 .tabs{background:#fff;border-bottom:1px solid var(--line);display:flex;padding:0 18px;overflow:auto;position:sticky;top:58px;z-index:75}
 .tabs button{border:0;border-bottom:3px solid transparent;background:transparent;color:var(--muted);font-size:11px;font-weight:700;padding:11px 13px;white-space:nowrap;margin-bottom:-1px}
 .tabs button.on{color:var(--sky);border-bottom-color:var(--sky)}
+.tab-badge{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;margin-left:4px;padding:0 4px;border-radius:999px;background:#d9485f;color:#fff;font-size:10px;line-height:1}
 .period-bar{background:#f9fcff;border-bottom:1px solid var(--line);padding:7px 18px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;position:sticky;top:99px;z-index:70}
 .modes{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
 .modes button{border:0;border-right:1px solid var(--line);background:#fff;color:var(--muted);font-size:10px;font-weight:700;padding:6px 10px}
@@ -226,6 +227,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
   <button data-tab="manpower" onclick="goTab('manpower')">🏭 <span data-zh="人力" data-en="Manpower" data-km="កម្លាំងពលកម្ម">人力</span></button>
   <button data-tab="recruit" onclick="goTab('recruit')">🎯 <span data-zh="招募" data-en="Recruitment" data-km="ជ្រើសរើស">招募</span></button>
   <button data-tab="movement" onclick="goTab('movement')">⇄ <span data-zh="入離職" data-en="Join / Resign" data-km="ចូល / ចាកចេញ">入離職</span></button>
+  <button data-tab="approval" onclick="goTab('approval')">✅ <span data-zh="核可" data-en="Approval" data-km="អនុម័ត">核可</span><span id="mpApprovalBadge" class="tab-badge" style="display:none">0</span></button>
   <button data-tab="report" onclick="goTab('report')">▤ <span data-zh="月／年列表" data-en="Monthly / Yearly" data-km="ប្រចាំខែ / ឆ្នាំ">月／年列表</span></button>
   <button data-tab="analysis" onclick="goTab('analysis')">📊 <span data-zh="分析比對" data-en="Analysis & Compare" data-km="វិភាគប្រៀបធៀប">分析比對</span></button>
   <button data-tab="settings" onclick="goTab('settings')">⚙ <span data-zh="設定" data-en="Settings" data-km="ការកំណត់">設定</span></button>
@@ -414,6 +416,54 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
             <th class="no-print" data-zh="操作" data-en="Action" data-km="សកម្មភាព">操作</th>
           </tr></thead>
           <tbody id="movementBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- Manpower approval -->
+  <section id="page-approval" class="page">
+    <div id="mpApprovalKpis" class="kpis"></div>
+    <div class="panel no-print">
+      <div class="panel-head">
+        <div class="panel-title" data-zh="人力需求核可" data-en="Manpower request approval" data-km="ការអនុម័តសំណើកម្លាំងពលកម្ម">人力需求核可</div>
+        <span id="mpApprovalCount" class="panel-note"></span>
+      </div>
+      <div class="toolbar">
+        <input id="mpApprovalSearch" class="search" oninput="renderManpowerApproval()" placeholder="搜尋部門／組別／職位 Search dept / position">
+        <select id="mpApprovalStatus" class="select" onchange="renderManpowerApproval()">
+          <option value="pending" data-zh="待核可" data-en="Pending" data-km="រង់ចាំ">待核可</option>
+          <option value="ok" data-zh="已核可" data-en="Approved" data-km="បានអនុម័ត">已核可</option>
+          <option value="no" data-zh="已退回" data-en="Rejected" data-km="បានបដិសេធ">已退回</option>
+          <option value="all" data-zh="全部" data-en="All" data-km="ទាំងអស់">全部</option>
+        </select>
+        <button class="btn ghost" onclick="mpApprovalSelectAll(true)" data-zh="全選" data-en="Select all" data-km="ជ្រើសទាំងអស់">全選</button>
+        <button class="btn ghost" onclick="mpApprovalSelectAll(false)" data-zh="清除選取" data-en="Clear selection" data-km="សម្អាតការជ្រើស">清除選取</button>
+        <button class="btn primary" onclick="mpApprovalMark('ok')">✔ <span data-zh="標記已核可" data-en="Mark approved" data-km="សម្គាល់បានអនុម័ត">標記已核可</span></button>
+        <button class="btn danger" onclick="mpApprovalMark('no')">✕ <span data-zh="標記退回" data-en="Mark rejected" data-km="សម្គាល់បដិសេធ">標記退回</span></button>
+        <button class="btn ghost" onclick="mpApprovalMark('')" data-zh="清除狀態" data-en="Clear status" data-km="លុបស្ថានភាព">清除狀態</button>
+        <button class="btn sky" onclick="mpApprovalSync()">🔄 <span data-zh="同步核可" data-en="Sync approvals" data-km="ធ្វើសមកាលកម្មការអនុម័ត">同步核可</span></button>
+        <button class="btn primary" onclick="sendManpowerApproval()">✈ <span data-zh="送出核可請求" data-en="Submit approval" data-km="ដាក់ស្នើសុំអនុម័ត">送出核可請求</span></button>
+      </div>
+      <p class="panel-note" data-zh="每一筆需求都可單獨核可；核可完成後 Telegram 會自動生成報告連接並標示已核可。相同月份、部門、組別、職位不會重複建立第二筆。" data-en="Each manpower request can be approved separately. When all decisions are complete, Telegram generates report links and marks the batch approved. The same month, department, section and position cannot create a duplicate row." data-km="អាចអនុម័តសំណើនីមួយៗដាច់ដោយឡែក។ ពេលសម្រេចរួច Telegram នឹងបង្កើតតំណរបាយការណ៍ និងសម្គាល់បានអនុម័ត។ ខែ ផ្នែក ក្រុម និងតំណែងដូចគ្នាមិនបង្កើតជួរដដែលទៀតទេ។">每一筆需求都可單獨核可；核可完成後 Telegram 會自動生成報告連接並標示已核可。相同月份、部門、組別、職位不會重複建立第二筆。</p>
+    </div>
+    <div class="panel">
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:34px"></th>
+            <th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th>
+            <th data-zh="部門" data-en="Department" data-km="ផ្នែក">部門</th>
+            <th data-zh="組別" data-en="Section" data-km="ក្រុម">組別</th>
+            <th data-zh="職位" data-en="Position" data-km="តំណែង">職位</th>
+            <th class="num" data-zh="需求" data-en="Required" data-km="ត្រូវការ">需求</th>
+            <th class="num" data-zh="實際" data-en="Actual" data-km="ជាក់ស្តែង">實際</th>
+            <th class="num" data-zh="缺口" data-en="Gap" data-km="ចន្លោះ">缺口</th>
+            <th class="num" data-zh="已聘／離職" data-en="Hired / Resigned" data-km="ជួល / ចាកចេញ">已聘／離職</th>
+            <th data-zh="狀態" data-en="Status" data-km="ស្ថានភាព">狀態</th>
+            <th data-zh="資料" data-en="Details" data-km="ព័ត៌មាន">資料</th>
+          </tr></thead>
+          <tbody id="mpApprovalBody"></tbody>
         </table>
       </div>
     </div>
@@ -655,12 +705,14 @@ const IDB_NAME='ac_hra_manpower_v2_store';
 const IDB_VERSION=1;
 const IDB_STORE='app_data';
 const IDB_RECORD_KEY='database';
+const MP_DEC_KEY='ac_hra_manpower_decisions_v1';
 const DEFAULT_DB=()=>({version:2,plans:[],candidates:[],joins:[],resigns:[],daily:[],imports:[],updatedAt:''});
 const NAV={
   dashboard:{mode:'month',pivot:new Date()},
   manpower:{mode:'month',pivot:new Date()},
   recruit:{mode:'month',pivot:new Date()},
   movement:{mode:'month',pivot:new Date()},
+  approval:{mode:'month',pivot:new Date()},
   report:{mode:'month',pivot:new Date()},
   analysis:{mode:'year',pivot:new Date()}
 };
@@ -686,6 +738,9 @@ let MP_PERIOD_GRAIN='month';
 let EDITING={kind:'',key:''};
 let LAST_TG_HTML='';
 let REPORT_LAST_ROWS=[];
+let MP_DEC={};
+let MP_APPROVAL_ROWS=[];
+let MP_APPROVAL_SEL={};
 let IDB_CONNECTION_PROMISE=null;
 let SAVE_QUEUE=Promise.resolve({ok:true,mode:'initial'});
 const STORAGE={
@@ -948,7 +1003,7 @@ function allDataDates(tab=ACTIVE_TAB){
       ...DB.resigns.map(r=>recordDate('resign',r)),
       ...DB.daily.map(r=>recordDate('daily',r))
     ];
-  }else if(tab==='manpower')out=DB.plans.map(r=>recordDate('plan',r));
+  }else if(tab==='manpower'||tab==='approval')out=DB.plans.map(r=>recordDate('plan',r));
   else if(tab==='recruit')out=DB.candidates.map(r=>recordDate('candidate',r));
   else if(tab==='movement')out=[...DB.joins.map(r=>recordDate('join',r)),...DB.resigns.map(r=>recordDate('resign',r))];
   return out.filter(Boolean);
@@ -1150,6 +1205,7 @@ function notifyStorageMode(error,mode){
   if(STORAGE.warnedMode!==mode){STORAGE.warnedMode=mode;toast(warning,mode==='local'?'warn':'err')}
 }
 async function loadDB(){
+  try{MP_DEC=JSON.parse(lsGet(MP_DEC_KEY)||'{}')||{}}catch(e){MP_DEC={}}
   let idbError=null;
   try{
     const stored=await idbRead();
@@ -1842,6 +1898,7 @@ function renderActive(){
   else if(ACTIVE_TAB==='manpower')renderManpower();
   else if(ACTIVE_TAB==='recruit')renderRecruit();
   else if(ACTIVE_TAB==='movement')renderMovement();
+  else if(ACTIVE_TAB==='approval')renderManpowerApproval();
   else if(ACTIVE_TAB==='report')renderReport();
   else if(ACTIVE_TAB==='analysis')renderAnalysis();
   else renderSettings();
@@ -1963,6 +2020,111 @@ function renderManpower(){
       <button class="btn danger small" onclick="deleteRecord('plan','${encodeURIComponent(r._k)}')">×</button></td>
     </tr>`;
   }).join('')||emptyRow(11,L('此期間沒有資料','No data for this period','គ្មានទិន្នន័យ'));
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Manpower approval
+   每筆「月份＋部門＋組別＋職位」是一個穩定核可項目；
+   因此線上新增與 Excel 重複匯入只會更新同一筆，不會重複送核。
+   ───────────────────────────────────────────────────────────── */
+function mpApprovalKey(r){
+  const period=r.period||ymFromDate(r.snapshotDate)||'';
+  return ['MP',period,deptKey(r.dept||''),deptKey(r.section||''),normKey(r.position||'')].join('|');
+}
+function mpApprovalStatus(r){
+  const d=MP_DEC[mpApprovalKey(r)]||{};
+  return d.d||'';
+}
+function mpApprovalPool(){
+  const st=NAV.approval, wanted=el('mpApprovalStatus')?.value||'pending';
+  let rows=plansForState(st,true).slice();
+  const q=norm(el('mpApprovalSearch')?.value||'').toLowerCase();
+  if(q)rows=rows.filter(r=>`${r.period} ${r.dept} ${r.section} ${r.position} ${r.remark||''}`.toLowerCase().includes(q));
+  rows=rows.filter(r=>{
+    const d=mpApprovalStatus(r);
+    return wanted==='all'||(wanted==='pending'?!d:d===wanted);
+  });
+  return rows.sort((a,b)=>String(b.period||'').localeCompare(String(a.period||''))||
+    String(a.dept||'').localeCompare(String(b.dept||''),undefined,{numeric:true})||
+    String(a.position||'').localeCompare(String(b.position||'')));
+}
+function mpApprovalBadge(d){
+  if(d==='ok')return `<span class="badge ok">✔ ${esc(L('已核可','Approved','បានអនុម័ត'))}</span>`;
+  if(d==='no')return `<span class="badge danger">✕ ${esc(L('已退回','Rejected','បានបដិសេធ'))}</span>`;
+  return `<span class="badge warn">⏳ ${esc(L('待核可','Pending','រង់ចាំ'))}</span>`;
+}
+function renderManpowerApproval(){
+  const rows=mpApprovalPool();MP_APPROVAL_ROWS=rows;
+  const all=plansForState(NAV.approval,true),pending=all.filter(r=>!mpApprovalStatus(r)).length;
+  el('mpApprovalKpis').innerHTML=[
+    kpiCard(L('本期需求','Period requests','សំណើរយៈពេលនេះ'),fmt(all.length),pLabel(NAV.approval)),
+    kpiCard(L('待核可','Pending','រង់ចាំ'),fmt(pending),'',pending?'warn':'ok'),
+    kpiCard(L('已核可','Approved','បានអនុម័ត'),fmt(all.filter(r=>mpApprovalStatus(r)==='ok').length),'','ok'),
+    kpiCard(L('已退回','Rejected','បានបដិសេធ'),fmt(all.filter(r=>mpApprovalStatus(r)==='no').length),'',all.some(r=>mpApprovalStatus(r)==='no')?'danger':'')
+  ].join('');
+  const selected=Object.keys(MP_APPROVAL_SEL).filter(k=>MP_APPROVAL_SEL[k]).length;
+  el('mpApprovalCount').textContent=`${fmt(rows.length)} ${L('筆','rows','កំណត់ត្រា')} · ${L('已選','selected','បានជ្រើស')} ${selected}`;
+  const badge=el('mpApprovalBadge');if(badge){badge.textContent=pending;badge.style.display=pending?'inline-flex':'none'}
+  el('mpApprovalBody').innerHTML=rows.map(r=>{
+    const key=mpApprovalKey(r),gap=n(r.required)-n(r.actual),detail=[
+      r.remark?`${L('備註','Remark','កំណត់សម្គាល់')}: ${r.remark}`:'',
+      `${L('期末','Ending','ចុងគ្រា')} ${fmt(r.ending)} · ${L('累計實際','Cumulative actual','ជាក់ស្តែងសរុប')} ${fmt(r.actual)}`
+    ].filter(Boolean).join(' · ');
+    return `<tr>
+      <td><input type="checkbox" ${MP_APPROVAL_SEL[key]?'checked':''} onchange="mpApprovalToggle('${encodeURIComponent(key)}',this.checked)"></td>
+      <td class="mono">${esc(r.period||ymFromDate(r.snapshotDate)||'—')}</td>
+      <td>${esc(r.dept||'—')}</td><td>${esc(r.section||'—')}</td><td><b>${esc(r.position||'—')}</b></td>
+      <td class="num"><b>${fmt(r.required)}</b></td><td class="num">${fmt(r.actual)}</td>
+      <td class="num" style="color:${gap>0?'var(--danger)':'var(--ok)'}"><b>${fmt(gap)}</b></td>
+      <td class="num">${fmt(r.hired)} / ${fmt(r.resigned)}</td>
+      <td>${mpApprovalBadge(mpApprovalStatus(r))}</td><td class="muted">${esc(detail)}</td>
+    </tr>`;
+  }).join('')||emptyRow(11,L('此期間沒有可核可的人力需求','No manpower requests for this period','មិនមានសំណើកម្លាំងពលកម្មសម្រាប់រយៈពេលនេះ'));
+}
+function mpApprovalToggle(encoded,checked){const key=decodeURIComponent(encoded);if(checked)MP_APPROVAL_SEL[key]=1;else delete MP_APPROVAL_SEL[key];renderManpowerApproval()}
+function mpApprovalSelectAll(checked){MP_APPROVAL_SEL={};if(checked)MP_APPROVAL_ROWS.forEach(r=>{MP_APPROVAL_SEL[mpApprovalKey(r)]=1});renderManpowerApproval()}
+function mpApprovalSelected(){return MP_APPROVAL_ROWS.filter(r=>MP_APPROVAL_SEL[mpApprovalKey(r)])}
+function saveMpDec(){lsSet(MP_DEC_KEY,JSON.stringify(MP_DEC))}
+function mpApprovalMark(status){
+  const rows=mpApprovalSelected();
+  if(!rows.length){toast(L('請先勾選需求項目','Select manpower requests first','សូមជ្រើសសំណើជាមុន'),'warn');return}
+  let note='';
+  if(status==='no')note=prompt(L('請填退回原因（可留白）','Reason for rejection (optional)','មូលហេតុបដិសេធ (មិនបង្ខំ)'),'')||'';
+  rows.forEach(r=>{const key=mpApprovalKey(r);if(status)MP_DEC[key]={d:status,note,at:new Date().toISOString()};else delete MP_DEC[key]});
+  saveMpDec();MP_APPROVAL_SEL={};renderManpowerApproval();
+  cloudUpload({auto:true});
+  toast(L(`已更新 ${rows.length} 筆人力核可狀態`,`Updated ${rows.length} manpower approval(s)`,`បានធ្វើបច្ចុប្បន្នភាព ${rows.length} ការអនុម័ត`),'ok');
+}
+function mpApprovalItems(rows){
+  return rows.map(r=>{
+    const dept=r.dept||'',section=r.section&&r.section!==dept?r.section:'',position=r.position||'';
+    const label=[dept,section,position].filter(Boolean).join(' / ')||L('未分類','Unclassified','មិនបានបែងចែក');
+    return {key:mpApprovalKey(r),kind:'manpower',id:r._k||'',name:label,dept,group:section,position,
+      period:r.period||ymFromDate(r.snapshotDate)||'',info:`${L('需求','Required','ត្រូវការ')} ${fmt(r.required)} · ${L('實際','Actual','ជាក់ស្តែង')} ${fmt(r.actual)} · ${L('缺口','Gap','ចន្លោះ')} ${fmt(n(r.required)-n(r.actual))} · ${L('已聘','Hired','ជួល')} ${fmt(r.hired)} · ${L('離職','Resigned','ចាកចេញ')} ${fmt(r.resigned)}`,
+      amount:0,decision:mpApprovalStatus(r),note:(MP_DEC[mpApprovalKey(r)]||{}).note||''};
+  });
+}
+function mpApprovalSync(){
+  const url=gasUrl();if(!url){toast(L('請先設定 GAS URL','Set GAS URL first','សូមកំណត់ GAS URL'),'warn');return}
+  const decisions=Object.keys(MP_DEC).filter(k=>MP_DEC[k]&&MP_DEC[k].d).reduce((o,k)=>(o[k]=MP_DEC[k],o),{});
+  if(!Object.keys(decisions).length){toast(L('目前沒有本機核可狀態','No local approval statuses','មិនមានស្ថានភាពអនុម័តក្នុងម៉ាស៊ីន'),'warn');return}
+  fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'syncDecisions',module:'manpower',decisions,requestedBy:'manpower_web'})})
+    .then(r=>r.text()).then(txt=>{let d;try{d=JSON.parse(txt)}catch(e){throw new Error('GAS returned non-JSON')};if(d.ok===false)throw new Error(d.error||'Sync failed');const x=d.data||d;toast(L(`已同步 ${x.updated||0} 筆核可`,`Synced ${x.updated||0} approval(s)`,`បានធ្វើសមកាលកម្ម ${x.updated||0}`),'ok');cloudUpload({auto:true})})
+    .catch(e=>toast(e.message,'err'));
+}
+async function sendManpowerApproval(){
+  const url=gasUrl();if(!url){toast(L('請先設定 GAS URL','Set GAS URL first','សូមកំណត់ GAS URL'),'warn');goTab('settings');return}
+  const rows=mpApprovalSelected();if(!rows.length){toast(L('請先勾選要核可的部門／職位','Select department/position requests first','សូមជ្រើសសំណើផ្នែក/តំណែងជាមុន'),'warn');return}
+  const items=mpApprovalItems(rows),period=pKey(lds(NAV.approval.pivot),NAV.approval.mode)||'ALL';
+  const payload={action:'approvalRequest',type:'approvalRequest',module:'manpower',scope:'plan',batch:'MP-'+String(period).replace(/[^0-9A-Za-z]/g,''),period,route:'review',lang:LANG,items,
+    idempotencyKey:['manpower',period,items.map(x=>`${x.key}|${x.info}`).sort().join(',')].join('|'),requestedBy:'manpower_web',requestedAt:new Date().toISOString()};
+  try{
+    const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),txt=await r.text();let d;try{d=JSON.parse(txt)}catch(e){throw new Error(`GAS returned non-JSON (HTTP ${r.status})`)}
+    if(d.ok===false)throw new Error(d.error||'Approval request failed');const x=d.data||d;
+    if(!x.closed&&(!x.messageId&&!x.sentToGroup))throw new Error(L('Telegram 未確認送達，請勿當作已送出','Telegram delivery was not confirmed','មិនទាន់បញ្ជាក់ការផ្ញើ Telegram'));
+    MP_APPROVAL_SEL={};renderManpowerApproval();await cloudUpload({auto:true});
+    toast(L('人力核可請求已送出','Manpower approval request sent','បានផ្ញើសំណើអនុម័តកម្លាំងពលកម្ម'),'ok');
+  }catch(e){toast(e.message,'err')}
 }
 
 function renderRecruit(){
@@ -2355,7 +2517,7 @@ async function cloudUpload(options={}){
      也要檢查平台 ledger 是否缺少這些 movement。 */
   if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('上傳中…','Uploading…','កំពុងផ្ទុក…'));
   try{
-    const main=await HRASmartSync.push({url,tool:'manpower',records,recordCount:records.length,summary:counts(),meta:{coverage:HRACloudGuard.coverage(records,'manpower')}});
+    const main=await HRASmartSync.push({url,tool:'manpower',records,recordCount:records.length,summary:counts(),meta:{decisions:MP_DEC,coverage:HRACloudGuard.coverage(records,'manpower')}});
     if(main?.needsPull)throw new Error(L('Manpower 雲端有新資料，已保留；請先下載合併','Manpower cloud has newer data and was kept','Cloud Manpower មានទិន្នន័យថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     /* Manpower movement 同時寫入 onboarding ledger，讓平台另一側也能看到。 */
     if(false){
@@ -2455,6 +2617,9 @@ async function cloudDownload(){
   try{
     const mainRes=await HRASmartSync.pull({url,tool:'manpower',localRecords:flatCloudRecords().filter(r=>r._kind!=='join'&&r._kind!=='resign'),onStatus:s=>setCloudState('',s)});
     let moveRes={records:[]};try{moveRes=await HRASmartSync.pull({url,tool:'onboarding',localRecords:flatCloudRecords().filter(r=>r._kind==='join'||r._kind==='resign'),onStatus:s=>setCloudState('',s)})}catch(e){console.warn('Onboarding movement pull:',e)}
+    if(mainRes?.meta?.decisions&&typeof mainRes.meta.decisions==='object'){
+      MP_DEC={...mainRes.meta.decisions,...MP_DEC};saveMpDec();
+    }
     const records=mainRes?.records||[],movement=(moveRes?.records||[]).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
     const all=[...records,...movement];
     if((mainRes?.noCloud||!records.length)&&(!movement.length||moveRes?.noCloud))throw new Error(L('雲端尚無 Manpower／入離職資料','No Manpower or movement data in cloud','មិនមានទិន្នន័យ Manpower/ចូលចេញក្នុង Cloud'));
@@ -2509,24 +2674,28 @@ function buildTelegramHtml(){
   }
   if(el('tgDept').checked){
     const latest=latestPlanRows(plansForState(state,true)),dm={};
-    latest.forEach(r=>{const d=r.dept||r.section||'—';if(!dm[d])dm[d]={required:0,actual:0};dm[d].required+=n(r.required);dm[d].actual+=n(r.actual)});
+    latest.forEach(r=>{
+      const d=r.dept||r.section||'—';
+      if(!dm[d])dm[d]={required:0,actual:0,hired:0,resigned:0,ending:0,rows:0};
+      dm[d].required+=n(r.required);dm[d].actual+=n(r.actual);dm[d].hired+=n(r.hired);dm[d].resigned+=n(r.resigned);dm[d].ending+=n(r.ending);dm[d].rows++;
+    });
     const rows=Object.entries(dm).map(([d,v])=>({d,...v,gap:v.required-v.actual})).sort((a,b)=>b.gap-a.gap).slice(0,8);
     if(rows.length){
       t+=`\n📋 <b>${tgBi('部門摘要','By Department',lang)}</b>\n`;
-      rows.forEach(r=>{t+=`${esc(r.d)}：${r.actual}/${r.required} · ${tgBi('缺口','Gap',lang)} ${r.gap}\n`});
+      rows.forEach(r=>{t+=`${esc(r.d)}：${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('實際','Actual',lang)} ${fmt(r.actual)} · ${tgBi('缺口','Gap',lang)} ${fmt(r.gap)} · ${tgBi('已聘','Hired',lang)} ${fmt(r.hired)} · ${tgBi('離職','Resigned',lang)} ${fmt(r.resigned)} · ${tgBi('期末','Ending',lang)} ${fmt(r.ending)}\n`});
     }
     const detail=latestPlanRows(plansForState(state,true)).reduce((acc,r)=>{
       const dept=r.dept||'—',section=r.section&&r.section!==dept?r.section:'',position=r.position||'—';
       const key=[dept,section,position].join('¦');
-      if(!acc[key])acc[key]={dept,section,position,required:0,actual:0};
-      acc[key].required+=n(r.required);acc[key].actual+=n(r.actual);return acc;
+      if(!acc[key])acc[key]={dept,section,position,required:0,actual:0,hired:0,resigned:0,ending:0};
+      acc[key].required+=n(r.required);acc[key].actual+=n(r.actual);acc[key].hired+=n(r.hired);acc[key].resigned+=n(r.resigned);acc[key].ending+=n(r.ending);return acc;
     },{});
     const detailRows=Object.values(detail).sort((a,b)=>(b.required-b.actual)-(a.required-a.actual)).slice(0,16);
     if(detailRows.length){
       t+=`${tgBi('部門／組別／職位','Department / Section / Position',lang)}：\n`;
       detailRows.forEach(r=>{
         const label=[r.dept,r.section,r.position].filter(Boolean).join(' / ');
-        t+=`· ${esc(label)}：${r.actual}/${r.required} · ${tgBi('缺口','Gap',lang)} ${r.required-r.actual}\n`;
+        t+=`· ${esc(label)} · ${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('實際','Actual',lang)} ${fmt(r.actual)} · ${tgBi('缺口','Gap',lang)} ${fmt(r.required-r.actual)} · ${tgBi('已聘','Hired',lang)} ${fmt(r.hired)} · ${tgBi('離職','Resigned',lang)} ${fmt(r.resigned)} · ${tgBi('期末','Ending',lang)} ${fmt(r.ending)}\n`;
       });
     }
   }
@@ -2564,8 +2733,8 @@ function addSheet(wb,name,headers,rows){
 function exportExcel(){
   if(typeof XLSX==='undefined'){toast('XLSX not loaded','err');return}
   const wb=XLSX.utils.book_new();
-  addSheet(wb,'Manpower',['Period','Snapshot Date','Department','Section','Position','Required','Hired No Exp','Hired Exp','Hired Total','Resigned','Ending','Monthly Actual','Cumulative Actual','Gap'],
-    DB.plans.map(r=>[r.period,r.snapshotDate,r.dept,r.section,r.position,n(r.required),n(r.hiredNoExp),n(r.hiredExp),n(r.hired),n(r.resigned),n(r.ending),n(r.actualMonthly),n(r.actual),n(r.required)-n(r.actual)]));
+  addSheet(wb,'Manpower',['Period','Snapshot Date','Department','Section','Position','Required','Hired No Exp','Hired Exp','Hired Total','Resigned','Ending','Monthly Actual','Cumulative Actual','Gap','Approval','Approval Note'],
+    DB.plans.map(r=>{const d=MP_DEC[mpApprovalKey(r)]||{};return[r.period,r.snapshotDate,r.dept,r.section,r.position,n(r.required),n(r.hiredNoExp),n(r.hiredExp),n(r.hired),n(r.resigned),n(r.ending),n(r.actualMonthly),n(r.actual),n(r.required)-n(r.actual),d.d||'pending',d.note||'']}));
   addSheet(wb,'Candidates',['Register Date','Name','Department','Section','Position','Gender','DOB','Age','Phone','Referral','Interview Result','Joined','Employee ID','Join Date','Reason','Remark'],
     DB.candidates.map(r=>[r.registerDate,r.name,r.dept,r.section,r.position,r.gender,r.dob,r.age,r.phone,r.referral,r.interviewResult,r.joined?'Yes':'No',r.empId,r.joinDate,r.noShowReason,r.remark]));
   addSheet(wb,'Join',['Join Date','Employee ID','Name','Department','Section','Position','Gender','DOB','Phone','Referral','Remark'],
@@ -2588,21 +2757,21 @@ function exportReportExcel(){
 function downloadBlob(name,content,type='application/json'){
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
-function backupJSON(){downloadBlob(`VRT_Manpower_Backup_${today()}.json`,JSON.stringify(DB,null,2));toast(L('備份已下載','Backup downloaded','បានទាញយកបម្រុង'),'ok')}
+function backupJSON(){downloadBlob(`VRT_Manpower_Backup_${today()}.json`,JSON.stringify({db:DB,approvalDecisions:MP_DEC},null,2));toast(L('備份已下載','Backup downloaded','បានទាញយកបម្រុង'),'ok')}
 function restoreJSON(input){
   const file=input.files?.[0];input.value='';if(!file)return;
   const reader=new FileReader();reader.onload=async()=>{
     try{
-      const incoming=safeDB(JSON.parse(reader.result));
+      const raw=JSON.parse(reader.result),incoming=safeDB(raw.db||raw);
       if(!confirm(L('還原會取代目前本機 Manpower 資料，確定繼續？','Restore will replace current local Manpower data. Continue?','ការស្តារនឹងជំនួសទិន្នន័យបច្ចុប្បន្ន។')))return;
-      DB=incoming;relinkCandidates();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+      DB=incoming;if(raw.approvalDecisions&&typeof raw.approvalDecisions==='object'){MP_DEC=raw.approvalDecisions;saveMpDec()}relinkCandidates();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
       toast(saved.ok?L('還原並保存完成','Restore and save complete','ស្តារ និងរក្សាទុករួចរាល់'):L('資料已還原到畫面但無法保存','Data restored on screen but could not be saved','បានស្តារលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
     }catch(e){toast(L('JSON 檔案無效','Invalid JSON file','ឯកសារ JSON មិនត្រឹមត្រូវ'),'err')}
   };reader.readAsText(file);
 }
 async function clearAllData(){
   if(!confirm(L('確定清除所有 Manpower 本機資料？請先備份。','Clear all local Manpower data? Back up first.','លុបទិន្នន័យ Manpower ទាំងអស់?')))return;
-  DB=DEFAULT_DB();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+  DB=DEFAULT_DB();MP_DEC={};saveMpDec();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
   toast(saved.ok?L('已清除並保存','All data cleared and saved','បានលុប និងរក្សាទុក'):L('畫面已清除但無法保存變更','Cleared on screen but the change could not be saved','បានលុបលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
 }
 function renderImportLog(){
@@ -2657,7 +2826,7 @@ window.addEventListener('storage',async function(e){
 
 Object.assign(window,{
   setLang,smartImport,goTab,setPeriodMode,movePeriod,todayPeriod,jumpPeriod,
-  renderManpower,setMpPeriodGrain,jumpManpowerPeriod,renderRecruit,renderMovement,setReportGrain,toggleReportMetric,jumpReportPeriod,renderReport,renderAnalysis,
+  renderManpower,renderManpowerApproval,mpApprovalSelectAll,mpApprovalMark,mpApprovalSync,sendManpowerApproval,setMpPeriodGrain,jumpManpowerPeriod,renderRecruit,renderMovement,setReportGrain,toggleReportMetric,jumpReportPeriod,renderReport,renderAnalysis,
   openRecordModal,recordTypeChanged,saveOnlineRecord,deleteRecord,closeModal,modalBackdrop,
   saveSettings,testCloud,cloudUpload,cloudDownload,openTelegram,populateTgPeriods,previewTelegram,sendTelegram,
   exportExcel,exportReportExcel,backupJSON,restoreJSON,clearAllData
