@@ -559,8 +559,8 @@ function exportExcel(){
   ];sheets.forEach(([name,data])=>{const ws=XLSX.utils.json_to_sheet(data.length?data:[{}]);ws['!cols']=Object.keys(data[0]||{}).map(k=>({wch:Math.min(36,Math.max(12,k.length+2))}));XLSX.utils.book_append_sheet(wb,ws,name)});XLSX.writeFile(wb,`AC_HRA_Welfare_Suggestion_${new Date().toISOString().slice(0,10)}.xlsx`)
 }
 async function clearAllData(){if(!confirm(tr('confirmClear')))return;STATE=defaultState();await persist();renderAll();toast(tr('cleared'))}
-function saveSettings(){STATE.settings.imageSize=Number(val('imageSize'))||1000;STATE.settings.imageQuality=Number(val('imageQuality'))||.7;const gas=val('gasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})}
-function gasUrlValue(){return localStorage.getItem(GAS_KEY)||''}
+function saveSettings(){STATE.settings.imageSize=Number(val('imageSize'))||1000;STATE.settings.imageQuality=Number(val('imageQuality'))||.7;const gas=val('gasUrl');if(gas){localStorage.setItem(GAS_KEY,gas);localStorage.setItem('vrt_att_cloud_v1_url',gas);localStorage.setItem('ac_hra_gas_url',gas)}else localStorage.removeItem(GAS_KEY);persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})}
+function gasUrlValue(){return localStorage.getItem(GAS_KEY)||localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||''}
 async function postGas(payload){const url=gasUrlValue();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d}
 function welfareKey(kind,x){x=x||{};const eid=x.employeeId||x.empId||x.idNo||'';if(kind==='members')return [x.period||'',eid||x.id||x.name||''].join('|');if(kind==='movements')return [x.action||'',x.date||'',eid||x.name||''].join('|');if(kind==='unionDues')return [x.period||'',eid||x.id||x.name||''].join('|');if(kind==='suggestions')return x.sourceKey||[x.date||x.period||'',x.number||'',x.department||'',x.grievance||'',x.id||''].join('|');if(kind==='summaries')return String(x.period||x.id||'');return String(x.id||x.file||x.sourceFile||JSON.stringify(x))}
 function welfareMergeRow(a,b){a=a||{};b=b||{};const at=new Date(a.updatedAt||0).getTime(),bt=new Date(b.updatedAt||0).getTime(),newer=bt>=at?b:a,older=bt>=at?a:b,out=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((out[k]===undefined||out[k]===null||out[k]==='')&&older[k]!==undefined)out[k]=older[k]});if(Array.isArray(a.photos)||Array.isArray(b.photos))out.photos=[...new Set([...(a.photos||[]),...(b.photos||[])])];return out}
@@ -576,6 +576,7 @@ async function cloudPush(options={}){
       summary:{members:STATE.members.length,movements:STATE.movements.length,unionDues:STATE.unionDues.length,suggestions:STATE.suggestions.length,photos:STATE.suggestions.reduce((n,x)=>n+(x.photos?.length||0),0)},
       meta:{coverage:HRACloudGuard.coverage(STATE,'welfare_suggestion')},
       onStatus:s=>showLoading((LANG==='en'?'Uploading… ':'上傳中… ')+s)});
+    if(d&&d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消上傳，雲端資料已保留。');return}
     if(d&&d.needsPull)throw new Error(LANG==='en'?'Cloud changed; data was kept. Download/merge first.':'雲端已有變更，資料已保留，請先下載合併。');
     HRACloudGuard.markState('welfare_state',STATE);
     toast(`✅ ${tr('cloudSent')} · ${d?.uploaded||0} changed records`)

@@ -1,4 +1,4 @@
-/* AC HRA Portal Smart Sync v1.0
+/* AC HRA Portal Smart Sync v1.1
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,7 +12,7 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.0';
+  var VERSION = '1.1';
   var STATE_PREFIX = 'ac_hra_smart_sync_v1_';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
 
@@ -126,8 +126,38 @@
     });
   }
   function dataOf(j) { return (j && j.data !== undefined) ? j.data : j; }
+  function isUnsupportedSmartManifestError(err) {
+    var s = text(err && err.message || err);
+    return /unknown action\s*:\s*smartmanifest/i.test(s) ||
+      /smartmanifest.*(unsupported|not found|not implemented)/i.test(s);
+  }
   function getManifest(url, tool) {
-    return jsonFetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool)).then(dataOf);
+    var endpoint = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool);
+    function fallback(reason) {
+      return { exists:false, legacy:true, compatibilityFallback:true,
+        reason:text(reason || 'smartManifest unsupported') };
+    }
+    function validManifest(d) { return d && (d.exists !== undefined || d.hashes || d.version); }
+    function tryPostManifest(reason) {
+      /* A few mobile WebViews/proxies mishandle GET query actions.  The v31
+         GAS accepts the same manifest request through POST; if the deployed
+         endpoint is older, fall back to the legacy protocol. */
+      return post(url, { action:'smartManifest', tool:tool }).then(function (j) {
+        var d = dataOf(j) || {};
+        return validManifest(d) ? d : fallback(reason);
+      }).catch(function () { return fallback(reason); });
+    }
+    return jsonFetch(endpoint).then(function (j) {
+      var d = dataOf(j) || {};
+      /* Some older GAS deployments return a generic heartbeat object instead
+         of an error for an unknown GET action.  Treat that exactly like the
+         explicit error case below, then use the legacy merge protocol. */
+      if (d.exists === undefined && !d.hashes && !d.version) return tryPostManifest('smartManifest unsupported');
+      return d;
+    }).catch(function (err) {
+      if (isUnsupportedSmartManifestError(err)) return tryPostManifest(err.message || err);
+      throw err;
+    });
   }
   function legacyPull(url, tool, onStatus) {
     return jsonFetch(url + '?action=pull&meta=1&tool=' + enc(tool)).then(function (j) {
@@ -160,6 +190,53 @@
     return mergeRows(localRows, remoteRows);
   }
 
+  /* Compatibility path for a GAS Web App that has not yet been redeployed
+     with smartManifest/smartBucket/smartCommit.  The old push endpoint still
+     merges by business key and never deletes cloud-only rows, so it is safe to
+     use while the user is moving from the old deployment to the new one. */
+  function legacyPush(opts, records, status) {
+    var url = text(opts.url).trim(), tool = opts.tool, rows = sortRows(records || []);
+    var size = Number(opts.legacyChunkSize) || 120;
+    var total = Math.max(1, Math.ceil(rows.length / size));
+    var syncId = 'compat_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+    var summary = opts.summary || {};
+    var meta = opts.meta || {};
+    var decisions = opts.decisions || meta.decisions || null;
+    var sent = 0, chain = Promise.resolve(), lastResult = null;
+    for (var i = 0; i < total; i++) (function (idx) {
+      chain = chain.then(function () {
+        var slice = rows.slice(idx * size, (idx + 1) * size);
+        var body = {
+          action:'push', tool:tool, records:slice, recordCount:rows.length,
+          totalChunks:total, chunk:idx, syncId:syncId, mode:'merge',
+          summary:summary, coverage:meta.coverage || opts.coverage || {},
+          updatedAt:now(), version:'compat-1.0'
+        };
+        if (decisions) body.decisions = decisions;
+        if (opts.importLog) body.importLog = opts.importLog;
+        callStatus(status, '相容同步：上傳 ' + (idx + 1) + '/' + total, 'busy');
+        var sender = function (p) { return post(url, p); };
+        var request = idx === total - 1 && g.HRACloudGuard && g.HRACloudGuard.push
+          ? g.HRACloudGuard.push(body, sender, opts.lang || 'zh') : sender(body);
+        return request.then(function (d) {
+          lastResult = d || {};
+          if (lastResult && lastResult.cancelled) return lastResult;
+          if (lastResult && lastResult.ok === false) throw new Error(lastResult.error || 'Legacy cloud upload failed');
+          sent += slice.length;
+          return lastResult;
+        });
+      });
+    })(i);
+    return chain.then(function () {
+      if (lastResult && lastResult.cancelled) return lastResult;
+      var out = Object.assign({}, lastResult || {}, { ok:true, compatibilityFallback:true,
+        fallback:'legacy', recordCount:rows.length, uploaded:sent,
+        unchanged:0, changedBuckets:0, timestamp:now() });
+      callStatus(status, '完成｜舊版 GAS 相容合併｜上傳 ' + sent.toLocaleString() + '｜保留雲端資料', 'warn');
+      return out;
+    });
+  }
+
   function push(opts) {
     opts = opts || {};
     var url = text(opts.url).trim(), tool = opts.tool, records = sortRows(opts.records || []), status = opts.onStatus;
@@ -167,6 +244,9 @@
     callStatus(status, '智慧同步：比對雲端差異…', 'busy');
     return getManifest(url, tool).then(function (remote) {
       remote = remote || {};
+      if (remote.compatibilityFallback) {
+        return legacyPush(opts, records, status);
+      }
       if (!remote.exists && remote.legacy) {
         /* Legacy data is merged once before the smart manifest is created. */
         callStatus(status, '首次升級：合併既有雲端資料…', 'busy');
@@ -255,6 +335,12 @@
           var merged = mergeSnapshots(opts, localRows, legacy.records || []);
           var applied = opts.apply ? Promise.resolve(opts.apply(merged, legacy.meta || {})) : Promise.resolve();
           return applied.then(function () {
+            if (remote.compatibilityFallback) {
+              callStatus(status, '完成｜舊版 GAS 相容下載與合併', 'warn');
+              return { ok:true, records:merged, remoteRecords:legacy.records || [],
+                meta:legacy.meta || {}, migrated:false, compatibilityFallback:true,
+                downloaded:(legacy.records || []).length };
+            }
             /* Match Prod: turn the old full snapshot into a smart manifest
                during this one-time baseline pull, without user setup work. */
             return smartPush(opts, merged, remote, status, true).then(function (migrated) {

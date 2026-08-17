@@ -426,10 +426,14 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
     </div>
     <div class="section-card">
       <div class="section-title">📥 <span data-t="import">匯入資料</span></div>
-      <div class="warn-box">⚠️ 匯入 JSON 格式資料，相同年份的假日將被<strong>合併</strong>（不覆蓋）。建議先備份。</div>
+      <div class="warn-box">⚠️ <span data-t="import_json_hint">JSON 會與現有資料合併，不會整批覆蓋。</span><br><span data-t="import_excel_hint">Excel 會自動讀取日期、連續天數、名稱與類型；同一天不會重複新增。</span></div>
       <input type="file" id="imp-file" accept=".json" onchange="importJSON(event)" style="display:none">
+      <input type="file" id="imp-excel-file" accept=".xlsx,.xls" onchange="importCalendarExcel(event)" style="display:none">
       <button class="btn btn-green" style="width:100%;margin-bottom:8px" onclick="document.getElementById('imp-file').click()">
-        📥 選擇 JSON 檔案匯入
+        📥 <span data-t="import_json_btn">選擇 JSON 檔案匯入</span>
+      </button>
+      <button class="btn btn-blue" style="width:100%;margin-bottom:8px" onclick="document.getElementById('imp-excel-file').click()">
+        📊 <span data-t="import_excel_btn">選擇假日 Excel 匯入</span>
       </button>
       <div id="imp-status"></div>
     </div>
@@ -1156,6 +1160,7 @@ const LANGS = {
     col_name_en:'English',col_name_km:'ខ្មែរ',col_days:'天數',col_weekday:'星期',col_note:'備注',col_action:'操作',
     year_stats:'年度統計',type_dist:'類型分佈',month_heat:'月份熱力圖',compare:'年份對比',
     upcoming:'即將到來的假日',export:'匯出資料',import:'匯入資料',data_overview:'資料總覽',
+    import_json_hint:'JSON 會與現有資料合併，不會整批覆蓋。',import_excel_hint:'Excel 會自動讀取日期、連續天數、名稱與類型；同一天不會重複新增。',import_json_btn:'選擇 JSON 檔案匯入',import_excel_btn:'選擇假日 Excel 匯入',
     tg_config:'設定',period_analysis:'期間分析',day_week_month_year:'日／週／月／年',send_period_summary:'發送本期摘要',send_changes:'變更摘要',
     safe_send:'由共用 GAS 安全發送',tg_no_secret:'本頁不保存 Bot Token 或群組 ID；只有按下手動發送或安裝月底排程時才連線。',
     notice_type:'通知類型',next_month_summary:'下月完整摘要',selected_period_summary:'所選期間摘要',change_summary:'日曆變更摘要',upcoming_summary:'即將到來假日',year_summary:'全年假日摘要',custom_message:'自訂訊息',
@@ -1176,6 +1181,7 @@ const LANGS = {
     col_name_en:'English',col_name_km:'Khmer',col_days:'Days',col_weekday:'Weekday',col_note:'Notes',col_action:'Actions',
     year_stats:'Year Stats',type_dist:'Type Distribution',month_heat:'Monthly Heatmap',compare:'Year Comparison',
     upcoming:'Upcoming Holidays',export:'Export Data',import:'Import Data',data_overview:'Data Overview',
+    import_json_hint:'JSON is merged with existing data; it does not replace the whole calendar.',import_excel_hint:'Excel dates, spans, names and holiday types are detected automatically; the same date is not duplicated.',import_json_btn:'Import JSON file',import_excel_btn:'Import holiday Excel',
     tg_config:'Configuration',period_analysis:'Period Analysis',day_week_month_year:'Day / Week / Month / Year',send_period_summary:'Send Period Summary',send_changes:'Change Summary',
     safe_send:'Secure delivery through shared GAS',tg_no_secret:'This page stores no bot token or group ID. It connects only when you send manually or install the month-end schedule.',
     notice_type:'Notice Type',next_month_summary:'Full Next-Month Summary',selected_period_summary:'Selected Period Summary',change_summary:'Calendar Change Summary',upcoming_summary:'Upcoming Holidays',year_summary:'Full-Year Summary',custom_message:'Custom Message',
@@ -1196,6 +1202,7 @@ const LANGS = {
     col_name_en:'English',col_name_km:'ខ្មែរ',col_days:'ថ្ងៃ',col_weekday:'ថ្ងៃ',col_note:'កំណត់ចំណាំ',col_action:'សកម្មភាព',
     year_stats:'ស្ថិតិ',type_dist:'ប្រភេទ',month_heat:'ផែនទីកំដៅ',compare:'ប្រៀបធៀប',
     upcoming:'ថ្ងៃឈប់ខាងមុខ',export:'នាំចេញ',import:'នាំចូល',data_overview:'ទិដ្ឋភាព',
+    import_json_hint:'JSON នឹងបញ្ចូលរួមជាមួយទិន្នន័យបច្ចុប្បន្ន មិនជំនួសទាំងមូលទេ។',import_excel_hint:'Excel នឹងអានកាលបរិច្ឆេទ ចំនួនថ្ងៃ ឈ្មោះ និងប្រភេទថ្ងៃឈប់ដោយស្វ័យប្រវត្តិ មិនបន្ថែមថ្ងៃដដែលស្ទួនទេ។',import_json_btn:'នាំចូលឯកសារ JSON',import_excel_btn:'នាំចូល Excel ថ្ងៃឈប់',
     tg_config:'ការកំណត់',period_analysis:'វិភាគរយៈពេល',day_week_month_year:'ថ្ងៃ / សប្ដាហ៍ / ខែ / ឆ្នាំ',send_period_summary:'ផ្ញើសេចក្តីសង្ខេប',send_changes:'សង្ខេបការកែប្រែ',
     safe_send:'ផ្ញើដោយសុវត្ថិភាពតាម GAS',tg_no_secret:'ទំព័រនេះមិនរក្សាទុក Bot Token ឬ Group ID ទេ។ វាភ្ជាប់តែពេលផ្ញើដោយដៃ ឬដំឡើងកាលវិភាគ។',
     notice_type:'ប្រភេទជូនដំណឹង',next_month_summary:'សង្ខេបខែក្រោយ',selected_period_summary:'សង្ខេបរយៈពេល',change_summary:'សង្ខេបការកែប្រែ',upcoming_summary:'ថ្ងៃឈប់ខាងមុខ',year_summary:'សង្ខេបប្រចាំឆ្នាំ',custom_message:'សារផ្ទាល់ខ្លួន',
@@ -2138,6 +2145,122 @@ function importJSON(e){
   reader.readAsText(file);
   e.target.value='';
 }
+
+/* ── 假日 Excel 匯入 ──
+   柬埔寨行事曆附件是「月曆＋右側假日清單」格式，不是一般單列表格。
+   這裡優先讀右側的日期／名稱／天數欄（AB／AA／AD），若遇到一般表格
+   則再依標題列自動找欄位。只合併新增／變更，不刪除本機已有假日。 */
+function calendarExcelDate(v){
+  if(v instanceof Date && !isNaN(v.getTime())) return `${v.getFullYear()}-${pad(v.getMonth()+1)}-${pad(v.getDate())}`;
+  if(typeof v==='number' && isFinite(v) && v>=20000 && v<=80000){
+    const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`;
+  }
+  const s=String(v??'').trim();
+  let m=s.match(/(20\d{2})\s*[-\/.年]\s*(0?[1-9]|1[0-2])\s*[-\/.月]\s*(0?[1-9]|[12]\d|3[01])/);
+  if(m) return `${m[1]}-${pad(+m[2])}-${pad(+m[3])}`;
+  m=s.match(/(0?[1-9]|1[0-2])\s*月\s*(0?[1-9]|[12]\d|3[01])\s*日/);
+  return m ? `${curYear}-${pad(+m[1])}-${pad(+m[2])}` : '';
+}
+function calendarExcelAddDays(ds,n){
+  const d=parseDate(ds);if(!d)return '';
+  d.setDate(d.getDate()+Number(n||0));return ymd(d);
+}
+function calendarExcelName(raw){
+  const s=String(raw??'').replace(/\r?\n/g,' ').replace(/\s+/g,' ').trim();
+  return s.replace(/^\d{1,2}\s*月\s*\d{1,2}(?:\s*[-‐‑–]\s*\d{1,2})*\s*日\s*/,'')
+    .replace(/\s*(?:放假|假期)\s*\d*\s*天.*$/i,'').trim() || s;
+}
+function calendarExcelEnglish(name){
+  const map=[
+    ['元旦','International New Year'],['勝利紀念日','Victory over Genocide Day'],['婦女節','International Women’s Day'],
+    ['柬埔寨新年','Khmer New Year'],['國際勞動節','International Labour Day'],['比薩寶焦節','Visak Bochea Day'],
+    ['禦耕節','Royal Ploughing Ceremony'],['國王華誕','King’s Birthday'],['太后華誕','Queen Mother’s Birthday'],
+    ['立憲節','Constitution Day'],['亡人節','Pchum Ben Festival'],['國父去世節','Commemoration of the King’s Father'],
+    ['國王登基日','Coronation Day'],['柬埔寨獨立節','Independence Day'],['送水節','Water Festival'],['柬埔寨和平日','Cambodia Peace Day']
+  ];
+  const hit=map.find(x=>String(name).includes(x[0]));return hit?hit[1]:String(name||'');
+}
+function calendarExcelType(text){
+  const s=String(text||'').toLowerCase();
+  if(/取消|cancel/.test(s))return 'cancelled';
+  if(/停工|半薪|half.?pay/.test(s))return 'halfpay';
+  if(/換假|調換|延後|substitute|postponed|make.?up/.test(s))return 'substitute';
+  if(/補假|加假|補班|makeup|added/.test(s))return 'makeup';
+  if(/年假|annual/.test(s))return 'annual';
+  if(/新增上班|workday/.test(s))return 'workday';
+  return 'legal';
+}
+function calendarExcelHeaderIndex(headers,re){
+  return (headers||[]).findIndex(x=>re.test(String(x||'')));
+}
+function parseCalendarExcelWorkbook(wb,sourceName){
+  if(!wb||typeof XLSXStyle==='undefined'||!XLSXStyle.utils)throw new Error('Excel parser is not available');
+  const out=[];
+  (wb.SheetNames||[]).forEach(sheetName=>{
+    const ws=wb.Sheets[sheetName];if(!ws)return;
+    const rows=XLSXStyle.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    const headerRow=(rows||[]).findIndex(r=>r.some(v=>/日期|date/i.test(String(v||''))&&r.some(x=>/假日|holiday|名稱|name|節日/i.test(String(x||'')))));
+    const headers=headerRow>=0?rows[headerRow]:[];
+    const dateIdx=headerRow>=0?calendarExcelHeaderIndex(headers,/日期|date/i):27;
+    const nameIdx=headerRow>=0?calendarExcelHeaderIndex(headers,/假日|holiday|名稱|name|節日/i):26;
+    const endIdx=headerRow>=0?calendarExcelHeaderIndex(headers,/結束|end/i):-1;
+    const daysIdx=headerRow>=0?calendarExcelHeaderIndex(headers,/天數|日數|days?|span/i):29;
+    const typeIdx=headerRow>=0?calendarExcelHeaderIndex(headers,/類型|type/i):-1;
+    let last=null,nextDate='';
+    (rows||[]).forEach((row,ri)=>{
+      if(ri===headerRow)return;
+      const date=calendarExcelDate(row[dateIdx]) || (row||[]).map(calendarExcelDate).find(Boolean) || '';
+      if(!date)return;
+      const rawName=String(row[nameIdx]??'').trim() || (row||[]).find(v=>/假|節|holiday/i.test(String(v||''))) || '';
+      if(!String(rawName).trim()){
+        if(last && date===nextDate){last.enddate=date;last.days=Math.max(1,Math.round((parseDate(date)-parseDate(last.date))/86400000)+1);nextDate=calendarExcelAddDays(date,1);}
+        return;
+      }
+      const name=calendarExcelName(rawName);if(!name)return;
+      const rawType=typeIdx>=0?String(row[typeIdx]||'').trim():'';
+      const type=TYPE_CFG[rawType]?rawType:calendarExcelType(`${rawName} ${rawType}`);
+      const rawDays=daysIdx>=0?Number(row[daysIdx]):0;
+      const days=Number.isFinite(rawDays)&&rawDays>0&&rawDays<100?Math.round(rawDays):1;
+      const explicitEnd=endIdx>=0?calendarExcelDate(row[endIdx]):'';
+      const h={id:uid(),date,enddate:explicitEnd||calendarExcelAddDays(date,days-1),zh:name,en:calendarExcelEnglish(name),km:'',type,days,note:String(rawName).replace(/\s+/g,' ').trim(),source:`Excel import: ${sourceName}`};
+      out.push(h);last=h;nextDate=calendarExcelAddDays(date,1);
+    });
+  });
+  const seen={};
+  return out.filter(h=>{const k=`${h.date}|${h.type}`;if(seen[k])return false;seen[k]=1;return true;});
+}
+function mergeCalendarExcelRecords(records){
+  let added=0,updated=0,unchanged=0;
+  (records||[]).forEach(h=>{
+    const y=String(h.date).slice(0,4);if(!/^20\d{2}$/.test(y))return;
+    if(!DB[y])DB[y]=[];
+    let idx=DB[y].findIndex(x=>x.date===h.date&&x.type===h.type);
+    if(idx<0)idx=DB[y].findIndex(x=>x.date===h.date&&calendarExcelName(x.zh||x.en)===calendarExcelName(h.zh||h.en));
+    if(idx<0){DB[y].push(h);added++;return;}
+    const old=DB[y][idx],next={...old,...h,id:old.id||h.id};
+    if(JSON.stringify(old)===JSON.stringify(next))unchanged++;else{DB[y][idx]=next;updated++;}
+  });
+  return{added,updated,unchanged};
+}
+function importCalendarExcel(e){
+  const file=e.target.files[0];if(!file)return;
+  const status=document.getElementById('imp-status');if(status)status.innerHTML='<div class="warn-box">⏳ '+(lang==='en'?'Reading holiday Excel…':'正在讀取假日 Excel…')+'</div>';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const wb=XLSXStyle.read(ev.target.result,{type:'array',cellDates:true,cellStyles:true});
+      const records=parseCalendarExcelWorkbook(wb,file.name),r=mergeCalendarExcelRecords(records);
+      saveDB();init();
+      if(status)status.innerHTML=`<div class="success-msg">✅ ${lang==='en'?`Excel imported: ${r.added} new, ${r.updated} updated, ${r.unchanged} unchanged.`:`Excel 匯入完成：新增 ${r.added} 筆、更新 ${r.updated} 筆、相同略過 ${r.unchanged} 筆。`}</div>`;
+      /* 已設定 GAS 時自動同步；沒有設定則只保留在本機，不要求另做格式轉換。 */
+      if(window.calPush&&typeof gasUrl==='function'&&gasUrl())Promise.resolve(window.calPush()).catch(err=>console.warn('Calendar cloud sync after Excel import failed',err));
+    }catch(err){if(status)status.innerHTML=`<div class="error-msg">❌ ${lang==='en'?'Excel import failed: ':'Excel 匯入失敗：'}${esc(err.message)}</div>`;}
+  };
+  reader.onerror=()=>{if(status)status.innerHTML='<div class="error-msg">❌ '+(lang==='en'?'Cannot read file.':'檔案無法讀取。')+'</div>';};
+  reader.readAsArrayBuffer(file);e.target.value='';
+}
+function openCalendarImportPicker(){const el=document.getElementById('imp-excel-file');if(el)el.click();}
 function download(fname,data,type){
   const blob=new Blob([data],{type});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);

@@ -108,7 +108,7 @@
   function setupCalendar(){
     var header=document.querySelector('.header');
     injectBar(header,[
-      makeAction('import',clickInput('#imp-file'),'📥',['匯入 JSON','Import JSON','នាំចូល JSON']),
+      makeAction('import',call('openCalendarImportPicker'),'📥',['匯入行事曆 Excel','Import Calendar Excel','នាំចូល Excel ប្រតិទិន']),
       makeAction('upload',call('calPush'),'☁↑'),
       makeAction('download',call('calPull'),'☁↓'),
       makeAction('telegram',call('openTelegramForPeriod'),'✈️'),

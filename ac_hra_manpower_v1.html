@@ -2578,7 +2578,7 @@ async function deleteRecord(kind,encodedKey){
 // ─────────────────────────────────────────────────────────────
 // Settings, cloud sync and Telegram
 // ─────────────────────────────────────────────────────────────
-function gasUrl(){return norm(lsGet(GAS_KEY)||'')}
+function gasUrl(){return norm(lsGet(GAS_KEY)||lsGet('vrt_att_cloud_v1_url')||lsGet('ac_hra_gas_url')||'')}
 function setCloudState(state,text){
   el('cloudDot').className=`dot ${state||''}`;el('cloudState').textContent=text||'Cloud —';
 }
@@ -2588,6 +2588,7 @@ function saveSettings(){
   if(url&&!/^https:\/\/script\.google\.com\/macros\/s\//.test(url)){toast(L('GAS URL 格式不正確','Invalid GAS URL','URL មិនត្រឹមត្រូវ'),'warn');return}
   const saved=lsSet(GAS_KEY,url);
   if(!saved.ok){toast(storageReason(saved.error),'err');return}
+  if(url){lsSet('vrt_att_cloud_v1_url',url);lsSet('ac_hra_gas_url',url)}
   setCloudState(url?'ok':'',url?L('GAS 已設定','GAS ready','GAS រួចរាល់'):'Cloud —');
   toast(L('設定已儲存','Settings saved','បានរក្សាទុក'),'ok');
 }
@@ -2654,6 +2655,7 @@ async function cloudUpload(options={}){
   if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('上傳中…','Uploading…','កំពុងផ្ទុក…'));
   try{
     const main=await HRASmartSync.push({url,tool:'manpower',records,recordCount:records.length,summary:counts(),meta:{decisions:MP_DEC,coverage:HRACloudGuard.coverage(records,'manpower')}});
+    if(main?.cancelled){toast(L('已取消上傳，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់ការផ្ទុក; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
     if(main?.needsPull)throw new Error(L('Manpower 雲端有新資料，已保留；請先下載合併','Manpower cloud has newer data and was kept','Cloud Manpower មានទិន្នន័យថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     /* Manpower movement 同時寫入 onboarding ledger，讓平台另一側也能看到。 */
     if(false){
@@ -2665,6 +2667,7 @@ async function cloudUpload(options={}){
       if(md?.ok===false)throw new Error(md.error||'Onboarding movement sync failed');
     }
     const md=await HRASmartSync.push({url,tool:'onboarding',records:movement,recordCount:movement.length,summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},meta:{coverage:HRACloudGuard.coverage(movement,'onboarding')}});
+    if(md?.cancelled){toast(L('已取消入離職上傳，雲端資料已保留','Join/resign upload cancelled; cloud data was kept','បានបោះបង់ការផ្ទុក ចូល/ចេញ; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
     if(md?.needsPull)throw new Error(L('入離職雲端有新資料，已保留；請先下載合併','Cloud movement data is newer and was kept','ទិន្នន័យ movement ថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     markCloudManifest(allRecords);
     const sent=(main?.uploaded||0)+(md?.uploaded||0);

@@ -960,10 +960,10 @@ async function clearAllData(){
 }
 function saveSettings(){
   STATE.settings.reminderDays=Math.max(1,Number(val('setReminderDays'))||45);STATE.settings.approverTelegramId='';STATE.settings.defaultDepartment=val('setDefaultDept');
-  const gas=val('setGasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);
+  const gas=val('setGasUrl');if(gas){localStorage.setItem(GAS_KEY,gas);localStorage.setItem('vrt_att_cloud_v1_url',gas);localStorage.setItem('ac_hra_gas_url',gas)}else localStorage.removeItem(GAS_KEY);
   persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})
 }
-function gasUrl(){return localStorage.getItem(GAS_KEY)||''}
+function gasUrl(){return localStorage.getItem(GAS_KEY)||localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||''}
 async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
@@ -1019,6 +1019,7 @@ async function cloudPush(options={}){
       summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},
       meta:{coverage:HRACloudGuard.coverage(STATE,'certificate_visa')},
       onStatus:s=>showLoading((LANG==='en'?'Uploading… ':'上傳中… ')+s)});
+    if(d&&d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消上傳，雲端資料已保留。');return}
     if(d&&d.needsPull)throw new Error(LANG==='en'?'Cloud changed; data was kept. Download/merge first.':'雲端已有變更，資料已保留，請先下載合併。');
     HRACloudGuard.markState('certificate_state',STATE);
     const pushCloudAt=d?.timestamp||d?.updatedAt||'';
