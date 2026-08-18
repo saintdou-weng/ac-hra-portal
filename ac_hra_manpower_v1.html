@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AC HRA Manpower v2.8</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=34"></script>
+<script src="shared/hra-smart-sync.js?v=35"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2679,7 +2679,7 @@ async function cloudUpload(options={}){
 }
 function splitCloudRecords(records){
   const p={plans:[],candidates:[],joins:[],resigns:[],daily:[]};
-  records.forEach(r=>{
+  normalizeManpowerCloudRows(records).forEach(r=>{
     const k=r._kind;
     if(k==='plan')p.plans.push(r);else if(k==='candidate')p.candidates.push(r);
     else if(k==='join')p.joins.push(r);else if(k==='resign')p.resigns.push(r);else if(k==='daily')p.daily.push(r);
@@ -2695,16 +2695,29 @@ function cloudPayloadFromResponse(d){
   return null;
 }
 function migrateCloudLegacy(payload){
-  const parsed={plans:[],candidates:[],joins:arrayValue(payload?.joins),resigns:arrayValue(payload?.resigns),daily:[]};
-  arrayValue(payload?.reqs).forEach((r,i)=>{
+  payload=payload||{};
+  const withKind=(rows,kind,prefix)=>arrayValue(rows).map((raw,i)=>{const r={...raw,_kind:kind};if(!r._k)r._k=`${prefix}|${digits(r.empId||r.employeeId||r.idNo)||normName(r.name)||i}|${parseDate(r.resignDate||r.joinDate||r.date||r.period)||''}`;return r});
+  const parsed={plans:[],candidates:[],joins:withKind(payload?.joins,'join','J'),resigns:withKind(payload?.resigns,'resign','R'),daily:withKind(payload?.daily,'daily','D')};
+  arrayValue(payload?.reqs||payload?.plans).forEach((r,i)=>{
     const date=parseDate(r.date)||today(),period=date.slice(0,7),dept=norm(r.dept)||'—',position=norm(r.position||r.title)||'—';
     parsed.plans.push({...r,_kind:'plan',_k:`P|${period}|${normKey(dept)}|${normKey(position)}`,period,snapshotDate:date,dept,position,required:n(r.required),actual:n(r.actual??r.filled),source:'cloud-legacy',_legacyIndex:i});
   });
-  arrayValue(payload?.recruit).forEach((r,i)=>{
+  arrayValue(payload?.recruit||payload?.candidates).forEach((r,i)=>{
     const date=parseDate(r.registerDate||r.date)||today(),name=norm(r.name);
     parsed.candidates.push({...r,_kind:'candidate',_k:r._k||`C|${date}|${normName(name)}|${digits(r.phone)||i}`,registerDate:date,name,interviewResult:r.interviewResult||mapInterview(r.result),source:'cloud-legacy'});
   });
   return parsed;
+}
+function normalizeManpowerCloudRows(records){
+  const out=[];
+  arrayValue(records).forEach(r=>{
+    if(!r||typeof r!=='object')return;
+    if(r.kind==='snapshot'&&r.payload){const x=migrateCloudLegacy(r.payload);out.push(...x.plans,...x.candidates,...x.joins,...x.resigns,...x.daily);return}
+    if(r.reqs||r.recruit||r.plans||r.candidates||r.joins||r.resigns||r.daily){const x=migrateCloudLegacy(r);out.push(...x.plans,...x.candidates,...x.joins,...x.resigns,...x.daily);return}
+    const kind=r._kind||r.kind;
+    if(['plan','candidate','join','resign','daily'].includes(kind))out.push({...r,_kind:kind});
+  });
+  return out;
 }
 async function pullCloudRecords(url,tool){
   const d=await cloudAction(url,'pull',{tool,meta:1});
@@ -2759,7 +2772,7 @@ async function cloudDownload(){
     if(mainRes?.meta?.decisions&&typeof mainRes.meta.decisions==='object'){
       MP_DEC={...mainRes.meta.decisions,...MP_DEC};saveMpDec();
     }
-    const records=mainRes?.records||[],movement=(moveRes?.records||[]).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
+    const records=normalizeManpowerCloudRows(mainRes?.records||[]),movement=normalizeManpowerCloudRows(moveRes?.records||[]).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
     const all=[...records,...movement];
     if((mainRes?.noCloud||!records.length)&&(!movement.length||moveRes?.noCloud))throw new Error(L('雲端尚無 Manpower／入離職資料','No Manpower or movement data in cloud','មិនមានទិន្នន័យ Manpower/ចូលចេញក្នុង Cloud'));
     const parsed=splitCloudRecords(all),stats=mergeParsed(parsed,{interactive:true});
