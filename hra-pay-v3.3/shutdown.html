@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🛑 Shutdown Analytics | AC-HRA-PAY</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  body{font-family:'Noto Sans TC','Segoe UI',sans-serif;background:#f6f8fb;}
+  .jmono{font-family:'IBM Plex Mono',monospace;}
+  .tab-active{border-bottom:2.5px solid #dc2626;color:#b91c1c;font-weight:700;}
+  .tab-inactive{border-bottom:2.5px solid transparent;color:#64748b;}
+  .ch260{height:260px;} .ch300{height:300px;}
+  .anim{animation:fade .35s ease both;} .anim-1{animation-delay:.05s;} .anim-2{animation-delay:.1s;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px}
+  @media print{.no-print{display:none!important}}
+</style>
+</head>
+<body class="text-slate-800">
+
+<header class="bg-white border-b border-slate-200 sticky top-0 z-40">
+  <div class="max-w-screen-2xl mx-auto px-4 py-2.5 flex flex-wrap items-center gap-3">
+    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-600 to-red-700 flex items-center justify-center text-white font-bold text-lg shrink-0">🛑</div>
+    <div class="mr-2">
+      <h1 class="text-base font-bold leading-tight">Shutdown Analytics</h1>
+      <p class="text-[10px] text-slate-400 mt-0.5">Vantage River Textiles · Phnom Penh
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 font-mono border border-emerald-100">v2.0</span></p>
+    </div>
+    <div class="flex items-center gap-1.5 ml-auto flex-wrap">
+      <div class="no-print flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
+        <button id="btn-cloud-up" onclick="cloudUpload()" title="上傳至雲端"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="hidden md:inline" data-en="Upload">上傳</span></button>
+        <span class="w-px h-4 bg-sky-200"></span>
+        <button id="btn-cloud-down" onclick="cloudDownload()" title="從雲端下載"
+          class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.9A5 5 0 1115.9 6H16a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          <span class="hidden md:inline" data-en="Download">下載</span></button>
+      </div>
+      <button onclick="openTgModal()" class="no-print flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition">
+        ✈️ <span data-en="Telegram">傳送</span></button>
+      <button onclick="clearAllData()" class="no-print flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100 transition">
+        🗑 <span class="hidden sm:inline" data-en="Clear All">清除全部</span></button>
+      <button onclick="exportJSON()" class="no-print text-xs font-medium px-2.5 py-1.5 rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50 transition">
+        ⬇ <span class="hidden sm:inline" data-en="Export">匯出</span></button>
+      <button onclick="toggleLang()" class="no-print text-xs font-semibold px-3 py-1.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 transition">中/EN</button>
+    </div>
+  </div>
+</header>
+
+<div class="bg-gradient-to-r from-rose-50 via-white to-amber-50 border-b border-slate-100 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 py-3">
+    <label id="dz-smart" class="flex flex-wrap items-center gap-3 border-2 border-dashed border-rose-300 rounded-xl px-4 py-3 cursor-pointer hover:border-rose-500 hover:bg-rose-50/60 transition group">
+      <div class="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center shrink-0 group-hover:bg-rose-200 transition"><span class="text-xl">🪄</span></div>
+      <div class="flex-1 min-w-[220px]">
+        <p class="text-sm font-bold text-rose-800" data-en="Smart Import — drop or click to select">智慧匯入 — 拖進來或點擊選檔</p>
+        <p class="text-[11px] text-slate-500 mt-0.5" data-en="Shutdown workbooks with one sheet per year. Years and events are detected automatically.">
+          停工記錄活頁簿（每年一張工作表）。系統自動辨識年度與各筆停工事件，其他無關工作表會自動略過。</p>
+        <p id="smart-status" class="text-[11px] mt-1 font-medium"></p>
+      </div>
+      <span class="text-xs font-semibold px-3 py-2 rounded-lg bg-rose-600 text-white shrink-0 group-hover:bg-rose-700 transition" data-en="Choose files">選擇檔案</span>
+      <input type="file" accept=".xlsx,.xls,.xlsm,.csv" multiple class="hidden" onchange="smartImport(this)">
+    </label>
+    <div id="smart-report" class="hidden mt-2 text-[11px] bg-white border border-slate-200 rounded-lg p-2.5 space-y-1"></div>
+  </div>
+</div>
+
+<div class="bg-white border-b border-slate-200 sticky top-[57px] z-30 no-print">
+  <div class="max-w-screen-2xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <button id="tab-dash"   onclick="goTab('dash')"   class="tab-active text-sm px-4 py-3 whitespace-nowrap transition" data-en="📊 Dashboard">📊 儀表板</button>
+    <button id="tab-time"   onclick="goTab('time')"   class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📅 Time Detail">📅 時間明細</button>
+    <button id="tab-events" onclick="goTab('events')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📋 Event List">📋 事件清單</button>
+    <button id="tab-pattern"onclick="goTab('pattern')"class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="🔍 Pattern">🔍 型態分析</button>
+    <button id="tab-report" onclick="goTab('report')" class="tab-inactive text-sm px-4 py-3 whitespace-nowrap transition" data-en="📈 Period Report">📈 期間報表</button>
+  </div>
+</div>
+
+<main class="max-w-screen-2xl mx-auto px-4 py-4">
+
+<div id="empty-state" class="flex flex-col items-center justify-center py-28 text-center">
+  <div class="w-16 h-16 bg-slate-100 rounded-2xl flex items-center justify-center mb-4"><span class="text-3xl">🛑</span></div>
+  <p class="text-slate-400 font-medium" data-en="Upload the shutdown workbook to begin">上傳停工記錄表後開始分析</p>
+  <p class="text-slate-300 text-xs mt-2" data-en="Drag the file here or click to choose.">可直接把檔案拖進上方區域</p>
+</div>
+
+<div id="app" class="hidden">
+
+  <div class="mb-4 bg-white border border-slate-200 rounded-xl p-3 space-y-2.5">
+    <div class="flex flex-wrap items-center gap-2">
+      <button onclick="stepPeriod(-1)" title="上一期"
+        class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-rose-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg></button>
+      <select id="nav-period" onchange="jumpPeriod(this.value)"
+        class="text-sm font-bold border border-slate-200 rounded-lg px-4 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200 min-w-[170px] text-center"></select>
+      <button onclick="stepPeriod(1)" title="下一期"
+        class="w-9 h-9 rounded-lg border border-slate-200 hover:bg-slate-50 hover:border-rose-400 transition flex items-center justify-center text-slate-500 shrink-0">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg></button>
+      <span id="nav-hint" class="text-[11px] ml-1 text-slate-400"></span>
+      <select id="sel-scale" onchange="renderAll()"
+        class="ml-auto text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200">
+        <option value="" data-en="All shutdowns">全部停工 All</option>
+        <option value="full" data-en="Full shutdown only">全廠停工 Full</option>
+        <option value="partial" data-en="Partial only">部分停工 Partial</option>
+      </select>
+      <select id="sel-dur" onchange="renderAll()"
+        class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200">
+        <option value="" data-en="Any duration">不限天數 Any</option>
+        <option value="1" data-en="1 day">1 天</option>
+        <option value="2-3" data-en="2–3 days">2–3 天</option>
+        <option value="4-7" data-en="4–7 days">4–7 天</option>
+        <option value="8+" data-en="8+ days">8 天以上</option>
+      </select>
+    </div>
+    <div class="flex flex-wrap items-center gap-2.5">
+      <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider w-14" data-en="Time">時間</span>
+      <div class="flex bg-slate-100 rounded-lg p-0.5">
+        <button id="cu-day"     onclick="setUnit('day')"     data-en="Daily"     class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每日</button>
+        <button id="cu-week"    onclick="setUnit('week')"    data-en="Weekly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每週</button>
+        <button id="cu-month"   onclick="setUnit('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-rose-700 transition">每月</button>
+        <button id="cu-quarter" onclick="setUnit('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每季</button>
+        <button id="cu-year"    onclick="setUnit('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">每年</button>
+      </div>
+      <span id="scope-txt" class="text-[11px] text-slate-400 ml-auto"></span>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="pane-dash" class="pane">
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="EVENTS">停工次數 EVENTS</p>
+        <p id="k-cnt" class="text-2xl font-bold jmono mt-1 text-rose-600">—</p>
+        <p id="k-cnt-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="SHUTDOWN DAYS">停工天數 DAYS</p>
+        <p id="k-days" class="text-2xl font-bold jmono mt-1">—</p>
+        <p id="k-days-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="LOST PERSON-DAYS">停工人日 PERSON-DAYS</p>
+        <p id="k-pd" class="text-2xl font-bold jmono mt-1 text-amber-600">—</p>
+        <p id="k-pd-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="AVG AFFECTED">平均停工人數 AVG PPL</p>
+        <p id="k-ppl" class="text-2xl font-bold jmono mt-1 text-sky-600">—</p>
+        <p id="k-ppl-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-2">
+        <p class="text-[11px] text-slate-400 font-medium" data-en="FULL SHUTDOWN RATE">全廠停工比例 FULL</p>
+        <p id="k-full" class="text-2xl font-bold jmono mt-1 text-emerald-600">—</p>
+        <p id="k-full-s" class="text-[11px] text-slate-400 mt-0.5"></p></div>
+    </div>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="Trend">停工趨勢</p>
+        <p id="trend-note" class="text-[11px] text-slate-400 mb-3"></p>
+        <div class="ch300"><canvas id="trend-chart"></canvas></div>
+      </div>
+      <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4 anim anim-1">
+        <p class="text-sm font-semibold text-slate-700 mb-1" data-en="Shutdown Line Ratio">停工組數比例分布</p>
+        <p class="text-[11px] text-slate-400 mb-3" data-en="How much of the factory stopped each time">每次停工影響的產線占比</p>
+        <div class="ch300"><canvas id="scale-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIME DETAIL -->
+  <div id="pane-time" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p id="time-title" class="text-sm font-semibold text-slate-700 flex-1">📅 每月明細</p>
+        <button onclick="exportCSV('time')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div id="time-note" class="px-4 py-2 text-[11px] text-slate-500 bg-slate-50 border-b border-slate-100"></div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="time-thead"></tr></thead>
+        <tbody id="time-tbody"></tbody>
+        <tfoot class="bg-slate-50 font-bold text-slate-700 border-t-2 border-slate-200"><tr id="time-tfoot"></tr></tfoot>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- EVENTS -->
+  <div id="pane-events" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <input id="ev-q" oninput="renderEvents()" placeholder="搜尋日期 / 星期…"
+          class="text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-rose-200 flex-1 min-w-[180px]">
+        <select id="ev-scope" onchange="renderEvents()" class="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none">
+          <option value="period" data-en="Current period">本期間 Current</option>
+          <option value="all" data-en="All periods">全部期間 All</option>
+        </select>
+        <span id="ev-count" class="text-[11px] text-slate-400"></span>
+        <button onclick="exportCSV('events')" class="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition">⬇ CSV</button>
+      </div>
+      <div class="overflow-x-auto max-h-[70vh] overflow-y-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500 sticky top-0"><tr id="ev-thead"></tr></thead>
+        <tbody id="ev-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- PATTERN -->
+  <div id="pane-pattern" class="pane hidden"><div id="pattern-body"></div></div>
+
+  <!-- REPORT -->
+  <div id="pane-report" class="pane hidden">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+      <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-3">
+        <p class="text-sm font-semibold text-slate-700 flex-1" data-en="📈 Period Report">📈 期間報表</p>
+        <div class="flex bg-slate-100 rounded-lg p-0.5">
+          <button id="rp-month"   onclick="setReportMode('month')"   data-en="Monthly"   class="text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-rose-700 transition">月報</button>
+          <button id="rp-quarter" onclick="setReportMode('quarter')" data-en="Quarterly" class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">季報</button>
+          <button id="rp-year"    onclick="setReportMode('year')"    data-en="Yearly"    class="text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition">年報</button>
+        </div>
+        <span id="rp-count" class="text-[11px] text-slate-400"></span>
+      </div>
+      <div class="overflow-x-auto"><table class="w-full text-xs">
+        <thead class="bg-slate-50 text-slate-500"><tr id="rp-thead"></tr></thead>
+        <tbody id="rp-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+</div>
+</main>
+
+<div id="tg-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+      <span class="text-xl">✈️</span>
+      <div class="flex-1">
+        <p class="text-sm font-bold text-slate-800" data-en="Send to Telegram Group">傳送至 Telegram 群組</p>
+        <p class="text-[11px] text-slate-400 mt-0.5" data-en="Shutdown Summary">停工摘要</p>
+      </div>
+      <button onclick="closeTgModal()" class="text-slate-300 hover:text-slate-500 text-xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 space-y-3">
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Report Scope">報表範圍 Scope</label>
+        <select id="tg-scope" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200">
+          <option value="month" data-en="Selected month">指定月份 Month</option>
+          <option value="year" data-en="Selected year">整個年度 Year</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Select Period">選擇期間 Period</label>
+        <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none focus:ring-2 focus:ring-rose-200"></select>
+      </div>
+      <div id="tg-person-wrap">
+        <label id="tg-person-label" class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">檢查人 Checked by</label>
+        <input id="tg-person" type="text" oninput="hrpPersonChanged()" autocomplete="off"
+          class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white outline-none"
+          placeholder="請輸入檢查人 / Enter checked by">
+      </div>
+      <div>
+        <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider" data-en="Message Preview">訊息預覽 Preview</label>
+        <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-56 overflow-auto whitespace-pre-wrap text-slate-600"></pre>
+      </div>
+    </div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2">
+      <button onclick="closeTgModal()" data-en="Cancel" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition">取消</button>
+      <button id="tg-send" onclick="confirmSendTg()" data-en="Send" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition">確認傳送</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border border-slate-100 px-4 py-3 hidden no-print text-sm"></div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════
+//  AC-HRA-PAY · Shutdown Analytics v2.0
+//  資料粒度：每筆停工事件（起訖日、天數、停工組數、停工人數）
+// ═══════════════════════════════════════════════════════
+const GAS_URL = localStorage.getItem('hrpay_gas_url') ||
+  'https://script.google.com/macros/s/AKfycbwmmRduvOe5RdnR_iALwEIi_6lQaTq4SXH88jmoIjiHwTsTrW5qnlPTr8PSmOT7C2rdGg/exec';
+const IDB_NAME='ac_hra_shutdown', IDB_VER=1, IDB_STORE='events';
+const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WD_ZH={Sun:'日',Mon:'一',Tue:'二',Wed:'三',Thu:'四',Fri:'五',Sat:'六'};
+const WD_ORDER=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const PALETTE=['#dc2626','#f59e0b','#0ea5e9','#8b5cf6','#10b981','#ec4899','#14b8a6','#6366f1'];
+
+let LANG='zh', EVENTS=[], ACTIVE=null, UNIT='month', REPORT_MODE='month', charts={};
+
+const qs=s=>document.querySelector(s);
+const N=v=>{const n=parseFloat(v);return isFinite(n)?n:0;};
+const fmt=n=>(Math.round((n||0)*100)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const int=n=>Math.round(n||0).toLocaleString('en-US');
+const esc=s=>String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const T=(zh,en)=>LANG==='en'?en:zh;
+const pad=n=>String(n).padStart(2,'0');
+function _nowISO(){const d=new Date();
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+
+function toast(msg,kind){
+  const t=qs('#toast');
+  const c={success:'border-emerald-200 text-emerald-700',error:'border-rose-200 text-rose-700',
+           warning:'border-amber-200 text-amber-700'}[kind]||'border-slate-100 text-slate-700';
+  t.className='fixed bottom-5 right-5 z-[999] max-w-xs bg-white rounded-xl shadow-lg border px-4 py-3 no-print text-sm '+c;
+  t.textContent=msg; t.classList.remove('hidden');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.classList.add('hidden'),3200);
+}
+function toggleLang(){LANG=LANG==='zh'?'en':'zh';applyLang();}
+function applyLang(){
+  document.querySelectorAll('[data-en]').forEach(el=>{
+    if(el.dataset.zhOrig===undefined) el.dataset.zhOrig=el.textContent;
+    el.textContent=LANG==='en'?el.dataset.en:el.dataset.zhOrig;
+  });
+  if(EVENTS.length){try{renderAll();}catch(e){console.warn(e);}}
+}
+
+// ━━━━ IndexedDB ━━━━
+let _dbReady=null;
+function idbOpen(){
+  if(_dbReady)return _dbReady;
+  _dbReady=new Promise(res=>{
+    const rq=indexedDB.open(IDB_NAME,IDB_VER);
+    rq.onupgradeneeded=e=>{const db=e.target.result;
+      if(!db.objectStoreNames.contains(IDB_STORE))db.createObjectStore(IDB_STORE,{keyPath:'k'});};
+    rq.onsuccess=e=>res(e.target.result); rq.onerror=()=>res(null);
+  });
+  return _dbReady;
+}
+async function idbSaveAll(){
+  const db=await idbOpen(); if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).put({k:'all',events:EVENTS,updatedAt:_nowISO()});
+    tx.oncomplete=()=>r(); tx.onerror=()=>r();});
+}
+async function idbLoad(){
+  const db=await idbOpen(); if(!db)return [];
+  return new Promise(r=>{const rq=db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get('all');
+    rq.onsuccess=()=>r((rq.result&&rq.result.events)||[]); rq.onerror=()=>r([]);});
+}
+async function idbClear(){
+  const db=await idbOpen(); if(!db)return;
+  return new Promise(r=>{const tx=db.transaction(IDB_STORE,'readwrite');
+    tx.objectStore(IDB_STORE).clear(); tx.oncomplete=()=>r(); tx.onerror=()=>r();});
+}
+
+// ━━━━ 日期工具（一律使用本地 getter，不用 toISOString）━━━━
+function toDate(v){
+  if(v instanceof Date) return new Date(v.getFullYear(),v.getMonth(),v.getDate());
+  if(typeof v==='number'&&v>20000){
+    const p=XLSX.SSF.parse_date_code(v);
+    if(p) return new Date(p.y,p.m-1,p.d);
+  }
+  if(typeof v==='string'){
+    const m=v.trim().match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})$/);
+    if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+    const d=new Date(v); if(!isNaN(d)) return new Date(d.getFullYear(),d.getMonth(),d.getDate());
+  }
+  return null;
+}
+const dStr=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const wdName=d=>['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+function isoWeek(d){
+  const t=new Date(d.valueOf());
+  t.setDate(t.getDate()+3-((d.getDay()+6)%7));
+  const w1=new Date(t.getFullYear(),0,4);
+  return {y:t.getFullYear(),w:1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7)};
+}
+
+// ━━━━ 解析停工工作表 ━━━━
+//  版面：表頭列含 Date / TTl Day / Shutdown Line 等英文標籤（其下一列為中文）
+//        每筆事件佔兩列：第一列 col2='Start'（含全部數值），第二列 col2='End'（僅日期）
+//        欄位：1=次數 2=Start/End 3=中文 4=日期 5=星期 6=停工天數 7=總組數
+//              8=停工組數 9=組數比例 10=停工人數 11=人數比例 12=未停工 13=總人數
+function parseShutdownSheet(ws, sheetName){
+  const raw=XLSX.utils.sheet_to_json(ws,{header:1,defval:null,raw:true});
+  if(raw.length<4)return null;
+
+  // 表頭列：含 Date 且含 Shutdown Line / TTl Day
+  let hr=-1;
+  for(let i=0;i<8;i++){
+    const r=(raw[i]||[]).map(x=>String(x||'').trim().toLowerCase());
+    if(r.some(x=>/^date$/.test(x)) && r.some(x=>/shutdown\s*line|ttl\s*day/.test(x))){hr=i;break;}
+  }
+  if(hr<0)return null;
+  const hdr=raw[hr];
+
+  // 依標籤定位欄位
+  let cDate=-1,cWd=-1,cDays=-1,cTtlLine=-1,cShutLine=-1,cShutPPL=-1,cRemain=-1,cTtlPPL=-1;
+  for(let c=0;c<hdr.length;c++){
+    const v=String(hdr[c]||'').trim().toLowerCase();
+    if(/^date$/.test(v))cDate=c;
+    else if(/^weekday$/.test(v))cWd=c;
+    else if(/ttl\s*day/.test(v))cDays=c;
+    else if(/^ttl\s*line$/.test(v))cTtlLine=c;
+    else if(/shutdown\s*line/.test(v))cShutLine=c;
+    else if(/shutdown\s*ppl/.test(v))cShutPPL=c;
+    else if(/remain\s*ppl/.test(v))cRemain=c;
+    else if(/^ttl\s*ppl$/.test(v))cTtlPPL=c;
+  }
+  if(cDate<0)return null;
+
+  // Start/End 標記欄：不同讀取器的欄位起點可能相差一格，故動態偵測
+  let cTag=-1;
+  for(let i=hr+1;i<Math.min(raw.length,hr+30)&&cTag<0;i++){
+    const r=raw[i]||[];
+    for(let c=0;c<Math.min(5,r.length);c++)
+      if(String(r[c]||'').trim().toLowerCase()==='start'){cTag=c;break;}
+  }
+  if(cTag<0)return null;
+  const cSeq=Math.max(0,cTag-1);
+
+  // 年度：工作表名優先
+  let sheetYear=0;
+  const my=String(sheetName).match(/(20\d{2})/);
+  if(my)sheetYear=+my[1];
+
+  const out=[];
+  for(let i=hr+1;i<raw.length;i++){
+    const r=raw[i]||[];
+    const tag=String(r[cTag]||'').trim().toLowerCase();
+    if(tag!=='start')continue;
+    const sd=toDate(r[cDate]);
+    if(!sd)continue;
+    // 結束列：往下找最近的 End
+    let ed=sd;
+    for(let j=i+1;j<Math.min(i+4,raw.length);j++){
+      const t2=String((raw[j]||[])[cTag]||'').trim().toLowerCase();
+      if(t2==='end'){const e=toDate((raw[j]||[])[cDate]); if(e)ed=e; break;}
+      if(t2==='start')break;
+    }
+    const days=cDays>=0?N(r[cDays]):0;
+    const ttlLine=cTtlLine>=0?N(r[cTtlLine]):0;
+    const shutLine=cShutLine>=0?N(r[cShutLine]):0;
+    const shutPPL=cShutPPL>=0?N(r[cShutPPL]):0;
+    const remain=cRemain>=0?N(r[cRemain]):0;
+    const ttlPPL=cTtlPPL>=0?N(r[cTtlPPL]):0;
+    if(!days&&!shutPPL&&!shutLine)continue;
+    const spanDays=Math.round((ed-sd)/86400000)+1;
+    out.push({
+      year:sheetYear||sd.getFullYear(),
+      seq:N(r[cSeq])||out.length+1,
+      start:dStr(sd), end:dStr(ed),
+      wdStart:cWd>=0?String(r[cWd]||'').trim()||wdName(sd):wdName(sd),
+      wdEnd:wdName(ed),
+      days: days||spanDays,
+      spanDays,
+      ttlLine, shutLine,
+      lineRatio: ttlLine? shutLine/ttlLine : 0,
+      shutPPL, remainPPL:remain,
+      ttlPPL: ttlPPL || (shutPPL+remain),
+      personDays: (days||spanDays)*shutPPL
+    });
+  }
+  return out.length?out:null;
+}
+function parseWorkbook(wb,fileName){
+  // ⚠ 活頁簿中同時存在「各年度分頁」與「shutdown update」總表，兩者資料重疊。
+  //    以年度分頁為權威（欄位較新，例如 2026 的總組數為 13 而非舊表的 12）；
+  //    總表只補上沒有專屬分頁的年度。
+  const byYearSheet={}, fromMaster=[];
+  wb.SheetNames.forEach(sn=>{
+    const r=parseShutdownSheet(wb.Sheets[sn],sn);
+    if(!r)return;
+    r.forEach(x=>{x.sheet=sn;x.src=fileName||'';});
+    if(/^\s*20\d{2}\s*$/.test(sn)) (byYearSheet[+sn]=byYearSheet[+sn]||[]).push(...r);
+    else fromMaster.push(...r);
+  });
+  const covered=new Set(Object.keys(byYearSheet).map(Number));
+  let all=[];
+  Object.keys(byYearSheet).sort().forEach(y=>all=all.concat(byYearSheet[y]));
+  all=all.concat(fromMaster.filter(x=>!covered.has(x.year)));
+  // 再以「起始日＋結束日」保險去重
+  const seen=new Set();
+  all=all.filter(x=>{const k=x.start+'|'+x.end;if(seen.has(k))return false;seen.add(k);return true;});
+  return all.length?all:null;
+}
+
+// ━━━━ 智慧匯入 ━━━━
+async function smartImport(input){
+  const files=[...input.files]; input.value='';
+  if(!files.length)return;
+  const st=qs('#smart-status'), rep=qs('#smart-report');
+  st.textContent=T(`⏳ 解析 ${files.length} 個檔案中…`,`⏳ Parsing ${files.length} file(s)…`);
+  st.style.color='#b91c1c'; rep.classList.add('hidden'); rep.innerHTML='';
+
+  const log=[];
+  for(const file of files){
+    try{
+      const wb=XLSX.read(await file.arrayBuffer(),{type:'array',raw:true,cellDates:false});
+      const recs=parseWorkbook(wb,file.name);
+      if(!recs){ log.push({ok:false,f:file.name,msg:T('找不到停工資料（需含 Date / Shutdown Line 表頭）','No shutdown data found')}); continue; }
+      // 以「年度＋起始日」為鍵去重，重覆匯入會覆蓋
+      const keys=new Set(recs.map(r=>r.year+'|'+r.start));
+      EVENTS=EVENTS.filter(e=>!keys.has(e.year+'|'+e.start));
+      EVENTS=EVENTS.concat(recs);
+      const sheets=[...new Set(recs.map(r=>r.sheet))];
+      log.push({ok:true,f:file.name,n:recs.length,sheets,
+        years:[...new Set(recs.map(r=>r.year))].sort(),
+        pd:recs.reduce((s,r)=>s+r.personDays,0),
+        skipped:wb.SheetNames.length-sheets.length});
+    }catch(e){ log.push({ok:false,f:file.name,msg:e.message}); }
+  }
+  EVENTS.sort((a,b)=>a.start<b.start?-1:1);
+  await idbSaveAll();
+  const ps=periods(); if(ps.length)ACTIVE=ps[ps.length-1];
+  showApp(); renderAll(); pushProjection();
+
+  const okN=log.filter(l=>l.ok).length;
+  st.textContent = okN===log.length
+    ? T(`✅ ${okN} 個檔案全部匯入成功`,`✅ All ${okN} file(s) imported`)
+    : T(`⚠ ${okN}/${log.length} 個成功`,`⚠ ${okN}/${log.length} succeeded`);
+  st.style.color = okN===log.length?'#059669':'#b45309';
+
+  rep.innerHTML=log.map(l=>l.ok
+    ? `<div class="flex items-start gap-2"><span class="text-emerald-600">✓</span><span class="flex-1"><b>${esc(l.f)}</b> → ${l.n} ${T('筆停工事件','shutdown events')} · ${T('年度','years')} ${l.years.join(', ')} · ${T('停工人日','person-days')} ${int(l.pd)}
+       <span class="text-slate-400">（${T('採用工作表','sheets used')}：${l.sheets.join('、')}${l.skipped?T(`；另略過 ${l.skipped} 張無關工作表`,`; ${l.skipped} unrelated sheets skipped`):''}）</span></span></div>`
+    : `<div class="flex items-start gap-2"><span class="text-rose-600">✕</span><span class="flex-1"><b>${esc(l.f)}</b> — ${esc(l.msg)}</span></div>`
+  ).join('');
+  rep.classList.remove('hidden');
+  applyLang();
+}
+
+// ━━━━ 篩選 ━━━━
+function filtered(){
+  const scale=qs('#sel-scale')?qs('#sel-scale').value:'';
+  const dur=qs('#sel-dur')?qs('#sel-dur').value:'';
+  return EVENTS.filter(e=>{
+    if(scale==='full'&&e.lineRatio<0.999)return false;
+    if(scale==='partial'&&e.lineRatio>=0.999)return false;
+    if(dur==='1'&&e.days!==1)return false;
+    if(dur==='2-3'&&!(e.days>=2&&e.days<=3))return false;
+    if(dur==='4-7'&&!(e.days>=4&&e.days<=7))return false;
+    if(dur==='8+'&&e.days<8)return false;
+    return true;
+  });
+}
+function periods(){ return [...new Set(filtered().map(e=>e.start.slice(0,7)))].sort(); }
+function allPeriods(){ return [...new Set(EVENTS.map(e=>e.start.slice(0,7)))].sort(); }
+function spanEvents(){
+  const evs=filtered(); if(!ACTIVE)return evs;
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return evs.filter(e=>+e.start.slice(0,4)===ay);
+  if(UNIT==='quarter'){const q=Math.floor((am-1)/3);
+    return evs.filter(e=>+e.start.slice(0,4)===ay&&Math.floor((+e.start.slice(5,7)-1)/3)===q);}
+  return evs.filter(e=>e.start.slice(0,7)===ACTIVE);
+}
+function spanLabel(){
+  if(!ACTIVE)return '';
+  const [ay,am]=ACTIVE.split('-').map(Number);
+  if(UNIT==='year')return String(ay);
+  if(UNIT==='quarter')return `${ay} Q${Math.floor((am-1)/3)+1}`;
+  return `${MS[am-1]} ${ay}`;
+}
+
+function _btn(on,color){return on
+  ?`text-xs px-3 py-1.5 rounded-md bg-white shadow-sm font-semibold text-${color}-700 transition`
+  :'text-xs px-3 py-1.5 rounded-md text-slate-500 font-medium transition';}
+function setUnit(u){UNIT=u;['day','week','month','quarter','year'].forEach(k=>qs('#cu-'+k).className=_btn(k===u,'rose'));renderAll();}
+function setReportMode(m){REPORT_MODE=m;['month','quarter','year'].forEach(k=>qs('#rp-'+k).className=_btn(k===m,'rose'));renderReport();}
+function jumpPeriod(p){if(p){ACTIVE=p;renderAll();}}
+function stepPeriod(dir){
+  const ps=periods(); if(!ps.length)return;
+  const i=ps.indexOf(ACTIVE);
+  const n=Math.min(ps.length-1,Math.max(0,(i<0?ps.length-1:i)+dir));
+  if(n!==i)jumpPeriod(ps[n]);
+}
+const TABS=['dash','time','events','pattern','report'];
+function goTab(name){
+  TABS.forEach(t=>{
+    qs('#pane-'+t).classList.toggle('hidden',t!==name);
+    qs('#tab-'+t).className=(t===name?'tab-active':'tab-inactive')+' text-sm px-4 py-3 whitespace-nowrap transition';
+  });
+  renderAll();
+}
+function showApp(){
+  const has=EVENTS.length>0;
+  qs('#empty-state').classList.toggle('hidden',has);
+  qs('#app').classList.toggle('hidden',!has);
+}
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ━━━━ 渲染 ━━━━
+function renderAll(){
+  if(!EVENTS.length){showApp();return;}
+  showApp();
+  const ps=periods();
+  if(!ACTIVE||!ps.includes(ACTIVE))ACTIVE=ps[ps.length-1];
+  renderNav(); renderDash(); renderTime(); renderEvents(); renderPattern(); renderReport();
+}
+function renderNav(){
+  const ps=periods(), sel=qs('#nav-period');
+  sel.innerHTML=ps.slice().reverse().map(p=>{
+    const [y,m]=p.split('-');
+    const n=filtered().filter(e=>e.start.slice(0,7)===p).length;
+    return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('次','ev')}</option>`;
+  }).join('');
+  if(ACTIVE)sel.value=ACTIVE;
+  const i=ps.indexOf(ACTIVE);
+  const yrs=[...new Set(EVENTS.map(e=>e.year))].sort();
+  qs('#nav-hint').innerHTML=`<span class="text-slate-400">${i+1} / ${ps.length}</span>
+    <span class="text-slate-400 ml-1">${T('已匯入年度','Years')}: ${yrs.join(', ')}</span>`;
+}
+
+function renderDash(){
+  const evs=spanEvents();
+  const cnt=evs.length;
+  const days=evs.reduce((s,e)=>s+e.days,0);
+  const pd=evs.reduce((s,e)=>s+e.personDays,0);
+  const avgPPL=cnt?evs.reduce((s,e)=>s+e.shutPPL,0)/cnt:0;
+  const full=evs.filter(e=>e.lineRatio>=0.999).length;
+
+  qs('#k-cnt').textContent=int(cnt);
+  qs('#k-cnt-s').textContent=spanLabel();
+  qs('#k-days').textContent=int(days);
+  qs('#k-days-s').textContent=cnt?T(`平均 ${(days/cnt).toFixed(1)} 天/次`,`avg ${(days/cnt).toFixed(1)} d/event`):'';
+  qs('#k-pd').textContent=int(pd);
+  qs('#k-pd-s').textContent=T('停工天數 × 停工人數','days × affected staff');
+  qs('#k-ppl').textContent=int(avgPPL);
+  qs('#k-ppl-s').textContent=T('每次受影響人數','per event');
+  qs('#k-full').textContent=cnt?Math.round(full/cnt*100)+'%':'—';
+  qs('#k-full-s').textContent=T(`${full} / ${cnt} 次為全廠停工`,`${full} of ${cnt} were full`);
+
+  const sc=qs('#sel-scale').selectedOptions[0], du=qs('#sel-dur').selectedOptions[0];
+  qs('#scope-txt').textContent=`${spanLabel()} · ${sc?sc.textContent:''} · ${du?du.textContent:''} · ${T('共','')} ${cnt} ${T('次','events')}`;
+
+  // 趨勢
+  const series=timeSeries();
+  qs('#trend-note').textContent=T(`以「${T(UNIT_ZH[UNIT],UNIT_EN[UNIT])}」彙總 · 共 ${series.length} 組`,`Grouped · ${series.length} groups`);
+  const asc=series.slice().reverse();
+  destroyChart('trend-chart');
+  charts['trend-chart']=new Chart(qs('#trend-chart'),{
+    type:'bar',
+    data:{labels:asc.map(s=>s.label),datasets:[
+      {type:'bar',label:T('停工人日','Person-days'),data:asc.map(s=>Math.round(s.pd)),
+       backgroundColor:'#dc262699',borderColor:'#dc2626',borderWidth:1,borderRadius:4,yAxisID:'y'},
+      {type:'line',label:T('停工次數','Events'),data:asc.map(s=>s.cnt),
+       borderColor:'#0ea5e9',backgroundColor:'#0ea5e9',tension:.3,pointRadius:2,yAxisID:'y1'}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{font:{size:10},boxWidth:12}}},
+      scales:{y:{beginAtZero:true,grid:{color:'#f1f5f9'},ticks:{font:{size:10}}},
+              y1:{position:'right',beginAtZero:true,grid:{display:false},ticks:{font:{size:10},precision:0}},
+              x:{grid:{display:false},ticks:{font:{size:9},maxRotation:60}}}}
+  });
+
+  // 停工規模分布
+  const buckets=[[0,0.25,'1–25%'],[0.25,0.5,'26–50%'],[0.5,0.75,'51–75%'],[0.75,0.999,'76–99%'],[0.999,2,T('全廠 100%','Full 100%')]];
+  const counts=buckets.map(([lo,hi])=>evs.filter(e=>e.lineRatio>lo&&e.lineRatio<=hi).length);
+  destroyChart('scale-chart');
+  charts['scale-chart']=new Chart(qs('#scale-chart'),{
+    type:'doughnut',
+    data:{labels:buckets.map(b=>b[2]),datasets:[{data:counts,
+      backgroundColor:PALETTE.slice(0,5).map(c=>c+'cc'),borderColor:'#fff',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'right',labels:{font:{size:11},boxWidth:12}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${c.raw} ${T('次','events')}`}}}}
+  });
+}
+
+const UNIT_ZH={day:'每日',week:'每週',month:'每月',quarter:'每季',year:'每年'};
+const UNIT_EN={day:'Daily',week:'Weekly',month:'Monthly',quarter:'Quarterly',year:'Yearly'};
+
+// 依單位分組（每日＝把事件依天數攤平）
+function timeSeries(){
+  const evs=filtered(), g={};
+  const add=(gk,label,e,dayShare)=>{
+    const t=g[gk]||(g[gk]={key:gk,label,cnt:0,days:0,pd:0,ppl:0,evs:new Set(),full:0});
+    t.days+=dayShare;
+    t.pd+=e.shutPPL*dayShare;
+    if(!t.evs.has(e.start+'|'+e.seq)){t.evs.add(e.start+'|'+e.seq);t.cnt++;t.ppl+=e.shutPPL;
+      if(e.lineRatio>=0.999)t.full++;}
+  };
+  evs.forEach(e=>{
+    if(UNIT==='day'||UNIT==='week'){
+      const sd=new Date(+e.start.slice(0,4),+e.start.slice(5,7)-1,+e.start.slice(8,10));
+      const n=Math.max(1,Math.round(e.days));
+      for(let k=0;k<n;k++){
+        const d=new Date(sd.getFullYear(),sd.getMonth(),sd.getDate()+k);
+        if(UNIT==='day') add(dStr(d),dStr(d),e,1);
+        else{const w=isoWeek(d); add(`${w.y}-W${pad(w.w)}`,`${w.y}-W${pad(w.w)}`,e,1);}
+      }
+    }else{
+      const y=+e.start.slice(0,4), m=+e.start.slice(5,7);
+      const q=Math.floor((m-1)/3)+1;
+      if(UNIT==='year')add(String(y),String(y),e,e.days);
+      else if(UNIT==='quarter')add(`${y}-Q${q}`,`${y} Q${q}`,e,e.days);
+      else add(`${y}-${pad(m)}`,`${MS[m-1]} ${y}`,e,e.days);
+    }
+  });
+  return Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
+}
+
+function renderTime(){
+  const series=timeSeries();
+  const uZh=T(UNIT_ZH[UNIT],UNIT_EN[UNIT]);
+  qs('#time-title').textContent=T(`📅 ${UNIT_ZH[UNIT]}明細`,`📅 ${UNIT_EN[UNIT]} Detail`);
+  qs('#time-note').textContent = (UNIT==='day'||UNIT==='week')
+    ? T('每筆停工事件已依其停工天數，自起始日逐日攤開計算。','Each event is expanded day-by-day from its start date.')
+    : T(`以「${uZh}」彙總所有已匯入年度。停工人日 = 停工天數 × 當次停工人數。`,
+        `Aggregated by ${uZh}. Person-days = shutdown days × affected staff.`);
+
+  qs('#time-thead').innerHTML=[T('區間','Period'),T('停工次數','Events'),T('停工天數','Days'),
+    T('全廠停工','Full'),T('停工人日','Person-days'),T('平均人數','Avg staff'),T('平均天數','Avg days')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#time-tbody').innerHTML=series.map((s,i)=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50 ${i===0?'bg-rose-50/40':''}">
+      <td class="px-3 py-2 font-semibold ${i===0?'text-rose-700':'text-slate-700'}">${s.label}</td>
+      <td class="px-3 py-2 text-right jmono">${s.cnt}</td>
+      <td class="px-3 py-2 text-right jmono">${int(s.days)}</td>
+      <td class="px-3 py-2 text-right jmono ${s.full?'text-rose-600':'text-slate-300'}">${s.full||'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold text-amber-700">${int(s.pd)}</td>
+      <td class="px-3 py-2 text-right jmono">${int(s.ppl/(s.cnt||1))}</td>
+      <td class="px-3 py-2 text-right jmono">${(s.days/(s.cnt||1)).toFixed(1)}</td></tr>`).join('')
+    ||`<tr><td colspan="7" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+  const TT=series.reduce((a,s)=>({cnt:a.cnt+s.cnt,days:a.days+s.days,pd:a.pd+s.pd,full:a.full+s.full,ppl:a.ppl+s.ppl}),{cnt:0,days:0,pd:0,full:0,ppl:0});
+  qs('#time-tfoot').innerHTML=`
+    <td class="px-3 py-2">${T('合計','TOTAL')}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.cnt}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.days)}</td>
+    <td class="px-3 py-2 text-right jmono">${TT.full}</td>
+    <td class="px-3 py-2 text-right jmono text-amber-700">${int(TT.pd)}</td>
+    <td class="px-3 py-2 text-right jmono">${int(TT.ppl/(TT.cnt||1))}</td>
+    <td class="px-3 py-2 text-right jmono">${(TT.days/(TT.cnt||1)).toFixed(1)}</td>`;
+}
+
+function renderEvents(){
+  const all=qs('#ev-scope').value==='all';
+  let list=all?filtered():spanEvents();
+  const q=(qs('#ev-q').value||'').trim().toLowerCase();
+  if(q)list=list.filter(e=>(e.start+' '+e.end+' '+e.wdStart).toLowerCase().includes(q));
+  list=list.slice().sort((a,b)=>a.start<b.start?1:-1);
+  qs('#ev-count').textContent=`${list.length} ${T('筆','events')}`;
+  qs('#ev-thead').innerHTML=[T('起始日','Start'),T('星期','Day'),T('結束日','End'),T('停工天數','Days'),
+    T('停工組數','Lines'),T('停工比例','Line %'),T('停工人數','Staff'),T('未停工','Remain'),T('停工人日','Person-days')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i>2?'text-right':'text-left'} font-semibold whitespace-nowrap bg-slate-50">${h}</th>`).join('');
+  qs('#ev-tbody').innerHTML=list.map(e=>{
+    const isFull=e.lineRatio>=0.999;
+    return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-3 py-2 jmono font-semibold text-slate-700">${e.start}</td>
+      <td class="px-3 py-2"><span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${LANG==='zh'?(WD_ZH[e.wdStart]||e.wdStart):e.wdStart}</span></td>
+      <td class="px-3 py-2 jmono text-slate-500">${e.end}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold">${e.days}</td>
+      <td class="px-3 py-2 text-right jmono">${e.shutLine||'—'}${e.ttlLine?`<span class="text-slate-300"> / ${e.ttlLine}</span>`:''}</td>
+      <td class="px-3 py-2 text-right jmono ${isFull?'text-rose-600 font-semibold':''}">${e.ttlLine?(e.lineRatio*100).toFixed(0)+'%':'—'}</td>
+      <td class="px-3 py-2 text-right jmono">${int(e.shutPPL)}</td>
+      <td class="px-3 py-2 text-right jmono ${e.remainPPL?'text-emerald-600':'text-slate-300'}">${e.remainPPL?int(e.remainPPL):'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-semibold text-amber-700">${int(e.personDays)}</td></tr>`;
+  }).join('')||`<tr><td colspan="9" class="px-3 py-8 text-center text-slate-400">${T('無符合資料','No match')}</td></tr>`;
+}
+
+function renderPattern(){
+  const evs=filtered();
+  // 星期分布
+  const wd={}; WD_ORDER.forEach(w=>wd[w]={cnt:0,pd:0});
+  evs.forEach(e=>{const w=e.wdStart;if(!wd[w])wd[w]={cnt:0,pd:0};wd[w].cnt++;wd[w].pd+=e.personDays;});
+  // 月份分布
+  const mo={}; for(let i=1;i<=12;i++)mo[i]={cnt:0,pd:0};
+  evs.forEach(e=>{const m=+e.start.slice(5,7);mo[m].cnt++;mo[m].pd+=e.personDays;});
+  // 天數分布
+  const du=[['1',e=>e.days===1],['2-3',e=>e.days>=2&&e.days<=3],['4-7',e=>e.days>=4&&e.days<=7],['8+',e=>e.days>=8]];
+  const maxWd=Math.max(1,...WD_ORDER.map(w=>wd[w].cnt));
+  const maxMo=Math.max(1,...Object.values(mo).map(v=>v.cnt));
+
+  qs('#pattern-body').innerHTML=`
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('星期分布 By Weekday','By Weekday')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('停工多從星期幾開始','Which weekday shutdowns start on')}</p>
+      ${WD_ORDER.map(w=>`
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="w-10 text-xs text-slate-500">${LANG==='zh'?'週'+WD_ZH[w]:w}</span>
+          <div class="flex-1 bg-slate-100 rounded h-5 overflow-hidden">
+            <div class="h-full bg-rose-500/80 rounded" style="width:${wd[w].cnt/maxWd*100}%"></div></div>
+          <span class="w-10 text-right text-xs jmono">${wd[w].cnt}</span>
+          <span class="w-16 text-right text-[11px] jmono text-amber-600">${int(wd[w].pd)}</span>
+        </div>`).join('')}
+      <p class="text-[10px] text-slate-400 mt-2">${T('數字為：次數 · 停工人日','count · person-days')}</p>
+    </div>
+    <div class="bg-white border border-slate-100 shadow-sm rounded-xl p-4">
+      <p class="text-sm font-semibold text-slate-700 mb-1">${T('月份分布 By Month','By Month')}</p>
+      <p class="text-[11px] text-slate-400 mb-3">${T('全部已匯入年度合計','All imported years combined')}</p>
+      ${Object.keys(mo).map(m=>`
+        <div class="flex items-center gap-2 mb-1">
+          <span class="w-9 text-xs text-slate-500">${MS[m-1]}</span>
+          <div class="flex-1 bg-slate-100 rounded h-4 overflow-hidden">
+            <div class="h-full bg-sky-500/80 rounded" style="width:${mo[m].cnt/maxMo*100}%"></div></div>
+          <span class="w-8 text-right text-xs jmono">${mo[m].cnt}</span>
+          <span class="w-16 text-right text-[11px] jmono text-amber-600">${int(mo[m].pd)}</span>
+        </div>`).join('')}
+    </div>
+  </div>
+  <div class="bg-white border border-slate-100 shadow-sm rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100"><p class="text-sm font-semibold text-slate-700">${T('停工時長分布 Duration','Duration Distribution')}</p></div>
+    <div class="overflow-x-auto"><table class="w-full text-xs">
+      <thead class="bg-slate-50 text-slate-500"><tr>
+        ${[T('停工天數','Duration'),T('次數','Events'),T('占比','Share'),T('停工人日','Person-days'),T('平均人數','Avg staff')]
+          .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold">${h}</th>`).join('')}
+      </tr></thead><tbody>
+      ${du.map(([lbl,f])=>{
+        const s=evs.filter(f);
+        const pd=s.reduce((a,e)=>a+e.personDays,0);
+        return `<tr class="border-b border-slate-50 hover:bg-slate-50">
+          <td class="px-3 py-2 font-medium text-slate-700">${lbl} ${T('天','days')}</td>
+          <td class="px-3 py-2 text-right jmono">${s.length}</td>
+          <td class="px-3 py-2 text-right jmono">${evs.length?(s.length/evs.length*100).toFixed(0):0}%</td>
+          <td class="px-3 py-2 text-right jmono text-amber-700">${int(pd)}</td>
+          <td class="px-3 py-2 text-right jmono">${s.length?int(s.reduce((a,e)=>a+e.shutPPL,0)/s.length):'—'}</td></tr>`;
+      }).join('')}
+      </tbody></table></div>
+  </div>`;
+}
+
+function renderReport(){
+  const evs=filtered(), g={};
+  evs.forEach(e=>{
+    const y=+e.start.slice(0,4), m=+e.start.slice(5,7), q=Math.floor((m-1)/3)+1;
+    let gk,label;
+    if(REPORT_MODE==='year'){gk=String(y);label=String(y);}
+    else if(REPORT_MODE==='quarter'){gk=`${y}-Q${q}`;label=`${y} Q${q}`;}
+    else{gk=`${y}-${pad(m)}`;label=`${MS[m-1]} ${y}`;}
+    const t=g[gk]||(g[gk]={key:gk,label,cnt:0,days:0,pd:0,ppl:0,full:0,maxPPL:0});
+    t.cnt++;t.days+=e.days;t.pd+=e.personDays;t.ppl+=e.shutPPL;
+    if(e.lineRatio>=0.999)t.full++;
+    if(e.shutPPL>t.maxPPL)t.maxPPL=e.shutPPL;
+  });
+  const list=Object.values(g).sort((a,b)=>a.key<b.key?1:-1);
+  qs('#rp-count').textContent=`${list.length} ${T('組','groups')}`;
+  qs('#rp-thead').innerHTML=[T('區間','Period'),T('停工次數','Events'),T('停工天數','Days'),
+    T('全廠停工','Full'),T('停工人日','Person-days'),T('平均人數','Avg staff'),T('最大影響人數','Peak staff')]
+    .map((h,i)=>`<th class="px-3 py-2 ${i?'text-right':'text-left'} font-semibold whitespace-nowrap">${h}</th>`).join('');
+  qs('#rp-tbody').innerHTML=list.map(t=>{
+    const isAct=(REPORT_MODE==='month'&&t.key===ACTIVE);
+    return `<tr onclick="${REPORT_MODE==='month'?`jumpPeriod('${t.key}')`:''}"
+      class="border-b border-slate-50 ${REPORT_MODE==='month'?'cursor-pointer':''} ${isAct?'bg-rose-50/60':'hover:bg-slate-50'}">
+      <td class="px-3 py-2 font-semibold ${isAct?'text-rose-700':'text-slate-700'}">${t.label}${isAct?' ◀':''}</td>
+      <td class="px-3 py-2 text-right jmono">${t.cnt}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.days)}</td>
+      <td class="px-3 py-2 text-right jmono ${t.full?'text-rose-600':'text-slate-300'}">${t.full||'—'}</td>
+      <td class="px-3 py-2 text-right jmono font-bold text-amber-700">${int(t.pd)}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.ppl/(t.cnt||1))}</td>
+      <td class="px-3 py-2 text-right jmono">${int(t.maxPPL)}</td></tr>`;
+  }).join('')||`<tr><td colspan="7" class="px-3 py-8 text-center text-slate-400">${T('無資料','No data')}</td></tr>`;
+}
+
+
+// ━━━━━━━━━ AC-HRA-PAY v2.9 人員欄位：摘要=檢查人；核可=申請人 ━━━━━━━━━
+const HRP_CHECKER_KEY='ac_hra_pay_checker_name';
+const HRP_APPLICANT_KEY='ac_hra_pay_applicant_name';
+function hrpPersonStoreKey(kind){return kind==='applicant'?HRP_APPLICANT_KEY:HRP_CHECKER_KEY;}
+function hrpCurrentPersonKind(){
+  if(typeof TG_MODE!=='undefined')return TG_MODE==='summary'?'checker':'applicant';
+  if(typeof _tgMode!=='undefined')return _tgMode==='summary'?'checker':'applicant';
+  return 'checker';
+}
+function hrpPersonLabel(kind){return kind==='applicant'?'申請人 Applicant':'檢查人 Checked by';}
+function hrpSyncPersonField(kind){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  kind=kind||hrpCurrentPersonKind();
+  const old=input.dataset.kind;
+  if(old&&old!==kind&&input.value.trim())localStorage.setItem(hrpPersonStoreKey(old),input.value.trim());
+  input.dataset.kind=kind;
+  const lab=document.getElementById('tg-person-label'); if(lab)lab.textContent=hrpPersonLabel(kind);
+  input.placeholder=kind==='applicant'?'請輸入申請人 / Enter applicant':'請輸入檢查人 / Enter checked by';
+  if(old!==kind || !input.value.trim())input.value=localStorage.getItem(hrpPersonStoreKey(kind))||'';
+}
+function hrpPersonChanged(){
+  const input=document.getElementById('tg-person'); if(!input)return;
+  const kind=input.dataset.kind||hrpCurrentPersonKind();
+  localStorage.setItem(hrpPersonStoreKey(kind),input.value.trim());
+  if(typeof previewTg==='function')previewTg();
+}
+function hrpPersonValue(kind,ask){
+  kind=kind||'checker';
+  const input=document.getElementById('tg-person');
+  let v=(input&&input.dataset.kind===kind)?input.value.trim():(localStorage.getItem(hrpPersonStoreKey(kind))||'').trim();
+  if(!v&&ask){
+    v=(prompt(kind==='applicant'?'請輸入申請人 Applicant':'請輸入檢查人 Checked by','')||'').trim();
+  }
+  if(v){
+    localStorage.setItem(hrpPersonStoreKey(kind),v);
+    if(input&&input.dataset.kind===kind)input.value=v;
+  }
+  return v;
+}
+function hrpEscActor(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function hrpActorLine(kind,name){
+  return kind==='applicant'?'📝 <b>申請人 Applicant：</b>'+hrpEscActor(name):'🔎 <b>檢查人 Checked by：</b>'+hrpEscActor(name);
+}
+function hrpPreviewText(text,kind){
+  const v=hrpPersonValue(kind,false);
+  return String(text||'')+'\n\n'+(v?hrpActorLine(kind,v):('⚠️ '+(kind==='applicant'?'請填申請人 Applicant':'請填檢查人 Checked by')));
+}
+
+// ━━━━ TELEGRAM ━━━━
+function buildTgText(scope,period){
+  const evs=filtered().filter(e=> scope==='year'
+    ? e.start.slice(0,4)===period.slice(0,4)
+    : e.start.slice(0,7)===period);
+  if(!evs.length)return{err:T('此期間無停工記錄','No shutdown records for this period')};
+  const [y,m]=period.split('-');
+  const label = scope==='year' ? y : `${MS[+m-1]} ${y}`;
+  const days=evs.reduce((s,e)=>s+e.days,0);
+  const pd=evs.reduce((s,e)=>s+e.personDays,0);
+  const full=evs.filter(e=>e.lineRatio>=0.999).length;
+  let t=`🛑 <b>停工記錄 Shutdown Report</b>\n`
+   +`📅 期間 Period：${esc(label)}\n`
+   +`🔁 停工次數 Events：${evs.length}　（${T('全廠','full')} ${full}）\n`
+   +`📆 停工天數 Days：${int(days)}\n`
+   +`👥 停工人日 Person-days：<b>${int(pd)}</b>\n`
+   +`— — — — — — — — — —\n<b>各次明細 Event Detail</b>\n`
+   +`<i>日期 Date ｜ 天數 Days ｜ 人數 Staff</i>\n`;
+  evs.slice().sort((a,b)=>a.start<b.start?-1:1).forEach(e=>{
+    const same=e.start===e.end;
+    t+=`${e.start}${same?'':' ~ '+e.end}（${LANG==='zh'?WD_ZH[e.wdStart]||e.wdStart:e.wdStart}）：${e.days} 天 · ${int(e.shutPPL)} 人`
+      +(e.ttlLine?` · ${e.shutLine}/${e.ttlLine} 組`:'')+`\n`;
+  });
+  t+=`— — — — — — — — — —\n合計 TOTAL：${evs.length} 次 · ${int(days)} 天 · <b>${int(pd)} 人日</b>`;
+  return {text:t};
+}
+function openTgModal(){
+  const ps=allPeriods().reverse();
+  if(!ps.length){toast(T('尚無資料','No data yet'),'error');return;}
+  fillTgPeriods();
+  const sel=qs('#tg-period');
+  if(ACTIVE){
+    const want=qs('#tg-scope').value==='year'?ACTIVE.slice(0,4):ACTIVE;
+    if([...sel.options].some(o=>o.value===want))sel.value=want;
+  }
+  hrpSyncPersonField('checker');
+  previewTg();
+  const md=qs('#tg-modal'); md.classList.remove('hidden'); md.classList.add('flex');
+  applyLang();
+}
+function fillTgPeriods(){
+  const scope=qs('#tg-scope').value, sel=qs('#tg-period');
+  if(scope==='year'){
+    const ys=[...new Set(EVENTS.map(e=>e.start.slice(0,4)))].sort().reverse();
+    sel.innerHTML=ys.map(y=>{
+      const n=EVENTS.filter(e=>e.start.slice(0,4)===y).length;
+      return `<option value="${y}-01">${y} · ${n} ${T('次','ev')}</option>`;}).join('');
+  }else{
+    const ps=allPeriods().reverse();
+    sel.innerHTML=ps.map(p=>{const [y,m]=p.split('-');
+      const n=EVENTS.filter(e=>e.start.slice(0,7)===p).length;
+      return `<option value="${p}">${MS[+m-1]} ${y} · ${n} ${T('次','ev')}</option>`;}).join('');
+  }
+}
+function closeTgModal(){const m=qs('#tg-modal');m.classList.add('hidden');m.classList.remove('flex');}
+function previewTg(){
+  if(qs('#tg-preview')._scope!==qs('#tg-scope').value){
+    qs('#tg-preview')._scope=qs('#tg-scope').value; fillTgPeriods();
+  }
+  const r=buildTgText(qs('#tg-scope').value,qs('#tg-period').value);
+  const pv=qs('#tg-preview'), btn=qs('#tg-send');
+  if(r.err){pv.textContent='⚠️ '+r.err;btn.disabled=true;
+    btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed';}
+  else{pv.textContent=hrpPreviewText(r.text,'checker').replace(/<\/?b>/g,'').replace(/<\/?i>/g,'');btn.disabled=false;
+    btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition';}
+}
+async function confirmSendTg(){
+  const r=buildTgText(qs('#tg-scope').value,qs('#tg-period').value);
+  if(r.err){toast(r.err,'error');return;}
+  const btn=qs('#tg-send'); btn.disabled=true; btn.textContent=T('傳送中…','Sending…');
+  const ok=await sendTG(r.text);
+  btn.disabled=false; btn.textContent=T('確認傳送','Send');
+  if(ok)closeTgModal();
+}
+async function sendTG(text){
+  const checker=hrpPersonValue('checker',true);
+  if(!checker){toast(T('請填檢查人 Checked by','Enter checked by'),'error');return false;}
+  if(!GAS_URL){toast(T('尚未設定 GAS URL','GAS URL not set'),'error');return false;}
+  if(!text||!text.trim()){toast(T('訊息內容是空的，未送出','Message empty'),'error');return false;}
+  try{
+    const r=await fetch(GAS_URL,{method:'POST',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({type:'notify',text,checker})});
+    let d=null; try{d=await r.json();}catch(e){}
+    if(d&&(d.ok===false||d.sent===false)){toast(T('GAS 回報未送出，請確認 Bot 在群組內','GAS reported not sent'),'error');return false;}
+    toast(T('已傳送至 Telegram 群組','Sent to Telegram group'),'success');return true;
+  }catch(e){toast(T('傳送失敗：','Send failed: ')+e.message,'error');return false;}
+}
+
+// ━━━━ 雲端 ━━━━
+async function pushProjection(){
+  try{
+    localStorage.setItem('hrpay:result:shutdown',JSON.stringify({
+      module:'shutdown',updatedAt:_nowISO(),level:'event',
+      events:EVENTS.map(e=>({period:e.start.slice(0,7),start:e.start,end:e.end,
+        days:e.days,shutPPL:e.shutPPL,personDays:e.personDays,
+        shutLine:e.shutLine,ttlLine:e.ttlLine}))
+    }));
+  }catch(e){console.warn(e);}
+}
+async function cloudUpload(){
+  if(!EVENTS.length){toast(T('尚無資料可上傳','Nothing to upload'),'error');return;}
+  const b=qs('#btn-cloud-up'); b.disabled=true; b.classList.add('opacity-50');
+  try{
+    await pushProjection();
+    await fetch(GAS_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({tool:'hrpay_shutdown',updatedAt:_nowISO(),events:EVENTS})});
+    toast(T('☁ 已上傳雲端','☁ Uploaded'),'success');
+  }catch(e){toast(T('上傳失敗：','Upload failed: ')+e.message,'error');}
+  b.disabled=false; b.classList.remove('opacity-50');
+}
+async function cloudDownload(){
+  const b=qs('#btn-cloud-down'); b.disabled=true; b.classList.add('opacity-50');
+  try{
+    const r=await fetch(GAS_URL+'?action=pull&tool=hrpay_shutdown');
+    const d=await r.json();
+    const arr=(d&&d.data&&d.data.events)||[];
+    if(!arr.length)toast(T('雲端尚無資料','No cloud data'),'warning');
+    else{
+      EVENTS=arr; await idbSaveAll();
+      const ps=periods(); ACTIVE=ps[ps.length-1];
+      renderAll();
+      toast(T(`☁ 已載入 ${arr.length} 筆停工記錄`,`☁ Loaded ${arr.length} events`),'success');
+    }
+  }catch(e){toast(T('下載失敗：','Download failed: ')+e.message,'error');}
+  b.disabled=false; b.classList.remove('opacity-50');
+}
+
+// ━━━━ 其他 ━━━━
+function exportCSV(which){
+  const tbl=which==='events'?qs('#pane-events table'):qs('#pane-time table');
+  const rows=[...tbl.querySelectorAll('tr')].map(tr=>
+    [...tr.children].map(td=>`"${td.textContent.trim().replace(/"/g,'""')}"`).join(','));
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`shutdown_${which}_${ACTIVE||'all'}.csv`;a.click();
+  toast(T('CSV 已下載','CSV downloaded'),'success');
+}
+function exportJSON(){
+  const blob=new Blob([JSON.stringify(EVENTS,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`shutdown_backup_${_nowISO().slice(0,10)}.json`;a.click();
+}
+async function clearAllData(){
+  if(!confirm(T('確定清除所有已匯入的停工記錄？','Clear all imported shutdown records?')))return;
+  EVENTS=[];ACTIVE=null;await idbClear();
+  localStorage.removeItem('hrpay:result:shutdown');
+  qs('#smart-report').classList.add('hidden');qs('#smart-status').textContent='';
+  showApp();
+  toast(T('資料已清除','Data cleared'),'warning');
+}
+
+// ━━━━ 拖放上傳 ━━━━
+function setupDropZone(sel,handler,ringCls){
+  const el=document.querySelector(sel); if(!el)return;
+  const stop=e=>{e.preventDefault();e.stopPropagation();};
+  ['dragenter','dragover','dragleave','drop'].forEach(ev=>el.addEventListener(ev,stop,false));
+  ['dragenter','dragover'].forEach(ev=>el.addEventListener(ev,()=>el.classList.add('ring-2','ring-offset-2',ringCls)));
+  ['dragleave','drop'].forEach(ev=>el.addEventListener(ev,()=>el.classList.remove('ring-2','ring-offset-2',ringCls)));
+  el.addEventListener('drop',e=>{
+    const files=[...((e.dataTransfer&&e.dataTransfer.files)||[])]
+      .filter(f=>/\.(xlsx|xlsm|xls|csv)$/i.test(f.name));
+    if(files.length)handler({files,value:''});
+    else toast(T('請拖入 Excel 或 CSV 檔','Please drop an Excel or CSV file'),'warning');
+  },false);
+  ['dragover','drop'].forEach(ev=>window.addEventListener(ev,e=>{
+    if(!el.contains(e.target))e.preventDefault();},false));
+}
+
+// ━━━━ 啟動 ━━━━
+(async function init(){
+  EVENTS=await idbLoad();
+  const ps=periods(); if(ps.length)ACTIVE=ps[ps.length-1];
+  showApp();
+  if(EVENTS.length)renderAll();
+  setupDropZone('#dz-smart',smartImport,'ring-rose-400');
+  applyLang();
+})();
+</script>
+</body>
+</html>

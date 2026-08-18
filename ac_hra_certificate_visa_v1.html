@@ -287,7 +287,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <button class="btn" onclick="openPersonForm()" data-i18n="onlineAdd">＋ 線上新增</button>
           <button class="btn blue" onclick="createBatchRequest('person')" data-i18n="batchApply">批次申請核可</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="residenceExpiry">居留證到期</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
       </div>
     </section>
 
@@ -387,8 +387,19 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="field"><label data-i18n="passport">護照號碼</label><input id="personPassport"></div>
         <div class="field"><label data-i18n="passportExpiry">護照到期</label><input id="personPassportExpiry" type="date"></div>
         <div class="field"><label data-i18n="visaExpiry">簽證到期</label><input id="personVisaExpiry" type="date"></div>
-        <div class="field"><label data-i18n="workPermitExpiry">工作證到期</label><input id="personWpExpiry" type="date"></div>
-        <div class="field"><label data-i18n="residenceExpiry">居留證到期</label><input id="personResidenceExpiry" type="date"></div>
+        <div class="field"><label data-i18n="visaApply">簽證申請日 Visa apply</label><input id="personVisaApply" type="date"></div>
+        <div class="field"><label data-i18n="visaReceived">簽證收到日 Visa received</label><input id="personVisaReceived" type="date"></div>
+        <div class="field"><label data-i18n="visaNumber">簽證號碼 Visa no.</label><input id="personVisaNumber"></div>
+        <div class="field"><label data-i18n="visaExpense">簽證費 Visa fee</label><input id="personVisaExpense" type="number" step="0.01"></div>
+        <div class="field"><label data-i18n="workPermitExpiry">工作證到期 Work permit expiry</label><input id="personWpExpiry" type="date"></div>
+        <div class="field"><label data-i18n="workPermitApply">工作證申請日 Work permit apply</label><input id="personWpApply" type="date"></div>
+        <div class="field"><label data-i18n="workPermitReceived">工作證收到日 Work permit received</label><input id="personWpReceived" type="date"></div>
+        <div class="field"><label data-i18n="workPermitNumber">工作證號碼 Work permit no.</label><input id="personWpNumber"></div>
+        <div class="field"><label data-i18n="workPermitExpense">工作證費 Work permit fee</label><input id="personWpExpense" type="number" step="0.01"></div>
+        <div class="field"><label data-i18n="residenceExpiry">居留證到期 Residence expiry</label><input id="personResidenceExpiry" type="date"></div>
+        <div class="field"><label data-i18n="residenceApply">居留證申請日 Residence apply</label><input id="personResidenceApply" type="date"></div>
+        <div class="field"><label data-i18n="residenceReceived">居留證收到日 Residence received</label><input id="personResidenceReceived" type="date"></div>
+        <div class="field"><label data-i18n="residenceExpense">居留證費 Residence fee</label><input id="personResidenceExpense" type="number" step="0.01"></div>
         <div class="field"><label data-i18n="phone">電話</label><input id="personPhone"></div>
         <div class="field full"><label data-i18n="remark">備註</label><textarea id="personRemark"></textarea></div>
       </div></div>
@@ -437,7 +448,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
 
 <script>
 'use strict';
-const APP_VERSION='1.0.0';
+const APP_VERSION='1.1.0';
 const DB_NAME='ac_hra_certificate_visa_v1';
 const DB_STORE='snapshots';
 const DB_KEY='main';
@@ -447,6 +458,7 @@ const LANG_KEY='ac_hra_lang';
 const TOOL_ID='certificate_visa';
 let LANG=localStorage.getItem(LANG_KEY)||'zh';
 let STATE=null;
+let CROSS_MODULE={manpower:null};
 let PERIOD_MODE='month';
 let PERIOD_ANCHOR=new Date();
 let LIST_MODE='month';
@@ -473,13 +485,13 @@ zh:{
  workflowSettings:'提醒與核可設定',reminderDays:'提前提醒天數',approverTgId:'核可者 Telegram ID',defaultDepartment:'預設部門',autoReminderStatus:'自動提醒狀態',autoReminderDeferred:'前端已準備 45 天三語提醒與略過規則；關閉網頁後的自動排程要等共用 GAS 一次整合後才啟用。',saveSettings:'儲存設定',unassigned:'未指定',
  importExcel:'匯入 Excel',chooseFilesTogether:'可一次選 Certificate、Visa、Permit 多個檔案',dedupHint:'同工號／護照／姓名＋生日會更新，不會重複建立',latestRule:'若舊名單有、最新名單沒有，先標為「最新名單未列／待確認」；來源明確寫離職才標為離職。',
  certificateForm:'公司證書',contact:'聯絡人',complete:'已完成',stopped:'停止',completedForDate:'已完成到哪個期限',remark:'備註',cancel:'取消',save:'儲存',
- personForm:'外籍人員／證件',nameEn:'英文姓名',nameKh:'柬文姓名',nickname:'英文名／暱稱',sex:'性別',nationality:'國籍',dob:'生日',joinDate:'到職日',phone:'電話',
+ personForm:'外籍人員／證件',nameEn:'英文姓名',nameKh:'柬文姓名',nickname:'英文名／暱稱',sex:'性別',nationality:'國籍',dob:'生日',joinDate:'到職日',phone:'電話',visaApply:'簽證申請日',visaReceived:'簽證收到日',visaNumber:'簽證號碼',visaExpense:'簽證費',workPermitApply:'工作證申請日',workPermitReceived:'工作證收到日',workPermitNumber:'工作證號碼',workPermitExpense:'工作證費',residenceApply:'居留證申請日',residenceReceived:'居留證收到日',residenceExpense:'居留證費',
  requestForm:'申請核可',requestType:'申請類型',renewal:'續期',newApplication:'新申請',change:'資料變更',closeCase:'結案／停止',draft:'草稿',approved:'已核可',rejected:'退件',selectedItems:'選取項目',
  telegramSummary:'Telegram 摘要／通知',messageType:'訊息類型',summary:'摘要',approvalRequest:'核可通知（純文字·無按鈕）',expiryReminder:'45 天到期提醒',summaryPeriod:'摘要期間',daily:'每日',weekly:'每周',language:'語言',chinese:'中文',english:'English',bilingual:'中英雙語',trilingual:'中英柬三語',recipient:'核可者 ID',preview:'預覽',copy:'複製',manualSend:'手動發送',
- edit:'編輯',approve:'核可',reject:'退件',delete:'刪除',noData:'尚無資料',noEvents:'此期間沒有項目',daysOverdue:'逾期 {n} 天',daysLeft:'剩 {n} 天',today:'今天',due:'即將到期',expired:'已逾期',notListed:'待確認',latestRoster:'最新名單 {year}：{active} 人；未列／待確認 {missing} 人。',notImported:'尚未匯入外籍人員名單。',
+ edit:'編輯',approve:'核可',reject:'退件',delete:'刪除',deleted:'已刪除',noData:'尚無資料',noEvents:'此期間沒有項目',daysOverdue:'逾期 {n} 天',daysLeft:'剩 {n} 天',today:'今天',due:'即將到期',expired:'已逾期',notListed:'待確認',latestRoster:'最新名單 {year}：{active} 人；未列／待確認 {missing} 人。',notImported:'尚未匯入外籍人員名單。',
  certCount:'證書 {n}',peopleCount:'人員 {n}',requestCount:'申請 {n}',fileImported:'{file}：證書新增 {ca}／更新 {cu}，人員新增 {pa}／更新 {pu}，忽略重複 {dupe}',importDone:'匯入完成',importFailed:'無法辨識附件欄位',settingsSaved:'設定已儲存',saved:'已儲存',selectItems:'請先勾選項目',requestItems:'已選 {n} 項',confirmDelete:'確定刪除？',confirmClear:'確定清除本模組全部資料？此操作無法復原。',cleared:'本模組資料已清除',
- gasMissing:'請先在設定填入 GAS URL',cloudSent:'已手動上傳',cloudReceived:'已手動下載',cloudFail:'雲端操作失敗',telegramSent:'Telegram 已發送',copyDone:'已複製',backendDeferred:'目前 GAS 尚未支援此共用核可動作，資料已保留在本機。',
- imported:'Excel 匯入',online:'線上新增',notInLatestLong:'最新名單未列／待確認',unknown:'未指定',localOnly:'本機流程',requestDecision:'請輸入核可／退件意見（可留白）',statusActive:'有效',statusComplete:'完成',statusStopped:'停止',statusResigned:'離職',statusMissing:'最新名單未列',statusPending:'待核可',statusApproved:'已核可',statusRejected:'退件',statusDraft:'草稿',
+ gasMissing:'請先在設定填入 GAS URL',cloudSent:'已手動上傳',cloudReceived:'已手動下載',cloudFail:'雲端操作失敗',telegramSent:'Telegram 已發送',approvalSent:'核可申請已發送',alreadySent:'這批核可申請之前已發送，未重複建立',copyDone:'已複製',backendDeferred:'目前 GAS 尚未支援此共用核可動作，資料已保留在本機。',
+ imported:'Excel 匯入',online:'線上新增',notInLatestLong:'最新名單未列／待確認',unknown:'未指定',localOnly:'本機流程',requestDecision:'請輸入核可／退件意見（可留白）',alreadyDecided:'此申請已核可，不能改回待核或重發',statusActive:'有效',statusComplete:'完成',statusStopped:'停止',statusResigned:'離職',statusMissing:'最新名單未列',statusPending:'待核可',statusApproved:'已核可',statusRejected:'退件',statusDraft:'草稿',
  latest:'最新',records:'筆',periodRows:'{n} 個期間',sourceCertificate:'Certificate',sourceVisa:'Visa / Permit'
 },
 en:{
@@ -498,13 +510,13 @@ en:{
  workflowSettings:'Reminder & Approval Settings',reminderDays:'Advance Reminder Days',approverTgId:'Approver Telegram ID',defaultDepartment:'Default Department',autoReminderStatus:'Automatic Reminder Status',autoReminderDeferred:'The 45-day trilingual reminder and skip rules are ready. Closed-page scheduling will be enabled after the shared GAS is consolidated.',saveSettings:'Save Settings',unassigned:'Unassigned',
  importExcel:'Import Excel',chooseFilesTogether:'Select Certificate, Visa and Permit files together',dedupHint:'Matching employee ID, passport, or name + DOB updates the record instead of duplicating it',latestRule:'A person missing from the latest roster is marked “Not in latest roster / Review”; only an explicit resignation source marks them resigned.',
  certificateForm:'Company Certificate',contact:'Contact',complete:'Completed',stopped:'Stopped',completedForDate:'Completed for Due Date',remark:'Remark',cancel:'Cancel',save:'Save',
- personForm:'Expat Employee / Documents',nameEn:'English Name',nameKh:'Khmer Name',nickname:'English / Nickname',sex:'Sex',nationality:'Nationality',dob:'Date of Birth',joinDate:'Join Date',phone:'Phone',
+ personForm:'Expat Employee / Documents',nameEn:'English Name',nameKh:'Khmer Name',nickname:'English / Nickname',sex:'Sex',nationality:'Nationality',dob:'Date of Birth',joinDate:'Join Date',phone:'Phone',visaApply:'Visa Apply Date',visaReceived:'Visa Received Date',visaNumber:'Visa Number',visaExpense:'Visa Fee',workPermitApply:'Work Permit Apply Date',workPermitReceived:'Work Permit Received Date',workPermitNumber:'Work Permit Number',workPermitExpense:'Work Permit Fee',residenceApply:'Residence Apply Date',residenceReceived:'Residence Received Date',residenceExpense:'Residence Fee',
  requestForm:'Approval Request',requestType:'Request Type',renewal:'Renewal',newApplication:'New Application',change:'Data Change',closeCase:'Close / Stop',draft:'Draft',approved:'Approved',rejected:'Rejected',selectedItems:'Selected Items',
  telegramSummary:'Telegram Summary / Notice',messageType:'Message Type',summary:'Summary',approvalRequest:'Approval Notice (text only)',expiryReminder:'45-Day Expiry Reminder',summaryPeriod:'Summary Period',daily:'Daily',weekly:'Weekly',language:'Language',chinese:'Chinese',english:'English',bilingual:'Chinese + English',trilingual:'Chinese + English + Khmer',recipient:'Approver ID',preview:'Preview',copy:'Copy',manualSend:'Send Manually',
- edit:'Edit',approve:'Approve',reject:'Reject',delete:'Delete',noData:'No data yet',noEvents:'No items in this period',daysOverdue:'{n} days overdue',daysLeft:'{n} days left',today:'Today',due:'Due soon',expired:'Overdue',notListed:'Review',latestRoster:'Latest roster {year}: {active} active; {missing} missing / under review.',notImported:'No expat roster imported yet.',
+ edit:'Edit',approve:'Approve',reject:'Reject',delete:'Delete',deleted:'Deleted',noData:'No data yet',noEvents:'No items in this period',daysOverdue:'{n} days overdue',daysLeft:'{n} days left',today:'Today',due:'Due soon',expired:'Overdue',notListed:'Review',latestRoster:'Latest roster {year}: {active} active; {missing} missing / under review.',notImported:'No expat roster imported yet.',
  certCount:'Certificates {n}',peopleCount:'People {n}',requestCount:'Requests {n}',fileImported:'{file}: certificates +{ca} / updated {cu}; people +{pa} / updated {pu}; duplicates skipped {dupe}',importDone:'Import complete',importFailed:'The attachment columns could not be recognized',settingsSaved:'Settings saved',saved:'Saved',selectItems:'Select one or more items first',requestItems:'{n} items selected',confirmDelete:'Delete this record?',confirmClear:'Clear all data in this module? This cannot be undone.',cleared:'Module data cleared',
- gasMissing:'Enter the GAS URL in Settings first',cloudSent:'Manual upload complete',cloudReceived:'Manual download complete',cloudFail:'Cloud action failed',telegramSent:'Telegram sent',copyDone:'Copied',backendDeferred:'The shared approval action is not in GAS yet. The request remains saved locally.',
- imported:'Excel import',online:'Online entry',notInLatestLong:'Not in latest roster / Review',unknown:'Unassigned',localOnly:'Local workflow',requestDecision:'Enter approval / rejection comments (optional)',statusActive:'Active',statusComplete:'Completed',statusStopped:'Stopped',statusResigned:'Resigned',statusMissing:'Not in Latest Roster',statusPending:'Pending',statusApproved:'Approved',statusRejected:'Rejected',statusDraft:'Draft',
+ gasMissing:'Enter the GAS URL in Settings first',cloudSent:'Manual upload complete',cloudReceived:'Manual download complete',cloudFail:'Cloud action failed',telegramSent:'Telegram sent',approvalSent:'Approval request sent',alreadySent:'This approval batch was already sent; no duplicate was created',copyDone:'Copied',backendDeferred:'The shared approval action is not in GAS yet. The request remains saved locally.',
+ imported:'Excel import',online:'Online entry',notInLatestLong:'Not in latest roster / Review',unknown:'Unassigned',localOnly:'Local workflow',requestDecision:'Enter approval / rejection comments (optional)',alreadyDecided:'This request is approved and cannot be reopened or resent',statusActive:'Active',statusComplete:'Completed',statusStopped:'Stopped',statusResigned:'Resigned',statusMissing:'Not in Latest Roster',statusPending:'Pending',statusApproved:'Approved',statusRejected:'Rejected',statusDraft:'Draft',
  latest:'Latest',records:'records',periodRows:'{n} periods',sourceCertificate:'Certificate',sourceVisa:'Visa / Permit'
 },
 km:{
@@ -526,7 +538,7 @@ km:{
  onlineAdd:'＋ បន្ថែមតាមអនឡាញ',batchApply:'ដាក់ស្នើអនុម័តជាបាច់',category:'ប្រភេទ',certificate:'លិខិត',
  startDate:'ថ្ងៃចាប់ផ្តើម',expiryDate:'ថ្ងៃផុតកំណត់',renewalDate:'ថ្ងៃបន្ត',cost:'ថ្លៃ',action:'សកម្មភាព',
  expatDocuments:'ឯកសារបុគ្គលិកបរទេស',searchPeople:'ស្វែងរកបុគ្គលិក',allStatuses:'គ្រប់ស្ថានភាព',
- active:'សកម្ម',resigned:'ចេញពីការងារ',employeeId:'លេខសម្គាល់',name:'ឈ្មោះ',
+ active:'សកម្ម',resigned:'ចេញពីការងារ',employeeId:'លេខសម្គាល់',name:'ឈ្មោះ',visaApply:'ថ្ងៃដាក់ពាក្យទិដ្ឋាការ',visaReceived:'ថ្ងៃទទួលទិដ្ឋាការ',visaNumber:'លេខទិដ្ឋាការ',visaExpense:'ថ្លៃទិដ្ឋាការ',workPermitApply:'ថ្ងៃដាក់ពាក្យលិខិតការងារ',workPermitReceived:'ថ្ងៃទទួលលិខិតការងារ',workPermitNumber:'លេខលិខិតការងារ',workPermitExpense:'ថ្លៃលិខិតការងារ',residenceApply:'ថ្ងៃដាក់ពាក្យស្នាក់នៅ',residenceReceived:'ថ្ងៃទទួលលិខិតស្នាក់នៅ',residenceExpense:'ថ្លៃស្នាក់នៅ',
  approvalQueue:'ជួរអនុម័ត',summary:'សង្ខេប',approvalRequest:'ជូនដំណឹងអនុម័ត (អត្ថបទ)',
  expiryReminder:'រំលឹកផុតកំណត់ 45 ថ្ងៃ',messageType:'ប្រភេទសារ',summaryPeriod:'ដំណាក់កាល',
  language:'ភាសា',preview:'មើលជាមុន',copy:'ចម្លង',manualSend:'ផ្ញើដោយដៃ',recipient:'អ្នកអនុម័ត'
@@ -641,7 +653,12 @@ function isEventCompleted(e){
 }
 function allEvents(){
   const out=[];
-  STATE.certificates.forEach(c=>{const d=c.renewalDate||c.expiryDate;if(d)out.push({id:`certificate:${c.id}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:num(c.cost)})});
+  STATE.certificates.forEach(c=>{
+    const dates=[['renewal',c.renewalDate],['expiry',c.expiryDate]].filter(x=>x[1]);
+    /* Keep both dates when a workbook provides them.  The old code used
+       renewalDate || expiryDate and hid the actual expiry from reminders. */
+    dates.forEach(([kind,d])=>out.push({id:`certificate:${c.id}:${kind}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:num(c.cost)}));
+  });
   STATE.people.forEach(p=>{
     [['passport','passportExpiry'],['visa','visaExpiry'],['workPermit','workPermitExpiry'],['residence','residenceExpiry']].forEach(([type,key])=>{if(p[key])out.push({id:`${type}:${p.id}:${p[key]}`,kind:'person',recordId:p.id,type,date:p[key],name:p.nickname||p.nameEn||p.nameKh,department:p.department||tr('unknown'),source:p.sourceFile||tr('sourceVisa'),cost:type==='visa'?num(p.visaExpense):type==='workPermit'?num(p.workPermitExpense):0})})
   });
@@ -713,12 +730,12 @@ function jumpToPeriod(k){const a=k.split('-').map(Number);PERIOD_ANCHOR=new Date
 function renderCertificates(){
   const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;
   const rows=STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||sameDepartment(c.department||c.category,dep))).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
-  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${money(c.cost)}</td><td>${badge(c.status||'active')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button></td></tr>`).join(''):emptyRow(10)
+  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${money(c.cost)}</td><td>${badge(c.status||'active')}</td><td><div class="toolbar"><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteCertificate('${c.id}')">${tr('delete')}</button></div></td></tr>`).join(''):emptyRow(10)
 }
 function renderPeople(){
   const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;
   const rows=STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||sameDepartment(p.department,dep))&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
-  document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${badge(p.status||'active')}</td><td><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button></td></tr>`).join(''):emptyRow(10)
+  document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${fmtDate(p.residenceExpiry)}</td><td>${badge(p.status||'active')}</td><td><div class="toolbar"><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button><button class="btn small red" onclick="deletePerson('${p.id}')">${tr('delete')}</button></div></td></tr>`).join(''):emptyRow(11)
 }
 function renderApprovals(){
   const rows=STATE.requests.slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -780,6 +797,13 @@ function parsePersonSheet(rows,file,sheet){
   const pass=findGroup(h,/PASS\s*[- ]?PORT|PASSPORT/),name=findGroup(h,/^NAME$|ENGLISH NAME/);
   if(pass<0||name<0)return null;
   const visaStart=findGroup(h,/VISA/,pass+3),wpStart=findGroup(h,/WORK\s*PERMIT/,pass+3),resStart=findGroup(h,/RESIDENCE\s*PERMIT/,pass+3),resCertStart=findGroup(h,/RESIDENCE\s*CERT/,pass+3),phone=findGroup(h,/PHONE/);
+  /* Workbook versions differ: some have grouped Visa/Permit columns and
+     others have explicit "Visa Expiry" / "Work Permit Expiry" headers.
+     Prefer the explicit expiry column so the period list and reminders do
+     not silently lose the date. */
+  const visaExpiryCol=findGroup(h,/(?:VISA.*(?:EXPIRY|EXPIRE|END)|(?:EXPIRY|EXPIRE|END).*VISA)/,pass+1);
+  const wpExpiryCol=findGroup(h,/(?:WORK\s*PERMIT.*(?:EXPIRY|EXPIRE|END)|(?:EXPIRY|EXPIRE|END).*WORK\s*PERMIT)/,pass+1);
+  const resExpiryCol=findGroup(h,/(?:RESIDENCE\s*(?:PERMIT|CERTIFICATE)?.*(?:EXPIRY|EXPIRE|END)|(?:EXPIRY|EXPIRE|END).*RESIDENCE)/,pass+1);
   const year=yearFrom(sheet,file),rank=year*100+(/WORK\s*PERMIT/i.test(sheet)?20:0);let outMode=false;const records=[];
   for(let r=hi+1;r<rows.length;r++){
     const row=rows[r]||[];if(row.some(v=>/^OUT$/i.test(clean(v)))){outMode=true;continue}
@@ -789,11 +813,11 @@ function parsePersonSheet(rows,file,sheet){
     const all=clean(row.join(' ')),explicitResigned=/RESIGNED|TERMINATED|LEFT COMPANY/i.test(all);
     const p={
       id:'',employeeId:'',nameEn,nameKh:clean(row[name+1]),sex:clean(row[name+2]),dob:isoDate(row[name+3]),
-      nationality:clean(row[name+4]),passport,passportExpiry:isoDate(row[pass+1]),visaExpiry:isoDate(row[pass+2]),
+      nationality:clean(row[name+4]),passport,passportExpiry:isoDate(row[pass+1]),visaExpiry:isoDate(row[visaExpiryCol>=0?visaExpiryCol:pass+2]),
       nickname:clean(row[pass+4]),joinDate:isoDate(row[pass+5]),department:'',phone:phone>=0?clean(row[phone]):'',
       visaApplyDate:visaStart>=0?isoDate(row[visaStart]):'',visaReceivedDate:visaStart>=0?isoDate(row[visaStart+1]):'',visaNumber:visaStart>=0?clean(row[visaStart+2]):'',visaExpense:visaStart>=0?num(row[visaStart+3]):0,
-      workPermitApplyDate:wpStart>=0?isoDate(row[wpStart]):'',workPermitReceivedDate:wpStart>=0?isoDate(row[wpStart+1]):'',workPermitNumber:wpStart>=0?clean(row[wpStart+2]):'',workPermitExpense:wpStart>=0?num(row[wpStart+3]):0,workPermitExpiry:'',
-      residenceApplyDate:resStart>=0?isoDate(row[resStart]):'',residenceReceivedDate:resStart>=0?isoDate(row[resStart+1]):'',residenceExpense:resStart>=0?num(row[resStart+2]):0,residenceExpiry:'',
+      workPermitApplyDate:wpStart>=0?isoDate(row[wpStart]):'',workPermitReceivedDate:wpStart>=0?isoDate(row[wpStart+1]):'',workPermitNumber:wpStart>=0?clean(row[wpStart+2]):'',workPermitExpense:wpStart>=0?num(row[wpStart+3]):0,workPermitExpiry:wpExpiryCol>=0?isoDate(row[wpExpiryCol]):'',
+      residenceApplyDate:resStart>=0?isoDate(row[resStart]):'',residenceReceivedDate:resStart>=0?isoDate(row[resStart+1]):'',residenceExpense:resStart>=0?num(row[resStart+2]):0,residenceExpiry:resExpiryCol>=0?isoDate(row[resExpiryCol]):'',
       residenceCertificateApplyDate:resCertStart>=0?isoDate(row[resCertStart]):'',residenceCertificateExpense:resCertStart>=0?num(row[resCertStart+1]):0,
       status:(outMode||explicitResigned)?'resigned':'active',remark:(outMode||explicitResigned)?all.match(/Resigned[^|]*/i)?.[0]||'OUT':'',
       sourceFile:file,sourceSheet:sheet,sourceYear:year,sourceRank:rank,rosterManaged:true,source:'excel'
@@ -814,7 +838,7 @@ function parseWorkbook(wb,file){
   return{certificates,snapshots,recognized:certificates.length+snapshots.reduce((s,x)=>s+x.records.length,0)}
 }
 function sameValue(a,b){
-  const keys=['employeeId','nameEn','nameKh','passport','passportExpiry','visaExpiry','workPermitExpiry','status','category','name','expiryDate','renewalDate','cost'];
+  const keys=['employeeId','nameEn','nameKh','passport','passportExpiry','visaExpiry','visaApplyDate','visaReceivedDate','visaNumber','visaExpense','workPermitExpiry','workPermitApplyDate','workPermitReceivedDate','workPermitNumber','workPermitExpense','residenceExpiry','residenceApplyDate','residenceReceivedDate','residenceExpense','status','category','name','expiryDate','renewalDate','cost'];
   return keys.every(k=>String(a[k]??'')===String(b[k]??''))
 }
 function findPerson(rec){
@@ -901,15 +925,27 @@ async function saveCertificate(e){
   Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),cost:num(val('certCost'))||val('certCost'),startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),remark:val('certRemark'),updatedAt:new Date().toISOString()});
   if(fresh)STATE.certificates.push(c);await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
+async function deleteCertificate(id){
+  if(!confirm(tr('confirmDelete')))return;
+  STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);
+  STATE.requests.forEach(r=>{r.items=(r.items||[]).filter(i=>!(i.kind==='certificate'&&i.id===id));});
+  await persist();renderAll();toast(`✅ ${tr('deleted')}`)
+}
 function openPersonForm(id=''){
   document.getElementById('personForm').reset();const p=STATE.people.find(x=>x.id===id)||{};
-  const map={personId:p.id,personEmployeeId:p.employeeId,personNameEn:p.nameEn,personNameKh:p.nameKh,personNickname:p.nickname,personDepartment:p.department,personStatus:p.status||'active',personSex:p.sex,personNationality:p.nationality,personDob:p.dob,personJoin:p.joinDate,personPassport:p.passport,personPassportExpiry:p.passportExpiry,personVisaExpiry:p.visaExpiry,personWpExpiry:p.workPermitExpiry,personResidenceExpiry:p.residenceExpiry,personPhone:p.phone,personRemark:p.remark};Object.entries(map).forEach(([k,v])=>setVal(k,v));openModal('personModal')
+  const map={personId:p.id,personEmployeeId:p.employeeId,personNameEn:p.nameEn,personNameKh:p.nameKh,personNickname:p.nickname,personDepartment:p.department,personStatus:p.status||'active',personSex:p.sex,personNationality:p.nationality,personDob:p.dob,personJoin:p.joinDate,personPassport:p.passport,personPassportExpiry:p.passportExpiry,personVisaExpiry:p.visaExpiry,personVisaApply:p.visaApplyDate,personVisaReceived:p.visaReceivedDate,personVisaNumber:p.visaNumber,personVisaExpense:p.visaExpense,personWpExpiry:p.workPermitExpiry,personWpApply:p.workPermitApplyDate,personWpReceived:p.workPermitReceivedDate,personWpNumber:p.workPermitNumber,personWpExpense:p.workPermitExpense,personResidenceExpiry:p.residenceExpiry,personResidenceApply:p.residenceApplyDate,personResidenceReceived:p.residenceReceivedDate,personResidenceExpense:p.residenceExpense,personPhone:p.phone,personRemark:p.remark};Object.entries(map).forEach(([k,v])=>setVal(k,v));openModal('personModal')
 }
 async function savePerson(e){
-  e.preventDefault();const incoming={employeeId:val('personEmployeeId'),nameEn:val('personNameEn'),nameKh:val('personNameKh'),nickname:val('personNickname'),department:val('personDepartment'),status:val('personStatus'),sex:val('personSex'),nationality:val('personNationality'),dob:val('personDob'),joinDate:val('personJoin'),passport:val('personPassport'),passportExpiry:val('personPassportExpiry'),visaExpiry:val('personVisaExpiry'),workPermitExpiry:val('personWpExpiry'),residenceExpiry:val('personResidenceExpiry'),phone:val('personPhone'),remark:val('personRemark'),updatedAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
+  e.preventDefault();const incoming={employeeId:val('personEmployeeId'),nameEn:val('personNameEn'),nameKh:val('personNameKh'),nickname:val('personNickname'),department:val('personDepartment'),status:val('personStatus'),sex:val('personSex'),nationality:val('personNationality'),dob:val('personDob'),joinDate:val('personJoin'),passport:val('personPassport'),passportExpiry:val('personPassportExpiry'),visaExpiry:val('personVisaExpiry'),visaApplyDate:val('personVisaApply'),visaReceivedDate:val('personVisaReceived'),visaNumber:val('personVisaNumber'),visaExpense:num(val('personVisaExpense')),workPermitExpiry:val('personWpExpiry'),workPermitApplyDate:val('personWpApply'),workPermitReceivedDate:val('personWpReceived'),workPermitNumber:val('personWpNumber'),workPermitExpense:num(val('personWpExpense')),residenceExpiry:val('personResidenceExpiry'),residenceApplyDate:val('personResidenceApply'),residenceReceivedDate:val('personResidenceReceived'),residenceExpense:num(val('personResidenceExpense')),phone:val('personPhone'),remark:val('personRemark'),updatedAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
   let p=STATE.people.find(x=>x.id===val('personId'));if(!p&&!val('personId'))p=findPerson(incoming);
   if(p)Object.assign(p,incoming);else STATE.people.push({...incoming,id:uid('person'),createdAt:new Date().toISOString(),rosterManaged:false,history:[]});
   await persist();closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
+}
+async function deletePerson(id){
+  if(!confirm(tr('confirmDelete')))return;
+  STATE.people=STATE.people.filter(x=>x.id!==id);selectedPeople.delete(id);
+  STATE.requests.forEach(r=>{r.items=(r.items||[]).filter(i=>!(i.kind==='person'&&i.id===id));});
+  await persist();renderAll();toast(`✅ ${tr('deleted')}`)
 }
 function selectItem(kind,id,on){(kind==='certificate'?selectedCerts:selectedPeople)[on?'add':'delete'](id)}
 function visibleIds(kind){
@@ -929,7 +965,7 @@ function openRequestForm(id=''){
   document.getElementById('requestItemsLabel').textContent=tr('requestItems',{n:pendingRequestItems.length})+(pendingRequestItems.length?' · '+pendingRequestItems.slice(0,8).map(x=>x.name).join('、'):'');openModal('requestModal')
 }
 async function saveRequest(e){
-  e.preventDefault();let r=STATE.requests.find(x=>x.id===val('requestId'));const fresh=!r;if(!r)r={id:uid('req'),number:nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId};
+  e.preventDefault();let r=STATE.requests.find(x=>x.id===val('requestId'));if(r&&r.status==='approved'&&val('requestStatus')!=='approved'){toast(tr('alreadyDecided'),'warn');return}const fresh=!r;if(!r)r={id:uid('req'),number:nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId};
   Object.assign(r,{title:val('requestTitle'),type:val('requestType'),applicant:val('requestApplicant'),dueDate:val('requestDue'),cost:num(val('requestCost')),status:val('requestStatus'),remark:val('requestRemark'),items:pendingRequestItems.map(x=>({...x,targetDate:val('requestDue')})),updatedAt:new Date().toISOString()});
   if(r.status==='pending'&&!r.submittedAt)r.submittedAt=new Date().toISOString();if(fresh)STATE.requests.push(r);
   await persist();pendingRequestItems=[];closeModal('requestModal');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('saved')}`)
@@ -950,7 +986,7 @@ document.getElementById('jsonInput').addEventListener('change',async e=>{
 function exportExcel(){
   if(!window.XLSX){toast('XLSX library unavailable');return}const wb=XLSX.utils.book_new();
   const cert=STATE.certificates.map(c=>({'Category':c.category,'Certificate / Item':c.name,'Department':c.department,'Cost':c.cost,'Start Date':c.startDate,'Expiry Date':c.expiryDate,'Renewal Date':c.renewalDate,'Status':c.status,'Contact':c.contact,'Remark':c.remark,'Source File':c.sourceFile}));
-  const people=STATE.people.map(p=>({'Employee ID':p.employeeId,'English Name':p.nameEn,'Khmer Name':p.nameKh,'Nickname':p.nickname,'Department':p.department,'Status':p.status,'Sex':p.sex,'Nationality':p.nationality,'DOB':p.dob,'Join Date':p.joinDate,'Passport No.':p.passport,'Passport Expiry':p.passportExpiry,'Visa Expiry':p.visaExpiry,'Visa Apply':p.visaApplyDate,'Visa Received':p.visaReceivedDate,'Visa No.':p.visaNumber,'Visa Expense':p.visaExpense,'Work Permit Expiry':p.workPermitExpiry,'Work Permit Apply':p.workPermitApplyDate,'Work Permit Received':p.workPermitReceivedDate,'Work Permit No.':p.workPermitNumber,'Work Permit Expense':p.workPermitExpense,'Residence Expiry':p.residenceExpiry,'Phone':p.phone,'Remark':p.remark,'Source File':p.sourceFile}));
+  const people=STATE.people.map(p=>({'Employee ID':p.employeeId,'English Name':p.nameEn,'Khmer Name':p.nameKh,'Nickname':p.nickname,'Department':p.department,'Status':p.status,'Sex':p.sex,'Nationality':p.nationality,'DOB':p.dob,'Join Date':p.joinDate,'Passport No.':p.passport,'Passport Expiry':p.passportExpiry,'Visa Expiry':p.visaExpiry,'Visa Apply':p.visaApplyDate,'Visa Received':p.visaReceivedDate,'Visa No.':p.visaNumber,'Visa Expense':p.visaExpense,'Work Permit Expiry':p.workPermitExpiry,'Work Permit Apply':p.workPermitApplyDate,'Work Permit Received':p.workPermitReceivedDate,'Work Permit No.':p.workPermitNumber,'Work Permit Expense':p.workPermitExpense,'Residence Expiry':p.residenceExpiry,'Residence Apply':p.residenceApplyDate,'Residence Received':p.residenceReceivedDate,'Residence Expense':p.residenceExpense,'Phone':p.phone,'Remark':p.remark,'Source File':p.sourceFile}));
   const req=STATE.requests.map(r=>({'Request No.':r.number,'Subject':r.title,'Type':r.type,'Applicant':r.applicant,'Due Date':r.dueDate,'Cost':r.cost,'Status':r.status,'Item Count':r.items?.length||0,'Items':(r.items||[]).map(i=>i.name).join(' | '),'Opinion':r.opinion,'Created At':r.createdAt,'Decided At':r.decidedAt}));
   [['Certificates',cert],['Expat Documents',people],['Approval Requests',req]].forEach(([n,d])=>{const ws=XLSX.utils.json_to_sheet(d.length?d:[{}]);ws['!cols']=Object.keys(d[0]||{}).map(k=>({wch:Math.min(35,Math.max(12,k.length+2))}));XLSX.utils.book_append_sheet(wb,ws,n)});
   XLSX.writeFile(wb,`AC_HRA_Certificate_Visa_${todayISO()}.xlsx`)
@@ -1043,15 +1079,81 @@ async function cloudPull(){
 function eventsForMode(mode){
   const {start,end}=periodRange(mode,PERIOD_ANCHOR);return allEvents().filter(e=>{const d=dateObj(e.date);return d>=start&&d<end})
 }
+function localJson(key){try{const x=JSON.parse(localStorage.getItem(key)||'null');return x||null}catch{return null}}
+function loadCrossModuleSnapshots(){
+  return new Promise(function(resolve){
+    if(!window.indexedDB){resolve();return}
+    let req;try{req=indexedDB.open('ac_hra_manpower_v2_store',1)}catch(e){resolve();return}
+    req.onupgradeneeded=function(){const db=req.result;if(!db.objectStoreNames.contains('app_data'))db.createObjectStore('app_data')};
+    req.onerror=function(){resolve()};
+    req.onsuccess=function(){const db=req.result;if(!db.objectStoreNames.contains('app_data')){db.close();resolve();return}try{
+      const q=db.transaction('app_data','readonly').objectStore('app_data').get('database');
+      q.onsuccess=function(){CROSS_MODULE.manpower=q.result||null;db.close();resolve()};q.onerror=function(){db.close();resolve()};
+    }catch(e){db.close();resolve()}}
+  })
+}
+function listCount(x,keys){
+  if(Array.isArray(x))return x.length;
+  for(const k of keys||[])if(Array.isArray(x?.[k]))return x[k].length;
+  return 0
+}
+function crossModuleSnapshot(){
+  const mat=localJson('vrt_maternity_v1')||{}, req=localJson('ac_hra_manpower_reqs'), recruit=localJson('ac_hra_manpower_recruit'),mp=CROSS_MODULE.manpower||{};
+  return {maternity:listCount(mat,['employees','records','maternity']),medical:listCount(localJson('ac_hra_maternity_medical_purchase_v1'),['records','medicalPurchase']),manpowerRequests:listCount(mp,['plans'])||listCount(req,['requests','items','records']),recruitment:(listCount(mp,['candidates'])+listCount(mp,['joins']))||listCount(recruit,['records','recruitment','joins'])}
+}
+function crossModuleLines(lang){
+  const x=crossModuleSnapshot();
+  if(lang==='en')return [`🔗 Maternity snapshot: ${x.maternity} employee record(s) · medical purchase ${x.medical} row(s)`,`🔗 Manpower requisition: ${x.manpowerRequests} request row(s) · recruitment ${x.recruitment} progress row(s)`];
+  if(lang==='km')return [`🔗 ទិន្នន័យមាតុភាព៖ ${x.maternity} កំណត់ត្រា · ការទិញថ្នាំ ${x.medical} ជួរ`,`🔗 សំណើធនធានមនុស្ស៖ ${x.manpowerRequests} សំណើ · វឌ្ឍនភាពជ្រើសរើស ${x.recruitment} ជួរ`];
+  return [`🔗 產假資料快照：${x.maternity} 筆人員 · 醫療採購 ${x.medical} 筆`,`🔗 Manpower 需求：${x.manpowerRequests} 筆 · 招聘進度 ${x.recruitment} 筆`]
+}
+function crossModuleDetailLines(lang){
+  const lines=crossModuleLines(lang),mp=CROSS_MODULE.manpower||{},mat=localJson('vrt_maternity_v1')||{};
+  const plans=Array.isArray(mp.plans)?mp.plans:[],emps=Array.isArray(mat.employees)?mat.employees:[];
+  if(lang==='en'){
+    if(plans.length)lines.push('Manpower details',...plans.slice(0,12).map(r=>`• ${r.dept||r.section||'—'} / ${r.position||'—'} · required ${r.required||0} · filled ${r.actual||r.hired||r.joined||0} · gap ${r.gap||0}`));
+    if(emps.length)lines.push('Maternity details',...emps.slice(0,12).map(r=>`• ${r.idNo||'—'} · ${r.name||'—'} · ${r.dept||'—'} · leave ${r.leaveStart||'—'} · return ${r.returnDate||'—'}`));
+  }else if(lang==='km'){
+    if(plans.length)lines.push('ព័ត៌មានធនធានមនុស្ស',...plans.slice(0,12).map(r=>`• ${r.dept||r.section||'—'} / ${r.position||'—'} · ត្រូវការ ${r.required||0} · បានបំពេញ ${r.actual||r.hired||r.joined||0} · ខ្វះ ${r.gap||0}`));
+    if(emps.length)lines.push('ព័ត៌មានមាតុភាព',...emps.slice(0,12).map(r=>`• ${r.idNo||'—'} · ${r.name||'—'} · ${r.dept||'—'} · ចាប់ផ្តើម ${r.leaveStart||'—'} · ត្រឡប់ ${r.returnDate||'—'}`));
+  }else{
+    if(plans.length)lines.push('Manpower 明細',...plans.slice(0,12).map(r=>`• ${r.dept||r.section||'—'} / ${r.position||'—'} · 需求 ${r.required||0} · 已補 ${r.actual||r.hired||r.joined||0} · 缺口 ${r.gap||0}`));
+    if(emps.length)lines.push('產假明細',...emps.slice(0,12).map(r=>`• ${r.idNo||'—'} · ${r.name||'—'} · ${r.dept||'—'} · 開始 ${r.leaveStart||'—'} · 回歸 ${r.returnDate||'—'}`));
+  }
+  return lines
+}
+function certificateApprovalItems(){
+  const out=[];
+  STATE.requests.filter(r=>r.status==='pending').forEach(r=>(r.items||[]).forEach(i=>{
+    const rec=i.kind==='certificate'?STATE.certificates.find(x=>x.id===i.id):STATE.people.find(x=>x.id===i.id);
+    if(!rec)return;
+    const date=i.targetDate||r.dueDate||rec.renewalDate||rec.expiryDate||rec.visaExpiry||rec.workPermitExpiry||rec.residenceExpiry||'';
+    const key=`CV|${i.kind}|${i.id}|${date}`;
+    const info=i.kind==='certificate'
+      ? `${rec.category||''} · ${rec.name||''} · ${rec.department||''} · expiry ${rec.expiryDate||'—'} · renewal ${rec.renewalDate||'—'}`
+      : `passport ${rec.passportExpiry||'—'} · visa ${rec.visaExpiry||'—'} · work permit ${rec.workPermitExpiry||'—'} · residence ${rec.residenceExpiry||'—'}`;
+    out.push({key,kind:i.kind==='certificate'?'certificate':'person',id:i.id,name:i.name||rec.nameEn||rec.nameKh||rec.name||'',dept:rec.department||'',group:'',position:'',gender:rec.sex||'',age:'',days:0,region:'',period:String(date).slice(0,10),amount:+(r.cost||0),info,requestNo:r.number,requestTitle:r.title,requestReason:r.remark||'',decision:'',note:''})
+  }));
+  return out
+}
+function certificateEventLine(e,lang){
+  const state=e.days<0?(lang==='en'?`${Math.abs(e.days)}d overdue`:lang==='km'?`ហួស ${Math.abs(e.days)} ថ្ងៃ`:`逾期 ${Math.abs(e.days)} 天`):e.days===0?(lang==='en'?'today':lang==='km'?'ថ្ងៃនេះ':'今天'):(lang==='en'?`${e.days}d left`:lang==='km'?`នៅសល់ ${e.days} ថ្ងៃ`:`剩 ${e.days} 天`);
+  const typ=lang==='en'?({certificate:'Certificate',passport:'Passport',visa:'Visa',workPermit:'Work permit',residence:'Residence permit'}[e.type]||e.type):lang==='km'?({certificate:'លិខិត',passport:'លិខិតឆ្លងដែន',visa:'ទិដ្ឋាការ',workPermit:'លិខិតការងារ',residence:'ស្នាក់នៅ'}[e.type]||e.type):typeLabel(e.type);
+  return `• ${e.date} · ${typ} · ${e.name||'—'} · ${e.department||'—'} · ${state}`
+}
 function tgSummaryText(lang,mode){
-  const old=LANG;const label=periodLabel(mode,PERIOD_ANCHOR),ev=eventsForMode(mode),due=ev.filter(e=>eventState(e)==='due').length,expired=ev.filter(e=>eventState(e)==='expired').length,pending=STATE.requests.filter(r=>r.status==='pending').length;
-  if(lang==='en')return [`📊 AC HRA Certificate & Visa — ${label}`,`• Company certificates: ${STATE.certificates.length}`,`• Active expats: ${STATE.people.filter(p=>p.status==='active').length}`,`• Expiry / renewal events: ${ev.length}`,`• Due soon: ${due} · Overdue: ${expired}`,`• Pending approval: ${pending}`,`🏭 Vantage River Textiles`].join('\n');
-  return [`📊 AC HRA 證書／簽證摘要 — ${label}`,`• 公司證書：${STATE.certificates.length} 項`,`• 最新有效外籍人員：${STATE.people.filter(p=>p.status==='active').length} 人`,`• 到期／續期事件：${ev.length} 項`,`• 即將到期：${due} · 已逾期：${expired}`,`• 待核可：${pending} 件`,`🏭 Vantage River Textiles`].join('\n')
+  const label=periodLabel(mode,PERIOD_ANCHOR),ev=eventsForMode(mode),due=ev.filter(e=>eventState(e)==='due').length,expired=ev.filter(e=>eventState(e)==='expired').length,pending=STATE.requests.filter(r=>r.status==='pending').length;
+  const details=ev.slice(0,30).map(e=>certificateEventLine(e,lang));
+  if(lang==='en')return [`📊 AC HRA Certificate & Visa — ${label}`,`• Company certificates: ${STATE.certificates.length}`,`• Active expats: ${STATE.people.filter(p=>p.status==='active').length}`,`• Expiry / renewal events: ${ev.length}`,`• Due soon: ${due} · Overdue: ${expired}`,`• Pending approval: ${pending}`,`🔍 Inspector: Phary · ✅ Approver: Paul`,`🏭 Vantage River Textiles`,'','Expiry details',...(details.length?details:['• No expiry items in this period']),...crossModuleDetailLines(lang)].join('\n');
+  if(lang==='km')return [`📊 AC HRA លិខិត និងទិដ្ឋាការ — ${label}`,`• លិខិតក្រុមហ៊ុន៖ ${STATE.certificates.length}`,`• បុគ្គលិកបរទេសសកម្ម៖ ${STATE.people.filter(p=>p.status==='active').length}`,`• ព្រឹត្តិការណ៍ផុតកំណត់/បន្ត៖ ${ev.length}`,`• ជិតផុតកំណត់៖ ${due} · ហួសកំណត់៖ ${expired}`,`• រង់ចាំអនុម័ត៖ ${pending}`,`🔍 អ្នកត្រួតពិនិត្យ៖ Phary · ✅ អ្នកអនុម័ត៖ Paul`,`🏭 Vantage River Textiles`,'','ព័ត៌មានលម្អិត',...(details.length?details:['• គ្មានទិន្នន័យក្នុងអំឡុងពេលនេះ']),...crossModuleDetailLines(lang)].join('\n');
+  return [`📊 AC HRA 證書／簽證摘要 — ${label}`,`• 公司證書：${STATE.certificates.length} 項`,`• 最新有效外籍人員：${STATE.people.filter(p=>p.status==='active').length} 人`,`• 到期／續期事件：${ev.length} 項`,`• 即將到期：${due} · 已逾期：${expired}`,`• 待核可：${pending} 件`,`🔍 檢查人：Phary · ✅ 核可人：Paul`,`🏭 Vantage River Textiles`,'','到期明細',...(details.length?details:['• 此期間沒有到期項目']),...crossModuleDetailLines(lang)].join('\n')
 }
 function tgApprovalText(lang){
-  const rows=STATE.requests.filter(r=>r.status==='pending').slice(0,20),id=document.getElementById('tgRecipient').value.trim();
-  if(lang==='en')return [`✅ APPROVAL REQUEST · AC HRA`,`Approver Telegram ID: ${id||'—'}`,`Pending: ${rows.length}`,...rows.map(r=>`• ${r.number} · ${r.title} · ${r.items?.length||0} item(s) · Due ${r.dueDate||'—'}`),`Reply with approval or rejection comments after the shared workflow is enabled.`].join('\n');
-  return [`✅ AC HRA 核可申請`,`核可者 Telegram ID：${id||'—'}`,`待核可：${rows.length} 件`,...rows.map(r=>`• ${r.number} · ${r.title} · ${r.items?.length||0} 項 · 期限 ${r.dueDate||'—'}`),`共用流程啟用後可直接核可或退件並留意見。`].join('\n')
+  const rows=STATE.requests.filter(r=>r.status==='pending').slice(0,20),items=certificateApprovalItems();
+  const lines=items.slice(0,40).map(i=>`• ${i.requestNo||'—'} · ${i.name||'—'} · ${i.dept||'—'} · ${i.info}`);
+  if(lang==='en')return [`✅ APPROVAL REQUEST · AC HRA Certificate / Visa`,`🔍 Inspector / first review: Phary`,`✅ Final approver: Paul`,`Pending requests: ${rows.length} · pending items: ${items.length}`,...lines,`After Phary confirms the review, the request is sent to Paul. Approved/Rejected items are not sent again.`].join('\n');
+  if(lang==='km')return [`✅ សំណើអនុម័ត · AC HRA លិខិត/ទិដ្ឋាការ`,`🔍 អ្នកត្រួតពិនិត្យដំបូង៖ Phary`,`✅ អ្នកអនុម័តចុងក្រោយ៖ Paul`,`សំណើរង់ចាំ៖ ${rows.length} · ធាតុ៖ ${items.length}`,...lines,`បន្ទាប់ពី Phary ពិនិត្យ សំណើនឹងទៅ Paul។ ធាតុដែលបានសម្រេចនឹងមិនផ្ញើស្ទួនទេ។`].join('\n');
+  return [`✅ AC HRA 證書／簽證核可申請`,`🔍 第一關檢查人：Phary`,`✅ 最終核可人：Paul`,`待核申請：${rows.length} 件 · 待核項目：${items.length} 件`,...lines,`Phary 確認審查後才送 Paul；已核可或已退件項目不再重發。`].join('\n')
 }
 function reminderRows(){const n=Number(STATE.settings.reminderDays||45);return allEvents().filter(e=>!e.completed&&e.days<=n).slice(0,30)}
 function tgReminderText(lang){
@@ -1063,7 +1165,7 @@ function tgReminderText(lang){
 function buildTgText(){
   const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?tgReminderText(l):tgSummaryText(l,mode);
   if(lang==='both')return one('zh')+'\n\n────────────────\n\n'+one('en');
-  if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+(type==='reminder'?one('km'):tgReminderText('km'));
+  if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+one('km');
   return one(lang)
 }
 function refreshTgPreview(){document.getElementById('tgPreview').textContent=buildTgText()}
@@ -1072,12 +1174,34 @@ function openTelegram(type='summary'){
 }
 async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
 async function sendTelegram(){
-  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,messageType:val('tgType')});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal');await cloudPush({auto:true})}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
+  showLoading(LANG==='en'?'Sending…':'發送中…');
+  try{
+    const type=val('tgType'),text=document.getElementById('tgPreview').textContent,items=type==='approval'?certificateApprovalItems():[];
+    if(type==='approval'&&!items.length)throw new Error(LANG==='en'?'There are no new pending items. Approved or rejected items are not resent.':'沒有新的待核項目；已核可或已退件項目不會重發。');
+    const period=val('tgPeriod'),lang=val('tgLang');
+    const payload=type==='approval'
+      ? {action:'approvalRequest',type:'approvalRequest',module:TOOL_ID,scope:'certificate_visa',batch:'CV-'+String(period||'all').replace(/[^0-9A-Za-z]/g,''),period:period,lang:lang==='all3'?'zh':lang,route:'review',count:items.length,items:items,text:text,inspector:'Phary',checker:'Phary',approver:'Paul',requestedBy:'certificate_visa_web',requestedAt:new Date().toISOString(),idempotencyKey:['certificate_visa',period,items.map(x=>x.key).sort().join(',')].join('|')}
+      : {action:'telegram',type:'notify',module:TOOL_ID,tool:TOOL_ID,text:text,lang:lang,inspector:'Phary',checker:'Phary',messageType:type};
+    const d=await postGas(payload),dd=d.data||d;
+    if(type==='approval'){
+      if(!dd.closed&&!dd.sentToGroup&&!dd.messageId&&!dd.alreadyDecided)throw new Error(dd.error||'Telegram approval message was not confirmed');
+      const sentAt=new Date().toISOString();
+      const byNo={};items.forEach(x=>{byNo[x.requestNo]=true});
+      STATE.requests.forEach(r=>{if(r.status==='pending'&&byNo[r.number]){r.submittedAt=r.submittedAt||sentAt;r.telegramBatchId=dd.batchId||r.telegramBatchId||'';r.updatedAt=sentAt}});
+      await persist();toast(dd.reused?`✅ ${tr('alreadySent')}`:`✅ ${tr('approvalSent')}`)
+    }else{
+      if(!dd.sent||!dd.messageId)throw new Error(dd.error||'Telegram message was not confirmed');
+      toast(`✅ ${tr('telegramSent')}`)
+    }
+    closeModal('telegramModal');
+    await cloudPush({auto:true});
+  }catch(e){console.error('[certificate telegram]',e);toast(`❌ ${e.message}`,5000)}
+  finally{hideLoading()}
 }
 
 /* ── Startup: local IndexedDB only. No automatic upload or download. ─── */
 async function init(){
-  showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();
+  showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();await loadCrossModuleSnapshots();
   STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});
   setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId','');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
   applyLang();renderAll();hideLoading()

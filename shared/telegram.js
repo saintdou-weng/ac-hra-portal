@@ -18,9 +18,11 @@
 
   // Default VRT config (overridden by localStorage)
   const DEFAULTS = {
-    token  : '8752977449:AAHOhEM0IWsFU5cTXRkwV4pgp68cYQh-1Sg',
-    chatId : '-5233667043',
-    enabled: true,
+    /* Tokens stay in GAS Script Properties; this browser fallback is disabled
+       until an operator explicitly configures it. */
+    token  : '',
+    chatId : '',
+    enabled: false,
   };
 
   const TG = {

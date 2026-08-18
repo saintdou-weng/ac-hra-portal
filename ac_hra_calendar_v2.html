@@ -488,11 +488,18 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
       </div>
       <div id="tg-status" style="margin-top:10px"></div>
       <div class="schedule-box" style="margin-top:12px">
-        <strong>🗓 <span data-t="month_end_auto">每月底自動通知下月</span></strong>
-        <div style="margin:7px 0" data-t="month_end_desc">內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。</div>
+        <strong>🗓 <span data-t="schedule_title">指定日期自動摘要</span></strong>
+        <div style="margin:7px 0" data-t="schedule_desc">選日期、摘要種類和發送時間；日曆摘要不需要核可，GAS 會在指定日期自動發到群組。</div>
         <div class="tg-inline-controls">
-          <label><input type="checkbox" id="auto-enabled"> <span data-t="enable_auto">啟用月底通知</span></label>
+          <label><input type="checkbox" id="auto-enabled"> <span data-t="enable_auto">啟用自動摘要</span></label>
+          <label><span data-t="schedule_rule">週期</span>
+            <select id="auto-rule"><option value="once" data-t="rule_once">指定日一次</option><option value="monthly_day" data-t="rule_monthly">每月同日</option><option value="yearly_date" data-t="rule_yearly">每年同日</option><option value="last_day_of_month" data-t="rule_last_day">每月底</option></select>
+          </label>
+          <label><span data-t="schedule_date">指定日期</span> <input id="auto-date" type="date" class="form-input" style="min-width:145px"></label>
           <label><span data-t="send_hour">發送時間</span> <select id="auto-hour"><option value="7">07:00</option><option value="8" selected>08:00</option><option value="9">09:00</option><option value="16">16:00</option><option value="17">17:00</option></select></label>
+          <label><span data-t="schedule_summary">摘要內容</span>
+            <select id="auto-summary"><option value="nextmonth" data-t="next_month_summary">下月完整摘要</option><option value="period" data-t="selected_period_summary">所選期間摘要</option><option value="changes" data-t="change_summary">日曆變更摘要</option><option value="upcoming" data-t="upcoming_summary">即將到來假日</option><option value="year" data-t="year_summary">全年假日摘要</option></select>
+          </label>
         </div>
         <div style="margin-top:8px;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
           <button class="btn btn-blue btn-sm" onclick="saveAutoSchedule()">☁️ <span data-t="save_schedule">儲存／安裝排程</span></button>
@@ -1147,7 +1154,7 @@ let editingId = null;
 let analysisMode = 'month';
 let analysisAnchor = new Date();
 let CHANGE_LOG = [];
-let CAL_SETTINGS = {autoMonthEnd:false,sendHour:8,timezone:'Asia/Phnom_Penh',scheduleInstalled:false,scheduleUpdatedAt:''};
+let CAL_SETTINGS = {autoMonthEnd:false,autoRule:'once',autoDate:'',summaryType:'nextmonth',sendHour:8,timezone:'Asia/Phnom_Penh',scheduleInstalled:false,scheduleUpdatedAt:''};
 let LAST_SAVED_DB = null;
 const CAL_DB_KEY='cambodia_hols',CAL_FLAT_KEY='ac_hra_calendar_db',CAL_CHANGE_KEY='ac_hra_calendar_changes',CAL_SETTINGS_KEY='ac_hra_calendar_settings',CAL_META_KEY='ac_hra_calendar_meta';
 
@@ -1165,7 +1172,7 @@ const LANGS = {
     safe_send:'由共用 GAS 安全發送',tg_no_secret:'本頁不保存 Bot Token 或群組 ID；只有按下手動發送或安裝月底排程時才連線。',
     notice_type:'通知類型',next_month_summary:'下月完整摘要',selected_period_summary:'所選期間摘要',change_summary:'日曆變更摘要',upcoming_summary:'即將到來假日',year_summary:'全年假日摘要',custom_message:'自訂訊息',
     language:'語言',bilingual:'中英雙語',chinese:'中文',english:'English',year:'年份',custom_optional:'自訂訊息（僅自訂類型使用）',custom_placeholder:'輸入自訂通知內容…',preview:'預覽',manual_send:'手動發送',
-    month_end_auto:'每月底自動通知下月',month_end_desc:'內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。',enable_auto:'啟用月底通知',send_hour:'發送時間',save_schedule:'儲存／安裝排程',message_preview:'訊息預覽',
+    schedule_title:'指定日期自動摘要',schedule_desc:'選日期、摘要種類和發送時間；日曆摘要不需要核可，GAS 會在指定日期自動發到群組。',enable_auto:'啟用自動摘要',schedule_rule:'週期',rule_once:'指定日一次',rule_monthly:'每月同日',rule_yearly:'每年同日',rule_last_day:'每月底',schedule_date:'指定日期',schedule_summary:'摘要內容',month_end_auto:'每月底自動通知下月',month_end_desc:'內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。',send_hour:'發送時間',save_schedule:'儲存／安裝排程',message_preview:'訊息預覽',
     change_tracking:'變更追蹤：',change_tracking_desc:'新增、修改、取消與刪除假日都會留下本機變更紀錄，手動摘要可直接列出。',
     calendar_days:'日曆天數',sunday_count:'周日',saturday_count:'周六',holiday_days:'實際休假日',legal_days:'法定假日',estimated_workdays:'預估工作日',moved_days:'換／延後假',cancelled_days:'取消假日',added_holiday_days:'加假／補假',extra_workdays:'新增上班日',change_records:'變更筆數',
     day_status:'當日狀態',workday:'上班日',sunday:'周日休息',holiday:'假日',changes:'變更',month_summary:'月份摘要',no_records:'沒有相關紀錄',
@@ -1186,7 +1193,7 @@ const LANGS = {
     safe_send:'Secure delivery through shared GAS',tg_no_secret:'This page stores no bot token or group ID. It connects only when you send manually or install the month-end schedule.',
     notice_type:'Notice Type',next_month_summary:'Full Next-Month Summary',selected_period_summary:'Selected Period Summary',change_summary:'Calendar Change Summary',upcoming_summary:'Upcoming Holidays',year_summary:'Full-Year Summary',custom_message:'Custom Message',
     language:'Language',bilingual:'Chinese + English',chinese:'Chinese',english:'English',year:'Year',custom_optional:'Custom message (custom type only)',custom_placeholder:'Enter a custom notice…',preview:'Preview',manual_send:'Send Manually',
-    month_end_auto:'Automatic Next-Month Notice at Month End',month_end_desc:'Includes next month’s calendar days, Sundays, holidays, estimated workdays, moved, cancelled or added holidays, and extra workdays.',enable_auto:'Enable month-end notice',send_hour:'Send time',save_schedule:'Save / Install Schedule',message_preview:'Message Preview',
+    schedule_title:'Automatic Summary by Date',schedule_desc:'Choose the date, summary type and send time. Calendar summaries do not need approval; GAS sends them to the group automatically.',enable_auto:'Enable automatic summary',schedule_rule:'Frequency',rule_once:'One time on date',rule_monthly:'Same day every month',rule_yearly:'Same date every year',rule_last_day:'Last day of month',schedule_date:'Date',schedule_summary:'Summary content',month_end_auto:'Automatic Next-Month Notice at Month End',month_end_desc:'Includes next month’s calendar days, Sundays, holidays, estimated workdays, moved, cancelled or added holidays, and extra workdays.',send_hour:'Send time',save_schedule:'Save / Install Schedule',message_preview:'Message Preview',
     change_tracking:'Change tracking:',change_tracking_desc:'Adding, editing, cancelling or deleting a holiday creates a local change record that can be sent as a manual summary.',
     calendar_days:'Calendar Days',sunday_count:'Sundays',saturday_count:'Saturdays',holiday_days:'Actual Days Off',legal_days:'Legal Holidays',estimated_workdays:'Estimated Workdays',moved_days:'Moved / Postponed',cancelled_days:'Cancelled Holidays',added_holiday_days:'Added / Makeup Holidays',extra_workdays:'Extra Workdays',change_records:'Changes',
     day_status:'Day Status',workday:'Workday',sunday:'Sunday Off',holiday:'Holiday',changes:'Changes',month_summary:'Monthly Summary',no_records:'No related records',
@@ -1207,7 +1214,7 @@ const LANGS = {
     safe_send:'ផ្ញើដោយសុវត្ថិភាពតាម GAS',tg_no_secret:'ទំព័រនេះមិនរក្សាទុក Bot Token ឬ Group ID ទេ។ វាភ្ជាប់តែពេលផ្ញើដោយដៃ ឬដំឡើងកាលវិភាគ។',
     notice_type:'ប្រភេទជូនដំណឹង',next_month_summary:'សង្ខេបខែក្រោយ',selected_period_summary:'សង្ខេបរយៈពេល',change_summary:'សង្ខេបការកែប្រែ',upcoming_summary:'ថ្ងៃឈប់ខាងមុខ',year_summary:'សង្ខេបប្រចាំឆ្នាំ',custom_message:'សារផ្ទាល់ខ្លួន',
     language:'ភាសា',bilingual:'ចិន + អង់គ្លេស',chinese:'ចិន',english:'English',year:'ឆ្នាំ',custom_optional:'សារផ្ទាល់ខ្លួន',custom_placeholder:'បញ្ចូលសារ…',preview:'មើលជាមុន',manual_send:'ផ្ញើដោយដៃ',
-    month_end_auto:'ជូនដំណឹងខែក្រោយនៅចុងខែ',month_end_desc:'រួមមានចំនួនថ្ងៃ ថ្ងៃអាទិត្យ ថ្ងៃឈប់ ថ្ងៃធ្វើការ និងការផ្លាស់ប្តូរ។',enable_auto:'បើកការជូនដំណឹង',send_hour:'ម៉ោងផ្ញើ',save_schedule:'រក្សាទុក / ដំឡើង',message_preview:'មើលសារជាមុន',
+    schedule_title:'សង្ខេបស្វ័យប្រវត្តិតាមកាលបរិច្ឆេទ',schedule_desc:'ជ្រើសកាលបរិច្ឆេទ ប្រភេទសង្ខេប និងម៉ោងផ្ញើ។ សង្ខេបប្រតិទិនមិនត្រូវការអនុម័តទេ; GAS នឹងផ្ញើទៅក្រុមដោយស្វ័យប្រវត្តិ។',enable_auto:'បើកសង្ខេបស្វ័យប្រវត្តិ',schedule_rule:'វដ្ត',rule_once:'ម្តងតាមកាលបរិច្ឆេទ',rule_monthly:'ថ្ងៃដដែលរៀងរាល់ខែ',rule_yearly:'កាលបរិច្ឆេទដដែលរៀងរាល់ឆ្នាំ',rule_last_day:'ថ្ងៃចុងខែ',schedule_date:'កាលបរិច្ឆេទ',schedule_summary:'មាតិកាសង្ខេប',month_end_auto:'ជូនដំណឹងខែក្រោយនៅចុងខែ',month_end_desc:'រួមមានចំនួនថ្ងៃ ថ្ងៃអាទិត្យ ថ្ងៃឈប់ ថ្ងៃធ្វើការ និងការផ្លាស់ប្តូរ។',send_hour:'ម៉ោងផ្ញើ',save_schedule:'រក្សាទុក / ដំឡើង',message_preview:'មើលសារជាមុន',
     change_tracking:'តាមដានការកែប្រែ៖',change_tracking_desc:'ការបន្ថែម កែប្រែ លុប ឬបោះបង់ថ្ងៃឈប់ នឹងរក្សាទុកជាប្រវត្តិ។',
     calendar_days:'ថ្ងៃសរុប',sunday_count:'ថ្ងៃអាទិត្យ',saturday_count:'ថ្ងៃសៅរ៍',holiday_days:'ថ្ងៃឈប់ពិត',legal_days:'ថ្ងៃឈប់ច្បាប់',estimated_workdays:'ថ្ងៃធ្វើការប៉ាន់ស្មាន',moved_days:'ប្តូរ / ពន្យារ',cancelled_days:'ថ្ងៃឈប់បានលុប',added_holiday_days:'ថ្ងៃឈប់បន្ថែម',extra_workdays:'ថ្ងៃធ្វើការបន្ថែម',change_records:'ការកែប្រែ',
     day_status:'ស្ថានភាពថ្ងៃ',workday:'ថ្ងៃធ្វើការ',sunday:'ឈប់ថ្ងៃអាទិត្យ',holiday:'ថ្ងៃឈប់',changes:'ការកែប្រែ',month_summary:'សង្ខេបខែ',no_records:'គ្មានទិន្នន័យ',
@@ -1349,7 +1356,9 @@ function init(){
   renderMgrTypeCards();
   updateLangUI();
   const anchor=document.getElementById('analysis-anchor');if(anchor)anchor.value=ymd(analysisAnchor);
-  const ae=document.getElementById('auto-enabled'),ah=document.getElementById('auto-hour');if(ae)ae.checked=!!CAL_SETTINGS.autoMonthEnd;if(ah)ah.value=String(CAL_SETTINGS.sendHour||8);
+  const ae=document.getElementById('auto-enabled'),ah=document.getElementById('auto-hour'),ad=document.getElementById('auto-date'),ar=document.getElementById('auto-rule'),asm=document.getElementById('auto-summary');
+  if(!CAL_SETTINGS.autoDate)CAL_SETTINGS.autoDate=ymd(new Date());
+  if(ae)ae.checked=!!CAL_SETTINGS.autoMonthEnd;if(ah)ah.value=String(CAL_SETTINGS.sendHour||8);if(ad)ad.value=CAL_SETTINGS.autoDate;if(ar)ar.value=CAL_SETTINGS.autoRule||'once';if(asm)asm.value=CAL_SETTINGS.summaryType||'nextmonth';
   renderScheduleStatus();
 }
 
@@ -2329,13 +2338,22 @@ async function sendTelegram(){
   catch(e){stEl.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}</div>`}setTimeout(()=>stEl.innerHTML='',8000)
 }
 function renderScheduleStatus(){
-  const el=document.getElementById('schedule-status');if(!el)return;if(CAL_SETTINGS.scheduleInstalled)el.textContent=lang==='en'?'Installed in GAS':'GAS 排程已安裝';else if(CAL_SETTINGS.autoMonthEnd)el.textContent=lang==='en'?'Saved; GAS setup pending':'設定已儲存，待 GAS 啟用';else el.textContent=lang==='en'?'Disabled':'尚未啟用'
+  const el=document.getElementById('schedule-status');if(!el)return;
+  const date=CAL_SETTINGS.autoDate||'—',rule=CAL_SETTINGS.autoRule||'once';
+  const ruleText=rule==='last_day_of_month'?(lang==='en'?'last day of month':'每月底'):rule==='monthly_day'?(lang==='en'?'monthly':'每月同日'):rule==='yearly_date'?(lang==='en'?'yearly':'每年同日'):(lang==='en'?'one time':'指定日一次');
+  if(CAL_SETTINGS.scheduleInstalled)el.textContent=(lang==='en'?'Installed in GAS':'GAS 排程已安裝')+' · '+ruleText+' · '+date;
+  else if(CAL_SETTINGS.autoMonthEnd)el.textContent=(lang==='en'?'Saved; GAS setup pending':'設定已儲存，待 GAS 啟用')+' · '+ruleText+' · '+date;
+  else el.textContent=lang==='en'?'Disabled':'尚未啟用'
 }
 async function saveAutoSchedule(){
-  CAL_SETTINGS.autoMonthEnd=!!document.getElementById('auto-enabled').checked;CAL_SETTINGS.sendHour=+document.getElementById('auto-hour').value||8;CAL_SETTINGS.timezone='Asia/Phnom_Penh';CAL_SETTINGS.scheduleUpdatedAt=new Date().toISOString();CAL_SETTINGS.scheduleInstalled=false;saveDB(false);renderScheduleStatus();
-  const st=document.getElementById('tg-status');if(!gasUrl()){st.innerHTML=`<div class="warn-box">${lang==='en'?'Settings saved locally. The shared GAS schedule will be enabled together with the later approval workflow update.':'設定已先保存在本機；共用 GAS 排程會與後續核可／退件功能一次啟用。'}</div>`;return}
-  try{await postCalendarGas({action:'calendarScheduleUpsert',tool:'calendar',schedule:{enabled:CAL_SETTINGS.autoMonthEnd,rule:'last_day_of_month',hour:CAL_SETTINGS.sendHour,timezone:CAL_SETTINGS.timezone,summaryType:'nextmonth',languages:['zh','en'],source:'latest_calendar_snapshot',fields:['calendarDays','sundays','saturdays','holidayDays','legalDays','estimatedWorkdays','moved','cancelled','added','extraWorkdays','holidayDetails']}});CAL_SETTINGS.scheduleInstalled=CAL_SETTINGS.autoMonthEnd;saveDB(false);renderScheduleStatus();st.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Month-end schedule updated.':'月底自動通知排程已更新。'}</div>`}
+  const enabled=!!document.getElementById('auto-enabled').checked,rule=document.getElementById('auto-rule').value||'once',date=document.getElementById('auto-date').value||ymd(new Date()),summaryType=document.getElementById('auto-summary').value||'nextmonth';
+  CAL_SETTINGS.autoMonthEnd=enabled;CAL_SETTINGS.autoRule=rule;CAL_SETTINGS.autoDate=date;CAL_SETTINGS.summaryType=summaryType;CAL_SETTINGS.sendHour=+document.getElementById('auto-hour').value||8;CAL_SETTINGS.timezone='Asia/Phnom_Penh';CAL_SETTINGS.scheduleUpdatedAt=new Date().toISOString();CAL_SETTINGS.scheduleInstalled=false;
+  const oldType=document.getElementById('tg-msgtype')?.value;if(document.getElementById('tg-msgtype'))document.getElementById('tg-msgtype').value=summaryType;previewTgMsg();
+  saveDB(false);renderScheduleStatus();
+  const st=document.getElementById('tg-status');if(!gasUrl()){st.innerHTML=`<div class="warn-box">${lang==='en'?'Settings saved locally. Enter the shared GAS URL to install the schedule.':'設定已先保存在本機；請填入共用 GAS URL 才能安裝排程。'}</div>`;if(oldType&&document.getElementById('tg-msgtype'))document.getElementById('tg-msgtype').value=oldType;return}
+  try{await postCalendarGas({action:'calendarScheduleUpsert',tool:'calendar',schedule:{enabled:CAL_SETTINGS.autoMonthEnd,rule:CAL_SETTINGS.autoRule,date:CAL_SETTINGS.autoDate,hour:CAL_SETTINGS.sendHour,timezone:CAL_SETTINGS.timezone,summaryType:CAL_SETTINGS.summaryType,language:document.getElementById('tg-lang')?.value||'both',text:buildTgMsg(),source:'latest_calendar_snapshot',fields:['calendarDays','sundays','saturdays','holidayDays','legalDays','estimatedWorkdays','moved','cancelled','added','extraWorkdays','holidayDetails']}});CAL_SETTINGS.scheduleInstalled=CAL_SETTINGS.autoMonthEnd;saveDB(false);renderScheduleStatus();st.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Calendar automatic summary schedule updated.':'日曆自動摘要排程已更新。'}</div>`}
   catch(e){st.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}<br>${lang==='en'?'The setting remains saved locally.':'設定仍已保存在本機。'}</div>`}
+  if(oldType&&document.getElementById('tg-msgtype'))document.getElementById('tg-msgtype').value=oldType;
 }
 
 

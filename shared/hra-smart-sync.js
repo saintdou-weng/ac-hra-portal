@@ -126,11 +126,18 @@
     });
   }
   function dataOf(j) { return (j && j.data !== undefined) ? j.data : j; }
-  function isUnsupportedSmartManifestError(err) {
+  /* Older deployments use the generic response "Unsupported smart sync tool"
+     instead of exposing smartManifest/smartBucket/smartCommit.  Treat all
+     known forms as one compatibility signal so a phone can fall back to the
+     safe merge endpoint without making the user retry a large upload. */
+  function isUnsupportedSmartError(err) {
     var s = text(err && err.message || err);
-    return /unknown action\s*:\s*smartmanifest/i.test(s) ||
-      /smartmanifest.*(unsupported|not found|not implemented)/i.test(s);
+    return /unsupported\s+smart\s+(sync\s+)?tool/i.test(s) ||
+      /smart\s+sync.*(unsupported|not supported|not implemented)/i.test(s) ||
+      /unknown action\s*:\s*smart(manifest|bucket|commit)/i.test(s) ||
+      /smart(manifest|bucket|commit).*(unsupported|not found|not implemented)/i.test(s);
   }
+  function isUnsupportedSmartManifestError(err) { return isUnsupportedSmartError(err); }
   function getManifest(url, tool) {
     var endpoint = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool);
     function fallback(reason) {
@@ -190,6 +197,19 @@
     return mergeRows(localRows, remoteRows);
   }
 
+  function compatibilityPull(opts, localRows, status, reason) {
+    return legacyPull(text(opts.url).trim(), opts.tool, status).then(function (legacy) {
+      var merged = mergeSnapshots(opts, localRows, legacy.records || []);
+      var applied = opts.apply ? Promise.resolve(opts.apply(merged, legacy.meta || {})) : Promise.resolve();
+      return applied.then(function () {
+        callStatus(status, '完成｜舊版 GAS 相容下載與合併｜保留雙方資料', 'warn');
+        return { ok:true, records:merged, remoteRecords:legacy.records || [],
+          meta:legacy.meta || {}, migrated:false, compatibilityFallback:true,
+          downloaded:(legacy.records || []).length, fallbackReason:text(reason || '') };
+      });
+    });
+  }
+
   /* Compatibility path for a GAS Web App that has not yet been redeployed
      with smartManifest/smartBucket/smartCommit.  The old push endpoint still
      merges by business key and never deletes cloud-only rows, so it is safe to
@@ -237,6 +257,14 @@
     });
   }
 
+  function smartPushWithFallback(opts, records, remote, status, migrated) {
+    return smartPush(opts, records, remote, status, migrated).catch(function (err) {
+      if (!isUnsupportedSmartError(err)) throw err;
+      callStatus(status, '智慧同步工具未部署，改用相容合併上傳…', 'warn');
+      return legacyPush(opts, records, status);
+    });
+  }
+
   function push(opts) {
     opts = opts || {};
     var url = text(opts.url).trim(), tool = opts.tool, records = sortRows(opts.records || []), status = opts.onStatus;
@@ -252,10 +280,10 @@
         callStatus(status, '首次升級：合併既有雲端資料…', 'busy');
         return legacyPull(url, tool, status).then(function (legacy) {
           var merged = mergeSnapshots(opts, records, legacy.records || []);
-          return smartPush(opts, merged, remote, status, true);
+          return smartPushWithFallback(opts, merged, remote, status, true);
         });
       }
-      return smartPush(opts, records, remote, status, false).then(function (result) {
+      return smartPushWithFallback(opts, records, remote, status, false).then(function (result) {
         /* A summary/approval may be the first action on a device that has no
            local sync baseline.  Pull and merge the remote changed buckets
            automatically, then commit the union; only a real conflict asks
@@ -263,9 +291,13 @@
         if (!result || !result.needsPull || opts.autoMerge === false) return result;
         return pull({ url:url, tool:tool, localRecords:records, mergeRecords:opts.mergeRecords, onStatus:status }).then(function (p) {
           if (!p || p.cancelled || !p.ok) return p;
-          return getManifest(url, tool).then(function (fresh) { return smartPush(Object.assign({}, opts, { records:p.records }), p.records, fresh || {}, status, false); });
+          return getManifest(url, tool).then(function (fresh) { return smartPushWithFallback(Object.assign({}, opts, { records:p.records }), p.records, fresh || {}, status, false); });
         });
       });
+    }).catch(function (err) {
+      if (!isUnsupportedSmartError(err)) throw err;
+      callStatus(status, '智慧同步工具未部署，改用相容合併上傳…', 'warn');
+      return legacyPush(opts, records, status);
     });
   }
   function smartPush(opts, records, remote, status, migrated) {
@@ -343,7 +375,7 @@
             }
             /* Match Prod: turn the old full snapshot into a smart manifest
                during this one-time baseline pull, without user setup work. */
-            return smartPush(opts, merged, remote, status, true).then(function (migrated) {
+            return smartPushWithFallback(opts, merged, remote, status, true).then(function (migrated) {
               return { ok:true, records:merged, remoteRecords:legacy.records || [], meta:legacy.meta || {}, migrated:true, downloaded:(legacy.records || []).length, pushResult:migrated };
             });
           });
@@ -382,6 +414,10 @@
           }
         });
       });
+    }).catch(function (err) {
+      if (!isUnsupportedSmartError(err)) throw err;
+      callStatus(status, '智慧同步工具未部署，改用相容合併下載…', 'warn');
+      return compatibilityPull(opts, localRows, status, err.message || err);
     });
   }
 
