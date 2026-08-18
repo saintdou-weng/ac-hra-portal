@@ -1,0 +1,27 @@
+AC HRA Portal v24 — Telegram approval delivery truth / resend repair
+
+Problem fixed:
+- Resign approval could show “sent to group” after GAS accepted the request even when Telegram had returned an error or no message_id.
+- An existing approval batch with a deleted message or an old group chat ID was only edited; it was not repaired by sending the same batch again.
+
+Changes:
+- ga_attendance_cloud.gs now treats Telegram delivery as successful only when Telegram returns a real message_id.
+- Failed approval sends return an error to the page instead of a false success toast.
+- A failed batch is retained safely. Sending the same request again reuses the same batch and retries the Telegram message; it does not add a second join/resign record or duplicate approval item.
+- If an existing group message cannot be edited, the same batch is resent to the current group ID and its new message_id is saved.
+- “message is not modified” is treated as a successful refresh.
+- Telegram summary responses now also return sent, sentToGroup, messageId and chatId.
+- Onboarding, Maternity, Contract and Welfare approval pages require the message_id before showing success.
+- shared/approval.js uses the same delivery check.
+- Existing inspector, idempotency and cloud-merge behavior is preserved.
+
+Deployment:
+1. Replace the complete Google Apps Script source with ga_attendance_cloud.gs.
+2. Save, then Deploy → Manage deployments → Edit → New version → Deploy.
+3. The one-click install function is not needed for this code-only repair if the existing Script Properties, group ID and webhook are already correct.
+4. Upload the portal ZIP so the updated HTML/shared files are published.
+5. Reopen the Resign → Approval page and press the same approval-send action once. If the old batch had no Telegram message, GAS will repair that batch instead of creating a duplicate.
+
+If it still fails:
+- The page now shows the Telegram/GAS error instead of “sent”.
+- Check the GAS execution log; the message includes the Telegram error and target chat.

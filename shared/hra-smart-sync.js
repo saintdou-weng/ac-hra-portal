@@ -21,6 +21,27 @@
   function text(v) { return String(v == null ? '' : v); }
   function callStatus(fn, value, type) { try { if (fn) fn(value, type || 'busy'); } catch (_) {} }
 
+  /* The four portal pages have used a few tool ids over their lifetime.  A
+     phone may therefore be talking to a deployment that stores the same
+     portal under an older id.  Keep local state keyed by the page's id, but
+     try the canonical and legacy network ids automatically. */
+  var TOOL_ALIASES = {
+    welfare_suggestion:'welfare', welfare_suggestions:'welfare',
+    certificate:'certificate_visa', visa:'certificate_visa',
+    hr_complete:'manpower', join:'onboarding', resign:'onboarding'
+  };
+  function canonicalTool(v) {
+    var raw = text(v).trim().toLowerCase().replace(/\s+/g, '_');
+    return TOOL_ALIASES[raw] || raw || 'tool';
+  }
+  function toolCandidates(v) {
+    var raw = text(v).trim().toLowerCase().replace(/\s+/g, '_'), c = canonicalTool(raw), out = [];
+    function add(x) { if (x && out.indexOf(x) < 0) out.push(x); }
+    add(c); add(raw);
+    Object.keys(TOOL_ALIASES).forEach(function (k) { if (TOOL_ALIASES[k] === c) add(k); });
+    return out.length ? out : ['tool'];
+  }
+
   function stable(v) {
     if (v === null || v === undefined) return 'null';
     if (typeof v === 'number' || typeof v === 'boolean') return JSON.stringify(v);
@@ -135,7 +156,8 @@
     return /unsupported\s+smart\s+(sync\s+)?tool/i.test(s) ||
       /smart\s+sync.*(unsupported|not supported|not implemented)/i.test(s) ||
       /unknown action\s*:\s*smart(manifest|bucket|commit)/i.test(s) ||
-      /smart(manifest|bucket|commit).*(unsupported|not found|not implemented)/i.test(s);
+      /smart(manifest|bucket|commit).*(unsupported|not found|not implemented)/i.test(s) ||
+      /unknown\s+(tool|portal)\b/i.test(s) || /tool\s+(id\s+)?not\s+found/i.test(s);
   }
   function isUnsupportedSmartManifestError(err) { return isUnsupportedSmartError(err); }
   function getManifest(url, tool) {
@@ -167,23 +189,53 @@
     });
   }
   function legacyPull(url, tool, onStatus) {
-    return jsonFetch(url + '?action=pull&meta=1&tool=' + enc(tool)).then(function (j) {
-      var env = dataOf(j) || {}, meta = env.meta || {}, records = [];
-      if (env.chunked && meta) {
-        var n = Number(meta.totalChunks) || 0, chain = Promise.resolve();
-        for (var i = 0; i < n; i++) (function (idx) {
-          chain = chain.then(function () {
-            callStatus(onStatus, '首次基準拉取 ' + (idx + 1) + '/' + n, 'busy');
-            return jsonFetch(url + '?action=pull&tool=' + enc(tool) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '')).then(function (cj) {
-              var cd = dataOf(cj) || {}; records = records.concat(cd.records || []);
+    var candidates = toolCandidates(tool);
+    function compatError(err) { return isUnsupportedSmartError(err); }
+    function metaRequest(candidate) {
+      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate);
+      return jsonFetch(getUrl).catch(function (err) {
+        /* Some deployed Web Apps accept legacy actions only through POST. */
+        if (!compatError(err)) throw err;
+        return post(url, { action:'pull', meta:1, tool:candidate });
+      });
+    }
+    function chunkRequest(candidate, idx, meta) {
+      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '');
+      return jsonFetch(getUrl).catch(function (err) {
+        if (!compatError(err)) throw err;
+        return post(url, { action:'pull', tool:candidate, chunk:idx, uploadId:meta.uploadId || '' });
+      });
+    }
+    function one(candidate) {
+      return metaRequest(candidate).then(function (j) {
+        var env = dataOf(j) || {}, meta = env.meta || {}, records = [];
+        if (env.chunked && meta) {
+          var n = Number(meta.totalChunks) || 0, chain = Promise.resolve();
+          for (var i = 0; i < n; i++) (function (idx) {
+            chain = chain.then(function () {
+              callStatus(onStatus, '首次基準拉取 ' + (idx + 1) + '/' + n, 'busy');
+              return chunkRequest(candidate, idx, meta).then(function (cj) {
+                var cd = dataOf(cj) || {}; records = records.concat(cd.records || []);
+              });
             });
-          });
-        })(i);
-        return chain.then(function () { return { records:records, meta:meta }; });
-      }
-      var p = env.data || env; records = p.records || (p.data && p.data.records) || [];
-      return { records:Array.isArray(records) ? records : [], meta:p || {} };
-    });
+          })(i);
+          return chain.then(function () { return { records:records, meta:meta, tool:candidate }; });
+        }
+        var p = env.data || env; records = p.records || (p.data && p.data.records) || [];
+        return { records:Array.isArray(records) ? records : [], meta:p || {}, tool:candidate };
+      });
+    }
+    function tryCandidate(idx, last) {
+      if (idx >= candidates.length) throw (last || new Error('Legacy cloud download failed'));
+      return one(candidates[idx]).catch(function (err) {
+        if (compatError(err) && idx + 1 < candidates.length) {
+          callStatus(onStatus, '切換相容雲端識別碼：' + candidates[idx + 1], 'warn');
+          return tryCandidate(idx + 1, err);
+        }
+        throw err;
+      });
+    }
+    return tryCandidate(0, null);
   }
   function post(url, body) {
     return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) }).then(dataOf);
@@ -215,7 +267,10 @@
      merges by business key and never deletes cloud-only rows, so it is safe to
      use while the user is moving from the old deployment to the new one. */
   function legacyPush(opts, records, status) {
-    var url = text(opts.url).trim(), tool = opts.tool, rows = sortRows(records || []);
+    /* Keep the page's original id on the legacy endpoint.  Current GAS
+       canonicalizes it server-side; older GAS deployments may have stored
+       welfare_suggestion/certificate under that exact filename. */
+    var url = text(opts.url).trim(), tool = text(opts.tool).trim() || canonicalTool(opts.tool), rows = sortRows(records || []);
     var size = Number(opts.legacyChunkSize) || 120;
     var total = Math.max(1, Math.ceil(rows.length / size));
     var syncId = 'compat_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
