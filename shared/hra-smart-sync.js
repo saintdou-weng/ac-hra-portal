@@ -1,4 +1,4 @@
-/* AC HRA Portal Smart Sync v1.1
+/* AC HRA Portal Smart Sync v1.2
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,8 +12,8 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.1';
-  var STATE_PREFIX = 'ac_hra_smart_sync_v1_';
+  var VERSION = '1.2';
+  var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
 
   function now() { return new Date().toISOString(); }
@@ -184,8 +184,16 @@
       if (d.exists === undefined && !d.hashes && !d.version) return tryPostManifest('smartManifest unsupported');
       return d;
     }).catch(function (err) {
-      if (isUnsupportedSmartManifestError(err)) return tryPostManifest(err.message || err);
-      throw err;
+      /* Mobile WebViews sometimes return a non-JSON redirect/login page for
+         a GET action without using the server's explicit "unsupported"
+         wording.  POST is the same endpoint but is much more reliable on
+         phones, so try it for every GET failure before giving up. */
+      return tryPostManifest(err.message || err).then(function (d) {
+        if (d && d.compatibilityFallback && !isUnsupportedSmartManifestError(err)) {
+          d.reason = text(err.message || err);
+        }
+        return d;
+      });
     });
   }
   function legacyPull(url, tool, onStatus) {
@@ -194,16 +202,20 @@
     function metaRequest(candidate) {
       var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate);
       return jsonFetch(getUrl).catch(function (err) {
-        /* Some deployed Web Apps accept legacy actions only through POST. */
-        if (!compatError(err)) throw err;
-        return post(url, { action:'pull', meta:1, tool:candidate });
+        /* Some deployed Web Apps and mobile WebViews accept legacy actions
+           only through POST.  Preserve the original error only if POST also
+           fails, so the caller still sees the useful server response. */
+        return post(url, { action:'pull', meta:1, tool:candidate }).catch(function (postErr) {
+          throw postErr || err;
+        });
       });
     }
     function chunkRequest(candidate, idx, meta) {
       var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '');
       return jsonFetch(getUrl).catch(function (err) {
-        if (!compatError(err)) throw err;
-        return post(url, { action:'pull', tool:candidate, chunk:idx, uploadId:meta.uploadId || '' });
+        return post(url, { action:'pull', tool:candidate, chunk:idx, uploadId:meta.uploadId || '' }).catch(function (postErr) {
+          throw postErr || err;
+        });
       });
     }
     function one(candidate) {
@@ -239,6 +251,27 @@
   }
   function post(url, body) {
     return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) }).then(dataOf);
+  }
+  function smartBucketRead(url, tool, bucket, index, expectedCount, onStatus) {
+    var endpoint = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(bucket);
+    var fallback = function (reason) {
+      callStatus(onStatus, '手機相容下載：改用 POST 分段 ' + (Number(index) + 1), 'warn');
+      return post(url, { action:'pull', tool:tool, chunk:Number(index) }).then(function (d) {
+        return dataOf(d) || {};
+      }).catch(function (postErr) {
+        throw postErr || reason;
+      });
+    };
+    return jsonFetch(endpoint).then(function (j) {
+      var d = dataOf(j) || {}, rows = Array.isArray(d.records) ? d.records : [];
+      /* A proxy can return a valid empty JSON shell while dropping the actual
+         body.  The manifest count lets us distinguish that from a real empty
+         bucket. */
+      if (Number(expectedCount) > 0 && !rows.length) return fallback(new Error('Empty smart bucket response'));
+      return d;
+    }).catch(function (err) {
+      return fallback(err);
+    });
   }
   function conflictConfirm(tool, buckets) {
     if (!buckets.length || typeof g.confirm !== 'function') return true;
@@ -449,7 +482,7 @@
             if (lb && bh && lb.hash !== bh && rh !== bh && lb.hash !== rh) conflictKeys.push(k);
             if (!rh) return;
             callStatus(status, '下載變更 ' + (idx + 1) + '/' + list.length + ' · ' + k, 'busy');
-            return jsonFetch(url + '?action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(k)).then(function (bj) {
+            return smartBucketRead(url, tool, k, idx, Number((remote.counts || {})[k]) || 0, status).then(function (bj) {
               var bd = dataOf(bj) || {}, rows = bd.records || [];
               remoteRows = remoteRows.concat(rows);
               downloaded += rows.length;
@@ -460,12 +493,29 @@
         return chain.then(function () {
           if (conflictKeys.length && !conflictConfirm(tool, conflictKeys)) return { ok:false, cancelled:true, conflicts:conflictKeys, records:localRows, meta:remote.meta || {} };
           var merged = sortRows(Object.keys(out).reduce(function (a, k) { return a.concat(out[k] || []); }, []));
-          if (opts.apply) return Promise.resolve(opts.apply(merged, remote.meta || {})).then(function () { return finishPull(); });
-          return finishPull();
-          function finishPull() {
+          /* Last-resort recovery for a phone/proxy that returned empty smart
+             buckets.  The POST legacy pull understands the same smart
+             manifest and reads the chunks by index, so this does not require
+             a new file format or any user action. */
+          var recover = Number(remote.recordCount) > 0 && !merged.length && !localRows.length
+            ? legacyPull(url, tool, status).then(function (legacy) {
+                var recovered = legacy.records || [];
+                if (recovered.length) {
+                  remoteRows = recovered;
+                  downloaded = recovered.length;
+                  return sortRows(recovered);
+                }
+                return merged;
+              }).catch(function () { return merged; })
+            : Promise.resolve(merged);
+          return recover.then(function (finalRows) {
+            if (opts.apply) return Promise.resolve(opts.apply(finalRows, remote.meta || {})).then(function () { return finishPull(finalRows); });
+            return finishPull(finalRows);
+          });
+          function finishPull(finalRows) {
             writeState(tool, { hashes:remoteH, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:now() });
             callStatus(status, '完成｜下載 ' + downloaded.toLocaleString() + '｜未變 ' + unchanged.toLocaleString() + (pending ? '｜本機待上傳 ' + pending : ''), conflictKeys.length ? 'warn' : 'ok');
-            return { ok:true, records:merged, remoteRecords:remoteRows, meta:remote.meta || {}, downloaded:downloaded, unchanged:unchanged, pendingUpload:pending, conflicts:conflictKeys };
+            return { ok:true, records:finalRows, remoteRecords:remoteRows, meta:remote.meta || {}, downloaded:downloaded, unchanged:unchanged, pendingUpload:pending, conflicts:conflictKeys };
           }
         });
       });
