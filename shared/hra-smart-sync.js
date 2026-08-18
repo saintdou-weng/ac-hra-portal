@@ -1,4 +1,4 @@
-/* AC HRA Portal Smart Sync v1.4
+/* AC HRA Portal Smart Sync v1.5
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,7 +12,7 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.4';
+  var VERSION = '1.5';
   var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
 
@@ -20,6 +20,13 @@
   function enc(v) { return encodeURIComponent(String(v == null ? '' : v)); }
   function text(v) { return String(v == null ? '' : v); }
   function callStatus(fn, value, type) { try { if (fn) fn(value, type || 'busy'); } catch (_) {} }
+  /* Mobile Chrome/WebViews and a few proxy layers cache the GET response from
+     an Apps Script Web App.  AC GASCheck always adds a cache-buster to its
+     cloud GETs; Portal must do the same or a phone can keep receiving the old
+     empty manifest/bucket while a desktop already sees the new data. */
+  function noCache(url) {
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + '_t=' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8);
+  }
 
   /* The four portal pages have used a few tool ids over their lifetime.  A
      phone may therefore be talking to a deployment that stores the same
@@ -138,7 +145,8 @@
   function writeState(tool, v) { try { localStorage.setItem(STATE_PREFIX + tool, JSON.stringify(v)); } catch (_) {} }
   function jsonFetch(url, opts) {
     if (!nativeFetch) return Promise.reject(new Error('Browser fetch unavailable'));
-    return nativeFetch(url, opts || {}).then(function (r) {
+    var request = Object.assign({ cache:'no-store' }, opts || {});
+    return nativeFetch(url, request).then(function (r) {
       return r.text().then(function (raw) {
         var j; try { j = JSON.parse(raw); } catch (_) { throw new Error('Cloud returned non-JSON: ' + raw.slice(0, 100)); }
         if (!r.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('HTTP ' + r.status));
@@ -253,7 +261,7 @@
     return out;
   }
   function getManifest(url, tool) {
-    var endpoint = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool);
+    var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool));
     function fallback(reason) {
       return { exists:false, legacy:true, compatibilityFallback:true,
         reason:text(reason || 'smartManifest unsupported') };
@@ -292,7 +300,7 @@
     var candidates = toolCandidates(tool);
     function compatError(err) { return isUnsupportedSmartError(err); }
     function metaRequest(candidate) {
-      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate) + (forceLegacy ? '&legacy=1' : '');
+      var getUrl = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate) + (forceLegacy ? '&legacy=1' : ''));
       return jsonFetch(getUrl).catch(function (err) {
         /* Some deployed Web Apps and mobile WebViews accept legacy actions
            only through POST.  Preserve the original error only if POST also
@@ -303,7 +311,7 @@
       });
     }
     function chunkRequest(candidate, idx, meta) {
-      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '') + (forceLegacy ? '&legacy=1' : '');
+      var getUrl = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '') + (forceLegacy ? '&legacy=1' : ''));
       return jsonFetch(getUrl).catch(function (err) {
         return post(url, { action:'pull', tool:candidate, chunk:idx, uploadId:meta.uploadId || '', legacy:!!forceLegacy }).catch(function (postErr) {
           throw postErr || err;
@@ -345,7 +353,7 @@
     return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) }).then(dataOf);
   }
   function smartBucketRead(url, tool, bucket, index, expectedCount, onStatus) {
-    var endpoint = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(bucket);
+    var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(bucket));
     var fallback = function (reason) {
       callStatus(onStatus, '手機相容下載：改用 POST 分段 ' + (Number(index) + 1), 'warn');
       return post(url, { action:'pull', tool:tool, chunk:Number(index) }).then(function (d) {
@@ -363,6 +371,91 @@
       return d;
     }).catch(function (err) {
       return fallback(err);
+    });
+  }
+
+  /* GASCHECK-compatible full pull.  This is deliberately POST-first: mobile
+     WebViews are more reliable with text/plain POST than with a redirected
+     Apps Script GET, and the GAS pull endpoint already knows how to expose
+     both legacy JSON and the current smart buckets by chunk index.  It is a
+     recovery path only; normal downloads still use manifest/bucket deltas. */
+  function directPull(url, tool, onStatus) {
+    var candidates = toolCandidates(tool);
+    function getMeta(candidate) {
+      return post(url, { action:'pull', tool:candidate, meta:1 }).catch(function (err) {
+        var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate));
+        return jsonFetch(endpoint).catch(function () { throw err; });
+      });
+    }
+    function getChunk(candidate, idx, meta) {
+      return post(url, { action:'pull', tool:candidate, chunk:Number(idx), uploadId:meta && meta.uploadId || '' }).catch(function (err) {
+        var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + Number(idx));
+        return jsonFetch(endpoint).catch(function () { throw err; });
+      });
+    }
+    function rowsFrom(value, candidate) {
+      var p = dataOf(value) || {};
+      if (Array.isArray(p)) return p;
+      return legacyRecordsFor(candidate, p);
+    }
+    function one(candidate) {
+      return getMeta(candidate).then(function (j) {
+        var env = dataOf(j) || {}, meta = env.meta || {}, total = Number(meta.totalChunks || env.totalChunks || 0), rows = [];
+        if ((env.chunked || total) && total > 0) {
+          var chain = Promise.resolve();
+          for (var i = 0; i < total; i++) (function (idx) {
+            chain = chain.then(function () {
+              callStatus(onStatus, '手機相容下載 ' + (idx + 1) + '/' + total, 'busy');
+              return getChunk(candidate, idx, meta).then(function (cj) {
+                rows = rows.concat(rowsFrom(cj, candidate));
+              });
+            });
+          })(i);
+          return chain.then(function () {
+            return { records:rows, meta:meta, tool:candidate, direct:true,
+              remoteRecordCount:Math.max(Number(meta.recordCount) || 0, rows.length) };
+          });
+        }
+        var payload = env.data !== undefined ? env.data : env;
+        rows = rowsFrom(payload, candidate);
+        return { records:Array.isArray(rows) ? rows : [], meta:payload || {}, tool:candidate, direct:true,
+          remoteRecordCount:Math.max(Number(payload && payload.recordCount) || 0, rows.length) };
+      });
+    }
+    function tryCandidate(idx, last) {
+      if (idx >= candidates.length) return Promise.reject(last || new Error('Direct cloud download failed'));
+      return one(candidates[idx]).catch(function (err) {
+        if (isUnsupportedSmartError(err) && idx + 1 < candidates.length) return tryCandidate(idx + 1, err);
+        throw err;
+      });
+    }
+    return tryCandidate(0, null);
+  }
+
+  function pullReliable(opts) {
+    opts = opts || {};
+    var tool = opts.tool, isRecoveryTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
+    function useDirect(base, reason) {
+      return directPull(text(opts.url).trim(), tool, opts.onStatus).then(function (direct) {
+        if (direct && (direct.records || []).length) {
+          callStatus(opts.onStatus, '完成｜手機相容完整下載並合併', 'warn');
+          return Object.assign({}, base || {}, direct, { ok:true, noCloud:false, directFallback:true, fallbackReason:text(reason || '') });
+        }
+        return base;
+      });
+    }
+    return pull(opts).then(function (base) {
+      if (!isRecoveryTool || !base || base.cancelled) return base;
+      var rows = Array.isArray(base.records) ? base.records.length : 0;
+      var remoteCount = Number(base.remoteRecordCount) || (Array.isArray(base.remoteRecords) ? base.remoteRecords.length : 0);
+      /* A one-row old snapshot can represent many people/fees.  Let the page
+         normalize it first, but use the direct path when the response is
+         plainly empty or much smaller than the server count. */
+      if (!rows || (remoteCount > 1 && remoteCount > rows)) return useDirect(base, 'empty-or-short-mobile-response');
+      return base;
+    }).catch(function (err) {
+      if (!isRecoveryTool) throw err;
+      return useDirect(null, err.message || err).then(function (r) { if (r) return r; throw err; }).catch(function () { throw err; });
     });
   }
   function conflictConfirm(tool, buckets) {
@@ -658,5 +751,6 @@
     });
   }
 
-  g.HRASmartSync = { version:VERSION, push:push, pull:pull, buildBuckets:buildBuckets, mergeRows:mergeRows, semanticKey:semanticKey, bucketKey:bucketKey, stable:stable };
+  g.HRASmartSync = { version:VERSION, push:push, pull:pull, pullReliable:pullReliable, pullDirect:directPull,
+    buildBuckets:buildBuckets, mergeRows:mergeRows, semanticKey:semanticKey, bucketKey:bucketKey, stable:stable };
 })(window);

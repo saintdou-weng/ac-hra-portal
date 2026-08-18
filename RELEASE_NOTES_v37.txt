@@ -1,0 +1,47 @@
+AC HRA Portal v37 — mobile download and Maternity health-fee repair
+====================================================================
+
+1. Mobile cloud download parity with AC GASCheck
+   - `shared/hra-smart-sync.js` now disables browser response caching and adds a
+     cache-buster to every cloud GET request.
+   - Welfare, Certificate/Visa, Manpower and Maternity use a reliable recovery
+     path when a phone receives an empty or incomplete smart bucket response.
+   - The recovery path uses POST `action=pull` first, reads the cloud metadata,
+     then downloads every server chunk and merges it without deleting local or
+     cloud-only records. It is compatible with both the current smart manifest
+     and the older JSON/snapshot storage.
+   - This follows the proven AC GASCheck pattern: POST/text response for the
+     actual data, with a no-cache GET fallback. No new workbook format or
+     manual export/import step is required.
+
+2. Maternity health-fee amount repair
+   - Old cloud rows are normalized from common aliases such as `healthFee`,
+     `healthCheckPay`, `medicalFee`, `fee`, `employeeId`, `department` and
+     `feeMonth` into the current `amount`, employee, department and month
+     fields.
+   - If a workbook filename is generic, the importer also detects the health
+     fee month from the sheet name and the first title rows.
+   - Health-fee records remain keyed by employee ID + health month and continue
+     to display in the daily/weekly/monthly/yearly Maternity views.
+
+Deployment
+----------
+
+- GitHub Pages: replace the Portal files with the complete v37 ZIP. The HTML
+  files reference `shared/hra-smart-sync.js?v=37`, so do not upload only one
+  page without the updated shared folder.
+- Apps Script: replace `ga_attendance_cloud.gs`, save, and deploy a new version
+  to the existing Web App URL. The existing GAS URL, Bot settings, webhook and
+  triggers can remain unchanged.
+- No one-click installation is required for this code-only update. Do not
+  clear local data or reformat Excel files. After deployment, press Download
+  once on the phone in Welfare, Certificate/Visa, Manpower and Maternity.
+
+Safety
+------
+
+- A shorter phone response cannot replace a longer cloud dataset.
+- If the cloud reports records but the phone still receives zero rows, the
+  page shows an error and does not upload the empty result.
+- HRA Pay v3.3 is not included in this Portal ZIP; it remains an independent
+  project as previously requested.
