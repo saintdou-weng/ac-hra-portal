@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=37"></script>
+<script src="shared/hra-smart-sync.js?v=38"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
@@ -72,7 +72,7 @@ tbody tr:hover{background:#f8fafc}
     <div class="leading-none">
         <p class="text-sm font-semibold text-slate-800" data-t="hdr_title">孕婦 · 產假 · 護理費 · 健檢費管理 Maternity</p>
       <p class="text-[10px] text-slate-400 mt-0.5">AC HRA Portal · Vantage River Textiles
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-pink-50 text-pink-600 jmono border border-pink-100">v3</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-pink-50 text-pink-600 jmono border border-pink-100">v3.1</span>
         <span id="cloud-stat" class="ml-1 text-slate-300 jmono"></span></p>
     </div>
     <div class="flex-1"></div>
@@ -523,7 +523,7 @@ tbody tr:hover{background:#f8fafc}
 <script>
 'use strict';
 /* ═══════════════════════════════════════════════════════════════
-   AC HRA Portal — 孕婦·產假·護理費·健檢費模組 (ac_hra_maternity_v1.html · v3 內容)
+   AC HRA Portal — 孕婦·產假·護理費·健檢費模組 (ac_hra_maternity_v1.html · v3.1 內容)
    硬性規則：① GAS POST text/plain ② 日期 local getters 禁 toISOString
    ③ XLSX cellDates:false,raw:true + 序號自算(getUTC*) ④ TG HTML+escapeHtml
    ⑤ inline onclick 掛 window ⑥ 每分頁獨立期間 state ⑦ fetch/render try-catch-finally
@@ -836,8 +836,32 @@ function healthPeriodOf(r){var v=firstValue(r,['period','payMonth','feeMonth','h
 function normalizeHealthRow(r){r=r||{};if(!r.type||r.type==='health')r.type='health_fee';if(!r.idNo)r.idNo=firstValue(r,['employeeId','empId','cardId','id','ID','ID No.','idNo']);if(!r.name)r.name=firstValue(r,['nameEn','nameKh','employeeName','Name']);if(!r.dept)r.dept=firstValue(r,['department','section','line','Dep.','Dept','Department']);var p=healthPeriodOf(r);if(p){r.period=p;r.payMonth=p;}r.amount=Math.round(healthAmountOf(r)*100)/100;return r;}
 function normalizeMedicalRow(r){r=r||{};if(!r.type||r.type==='medical')r.type='medical_purchase';if(r.amount===undefined||r.amount===null||r.amount==='')r.amount=N(firstValue(r,['totalAmount','total','medicalFee','fee','value']));return r;}
 function normalizeClinicRow(r){r=r||{};if(!r.type||r.type==='clinic')r.type=(r.visitCount!==undefined||r.medicalFee!==undefined||r.departmentCounts!==undefined)?'clinic_summary':'clinic_visit';if(r.type==='clinic_summary'){if(r.visitCount===undefined)r.visitCount=N(firstValue(r,['total','visits','count']));if(r.total===undefined)r.total=r.visitCount;if(r.medicalFee===undefined||r.medicalFee==='')r.medicalFee=N(firstValue(r,['fee','amount','totalFee']));}return r;}
-function ensureEmpKey(r){ if(!r.id)r.id='e_'+uid(); if(!r._k)r._k='E|'+(r.idNo||('x'+r.id)); if(!r.type)r.type=r.status||'pregnant'; return r; }
-function ensureNurKey(r){ if(!r.id)r.id='n_'+uid(); if(!r._k)r._k=(r.cardId||'x'+r.id)+'|'+(r.payMonth||'-'); return r; }
+function normalizeEmployeeRow(r){
+  r=r||{};
+  if(!r.idNo)r.idNo=firstValue(r,['employeeId','empId','factoryId','cardId','ID','ID No.']);
+  if(!r.name)r.name=firstValue(r,['employeeName','nameEn','nameKh','Name']);
+  if(!r.dept)r.dept=firstValue(r,['department','section','line','Dep.','Dept','Department']);
+  if(!r.leaveStart)r.leaveStart=firstValue(r,['maternityDate','dateMaternity','startDate','leaveDate']);
+  if(!r.returnDate)r.returnDate=firstValue(r,['returnToWork','return_to_work','endDate']);
+  var isPay=/maternity|matpay/i.test(String(r.type||r.status||r.source||''));
+  if(r.matAmount===undefined||r.matAmount===null||r.matAmount===''){
+    var mv=firstValue(r,['maternityAmount','maternityPay','maternityPayment','paymentAmount','paidAmount','payAmount']);
+    if((mv===''||mv===undefined)&&isPay)mv=firstValue(r,['amount','Amount','totalAmount','total']);
+    if(mv!==''&&mv!==undefined)r.matAmount=Math.round(N(mv)*100)/100;
+  }
+  return r;
+}
+function normalizeNursingRow(r){
+  r=r||{}; if(!r.type)r.type='nursing';
+  if(!r.cardId)r.cardId=firstValue(r,['employeeId','empId','idNo','ID','card','Card']);
+  if(!r.name)r.name=firstValue(r,['employeeName','nameEn','nameKh','Name']);
+  if(!r.dept)r.dept=firstValue(r,['department','section','line','Dep.','Dept','Department']);
+  if(!r.payMonth)r.payMonth=healthPeriodOf(r);
+  if(r.amount===undefined||r.amount===null||r.amount==='')r.amount=N(firstValue(r,['nursingFee','nursing_fee','feeAmount','payment','pay','Amount','fee']));
+  r.amount=Math.round(N(r.amount)*100)/100; return r;
+}
+function ensureEmpKey(r){ r=normalizeEmployeeRow(r); if(!r.id)r.id='e_'+uid(); if(!r._k)r._k='E|'+(r.idNo||('x'+r.id)); if(!r.type)r.type=r.status||'pregnant'; return r; }
+function ensureNurKey(r){ r=normalizeNursingRow(r); if(!r.id)r.id='n_'+uid(); if(!r._k)r._k=(r.cardId||'x'+r.id)+'|'+(r.payMonth||'-'); return r; }
 function ensureHealthKey(r){ r=normalizeHealthRow(r); if(!r.id)r.id='h_'+uid(); if(!r._k)r._k='HF|'+(r.idNo||r.empId||r.cardId||('x'+r.id))+'|'+(r.period||r.payMonth||'-'); return r; }
 function ensureMedicalKey(r){ r=normalizeMedicalRow(r); if(!r.id)r.id='m_'+uid(); if(!r._k)r._k='MED|'+(r.period||'-')+'|'+(r.item||r.name||'')+'|'+(r.productName||'')+'|'+(r.rowNo||r.id); return r; }
 function ensureClinicKey(r){ r=normalizeClinicRow(r); if(!r.id)r.id='c_'+uid(); if(!r._k)r._k='CLINIC|'+(r.type||'visit')+'|'+(r.period||r.date||'-')+'|'+(r.idNo||r.employeeId||r.name||r.rowNo||r.id); return r; }
@@ -1452,19 +1476,21 @@ function periodReportHTML(key){
     var preg=reg.filter(function(r){return r.status==='pregnant';}).length;
     var mat=reg.filter(function(r){return r.status==='maternity';}).length;
     var ret=EMP.filter(function(r){return r.returnDate&&r.returnDate.slice(0,k.length)===k;}).length;
+    var payRows=EMP.filter(function(r){var d=r.leaveStart||r.applyDate||r.registerTime||'';return d&&d.slice(0,k.length)===k&&(+r.matAmount||0)!==0;});
+    var payAmt=payRows.reduce(function(s,r){return s+(+r.matAmount||0);},0);
     var nrows=NUR.filter(function(r){return r.payMonth&&r.payMonth.slice(0,k.length)===(isYear?k:k);});
     var namt=nrows.reduce(function(s,r){return s+(+r.amount||0);},0);
     var hrows=HF.filter(function(r){return r.period&&r.period.slice(0,k.length)===(isYear?k:k);});
     var hamt=hrows.reduce(function(s,r){return s+(+r.amount||0);},0);
     var mrows=MED.filter(function(r){return r.period&&r.period.slice(0,k.length)===(isYear?k:k);});
     var mamt=mrows.reduce(function(s,r){return s+(+r.amount||0);},0);
-    return {k:k,reg:reg.length,preg:preg,mat:mat,ret:ret,nn:nrows.length,namt:namt,hn:hrows.length,hamt:hamt,mn:mrows.length,mamt:mamt};
+    return {k:k,reg:reg.length,preg:preg,mat:mat,ret:ret,payn:payRows.length,payamt:payAmt,nn:nrows.length,namt:namt,hn:hrows.length,hamt:hamt,mn:mrows.length,mamt:mamt};
   });
   var mode=isYear?'year':'month';
   var h='<div class="tbl-wrap" style="max-height:300px"><table><thead><tr>'+
     '<th>'+L('期間','Period')+'</th><th class="text-right">'+L('名冊登記','Registry')+'</th>'+
     '<th class="text-right">'+L('孕婦','Pregnant')+'</th><th class="text-right">'+L('產假','Maternity')+'</th>'+
-    '<th class="text-right">'+L('回歸','Return')+'</th><th class="text-right">'+L('護理費筆數','Nursing #')+'</th>'+
+    '<th class="text-right">'+L('回歸','Return')+'</th><th class="text-right">'+L('產假給付筆數','Maternity Pay #')+'</th><th class="text-right">'+L('產假給付金額','Maternity Pay $')+'</th><th class="text-right">'+L('護理費筆數','Nursing #')+'</th>'+
     '<th class="text-right">'+L('護理費金額','Fee $')+'</th><th class="text-right">'+L('健檢費筆數','Health #')+'</th><th class="text-right">'+L('健檢費金額','Health $')+'</th><th class="text-right">'+L('醫療採購筆數','Medical #')+'</th><th class="text-right">'+L('醫療採購金額','Medical $')+'</th></tr></thead><tbody>';
   rows.forEach(function(r){
     var on=r.k===cur;
@@ -1474,6 +1500,8 @@ function periodReportHTML(key){
       '<td class="text-right jmono text-pink-600">'+fmt0(r.preg)+'</td>'+
       '<td class="text-right jmono text-violet-600">'+fmt0(r.mat)+'</td>'+
       '<td class="text-right jmono text-emerald-600">'+fmt0(r.ret)+'</td>'+ 
+      '<td class="text-right jmono text-fuchsia-600">'+fmt0(r.payn)+'</td>'+ 
+      '<td class="text-right jmono">$'+fmt(r.payamt)+'</td>'+ 
       '<td class="text-right jmono text-sky-600">'+fmt0(r.nn)+'</td>'+ 
       '<td class="text-right jmono">$'+fmt(r.namt)+'</td>'+ 
       '<td class="text-right jmono text-amber-600">'+fmt0(r.hn)+'</td>'+ 
@@ -1996,17 +2024,19 @@ function maternitySnapshotRows(payload){
       var x=Object.assign({},r||{});
       if(!x.type&&type)x.type=type;
       if(x.type==='health_fee'||x.type==='health')x=normalizeHealthRow(x);
+      else if(x.type==='nursing')x=normalizeNursingRow(x);
       else if(x.type==='medical_purchase'||x.type==='medical')x=normalizeMedicalRow(x);
       else if(String(x.type||'').indexOf('clinic_')===0||x.type==='clinic')x=normalizeClinicRow(x);
+      else x=normalizeEmployeeRow(x);
       out.push(x);
     });
   }
   add(p.employees,'pregnant');
   add(p.pregnant,'pregnant');
   add(p.maternity,'pregnant');
-  add(p.nursing||p.nursingFees,'nursing');
-  add(p.healthFees||p.healthFee||p.healthFeeRecords,'health_fee');
-  add(p.medicalPurchase||p.medicalPurchases||p.medical||p.medicalRecords,'medical_purchase');
+  add(p.nursing||p.nursingFees||p.nursingFee||p.nursingRecords||p.nurFees,'nursing');
+  add(p.healthFees||p.healthFee||p.healthFeeRecords||p.healthCheckFees||p.healthCheckPay||p.healthRecords,'health_fee');
+  add(p.medicalPurchase||p.medicalPurchases||p.medical||p.medicalRecords||p.medicinePurchases||p.purchaseOrders,'medical_purchase');
     if(Array.isArray(p.clinic)||Array.isArray(p.clinics)||Array.isArray(p.clinicRecords)){
     (p.clinic||p.clinics||p.clinicRecords).forEach(function(r){
       var x=Object.assign({},r||{});
@@ -2030,9 +2060,11 @@ function normalizeMaternityCloudRows(records){
       return;
     }
     var rt=String(r.type||'').toLowerCase();
-    if(rt==='health_fee'||rt==='health')r=normalizeHealthRow(Object.assign({},r));
+    if(rt==='health_fee'||rt==='health'||r.healthCheckPay!==undefined||r.health_check_pay!==undefined)r=normalizeHealthRow(Object.assign({},r));
+    else if(rt==='nursing'||r.nursingFee!==undefined||r.nursing_fee!==undefined)r=normalizeNursingRow(Object.assign({},r));
     else if(rt==='medical_purchase'||rt==='medical')r=normalizeMedicalRow(Object.assign({},r));
     else if(rt.indexOf('clinic_')===0||rt==='clinic')r=normalizeClinicRow(Object.assign({},r));
+    else r=normalizeEmployeeRow(Object.assign({},r));
     out.push(r);
   });
   return out;
@@ -2053,8 +2085,8 @@ function cloudDownload(){
       var t=(r.type||'').toLowerCase();
       if(t.indexOf('clinic_')===0||t==='clinic'||r.clinicPassNo!==undefined||r.visitDate!==undefined||r.departmentCounts!==undefined){ clinic.push(r); }
       else if(t==='medical_purchase'||t==='medical'||r.medicalPurchase!==undefined||r.quantity!==undefined&&r.unitPrice!==undefined&&r.item!==undefined){ med.push(r); }
-      else if(t==='health_fee'||t==='health'||r.healthFee!==undefined){ hf.push(r); }
-      else if(t==='nursing'||r.cardId){ nur.push(r); }
+      else if(t==='health_fee'||t==='health'||r.healthFee!==undefined||r.healthCheckPay!==undefined||r.health_check_pay!==undefined){ hf.push(normalizeHealthRow(r)); }
+      else if(t==='nursing'||r.cardId||r.nursingFee!==undefined||r.nursing_fee!==undefined){ nur.push(normalizeNursingRow(r)); }
       else if(t==='salary'){ sal.push(r); }
       else { emp.push(r); }
     });

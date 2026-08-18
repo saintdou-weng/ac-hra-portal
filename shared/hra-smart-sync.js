@@ -1,4 +1,4 @@
-/* AC HRA Portal Smart Sync v1.5
+/* AC HRA Portal Smart Sync v1.6
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,8 +12,9 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.5';
+  var VERSION = '1.6';
   var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
+  var FULL_CACHE_DB = 'AC_HRA_FullCloudCache_v1', FULL_CACHE_STORE = 'snapshots';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
 
   function now() { return new Date().toISOString(); }
@@ -143,6 +144,37 @@
     try { return JSON.parse(localStorage.getItem(STATE_PREFIX + tool) || 'null'); } catch (_) { return null; }
   }
   function writeState(tool, v) { try { localStorage.setItem(STATE_PREFIX + tool, JSON.stringify(v)); } catch (_) {} }
+  /* Sewing keeps the complete downloaded dataset in IndexedDB.  Do the same
+     for the four snapshot portals: mobile localStorage is too small for
+     photos/rosters and a WebView may be destroyed between two chunk reads. */
+  function openFullCache() {
+    return new Promise(function (resolve, reject) {
+      if (!g.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      var q = indexedDB.open(FULL_CACHE_DB, 1);
+      q.onupgradeneeded = function () { if (!q.result.objectStoreNames.contains(FULL_CACHE_STORE)) q.result.createObjectStore(FULL_CACHE_STORE); };
+      q.onsuccess = function () { resolve(q.result); };
+      q.onerror = function () { reject(q.error || new Error('IndexedDB open failed')); };
+    });
+  }
+  function fullCachePut(tool, value) {
+    return openFullCache().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var tx = db.transaction(FULL_CACHE_STORE, 'readwrite');
+        tx.objectStore(FULL_CACHE_STORE).put(value, canonicalTool(tool));
+        tx.oncomplete = function () { db.close(); resolve(value); };
+        tx.onerror = function () { db.close(); reject(tx.error || new Error('IndexedDB save failed')); };
+      });
+    }).catch(function () { return value; });
+  }
+  function fullCacheGet(tool) {
+    return openFullCache().then(function (db) {
+      return new Promise(function (resolve, reject) {
+        var q = db.transaction(FULL_CACHE_STORE, 'readonly').objectStore(FULL_CACHE_STORE).get(canonicalTool(tool));
+        q.onsuccess = function () { db.close(); resolve(q.result || null); };
+        q.onerror = function () { db.close(); reject(q.error || new Error('IndexedDB read failed')); };
+      });
+    }).catch(function () { return null; });
+  }
   function jsonFetch(url, opts) {
     if (!nativeFetch) return Promise.reject(new Error('Browser fetch unavailable'));
     var request = Object.assign({ cache:'no-store' }, opts || {});
@@ -225,10 +257,10 @@
         /* The first Maternity versions saved one complete state object
            instead of a flat records[] list.  Give every recovered section a
            stable type so the page can restore amounts and headcounts. */
-        var mt = section === 'employees' ? (x.type || x.status || 'pregnant')
-          : section === 'nursing' ? 'nursing'
-          : section === 'healthFees' || section === 'health_fee' ? 'health_fee'
-          : section === 'medicalPurchase' || section === 'medicalPurchases' ? 'medical_purchase'
+        var mt = section === 'employees' || section === 'pregnant' || section === 'maternity' ? (x.type || x.status || (section === 'maternity' ? 'maternity' : 'pregnant'))
+          : ['nursing','nursingFees','nursingFee','nursingRecords','nurFees'].indexOf(section) >= 0 ? 'nursing'
+          : ['healthFees','healthFee','healthFeeRecords','healthCheckFees','healthCheckPay','healthRecords','health_fee'].indexOf(section) >= 0 ? 'health_fee'
+          : ['medicalPurchase','medicalPurchases','medical','medicalRecords','medicinePurchases','purchaseOrders'].indexOf(section) >= 0 ? 'medical_purchase'
           : section === 'clinic' || section === 'clinics' || section === 'clinicRecords'
             ? (x.type || (x.visitCount !== undefined || x.medicalFee !== undefined || x.departmentCounts !== undefined ? 'clinic_summary' : 'clinic_visit'))
           : section === 'salaryRecords' || section === 'salary' ? 'salary'
@@ -242,23 +274,53 @@
     var p = payload || {};
     if (p.data && typeof p.data === 'object' && !Array.isArray(p.data) && !Array.isArray(p.records)) p = p.data;
     var direct = p.records || (p.idbStore && p.idbStore.records) || (p.idbData && (p.idbData.records || p.idbData.po_lines));
-    if (Array.isArray(direct) && direct.length) return direct;
     var c = canonicalTool(tool), out = [], sections;
     if (c === 'welfare') sections = ['members','movements','unionDues','suggestions','summaries','imports'];
     else if (c === 'certificate_visa') sections = ['certificates','people','requests','imports'];
     else if (c === 'manpower') sections = ['reqs','recruit','plans','candidates','joins','resigns','daily'];
-    else if (c === 'maternity') sections = ['employees','nursing','healthFees','health_fee','medicalPurchase','medicalPurchases','clinic','clinics','clinicRecords','salaryRecords','salary'];
+    else if (c === 'maternity') sections = ['employees','pregnant','maternity','nursing','nursingFees','nursingFee','nursingRecords','nurFees','healthFees','healthFee','healthFeeRecords','healthCheckFees','healthCheckPay','healthRecords','health_fee','medicalPurchase','medicalPurchases','medical','medicalRecords','medicinePurchases','purchaseOrders','clinic','clinics','clinicRecords','salaryRecords','salary'];
     else return Array.isArray(direct) ? direct : [];
+    /* Some legacy snapshots contain both records[] (usually the registry)
+       and named fee/roster arrays.  Returning records[] immediately discards
+       all amounts.  Preserve the flat rows and append every named section. */
+    if (Array.isArray(direct)) out = direct.slice();
     sections.forEach(function (section) { out = out.concat(legacyWrapRows(tool, section, p[section])); });
     if ((c === 'welfare' || c === 'certificate_visa') && p.settings && typeof p.settings === 'object') {
       out.push({ _hraSection:'settings', _k:c + '|settings', payload:p.settings });
     }
-    /* Some exports wrap the old state in payload/state instead of data. */
-    if (!out.length) {
-      var nested = p.payload || p.state;
-      if (nested && typeof nested === 'object' && nested !== p) return legacyRecordsFor(tool, nested);
+    if (c === 'maternity' && p.lsKeys && typeof p.lsKeys === 'object') {
+      function parsedKey(k, fallback) { try { var v = p.lsKeys[k]; return typeof v === 'string' ? JSON.parse(v) : (v || fallback); } catch (_) { return fallback; } }
+      var matState = parsedKey('vrt_maternity_v1', {});
+      out = out.concat(legacyWrapRows(tool, 'employees', matState.employees));
+      out = out.concat(legacyWrapRows(tool, 'salaryRecords', matState.salaryRecords));
+      out = out.concat(legacyWrapRows(tool, 'nursing', parsedKey('vrt_nursing_fees_v2', [])));
+      out = out.concat(legacyWrapRows(tool, 'healthFees', parsedKey('vrt_health_fees_v1', [])));
+      out = out.concat(legacyWrapRows(tool, 'medicalPurchase', parsedKey('ac_hra_maternity_medical_purchase_v1', [])));
+      out = out.concat(legacyWrapRows(tool, 'clinic', parsedKey('ac_hra_maternity_clinic_v1', [])));
     }
-    return out;
+    /* Some exports wrap the old state in payload/state instead of data.  A
+       wrapper may coexist with records[], so append it instead of consulting
+       it only when the outer shell is empty. */
+    var nested = p.payload || p.state;
+    if (nested && typeof nested === 'object' && nested !== p) out = out.concat(legacyRecordsFor(tool, nested));
+    if (c === 'maternity') {
+      var mm = {}, mo = [];
+      out.forEach(function (r, index) {
+        r = r || {};
+        var t = text(r.type || r.status || '').toLowerCase(), id = text(r.employeeId || r.empId || r.idNo || r.cardId || r.factoryId || ''),
+          period = text(r.period || r.payMonth || r.month || r.date || r.leaveStart || r.applyDate || ''), key;
+        if (t === 'health_fee' || t === 'health') key = 'HF|' + (id || r.name || index) + '|' + period.slice(0, 7);
+        else if (t === 'nursing') key = 'N|' + (id || r.name || index) + '|' + period.slice(0, 7);
+        else if (t === 'medical_purchase' || t === 'medical') key = 'MED|' + period.slice(0, 7) + '|' + text(r.item || r.productName || r.name || r.rowNo || index);
+        else if (t.indexOf('clinic') === 0) key = 'CLINIC|' + t + '|' + period + '|' + (id || r.name || r.diagnosis || r.rowNo || index);
+        else if (t === 'salary') key = 'SAL|' + (id || r.name || index) + '|' + period.slice(0, 7);
+        else key = 'E|' + (id || r.name || r.id || index);
+        if (!mm[key]) { mm[key] = Object.assign({}, r); mo.push(key); }
+        else Object.keys(r).forEach(function (k) { if (r[k] !== undefined && r[k] !== null && r[k] !== '') mm[key][k] = r[k]; });
+      });
+      return mo.map(function (k) { return mm[k]; });
+    }
+    return mergeRows([], out);
   }
   function getManifest(url, tool) {
     var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool));
@@ -389,7 +451,7 @@
     }
     function getChunk(candidate, idx, meta) {
       return post(url, { action:'pull', tool:candidate, chunk:Number(idx), uploadId:meta && meta.uploadId || '' }).catch(function (err) {
-        var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + Number(idx));
+        var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + Number(idx) + (meta && meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : ''));
         return jsonFetch(endpoint).catch(function () { throw err; });
       });
     }
@@ -422,14 +484,33 @@
           remoteRecordCount:Math.max(Number(payload && payload.recordCount) || 0, rows.length) };
       });
     }
-    function tryCandidate(idx, last) {
-      if (idx >= candidates.length) return Promise.reject(last || new Error('Direct cloud download failed'));
-      return one(candidates[idx]).catch(function (err) {
-        if (isUnsupportedSmartError(err) && idx + 1 < candidates.length) return tryCandidate(idx + 1, err);
-        throw err;
+    /* Never stop at the first syntactically valid empty response.  Older GAS
+       deployments did not canonicalise tool ids, so for example `welfare`
+       can be empty while `welfare_suggestion` contains the real dataset.
+       Read every compatible id, merge the non-empty results and keep the
+       largest server count.  This is the main desktop-vs-phone zero-row fix. */
+    var found = [], errors = [], chain = Promise.resolve();
+    candidates.forEach(function (candidate, idx) {
+      chain = chain.then(function () {
+        callStatus(onStatus, '完整下載來源 ' + (idx + 1) + '/' + candidates.length + ' · ' + candidate, 'busy');
+        return one(candidate).then(function (r) { found.push(r); }).catch(function (err) { errors.push(err); });
       });
-    }
-    return tryCandidate(0, null);
+    });
+    return chain.then(function () {
+      var useful = found.filter(function (r) { return (r.records || []).length || Number(r.remoteRecordCount) > 0; });
+      if (!useful.length) {
+        if (!found.length && errors.length) throw errors[errors.length - 1];
+        return found[0] || { records:[], meta:{}, tool:canonicalTool(tool), direct:true, remoteRecordCount:0 };
+      }
+      var rows = [], best = useful[0];
+      useful.forEach(function (r) {
+        rows = mergeRows(rows, r.records || []);
+        if (Number(r.remoteRecordCount) > Number(best.remoteRecordCount)) best = r;
+      });
+      return Object.assign({}, best, { records:sortRows(rows), direct:true,
+        sourceTools:useful.map(function (r) { return r.tool; }),
+        remoteRecordCount:Math.max.apply(Math, useful.map(function (r) { return Number(r.remoteRecordCount) || (r.records || []).length; }).concat([rows.length])) });
+    });
   }
 
   function pullReliable(opts) {
@@ -442,6 +523,41 @@
           return Object.assign({}, base || {}, direct, { ok:true, noCloud:false, directFallback:true, fallbackReason:text(reason || '') });
         }
         return base;
+      });
+    }
+    /* Manual download for the affected portals follows Sewing's complete
+       pull first, then writes one atomic IndexedDB snapshot.  Smart pull is
+       still retained as the fallback and for normal incremental uploads. */
+    if (isRecoveryTool) {
+      return directPull(text(opts.url).trim(), tool, opts.onStatus).then(function (direct) {
+        var remoteRows = direct && Array.isArray(direct.records) ? direct.records : [];
+        if (!remoteRows.length && !Number(direct && direct.remoteRecordCount)) {
+          return fullCacheGet(tool).then(function (cached) {
+            if (cached && Array.isArray(cached.records) && cached.records.length) {
+              callStatus(opts.onStatus, '雲端暫時為空，使用上次完整下載快取', 'warn');
+              return Object.assign({}, direct, { ok:true, noCloud:false, records:cached.records,
+                remoteRecords:cached.records, meta:cached.meta || {}, downloaded:0, cached:true,
+                remoteRecordCount:cached.records.length });
+            }
+            return pull(opts);
+          });
+        }
+        return fullCachePut(tool, { records:remoteRows, meta:direct.meta || {}, sourceTools:direct.sourceTools || [direct.tool], savedAt:now() }).then(function () {
+          callStatus(opts.onStatus, '完成｜完整下載 ' + remoteRows.length.toLocaleString() + ' 筆並保存', 'ok');
+          return Object.assign({}, direct, { ok:true, noCloud:false, remoteRecords:remoteRows,
+            downloaded:remoteRows.length, remoteRecordCount:Math.max(Number(direct.remoteRecordCount) || 0, remoteRows.length) });
+        });
+      }).catch(function (directErr) {
+        return pull(opts).catch(function () {
+          return fullCacheGet(tool).then(function (cached) {
+            if (cached && Array.isArray(cached.records) && cached.records.length) {
+              callStatus(opts.onStatus, '網路下載失敗，使用上次完整下載快取', 'warn');
+              return { ok:true, noCloud:false, records:cached.records, remoteRecords:cached.records,
+                meta:cached.meta || {}, downloaded:0, cached:true, remoteRecordCount:cached.records.length };
+            }
+            throw directErr;
+          });
+        });
       });
     }
     return pull(opts).then(function (base) {
@@ -752,5 +868,6 @@
   }
 
   g.HRASmartSync = { version:VERSION, push:push, pull:pull, pullReliable:pullReliable, pullDirect:directPull,
+    fullCacheGet:fullCacheGet, fullCachePut:fullCachePut,
     buildBuckets:buildBuckets, mergeRows:mergeRows, semanticKey:semanticKey, bucketKey:bucketKey, stable:stable };
 })(window);
