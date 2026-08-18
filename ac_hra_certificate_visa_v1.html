@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=35"></script>
+<script src="shared/hra-smart-sync.js?v=36"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -1070,8 +1070,11 @@ async function cloudPull(){
     const res=await HRASmartSync.pull({url:url,tool:TOOL_ID,localRecords:certSmartRows(STATE),mergeRecords:certSmartMergeRows,
       onStatus:s=>showLoading((LANG==='en'?'Downloading… ':'下載中… ')+s)});
     if(res&&res.cancelled)return;if(!res||res.noCloud)throw new Error('No Certificate & Visa cloud data');
-    const incoming=certRowsToState(res.records||[]),cloudUpdatedAt=res.meta?.updatedAt||new Date().toISOString();
-    if((res.remoteRecords||[]).length&&(STATE.certificates.length||STATE.people.length)&&!confirm(`雲端有 ${(res.remoteRecords||[]).length} 筆變更；本機資料會保留並合併。確定下載？`))return;
+    const incoming=certRowsToState(res.records||[]),remote=res.remoteRecords||[],remoteCount=Number(res.remoteRecordCount)||remote.length,cloudUpdatedAt=res.meta?.updatedAt||new Date().toISOString();
+    const incomingData=incoming.certificates.length+incoming.people.length+incoming.requests.length+incoming.imports.length;
+    const localData=STATE.certificates.length+STATE.people.length+STATE.requests.length+STATE.imports.length;
+    if(remoteCount>0&&!incomingData&&!localData&&(remoteCount>1||remote.length>1))throw new Error(`雲端回報 ${remoteCount} 筆，但手機實際讀入 0 筆；請勿重新上傳空資料。 Cloud reports ${remoteCount} rows, but this phone received 0 rows; do not upload the empty data.`);
+    if(remote.length&&(STATE.certificates.length||STATE.people.length)&&!confirm(`雲端有 ${remote.length} 筆變更；本機資料會保留並合併。確定下載？`))return;
     STATE=mergeCertificateState(STATE,incoming);STATE.settings.lastCloudUpdatedAt=cloudUpdatedAt;await persist();HRACloudGuard.markState('certificate_state',STATE);renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }

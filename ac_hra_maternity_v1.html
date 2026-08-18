@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=35"></script>
+<script src="shared/hra-smart-sync.js?v=36"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
@@ -1961,13 +1961,66 @@ function cloudUpload(options){
   }).catch(function(e){ toast(L('上傳失敗','Upload failed')+'：'+e.message,'error'); setTxt('cloud-stat', '☁✖'); })
     .then(function(){ if(btn)btn.disabled=false; });
 }
+/* Older cloud files stored the whole Maternity state as one snapshot
+   ({employees, nursing, healthFees, medicalPurchase, clinic, salaryRecords})
+   instead of the newer flat records[] format.  Expand that state before the
+   normal type split; otherwise a valid download can display zero fees and
+   zero people even though the Drive file contains them. */
+function maternitySnapshotRows(payload){
+  var p=payload||{};
+  if(p.data&&typeof p.data==='object'&&!Array.isArray(p.data))p=p.data;
+  if(p.payload&&typeof p.payload==='object'&&!Array.isArray(p.payload))p=p.payload;
+  if(Array.isArray(p.records)&&p.records.length)return p.records.slice();
+  var out=[];
+  function add(values,type){
+    if(!Array.isArray(values))return;
+    values.forEach(function(r){
+      var x=Object.assign({},r||{});
+      if(!x.type&&type)x.type=type;
+      out.push(x);
+    });
+  }
+  add(p.employees,'pregnant');
+  add(p.pregnant,'pregnant');
+  add(p.maternity,'pregnant');
+  add(p.nursing||p.nursingFees,'nursing');
+  add(p.healthFees||p.healthFee||p.healthFeeRecords,'health_fee');
+  add(p.medicalPurchase||p.medicalPurchases||p.medical||p.medicalRecords,'medical_purchase');
+  if(Array.isArray(p.clinic)||Array.isArray(p.clinics)||Array.isArray(p.clinicRecords)){
+    (p.clinic||p.clinics||p.clinicRecords).forEach(function(r){
+      var x=Object.assign({},r||{});
+      if(!x.type)x.type=(x.visitCount!==undefined||x.medicalFee!==undefined||x.departmentCounts!==undefined)?'clinic_summary':'clinic_visit';
+      out.push(x);
+    });
+  }
+  add(p.salaryRecords||p.salary,'salary');
+  return out;
+}
+function normalizeMaternityCloudRows(records){
+  var out=[];
+  (Array.isArray(records)?records:[]).forEach(function(r){
+    if(!r||typeof r!=='object')return;
+    var isSnapshot=r.kind==='snapshot'||r.kind==='calendarSnapshot';
+    var hasState=!r.type&&(r.employees||r.pregnant||r.maternity||r.nursing||r.healthFees||r.medicalPurchase||r.clinic||r.salaryRecords);
+    if(isSnapshot||hasState){
+      var expanded=maternitySnapshotRows(isSnapshot?r.payload:r);
+      if(expanded.length)out.push.apply(out,expanded);
+      return;
+    }
+    out.push(r);
+  });
+  return out;
+}
 function cloudDownload(){
   var btn=el('btn-cloud-down'); if(btn)btn.disabled=true;
   setTxt('cloud-stat', '☁↓…');
   HRASmartSync.pull({url:gasUrl(),tool:'maternity',localRecords:flatRecords(),onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(res){
     if(res&&res.cancelled){setTxt('cloud-stat','☁↩');return;}
     if(!res||res.noCloud){toast(L('雲端沒有資料','No cloud data'),'warn');setTxt('cloud-stat','☁∅');return;}
-    var recs=res.records||[],remote=res.remoteRecords||[];
+    var recs=normalizeMaternityCloudRows(res.records||[]),remote=res.remoteRecords||[];
+    var localCount=EMP.length+NUR.length+HF.length+MED.length+CLINIC.length+SAL.length;
+    var remoteCount=Number(res.remoteRecordCount)||remote.length;
+    if(remoteCount>0&&!recs.length&&!localCount)throw new Error(L('雲端回報有資料，但手機實際讀入 0 筆，請勿重新上傳空資料','Cloud reports data, but this phone received 0 rows. Do not upload the empty data'));
     if(remote.length&&(EMP.length||NUR.length||HF.length||MED.length||CLINIC.length||SAL.length) && !confirm(L('雲端有新增或變更資料，合併載入本機？','Cloud has new or changed data. Merge it into this device?'))){setTxt('cloud-stat','☁↩');return;}
     var emp=[],nur=[],hf=[],med=[],clinic=[],sal=[];
     recs.forEach(function(r){

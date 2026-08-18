@@ -1,4 +1,4 @@
-/* AC HRA Portal Smart Sync v1.2
+/* AC HRA Portal Smart Sync v1.4
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,7 +12,7 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.2';
+  var VERSION = '1.4';
   var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
 
@@ -160,6 +160,98 @@
       /unknown\s+(tool|portal)\b/i.test(s) || /tool\s+(id\s+)?not\s+found/i.test(s);
   }
   function isUnsupportedSmartManifestError(err) { return isUnsupportedSmartError(err); }
+  /* Older HRA pages did not all save a flat records[] array.  Welfare and
+     Certificate saved section arrays, while early Manpower saved reqs/recruit
+     plus joins/resigns.  Normalize those shapes before the compatibility
+     migration; otherwise a first phone download can see zero rows and then
+     accidentally create an empty smart manifest over the old snapshot. */
+  function legacyArray(v) { return Array.isArray(v) ? v : []; }
+  function legacyNorm(v) { return text(v).trim().toUpperCase().replace(/[\s_\-–—\/]+/g, ''); }
+  function legacyRowKey(tool, section, row, index) {
+    row = row || {};
+    var c = canonicalTool(tool), eid = text(row.employeeId || row.empId || row.idNo || ''), date = text(row.date || row.period || row.joinDate || row.resignDate || row.expiryDate || row.dueDate || '');
+    if (c === 'welfare') {
+      var wk = '';
+      if (section === 'members' || section === 'unionDues') wk = [row.period || '', eid || row.id || row.name || ''].join('|');
+      else if (section === 'movements') wk = [row.action || '', row.date || '', eid || row.name || ''].join('|');
+      else if (section === 'suggestions') wk = row.sourceKey || [row.date || row.period || '', row.number || '', row.department || '', row.grievance || '', row.id || ''].join('|');
+      else if (section === 'summaries') wk = String(row.period || row.id || '');
+      else wk = String(row.id || row.file || row.sourceFile || stable(row));
+      return 'welfare|' + section + '|' + wk;
+    }
+    if (c === 'certificate_visa') {
+      var s = legacyNorm;
+      if (section === 'certificates') return ['certificate', s(row.category || ''), s(row.name || '')].join('|');
+      if (section === 'people') {
+        var pass = s(row.passport), name = s(row.nameEn || row.nameKh || row.nickname || row.name), dob = s(row.dob);
+        return ['person', s(eid) || pass || (name + '|' + dob)].join('|');
+      }
+      if (section === 'requests') {
+        var items = legacyArray(row.items).map(function (i) { return s(i && (i.id || i.employeeId || i.passport || i.name || i.title)); }).sort().join(',');
+        return ['request', s(row.number) || (s(row.title) + '|' + s(row.type) + '|' + s(row.dueDate) + '|' + items)].join('|');
+      }
+      if (section === 'imports') return ['import', s(row.file || row.sourceFile || row.summary || row.id)].join('|');
+      return ['certificate_visa', section, s(row.id || row.number || row.name || stable(row))].join('|');
+    }
+    if (c === 'manpower') {
+      var mpKind = section === 'reqs' || section === 'plans' ? 'plan' : section === 'recruit' || section === 'candidates' ? 'candidate' : section === 'joins' ? 'join' : section === 'resigns' ? 'resign' : section === 'daily' ? 'daily' : '';
+      if (mpKind === 'plan') return row._k || ['P', date.slice(0, 7), row.dept || '', row.section || '', row.position || row.title || ''].join('|');
+      if (mpKind === 'candidate') return row._k || ['C', date.slice(0, 10), row.name || '', row.phone || row.empId || index].join('|');
+      if (mpKind === 'join') return row._k || ['J', eid || row.name || index, date.slice(0, 10)].join('|');
+      if (mpKind === 'resign') return row._k || ['R', eid || row.name || index, date.slice(0, 10)].join('|');
+      return row._k || [c, section, eid || row.id || row.name || index, date].join('|');
+    }
+    return row._k || [c, section, eid || row.id || row.number || row.name || index, date].join('|');
+  }
+  function legacyWrapRows(tool, section, values) {
+    return legacyArray(values).map(function (row, index) {
+      var x = Object.assign({}, row || {}), c = canonicalTool(tool);
+      if (!x._k) x._k = legacyRowKey(tool, section, x, index);
+      if (c === 'welfare') x._hraSection = section;
+      if (c === 'certificate_visa') x._hraSection = section;
+      if (c === 'manpower') {
+        var k = section === 'reqs' || section === 'plans' ? 'plan' : section === 'recruit' || section === 'candidates' ? 'candidate' : section === 'joins' ? 'join' : section === 'resigns' ? 'resign' : section === 'daily' ? 'daily' : '';
+        if (k) x._kind = x._kind || k;
+      }
+      if (c === 'maternity') {
+        /* The first Maternity versions saved one complete state object
+           instead of a flat records[] list.  Give every recovered section a
+           stable type so the page can restore amounts and headcounts. */
+        var mt = section === 'employees' ? (x.type || x.status || 'pregnant')
+          : section === 'nursing' ? 'nursing'
+          : section === 'healthFees' || section === 'health_fee' ? 'health_fee'
+          : section === 'medicalPurchase' || section === 'medicalPurchases' ? 'medical_purchase'
+          : section === 'clinic' || section === 'clinics' || section === 'clinicRecords'
+            ? (x.type || (x.visitCount !== undefined || x.medicalFee !== undefined || x.departmentCounts !== undefined ? 'clinic_summary' : 'clinic_visit'))
+          : section === 'salaryRecords' || section === 'salary' ? 'salary'
+          : x.type || '';
+        if (mt) x.type = mt;
+      }
+      return x;
+    });
+  }
+  function legacyRecordsFor(tool, payload) {
+    var p = payload || {};
+    if (p.data && typeof p.data === 'object' && !Array.isArray(p.data) && !Array.isArray(p.records)) p = p.data;
+    var direct = p.records || (p.idbStore && p.idbStore.records) || (p.idbData && (p.idbData.records || p.idbData.po_lines));
+    if (Array.isArray(direct) && direct.length) return direct;
+    var c = canonicalTool(tool), out = [], sections;
+    if (c === 'welfare') sections = ['members','movements','unionDues','suggestions','summaries','imports'];
+    else if (c === 'certificate_visa') sections = ['certificates','people','requests','imports'];
+    else if (c === 'manpower') sections = ['reqs','recruit','plans','candidates','joins','resigns','daily'];
+    else if (c === 'maternity') sections = ['employees','nursing','healthFees','health_fee','medicalPurchase','medicalPurchases','clinic','clinics','clinicRecords','salaryRecords','salary'];
+    else return Array.isArray(direct) ? direct : [];
+    sections.forEach(function (section) { out = out.concat(legacyWrapRows(tool, section, p[section])); });
+    if ((c === 'welfare' || c === 'certificate_visa') && p.settings && typeof p.settings === 'object') {
+      out.push({ _hraSection:'settings', _k:c + '|settings', payload:p.settings });
+    }
+    /* Some exports wrap the old state in payload/state instead of data. */
+    if (!out.length) {
+      var nested = p.payload || p.state;
+      if (nested && typeof nested === 'object' && nested !== p) return legacyRecordsFor(tool, nested);
+    }
+    return out;
+  }
   function getManifest(url, tool) {
     var endpoint = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool);
     function fallback(reason) {
@@ -196,24 +288,24 @@
       });
     });
   }
-  function legacyPull(url, tool, onStatus) {
+  function legacyPull(url, tool, onStatus, forceLegacy) {
     var candidates = toolCandidates(tool);
     function compatError(err) { return isUnsupportedSmartError(err); }
     function metaRequest(candidate) {
-      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate);
+      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&meta=1&tool=' + enc(candidate) + (forceLegacy ? '&legacy=1' : '');
       return jsonFetch(getUrl).catch(function (err) {
         /* Some deployed Web Apps and mobile WebViews accept legacy actions
            only through POST.  Preserve the original error only if POST also
            fails, so the caller still sees the useful server response. */
-        return post(url, { action:'pull', meta:1, tool:candidate }).catch(function (postErr) {
+        return post(url, { action:'pull', meta:1, tool:candidate, legacy:!!forceLegacy }).catch(function (postErr) {
           throw postErr || err;
         });
       });
     }
     function chunkRequest(candidate, idx, meta) {
-      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '');
+      var getUrl = url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=pull&tool=' + enc(candidate) + '&chunk=' + idx + (meta.uploadId ? '&uploadId=' + enc(meta.uploadId) : '') + (forceLegacy ? '&legacy=1' : '');
       return jsonFetch(getUrl).catch(function (err) {
-        return post(url, { action:'pull', tool:candidate, chunk:idx, uploadId:meta.uploadId || '' }).catch(function (postErr) {
+        return post(url, { action:'pull', tool:candidate, chunk:idx, uploadId:meta.uploadId || '', legacy:!!forceLegacy }).catch(function (postErr) {
           throw postErr || err;
         });
       });
@@ -227,13 +319,13 @@
             chain = chain.then(function () {
               callStatus(onStatus, '首次基準拉取 ' + (idx + 1) + '/' + n, 'busy');
               return chunkRequest(candidate, idx, meta).then(function (cj) {
-                var cd = dataOf(cj) || {}; records = records.concat(cd.records || []);
+                var cd = dataOf(cj) || {}; records = records.concat(legacyRecordsFor(candidate, cd));
               });
             });
           })(i);
           return chain.then(function () { return { records:records, meta:meta, tool:candidate }; });
         }
-        var p = env.data || env; records = p.records || (p.data && p.data.records) || [];
+        var p = env.data || env; records = legacyRecordsFor(candidate, p);
         return { records:Array.isArray(records) ? records : [], meta:p || {}, tool:candidate };
       });
     }
@@ -290,7 +382,9 @@
         callStatus(status, '完成｜舊版 GAS 相容下載與合併｜保留雙方資料', 'warn');
         return { ok:true, records:merged, remoteRecords:legacy.records || [],
           meta:legacy.meta || {}, migrated:false, compatibilityFallback:true,
-          downloaded:(legacy.records || []).length, fallbackReason:text(reason || '') };
+          downloaded:(legacy.records || []).length,
+          remoteRecordCount:Number(legacy.meta && legacy.meta.recordCount) || (legacy.records || []).length,
+          fallbackReason:text(reason || '') };
       });
     });
   }
@@ -370,6 +464,18 @@
           var merged = mergeSnapshots(opts, records, legacy.records || []);
           return smartPushWithFallback(opts, merged, remote, status, true);
         });
+      }
+      /* A v34 phone may already have committed an empty smart manifest while
+         the legacy section snapshot still contains the real data.  Recover
+         that baseline before any upload as well; otherwise the first upload
+         from an empty phone could hide the older cloud rows. */
+      if (remote.exists && !Number(remote.recordCount) && ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0) {
+        return legacyPull(url, tool, status, true).then(function (legacy) {
+          var oldRows = legacy.records || [];
+          if (!oldRows.length) return smartPushWithFallback(opts, records, remote, status, false);
+          var merged = mergeSnapshots(opts, records, oldRows);
+          return smartPushWithFallback(opts, merged, remote, status, true);
+        }).catch(function () { return smartPushWithFallback(opts, records, remote, status, false); });
       }
       return smartPushWithFallback(opts, records, remote, status, false).then(function (result) {
         /* A summary/approval may be the first action on a device that has no
@@ -459,18 +565,26 @@
               callStatus(status, '完成｜舊版 GAS 相容下載與合併', 'warn');
               return { ok:true, records:merged, remoteRecords:legacy.records || [],
                 meta:legacy.meta || {}, migrated:false, compatibilityFallback:true,
-                downloaded:(legacy.records || []).length };
+                downloaded:(legacy.records || []).length,
+                remoteRecordCount:Number(legacy.meta && legacy.meta.recordCount) || (legacy.records || []).length };
             }
             /* Match Prod: turn the old full snapshot into a smart manifest
                during this one-time baseline pull, without user setup work. */
             return smartPushWithFallback(opts, merged, remote, status, true).then(function (migrated) {
-              return { ok:true, records:merged, remoteRecords:legacy.records || [], meta:legacy.meta || {}, migrated:true, downloaded:(legacy.records || []).length, pushResult:migrated };
+              return { ok:true, records:merged, remoteRecords:legacy.records || [], meta:legacy.meta || {}, migrated:true, downloaded:(legacy.records || []).length,
+                remoteRecordCount:Number(legacy.meta && legacy.meta.recordCount) || (legacy.records || []).length, pushResult:migrated };
             });
           });
         });
       }
       if (!remote.exists) { callStatus(status, '雲端尚無資料', 'warn'); return { ok:false, noCloud:true, records:localRows, meta:{} }; }
-      return buildBuckets(localRows).then(function (local) {
+      /* If an earlier phone created an empty smart manifest before it could
+         understand the old section-based snapshot, read the legacy file once
+         with the smart pointer bypassed, then rebuild the manifest from the
+         recovered rows.  This is the key repair for Welfare/Certificate and
+         early Manpower data that otherwise appears empty forever. */
+      var legacyRecoveryTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
+      var continueSmartPull = function () { return buildBuckets(localRows).then(function (local) {
         var last = readState(tool) || {}, lastH = last.hashes || {}, remoteH = remote.hashes || {}, out = {}, remoteRows = [], downloaded = 0, unchanged = 0, pending = 0, conflictKeys = [], keys = {};
         Object.keys(remoteH).concat(Object.keys(local)).forEach(function (k) { keys[k] = true; });
         var list = Object.keys(keys).sort(), chain = Promise.resolve();
@@ -498,7 +612,7 @@
              manifest and reads the chunks by index, so this does not require
              a new file format or any user action. */
           var recover = Number(remote.recordCount) > 0 && !merged.length && !localRows.length
-            ? legacyPull(url, tool, status).then(function (legacy) {
+            ? legacyPull(url, tool, status, legacyRecoveryTool).then(function (legacy) {
                 var recovered = legacy.records || [];
                 if (recovered.length) {
                   remoteRows = recovered;
@@ -515,10 +629,28 @@
           function finishPull(finalRows) {
             writeState(tool, { hashes:remoteH, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:now() });
             callStatus(status, '完成｜下載 ' + downloaded.toLocaleString() + '｜未變 ' + unchanged.toLocaleString() + (pending ? '｜本機待上傳 ' + pending : ''), conflictKeys.length ? 'warn' : 'ok');
-            return { ok:true, records:finalRows, remoteRecords:remoteRows, meta:remote.meta || {}, downloaded:downloaded, unchanged:unchanged, pendingUpload:pending, conflicts:conflictKeys };
+            var manifestCount = Number(remote.recordCount) || Object.keys(remote.counts || {}).reduce(function (n, k) { return n + (Number(remote.counts[k]) || 0); }, 0);
+            return { ok:true, records:finalRows, remoteRecords:remoteRows, meta:remote.meta || {}, downloaded:downloaded, unchanged:unchanged, pendingUpload:pending, conflicts:conflictKeys,
+              remoteRecordCount:Math.max(manifestCount, remoteRows.length) };
           }
         });
-      });
+      }); };
+      if (!Number(remote.recordCount) && legacyRecoveryTool) {
+        return legacyPull(url, tool, status, true).then(function (legacy) {
+          var legacyRows = legacy.records || [];
+          if (!legacyRows.length) return continueSmartPull();
+          var merged = sortRows(mergeSnapshots(opts, localRows, legacyRows));
+          var applied = opts.apply ? Promise.resolve(opts.apply(merged, legacy.meta || {})) : Promise.resolve();
+          return applied.then(function () {
+            return smartPushWithFallback(opts, merged, remote, status, true).then(function (migrated) {
+              return { ok:true, records:merged, remoteRecords:legacyRows, meta:legacy.meta || {}, migrated:true,
+                downloaded:legacyRows.length, remoteRecordCount:Number(legacy.meta && legacy.meta.recordCount) || legacyRows.length,
+                pushResult:migrated, recoveredLegacy:true };
+            });
+          });
+        }).catch(function () { return continueSmartPull(); });
+      }
+      return continueSmartPull();
     }).catch(function (err) {
       if (!isUnsupportedSmartError(err)) throw err;
       callStatus(status, '智慧同步工具未部署，改用相容合併下載…', 'warn');

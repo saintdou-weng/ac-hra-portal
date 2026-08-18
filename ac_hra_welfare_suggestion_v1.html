@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Welfare &amp; Suggestion</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=35"></script>
+<script src="shared/hra-smart-sync.js?v=36"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -589,7 +589,10 @@ async function cloudPull(){
     const res=await HRASmartSync.pull({url:url,tool:TOOL_ID,localRecords:welfareSmartRows(STATE),mergeRecords:welfareSmartMergeRows,
       onStatus:s=>showLoading((LANG==='en'?'Downloading… ':'下載中… ')+s)});
     if(res&&res.cancelled)return;if(!res||res.noCloud)throw new Error('No welfare cloud data');
-    const incoming=welfareRowsToState(res.records||[]),remoteCount=(res.remoteRecords||[]).length;
+    const incoming=welfareRowsToState(res.records||[]),remote=res.remoteRecords||[],remoteCount=Number(res.remoteRecordCount)||remote.length;
+    const incomingData=incoming.members.length+incoming.movements.length+incoming.unionDues.length+incoming.suggestions.length+incoming.summaries.length+incoming.imports.length;
+    const localData=STATE.members.length+STATE.movements.length+STATE.unionDues.length+STATE.suggestions.length+STATE.summaries.length+STATE.imports.length;
+    if(remoteCount>0&&!incomingData&&!localData&&(remoteCount>1||remote.length>1))throw new Error(`雲端回報 ${remoteCount} 筆，但手機實際讀入 0 筆；請勿重新上傳空資料。 Cloud reports ${remoteCount} rows, but this phone received 0 rows; do not upload the empty data.`);
     if(remoteCount&&(STATE.members.length||STATE.suggestions.length)&&!confirm(`雲端有 ${remoteCount} 筆變更；本機資料與照片會保留並合併。確定下載？`))return;
     STATE=mergeWelfareState(STATE,incoming);await persist();HRACloudGuard.markState('welfare_state',STATE);renderAll();
     const photoCount=STATE.suggestions.reduce((n,x)=>n+(x.photos?.length||0),0);
