@@ -1,4 +1,4 @@
-/* AC HRA Portal Smart Sync v1.6
+/* AC HRA Portal Smart Sync v1.7
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,7 +12,7 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.6';
+  var VERSION = '1.7';
   var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
   var FULL_CACHE_DB = 'AC_HRA_FullCloudCache_v1', FULL_CACHE_STORE = 'snapshots';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
@@ -414,14 +414,27 @@
   function post(url, body) {
     return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) }).then(dataOf);
   }
-  function smartBucketRead(url, tool, bucket, index, expectedCount, onStatus) {
+  function smartBucketRead(url, tool, bucket, remoteIndex, expectedCount, onStatus) {
     var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(bucket));
     var fallback = function (reason) {
-      callStatus(onStatus, '手機相容下載：改用 POST 分段 ' + (Number(index) + 1), 'warn');
-      return post(url, { action:'pull', tool:tool, chunk:Number(index) }).then(function (d) {
-        return dataOf(d) || {};
-      }).catch(function (postErr) {
-        throw postErr || reason;
+      /* Read by the bucket's stable name first.  The old fallback used the
+         index of the local+remote union; when a phone had one local-only
+         bucket that index no longer matched the server manifest and a valid
+         download returned the wrong (often empty) chunk. */
+      callStatus(onStatus, '手機相容下載：POST 精準讀取 ' + bucket, 'warn');
+      return post(url, { action:'smartBucket', read:true, tool:tool, bucket:bucket }).then(function (d) {
+        var exact = dataOf(d) || {}, exactRows = Array.isArray(exact.records) ? exact.records : [];
+        if (Number(expectedCount) > 0 && !exactRows.length) throw new Error('Empty POST smart bucket response');
+        return exact;
+      }).catch(function (postReadErr) {
+        /* Pre-v39 GAS has no POST read mode.  Its legacy pull endpoint exposes
+           smart buckets by *remote manifest* index, never by union index. */
+        if (Number(remoteIndex) < 0) throw (postReadErr || reason);
+        return post(url, { action:'pull', tool:tool, chunk:Number(remoteIndex) }).then(function (d) {
+          return dataOf(d) || {};
+        }).catch(function (postErr) {
+          throw postErr || postReadErr || reason;
+        });
       });
     };
     return jsonFetch(endpoint).then(function (j) {
@@ -516,65 +529,70 @@
   function pullReliable(opts) {
     opts = opts || {};
     var tool = opts.tool, isRecoveryTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
-    function useDirect(base, reason) {
-      return directPull(text(opts.url).trim(), tool, opts.onStatus).then(function (direct) {
-        if (direct && (direct.records || []).length) {
-          callStatus(opts.onStatus, '完成｜手機相容完整下載並合併', 'warn');
-          return Object.assign({}, base || {}, direct, { ok:true, noCloud:false, directFallback:true, fallbackReason:text(reason || '') });
-        }
-        return base;
-      });
-    }
-    /* Manual download for the affected portals follows Sewing's complete
-       pull first, then writes one atomic IndexedDB snapshot.  Smart pull is
-       still retained as the fallback and for normal incremental uploads. */
-    if (isRecoveryTool) {
-      return directPull(text(opts.url).trim(), tool, opts.onStatus).then(function (direct) {
-        var remoteRows = direct && Array.isArray(direct.records) ? direct.records : [];
-        if (!remoteRows.length && !Number(direct && direct.remoteRecordCount)) {
-          return fullCacheGet(tool).then(function (cached) {
-            if (cached && Array.isArray(cached.records) && cached.records.length) {
-              callStatus(opts.onStatus, '雲端暫時為空，使用上次完整下載快取', 'warn');
-              return Object.assign({}, direct, { ok:true, noCloud:false, records:cached.records,
-                remoteRecords:cached.records, meta:cached.meta || {}, downloaded:0, cached:true,
-                remoteRecordCount:cached.records.length });
-            }
-            return pull(opts);
+    if (!isRecoveryTool) return pull(opts);
+
+    /* v1.6 used a complete POST pull before every manual download.  That
+       repaired old mobile snapshots, but also downloaded the whole portal on
+       every tap.  v1.7 treats the IndexedDB snapshot as Sewing does: it is the
+       local baseline, then the manifest downloads only changed buckets.  A
+       complete pull is now strictly a migration/recovery fallback. */
+    return fullCacheGet(tool).then(function (cached) {
+      var cachedRows = cached && Array.isArray(cached.records) ? cached.records : [];
+      var pageRows = Array.isArray(opts.localRecords) ? opts.localRecords : [];
+      var baseline = sortRows(mergeSnapshots(opts, cachedRows, pageRows));
+      var incrementalOpts = Object.assign({}, opts, { localRecords:baseline });
+
+      function saveResult(result, fallbackReason) {
+        if (!result || result.cancelled) return result;
+        var rows = Array.isArray(result.records) ? result.records : baseline;
+        var meta = result.meta || (cached && cached.meta) || {};
+        return fullCachePut(tool, { records:rows, meta:meta,
+          sourceTools:result.sourceTools || (cached && cached.sourceTools) || [canonicalTool(tool)],
+          savedAt:now() }).then(function () {
+            if (fallbackReason) result.fallbackReason = text(fallbackReason);
+            result.records = rows;
+            result.remoteRecordCount = Math.max(Number(result.remoteRecordCount) || 0, rows.length);
+            return result;
           });
-        }
-        return fullCachePut(tool, { records:remoteRows, meta:direct.meta || {}, sourceTools:direct.sourceTools || [direct.tool], savedAt:now() }).then(function () {
-          callStatus(opts.onStatus, '完成｜完整下載 ' + remoteRows.length.toLocaleString() + ' 筆並保存', 'ok');
-          return Object.assign({}, direct, { ok:true, noCloud:false, remoteRecords:remoteRows,
-            downloaded:remoteRows.length, remoteRecordCount:Math.max(Number(direct.remoteRecordCount) || 0, remoteRows.length) });
+      }
+      function useDirect(reason, base) {
+        callStatus(opts.onStatus, '增量下載無法完成，執行一次完整修復…', 'warn');
+        return directPull(text(opts.url).trim(), tool, opts.onStatus).then(function (direct) {
+          var remoteRows = direct && Array.isArray(direct.records) ? direct.records : [];
+          if (!remoteRows.length && baseline.length) {
+            callStatus(opts.onStatus, '雲端回應為空，保留手機已下載資料', 'warn');
+            return saveResult(Object.assign({}, base || direct || {}, { ok:true, cached:true,
+              noCloud:false, records:baseline, remoteRecords:[], downloaded:0 }), reason);
+          }
+          var merged = sortRows(mergeSnapshots(opts, baseline, remoteRows));
+          callStatus(opts.onStatus, '完成｜修復下載 ' + remoteRows.length.toLocaleString() + ' 筆，已建立新基準', 'warn');
+          return saveResult(Object.assign({}, base || {}, direct || {}, { ok:true, noCloud:false,
+            records:merged, remoteRecords:remoteRows, downloaded:remoteRows.length,
+            directFallback:true }), reason);
         });
-      }).catch(function (directErr) {
-        return pull(opts).catch(function () {
-          return fullCacheGet(tool).then(function (cached) {
-            if (cached && Array.isArray(cached.records) && cached.records.length) {
-              callStatus(opts.onStatus, '網路下載失敗，使用上次完整下載快取', 'warn');
-              return { ok:true, noCloud:false, records:cached.records, remoteRecords:cached.records,
-                meta:cached.meta || {}, downloaded:0, cached:true, remoteRecordCount:cached.records.length };
-            }
-            throw directErr;
-          });
+      }
+
+      return pull(incrementalOpts).then(function (result) {
+        if (!result || result.cancelled) return result;
+        var rows = Array.isArray(result.records) ? result.records : [];
+        var remoteCount = Number(result.remoteRecordCount) || 0;
+        if (!rows.length && remoteCount > 0) return useDirect('empty-incremental-response', result);
+        return saveResult(result, '');
+      }).catch(function (err) {
+        return useDirect(err && (err.message || err), null).catch(function () {
+          if (baseline.length) {
+            callStatus(opts.onStatus, '網路下載失敗，使用上次快取', 'warn');
+            return { ok:true, noCloud:false, records:baseline, remoteRecords:[],
+              meta:(cached && cached.meta) || {}, downloaded:0, cached:true,
+              remoteRecordCount:baseline.length };
+          }
+          throw err;
         });
       });
-    }
-    return pull(opts).then(function (base) {
-      if (!isRecoveryTool || !base || base.cancelled) return base;
-      var rows = Array.isArray(base.records) ? base.records.length : 0;
-      var remoteCount = Number(base.remoteRecordCount) || (Array.isArray(base.remoteRecords) ? base.remoteRecords.length : 0);
-      /* A one-row old snapshot can represent many people/fees.  Let the page
-         normalize it first, but use the direct path when the response is
-         plainly empty or much smaller than the server count. */
-      if (!rows || (remoteCount > 1 && remoteCount > rows)) return useDirect(base, 'empty-or-short-mobile-response');
-      return base;
-    }).catch(function (err) {
-      if (!isRecoveryTool) throw err;
-      return useDirect(null, err.message || err).then(function (r) { if (r) return r; throw err; }).catch(function () { throw err; });
     });
   }
-  function conflictConfirm(tool, buckets) {
+  function conflictConfirm(tool, buckets, opts) {
+    if (opts && opts.autoConfirmConflicts) return true;
     if (!buckets.length || typeof g.confirm !== 'function') return true;
     return g.confirm('雲端與本機同時有變更：' + buckets.join(', ') + '\n\n先合併較新的欄位並保留雙方資料？');
   }
@@ -658,7 +676,7 @@
 
   function push(opts) {
     opts = opts || {};
-    var url = text(opts.url).trim(), tool = opts.tool, records = sortRows(opts.records || []), status = opts.onStatus;
+    var url = text(opts.url).trim(), tool = opts.tool, records = sortRows(opts.records || []), cacheRows = records, status = opts.onStatus;
     if (!url) return Promise.reject(new Error('GAS URL missing'));
     callStatus(status, '智慧同步：比對雲端差異…', 'busy');
     return getManifest(url, tool).then(function (remote) {
@@ -666,11 +684,19 @@
       if (remote.compatibilityFallback) {
         return legacyPush(opts, records, status);
       }
+      if (remote.exists && remote.intentionalEmpty && records.length) {
+        var emptyState = readState(tool) || {}, emptyHashes = emptyState.hashes || {};
+        if (!Object.keys(emptyHashes).length) {
+          callStatus(status, '雲端資料已明確刪除；請先下載套用刪除，再決定是否重新上傳', 'warn');
+          return { ok:false, needsPull:true, intentionalEmpty:true, recordCount:records.length };
+        }
+      }
       if (!remote.exists && remote.legacy) {
         /* Legacy data is merged once before the smart manifest is created. */
         callStatus(status, '首次升級：合併既有雲端資料…', 'busy');
         return legacyPull(url, tool, status).then(function (legacy) {
           var merged = mergeSnapshots(opts, records, legacy.records || []);
+          cacheRows = sortRows(merged);
           return smartPushWithFallback(opts, merged, remote, status, true);
         });
       }
@@ -678,11 +704,12 @@
          the legacy section snapshot still contains the real data.  Recover
          that baseline before any upload as well; otherwise the first upload
          from an empty phone could hide the older cloud rows. */
-      if (remote.exists && !Number(remote.recordCount) && ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0) {
+      if (remote.exists && !remote.intentionalEmpty && !Number(remote.recordCount) && ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0) {
         return legacyPull(url, tool, status, true).then(function (legacy) {
           var oldRows = legacy.records || [];
           if (!oldRows.length) return smartPushWithFallback(opts, records, remote, status, false);
           var merged = mergeSnapshots(opts, records, oldRows);
+          cacheRows = sortRows(merged);
           return smartPushWithFallback(opts, merged, remote, status, true);
         }).catch(function () { return smartPushWithFallback(opts, records, remote, status, false); });
       }
@@ -694,6 +721,7 @@
         if (!result || !result.needsPull || opts.autoMerge === false) return result;
         return pull({ url:url, tool:tool, localRecords:records, mergeRecords:opts.mergeRecords, onStatus:status }).then(function (p) {
           if (!p || p.cancelled || !p.ok) return p;
+          cacheRows = sortRows(p.records || records);
           return getManifest(url, tool).then(function (fresh) { return smartPushWithFallback(Object.assign({}, opts, { records:p.records }), p.records, fresh || {}, status, false); });
         });
       });
@@ -701,12 +729,22 @@
       if (!isUnsupportedSmartError(err)) throw err;
       callStatus(status, '智慧同步工具未部署，改用相容合併上傳…', 'warn');
       return legacyPush(opts, records, status);
+    }).then(function (result) {
+      /* Keep the complete mobile baseline in step with a successful push.
+         Without this, deleting a row updates the manifest but leaves the old
+         IndexedDB snapshot behind; the next download merges that stale row
+         back into the page.  Updating the cache also makes the next tap a
+         true zero-transfer comparison. */
+      var cacheTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
+      if (!cacheTool || !result || result.ok === false || result.cancelled || result.needsPull) return result;
+      return fullCachePut(tool, { records:cacheRows, meta:opts.meta || {},
+        sourceTools:[canonicalTool(tool)], savedAt:now() }).then(function () { return result; });
     });
   }
   function smartPush(opts, records, remote, status, migrated) {
     var tool = opts.tool, url = text(opts.url).trim();
     return Promise.all([buildBuckets(records), hash(stable(opts.meta || {}))]).then(function (parts) {
-      var local = parts[0], metaHash = parts[1], last = readState(tool) || {}, lastH = last.hashes || {}, remoteH = remote.hashes || {}, remoteMetaHash = remote.metaHash || '', changed = [], conflicts = [], remoteChanged = [];
+      var local = parts[0], metaHash = parts[1], last = readState(tool) || {}, lastH = last.hashes || {}, remoteH = remote.hashes || {}, remoteMetaHash = remote.metaHash || '', changed = [], deleted = [], conflicts = [], remoteChanged = [];
       if (migrated) { remoteH = {}; lastH = {}; remoteMetaHash = ''; }
       var keys = {}; Object.keys(local).concat(Object.keys(remoteH)).forEach(function (k) { keys[k] = true; });
       Object.keys(keys).forEach(function (k) {
@@ -717,6 +755,10 @@
           if (!lh && rh) { remoteChanged.push(k); return; }
           if (lh && rh && lh !== rh) { conflicts.push(k); return; }
         }
+        /* The bucket existed in the last successful baseline, is unchanged in
+           cloud, and is now absent locally: this is an intentional local
+           deletion.  Only that three-way-safe case may remove cloud data. */
+        if (opts.allowDeletes && !lh && rh && bh && rh === bh) { deleted.push(k); return; }
         var lc = lh !== bh, rc = rh !== bh;
         if (lc && !rc) { if (lh) changed.push(k); }
         else if (!lc && rc) remoteChanged.push(k);
@@ -739,19 +781,19 @@
       return chain.then(function () {
         var hashes = {}, counts = {}; Object.keys(local).forEach(function (k) { hashes[k] = local[k].hash; counts[k] = local[k].count; });
         /* Remote-only buckets are intentionally retained. They are merged on the next pull. */
-        Object.keys(remoteH).forEach(function (k) { if (!hashes[k]) { hashes[k] = remoteH[k]; counts[k] = Number((remote.counts || {})[k]) || 0; } });
-        var recordCount = Math.max(Number(opts.recordCount) || 0, Object.keys(counts).reduce(function (n, k) { return n + (Number(counts[k]) || 0); }, 0));
+        Object.keys(remoteH).forEach(function (k) { if (!hashes[k] && deleted.indexOf(k) < 0) { hashes[k] = remoteH[k]; counts[k] = Number((remote.counts || {})[k]) || 0; } });
+        var recordCount = Object.keys(counts).reduce(function (n, k) { return n + (Number(counts[k]) || 0); }, 0);
         var meta = Object.assign({}, opts.meta || {}, { _smartMetaHash:metaHash });
-        var metaChanged = metaHash !== remoteMetaHash || migrated || changed.length;
-        if (!metaChanged && !changed.length) {
+        var metaChanged = metaHash !== remoteMetaHash || migrated || changed.length || deleted.length;
+        if (!metaChanged && !changed.length && !deleted.length) {
           writeState(tool, { hashes:remoteH, counts:remote.counts || {}, metaHash:remoteMetaHash, updatedAt:now() });
           callStatus(status, '雲端已是最新，沒有需要上傳的變更', 'ok');
           return { ok:true, skipped:true, unchanged:records.length, migrated:false };
         }
         return post(url, { action:'smartCommit', tool:tool, uploadId:uploadId, hashes:hashes, counts:counts, recordCount:recordCount, meta:meta, summary:opts.summary || {} }).then(function (d) {
-          var out = { ok:true, recordCount:recordCount, uploaded:sent, unchanged:Math.max(0, records.length - sent), changedBuckets:changed.length, migrated:!!migrated, timestamp:(d && (d.timestamp || d.updatedAt)) || now() };
+          var out = { ok:true, recordCount:recordCount, uploaded:sent, unchanged:Math.max(0, records.length - sent), changedBuckets:changed.length, removedBuckets:deleted.length, migrated:!!migrated, timestamp:(d && (d.timestamp || d.updatedAt)) || now() };
           writeState(tool, { hashes:hashes, counts:counts, metaHash:metaHash, updatedAt:out.timestamp });
-          callStatus(status, '完成｜本機 ' + records.length.toLocaleString() + '｜上傳 ' + sent.toLocaleString() + '｜保留雲端既有資料', 'ok');
+          callStatus(status, '完成｜本機 ' + records.length.toLocaleString() + '｜上傳 ' + sent.toLocaleString() + (deleted.length ? '｜刪除 ' + deleted.length + ' 區' : '') + '｜其餘不重複傳輸', 'ok');
           return out;
         });
       });
@@ -794,27 +836,47 @@
          early Manpower data that otherwise appears empty forever. */
       var legacyRecoveryTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
       var continueSmartPull = function () { return buildBuckets(localRows).then(function (local) {
-        var last = readState(tool) || {}, lastH = last.hashes || {}, remoteH = remote.hashes || {}, out = {}, remoteRows = [], downloaded = 0, unchanged = 0, pending = 0, conflictKeys = [], keys = {};
+        var last = readState(tool) || {}, lastH = last.hashes || {}, remoteH = remote.hashes || {}, out = {}, remoteRows = [], downloaded = 0, unchanged = 0, pending = 0, removed = 0, conflictKeys = [], keys = {};
         Object.keys(remoteH).concat(Object.keys(local)).forEach(function (k) { keys[k] = true; });
-        var list = Object.keys(keys).sort(), chain = Promise.resolve();
+        var list = Object.keys(keys).sort(), remoteOrder = Object.keys(remoteH).sort(), chain = Promise.resolve();
         list.forEach(function (k, idx) {
           chain = chain.then(function () {
             var lb = local[k], rh = remoteH[k] || '', bh = lastH[k] || '';
             if (lb && rh && lb.hash === rh) { out[k] = lb.records; unchanged += lb.count; return; }
-            if (lb && !rh) { out[k] = lb.records; pending += lb.count; return; }
-            if (lb && bh && lb.hash !== bh && rh !== bh && lb.hash !== rh) conflictKeys.push(k);
+            if (lb && !rh) {
+              /* The bucket existed in the last downloaded manifest and the
+                 phone did not modify it: its absence in the new manifest is
+                 a confirmed cloud deletion.  Do not resurrect it locally.
+                 A locally changed/de-novo bucket is retained for upload. */
+              if (bh && lb.hash === bh) { removed += lb.count; return; }
+              if (bh && lb.hash !== bh) conflictKeys.push(k);
+              out[k] = lb.records; pending += lb.count; return;
+            }
+            var localChanged = !!(lb && bh && lb.hash !== bh);
+            var remoteChanged = !!(rh && bh && rh !== bh);
+            if (localChanged && !remoteChanged) {
+              /* Only the phone changed: keep it and avoid downloading the
+                 unchanged cloud copy. */
+              out[k] = lb.records; pending += lb.count; return;
+            }
+            if (lb && localChanged && remoteChanged && lb.hash !== rh) conflictKeys.push(k);
             if (!rh) return;
             callStatus(status, '下載變更 ' + (idx + 1) + '/' + list.length + ' · ' + k, 'busy');
-            return smartBucketRead(url, tool, k, idx, Number((remote.counts || {})[k]) || 0, status).then(function (bj) {
+            return smartBucketRead(url, tool, k, remoteOrder.indexOf(k), Number((remote.counts || {})[k]) || 0, status).then(function (bj) {
               var bd = dataOf(bj) || {}, rows = bd.records || [];
               remoteRows = remoteRows.concat(rows);
               downloaded += rows.length;
-              out[k] = (lb && lb.hash !== rh) ? mergeSnapshots(opts, lb.records, rows) : rows;
+              /* When the cloud alone changed, its complete bucket is the new
+                 source of truth.  Merging by semantic key here could keep an
+                 equal-length stale local value.  True two-sided conflicts
+                 still use the page-specific merge after confirmation. */
+              out[k] = (lb && localChanged && remoteChanged && lb.hash !== rh)
+                ? mergeSnapshots(opts, lb.records, rows) : rows;
             });
           });
         });
         return chain.then(function () {
-          if (conflictKeys.length && !conflictConfirm(tool, conflictKeys)) return { ok:false, cancelled:true, conflicts:conflictKeys, records:localRows, meta:remote.meta || {} };
+          if (conflictKeys.length && !conflictConfirm(tool, conflictKeys, opts)) return { ok:false, cancelled:true, conflicts:conflictKeys, records:localRows, meta:remote.meta || {} };
           var merged = sortRows(Object.keys(out).reduce(function (a, k) { return a.concat(out[k] || []); }, []));
           /* Last-resort recovery for a phone/proxy that returned empty smart
              buckets.  The POST legacy pull understands the same smart
@@ -837,14 +899,14 @@
           });
           function finishPull(finalRows) {
             writeState(tool, { hashes:remoteH, counts:remote.counts || {}, metaHash:remote.metaHash || '', updatedAt:now() });
-            callStatus(status, '完成｜下載 ' + downloaded.toLocaleString() + '｜未變 ' + unchanged.toLocaleString() + (pending ? '｜本機待上傳 ' + pending : ''), conflictKeys.length ? 'warn' : 'ok');
+            callStatus(status, '完成｜下載 ' + downloaded.toLocaleString() + '｜未變 ' + unchanged.toLocaleString() + (removed ? '｜套用雲端刪除 ' + removed : '') + (pending ? '｜本機待上傳 ' + pending : ''), conflictKeys.length ? 'warn' : 'ok');
             var manifestCount = Number(remote.recordCount) || Object.keys(remote.counts || {}).reduce(function (n, k) { return n + (Number(remote.counts[k]) || 0); }, 0);
-            return { ok:true, records:finalRows, remoteRecords:remoteRows, meta:remote.meta || {}, downloaded:downloaded, unchanged:unchanged, pendingUpload:pending, conflicts:conflictKeys,
+            return { ok:true, records:finalRows, remoteRecords:remoteRows, meta:remote.meta || {}, downloaded:downloaded, unchanged:unchanged, removed:removed, pendingUpload:pending, conflicts:conflictKeys,
               remoteRecordCount:Math.max(manifestCount, remoteRows.length) };
           }
         });
       }); };
-      if (!Number(remote.recordCount) && legacyRecoveryTool) {
+      if (!Number(remote.recordCount) && !remote.intentionalEmpty && legacyRecoveryTool) {
         return legacyPull(url, tool, status, true).then(function (legacy) {
           var legacyRows = legacy.records || [];
           if (!legacyRows.length) return continueSmartPull();

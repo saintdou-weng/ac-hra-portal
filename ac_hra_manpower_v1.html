@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AC HRA Manpower v2.9</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=38"></script>
+<script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1759,6 +1759,7 @@ async function smartImport(input){
     Object.values(NAV).forEach(st=>{st.pivot=new Date(y,m-1,d);if(st.mode==='all')st.mode='month'});
   }
   const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+  if(saved.ok)scheduleManpowerCloudUpload('excel-import');
   toast(saved.ok
     ?L('匯入完成；重複記錄已合併並保存','Import complete; duplicates were merged and saved','នាំចូល និងរក្សាទុករួចរាល់')
     :L('匯入完成但無法落盤；已下載緊急 JSON 備份','Import completed but could not be saved; an emergency JSON backup was downloaded','នាំចូលរួច ប៉ុន្តែមិនអាចរក្សាទុកបាន'),
@@ -2561,7 +2562,7 @@ async function saveOnlineRecord(){
     }
     result=upsertArray(arr,[r],kind);
   }
-  relinkCandidates();const saved=await saveDB();populateFilters();closeModal('recordModal');renderAll();
+  relinkCandidates();const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-saved');populateFilters();closeModal('recordModal');renderAll();
   toast(saved.ok
     ?(result.added?L('已新增並保存記錄','Record added and saved','បានបន្ថែម និងរក្សាទុក'):L('已更新並保存記錄','Record updated and saved','បានធ្វើបច្ចុប្បន្នភាព និងរក្សាទុក'))
     :L('記錄已更新但尚未保存；請使用緊急備份','Record updated but not saved; use the emergency backup','កំណត់ត្រាបានកែ ប៉ុន្តែមិនបានរក្សាទុក'),
@@ -2571,7 +2572,7 @@ async function deleteRecord(kind,encodedKey){
   const key=decodeURIComponent(encodedKey);
   if(!confirm(L('確認刪除此筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
   const arr=collection(kind),i=arr.findIndex(r=>r._k===key);if(i>=0)arr.splice(i,1);
-  relinkCandidates();const saved=await saveDB();renderAll();
+  relinkCandidates();const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-deleted');renderAll();
   toast(saved.ok?L('已刪除並保存','Deleted and saved','បានលុប និងរក្សាទុក'):L('已從畫面刪除但尚未保存','Removed from the page but not saved','បានលុបពីទំព័រ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
 }
 
@@ -2579,6 +2580,8 @@ async function deleteRecord(kind,encodedKey){
 // Settings, cloud sync and Telegram
 // ─────────────────────────────────────────────────────────────
 function gasUrl(){return norm(lsGet(GAS_KEY)||lsGet('vrt_att_cloud_v1_url')||lsGet('ac_hra_gas_url')||'')}
+let manpowerAutoCloudTimer=null;
+function scheduleManpowerCloudUpload(reason){if(!gasUrl())return;clearTimeout(manpowerAutoCloudTimer);manpowerAutoCloudTimer=setTimeout(()=>{manpowerAutoCloudTimer=null;cloudUpload({auto:true,reason})},900)}
 function setCloudState(state,text){
   el('cloudDot').className=`dot ${state||''}`;el('cloudState').textContent=text||'Cloud —';
 }
@@ -2654,7 +2657,8 @@ async function cloudUpload(options={}){
      也要檢查平台 ledger 是否缺少這些 movement。 */
   if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('上傳中…','Uploading…','កំពុងផ្ទុក…'));
   try{
-    const main=await HRASmartSync.push({url,tool:'manpower',records,recordCount:records.length,summary:counts(),meta:{decisions:MP_DEC,coverage:HRACloudGuard.coverage(records,'manpower')}});
+    const canDelete=!!lsGet('ac_hra_manpower_smart_downloaded_v1');
+    const main=await HRASmartSync.push({url,tool:'manpower',records,recordCount:records.length,summary:counts(),meta:{decisions:MP_DEC,coverage:HRACloudGuard.coverage(records,'manpower')},allowDeletes:canDelete,autoConfirmConflicts:!!options.auto});
     if(main?.cancelled){toast(L('已取消上傳，雲端資料已保留','Upload cancelled; cloud data was kept','បានបោះបង់ការផ្ទុក; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
     if(main?.needsPull)throw new Error(L('Manpower 雲端有新資料，已保留；請先下載合併','Manpower cloud has newer data and was kept','Cloud Manpower មានទិន្នន័យថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     /* Manpower movement 同時寫入 onboarding ledger，讓平台另一側也能看到。 */
@@ -2666,7 +2670,7 @@ async function cloudUpload(options={}){
       if(md?.cancelled){toast(L('已取消入離職覆蓋，雲端資料已保留','Movement overwrite cancelled; cloud data was kept','បានបោះបង់ការជំនួស movement; Cloud ត្រូវបានរក្សាទុក'),'warn');return}
       if(md?.ok===false)throw new Error(md.error||'Onboarding movement sync failed');
     }
-    const md=await HRASmartSync.push({url,tool:'onboarding',records:movement,recordCount:movement.length,summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},meta:{coverage:HRACloudGuard.coverage(movement,'onboarding')}});
+    const md=await HRASmartSync.push({url,tool:'onboarding',records:movement,recordCount:movement.length,summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},meta:{coverage:HRACloudGuard.coverage(movement,'onboarding')},allowDeletes:canDelete,autoConfirmConflicts:!!options.auto});
     if(md?.cancelled){toast(L('已取消入離職上傳，雲端資料已保留','Join/resign upload cancelled; cloud data was kept','បានបោះបង់ការផ្ទុក ចូល/ចេញ; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
     if(md?.needsPull)throw new Error(L('入離職雲端有新資料，已保留；請先下載合併','Cloud movement data is newer and was kept','ទិន្នន័យ movement ថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     markCloudManifest(allRecords);
@@ -2674,7 +2678,7 @@ async function cloudUpload(options={}){
     setCloudState('ok',`${L('已上傳新增／變更','Uploaded new/changed','បានផ្ទុកថ្មី/កែប្រែ')} ${sent}`);
     if(!options.auto)toast(L('雲端上傳完成；只送新增或變更資料','Cloud upload complete; only new/changed data sent','ផ្ទុក Cloud រួច; ផ្ញើតែទិន្នន័យថ្មី/កែប្រែ'),'ok');
     return{ok:true,sent};
-  }catch(e){setCloudState('err',L('上傳失敗','Upload failed','ផ្ទុកបរាជ័យ'));toast(e.message,'err');return{ok:false,error:e}}
+  }catch(e){setCloudState('err',L('上傳失敗','Upload failed','ផ្ទុកបរាជ័យ'));if(options.auto)console.warn('[manpower auto upload]',e);else toast(e.message,'err');return{ok:false,error:e}}
   finally{if(btn){btn.classList.remove('busy');btn.disabled=false}}
 }
 function splitCloudRecords(records){
@@ -2778,7 +2782,7 @@ async function cloudDownload(){
     const parsed=splitCloudRecords(all),stats=mergeParsed(parsed,{interactive:true});
     const saved=await saveDB();populateFilters();renderAll();
     setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${all.length}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
-    if(saved.ok){markCloudManifest(all);toast(`${L('只下載變更；Manpower 與平台入離職已合併','Only changed data downloaded; Manpower and platform movement merged','ទាញយកតែការកែប្រែ; Manpower និង Join/Resign បានបញ្ចូល')} · ${statText(stats)}`,'ok');}
+    if(saved.ok){lsSet('ac_hra_manpower_smart_downloaded_v1',new Date().toISOString());markCloudManifest(all);toast(`${L('只下載變更；Manpower 與平台入離職已合併','Only changed data downloaded; Manpower and platform movement merged','ទាញយកតែការកែប្រែ; Manpower និង Join/Resign បានបញ្ចូល')} · ${statText(stats)}`,'ok');}
   }catch(e){setCloudState('err',L('下載失敗','Download failed','ទាញយកបរាជ័យ'));toast(e.message,'err')}
   finally{if(btn){btn.classList.remove('busy');btn.disabled=false}}
 }
@@ -3034,7 +3038,7 @@ window.addEventListener('storage',async function(e){
   const rows=readSharedMovement(e.key);
   const stats=replaceSharedMovement(kind,rows);
   if(stats.added||stats.updated||stats.removed){
-    await saveDB();populateFilters();renderAll();
+    await saveDB();scheduleManpowerCloudUpload('onboarding-linked-update');populateFilters();renderAll();
     const detail=L(
       `平台${kind==='join'?'入職':'離職'}已同步：新增 ${stats.added}、更新 ${stats.updated}、刪除 ${stats.removed}`,
       `Platform ${kind==='join'?'join':'resign'} synced: ${stats.added} added, ${stats.updated} updated, ${stats.removed} deleted`,

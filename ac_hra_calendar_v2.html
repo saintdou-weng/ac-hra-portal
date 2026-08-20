@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🇰🇭 柬埔寨假日行事曆管理系統</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=38"></script>
+<script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -484,12 +484,13 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn btn-gray" onclick="previewTgMsg()" style="flex:1">👁 <span data-t="preview">預覽</span></button>
-        <button class="btn btn-tg" onclick="sendTelegram()" style="flex:2">✈️ <span data-t="manual_send">手動發送</span></button>
+        <button class="btn btn-tg" onclick="sendTelegram()" style="flex:2">✈️ <span data-t="manual_send">直接通知</span></button>
+        <button class="btn btn-blue" onclick="sendCalendarApproval()" style="flex:2">👀 <span data-t="approval_send">送群組核可</span></button>
       </div>
       <div id="tg-status" style="margin-top:10px"></div>
       <div class="schedule-box" style="margin-top:12px">
         <strong>🗓 <span data-t="schedule_title">指定日期自動摘要</span></strong>
-        <div style="margin:7px 0" data-t="schedule_desc">選日期、摘要種類和發送時間；日曆摘要不需要核可，GAS 會在指定日期自動發到群組。</div>
+        <div style="margin:7px 0" data-t="schedule_desc">排程只會直接發通知；需要審批的假日調換請使用「送群組核可」。</div>
         <div class="tg-inline-controls">
           <label><input type="checkbox" id="auto-enabled"> <span data-t="enable_auto">啟用自動摘要</span></label>
           <label><span data-t="schedule_rule">週期</span>
@@ -561,8 +562,11 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
           <input class="form-input" type="number" id="f-days" min="1" max="60" value="1" style="width:80px">
         </div>
         <div class="form-group" id="fg-ref" style="display:none">
-          <label class="form-label">原假日日期（調換/補假用）</label>
+          <label class="form-label" id="f-ref-label">原假日日期（這一天改為正常上班）*</label>
           <input class="form-input" type="date" id="f-refdate">
+        </div>
+        <div class="form-group full" id="swap-help" style="display:none">
+          <div class="info-box" style="margin:0"><b>🔄 假日／正常日交換</b><br>「開始日期」＝原本正常上班、改為放假的日期；「原假日日期」＝原本放假、改為正常上班的日期。儲存時會自動建立成對記錄。</div>
         </div>
         <div class="form-group full">
           <label class="form-label">中文名稱 *</label>
@@ -577,7 +581,7 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
           <input class="form-input" id="f-km" placeholder="ឧ. ថ្ងៃឈប់...">
         </div>
         <div class="form-group full">
-          <label class="form-label">備注 / 說明</label>
+          <label class="form-label" id="f-note-label">備注 / 原因</label>
           <textarea class="form-textarea" id="f-note" placeholder="例：因星期日調至星期一補假、政府公告第xxx號..."></textarea>
         </div>
         <div class="form-group full">
@@ -1171,8 +1175,8 @@ const LANGS = {
     tg_config:'設定',period_analysis:'期間分析',day_week_month_year:'日／週／月／年',send_period_summary:'發送本期摘要',send_changes:'變更摘要',
     safe_send:'由共用 GAS 安全發送',tg_no_secret:'本頁不保存 Bot Token 或群組 ID；只有按下手動發送或安裝月底排程時才連線。',
     notice_type:'通知類型',next_month_summary:'下月完整摘要',selected_period_summary:'所選期間摘要',change_summary:'日曆變更摘要',upcoming_summary:'即將到來假日',year_summary:'全年假日摘要',custom_message:'自訂訊息',
-    language:'語言',bilingual:'中英雙語',chinese:'中文',english:'English',year:'年份',custom_optional:'自訂訊息（僅自訂類型使用）',custom_placeholder:'輸入自訂通知內容…',preview:'預覽',manual_send:'手動發送',
-    schedule_title:'指定日期自動摘要',schedule_desc:'選日期、摘要種類和發送時間；日曆摘要不需要核可，GAS 會在指定日期自動發到群組。',enable_auto:'啟用自動摘要',schedule_rule:'週期',rule_once:'指定日一次',rule_monthly:'每月同日',rule_yearly:'每年同日',rule_last_day:'每月底',schedule_date:'指定日期',schedule_summary:'摘要內容',month_end_auto:'每月底自動通知下月',month_end_desc:'內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。',send_hour:'發送時間',save_schedule:'儲存／安裝排程',message_preview:'訊息預覽',
+    language:'語言',bilingual:'中英雙語',chinese:'中文',english:'English',year:'年份',custom_optional:'自訂訊息（僅自訂類型使用）',custom_placeholder:'輸入自訂通知內容…',preview:'預覽',manual_send:'直接通知',approval_send:'送群組核可',
+    schedule_title:'指定日期自動摘要',schedule_desc:'排程只會直接發通知；需要審批的假日調換請使用「送群組核可」。',enable_auto:'啟用自動摘要',schedule_rule:'週期',rule_once:'指定日一次',rule_monthly:'每月同日',rule_yearly:'每年同日',rule_last_day:'每月底',schedule_date:'指定日期',schedule_summary:'摘要內容',month_end_auto:'每月底自動通知下月',month_end_desc:'內容包含下月日數、周日、假日、預估工作日，以及換假、取消、加假與新增上班日。',send_hour:'發送時間',save_schedule:'儲存／安裝排程',message_preview:'訊息預覽',
     change_tracking:'變更追蹤：',change_tracking_desc:'新增、修改、取消與刪除假日都會留下本機變更紀錄，手動摘要可直接列出。',
     calendar_days:'日曆天數',sunday_count:'周日',saturday_count:'周六',holiday_days:'實際休假日',legal_days:'法定假日',estimated_workdays:'預估工作日',moved_days:'換／延後假',cancelled_days:'取消假日',added_holiday_days:'加假／補假',extra_workdays:'新增上班日',change_records:'變更筆數',
     day_status:'當日狀態',workday:'上班日',sunday:'周日休息',holiday:'假日',changes:'變更',month_summary:'月份摘要',no_records:'沒有相關紀錄',
@@ -1192,8 +1196,8 @@ const LANGS = {
     tg_config:'Configuration',period_analysis:'Period Analysis',day_week_month_year:'Day / Week / Month / Year',send_period_summary:'Send Period Summary',send_changes:'Change Summary',
     safe_send:'Secure delivery through shared GAS',tg_no_secret:'This page stores no bot token or group ID. It connects only when you send manually or install the month-end schedule.',
     notice_type:'Notice Type',next_month_summary:'Full Next-Month Summary',selected_period_summary:'Selected Period Summary',change_summary:'Calendar Change Summary',upcoming_summary:'Upcoming Holidays',year_summary:'Full-Year Summary',custom_message:'Custom Message',
-    language:'Language',bilingual:'Chinese + English',chinese:'Chinese',english:'English',year:'Year',custom_optional:'Custom message (custom type only)',custom_placeholder:'Enter a custom notice…',preview:'Preview',manual_send:'Send Manually',
-    schedule_title:'Automatic Summary by Date',schedule_desc:'Choose the date, summary type and send time. Calendar summaries do not need approval; GAS sends them to the group automatically.',enable_auto:'Enable automatic summary',schedule_rule:'Frequency',rule_once:'One time on date',rule_monthly:'Same day every month',rule_yearly:'Same date every year',rule_last_day:'Last day of month',schedule_date:'Date',schedule_summary:'Summary content',month_end_auto:'Automatic Next-Month Notice at Month End',month_end_desc:'Includes next month’s calendar days, Sundays, holidays, estimated workdays, moved, cancelled or added holidays, and extra workdays.',send_hour:'Send time',save_schedule:'Save / Install Schedule',message_preview:'Message Preview',
+    language:'Language',bilingual:'Chinese + English',chinese:'Chinese',english:'English',year:'Year',custom_optional:'Custom message (custom type only)',custom_placeholder:'Enter a custom notice…',preview:'Preview',manual_send:'Direct Notice',approval_send:'Send for Group Approval',
+    schedule_title:'Automatic Summary by Date',schedule_desc:'Scheduled messages are direct notices. Use “Send for Group Approval” when a holiday/workday swap requires approval.',enable_auto:'Enable automatic summary',schedule_rule:'Frequency',rule_once:'One time on date',rule_monthly:'Same day every month',rule_yearly:'Same date every year',rule_last_day:'Last day of month',schedule_date:'Date',schedule_summary:'Summary content',month_end_auto:'Automatic Next-Month Notice at Month End',month_end_desc:'Includes next month’s calendar days, Sundays, holidays, estimated workdays, moved, cancelled or added holidays, and extra workdays.',send_hour:'Send time',save_schedule:'Save / Install Schedule',message_preview:'Message Preview',
     change_tracking:'Change tracking:',change_tracking_desc:'Adding, editing, cancelling or deleting a holiday creates a local change record that can be sent as a manual summary.',
     calendar_days:'Calendar Days',sunday_count:'Sundays',saturday_count:'Saturdays',holiday_days:'Actual Days Off',legal_days:'Legal Holidays',estimated_workdays:'Estimated Workdays',moved_days:'Moved / Postponed',cancelled_days:'Cancelled Holidays',added_holiday_days:'Added / Makeup Holidays',extra_workdays:'Extra Workdays',change_records:'Changes',
     day_status:'Day Status',workday:'Workday',sunday:'Sunday Off',holiday:'Holiday',changes:'Changes',month_summary:'Monthly Summary',no_records:'No related records',
@@ -1213,8 +1217,8 @@ const LANGS = {
     tg_config:'ការកំណត់',period_analysis:'វិភាគរយៈពេល',day_week_month_year:'ថ្ងៃ / សប្ដាហ៍ / ខែ / ឆ្នាំ',send_period_summary:'ផ្ញើសេចក្តីសង្ខេប',send_changes:'សង្ខេបការកែប្រែ',
     safe_send:'ផ្ញើដោយសុវត្ថិភាពតាម GAS',tg_no_secret:'ទំព័រនេះមិនរក្សាទុក Bot Token ឬ Group ID ទេ។ វាភ្ជាប់តែពេលផ្ញើដោយដៃ ឬដំឡើងកាលវិភាគ។',
     notice_type:'ប្រភេទជូនដំណឹង',next_month_summary:'សង្ខេបខែក្រោយ',selected_period_summary:'សង្ខេបរយៈពេល',change_summary:'សង្ខេបការកែប្រែ',upcoming_summary:'ថ្ងៃឈប់ខាងមុខ',year_summary:'សង្ខេបប្រចាំឆ្នាំ',custom_message:'សារផ្ទាល់ខ្លួន',
-    language:'ភាសា',bilingual:'ចិន + អង់គ្លេស',chinese:'ចិន',english:'English',year:'ឆ្នាំ',custom_optional:'សារផ្ទាល់ខ្លួន',custom_placeholder:'បញ្ចូលសារ…',preview:'មើលជាមុន',manual_send:'ផ្ញើដោយដៃ',
-    schedule_title:'សង្ខេបស្វ័យប្រវត្តិតាមកាលបរិច្ឆេទ',schedule_desc:'ជ្រើសកាលបរិច្ឆេទ ប្រភេទសង្ខេប និងម៉ោងផ្ញើ។ សង្ខេបប្រតិទិនមិនត្រូវការអនុម័តទេ; GAS នឹងផ្ញើទៅក្រុមដោយស្វ័យប្រវត្តិ។',enable_auto:'បើកសង្ខេបស្វ័យប្រវត្តិ',schedule_rule:'វដ្ត',rule_once:'ម្តងតាមកាលបរិច្ឆេទ',rule_monthly:'ថ្ងៃដដែលរៀងរាល់ខែ',rule_yearly:'កាលបរិច្ឆេទដដែលរៀងរាល់ឆ្នាំ',rule_last_day:'ថ្ងៃចុងខែ',schedule_date:'កាលបរិច្ឆេទ',schedule_summary:'មាតិកាសង្ខេប',month_end_auto:'ជូនដំណឹងខែក្រោយនៅចុងខែ',month_end_desc:'រួមមានចំនួនថ្ងៃ ថ្ងៃអាទិត្យ ថ្ងៃឈប់ ថ្ងៃធ្វើការ និងការផ្លាស់ប្តូរ។',send_hour:'ម៉ោងផ្ញើ',save_schedule:'រក្សាទុក / ដំឡើង',message_preview:'មើលសារជាមុន',
+    language:'ភាសា',bilingual:'ចិន + អង់គ្លេស',chinese:'ចិន',english:'English',year:'ឆ្នាំ',custom_optional:'សារផ្ទាល់ខ្លួន',custom_placeholder:'បញ្ចូលសារ…',preview:'មើលជាមុន',manual_send:'ជូនដំណឹងផ្ទាល់',approval_send:'ផ្ញើសុំអនុម័តក្នុងក្រុម',
+    schedule_title:'សង្ខេបស្វ័យប្រវត្តិតាមកាលបរិច្ឆេទ',schedule_desc:'សារតាមកាលវិភាគគឺជាការជូនដំណឹងផ្ទាល់។ ប្រើ “ផ្ញើសុំអនុម័តក្នុងក្រុម” សម្រាប់ការប្តូរថ្ងៃឈប់/ថ្ងៃធ្វើការដែលត្រូវការអនុម័ត។',enable_auto:'បើកសង្ខេបស្វ័យប្រវត្តិ',schedule_rule:'វដ្ត',rule_once:'ម្តងតាមកាលបរិច្ឆេទ',rule_monthly:'ថ្ងៃដដែលរៀងរាល់ខែ',rule_yearly:'កាលបរិច្ឆេទដដែលរៀងរាល់ឆ្នាំ',rule_last_day:'ថ្ងៃចុងខែ',schedule_date:'កាលបរិច្ឆេទ',schedule_summary:'មាតិកាសង្ខេប',month_end_auto:'ជូនដំណឹងខែក្រោយនៅចុងខែ',month_end_desc:'រួមមានចំនួនថ្ងៃ ថ្ងៃអាទិត្យ ថ្ងៃឈប់ ថ្ងៃធ្វើការ និងការផ្លាស់ប្តូរ។',send_hour:'ម៉ោងផ្ញើ',save_schedule:'រក្សាទុក / ដំឡើង',message_preview:'មើលសារជាមុន',
     change_tracking:'តាមដានការកែប្រែ៖',change_tracking_desc:'ការបន្ថែម កែប្រែ លុប ឬបោះបង់ថ្ងៃឈប់ នឹងរក្សាទុកជាប្រវត្តិ។',
     calendar_days:'ថ្ងៃសរុប',sunday_count:'ថ្ងៃអាទិត្យ',saturday_count:'ថ្ងៃសៅរ៍',holiday_days:'ថ្ងៃឈប់ពិត',legal_days:'ថ្ងៃឈប់ច្បាប់',estimated_workdays:'ថ្ងៃធ្វើការប៉ាន់ស្មាន',moved_days:'ប្តូរ / ពន្យារ',cancelled_days:'ថ្ងៃឈប់បានលុប',added_holiday_days:'ថ្ងៃឈប់បន្ថែម',extra_workdays:'ថ្ងៃធ្វើការបន្ថែម',change_records:'ការកែប្រែ',
     day_status:'ស្ថានភាពថ្ងៃ',workday:'ថ្ងៃធ្វើការ',sunday:'ឈប់ថ្ងៃអាទិត្យ',holiday:'ថ្ងៃឈប់',changes:'ការកែប្រែ',month_summary:'សង្ខេបខែ',no_records:'គ្មានទិន្នន័យ',
@@ -1274,11 +1278,18 @@ function logDbDiff(before,after){
   newMap.forEach((n,id)=>{const o=oldMap.get(id);if(!o)add('add',null,n);else if(JSON.stringify(o)!==JSON.stringify(n))add('update',o,n)});
   oldMap.forEach((o,id)=>{if(!newMap.has(id))add('delete',o,null)});if(CHANGE_LOG.length>500)CHANGE_LOG=CHANGE_LOG.slice(-500)
 }
+let CAL_AUTO_PUSH_TIMER=null,CAL_SYNC_APPLY=false;
+function scheduleCalendarCloudUpload(reason){
+  if(CAL_SYNC_APPLY||!localStorage.getItem('ac_hra_gas_url'))return;
+  clearTimeout(CAL_AUTO_PUSH_TIMER);
+  CAL_AUTO_PUSH_TIMER=setTimeout(()=>{CAL_AUTO_PUSH_TIMER=null;if(window.calPush)window.calPush({auto:true,reason})},900);
+}
 function saveDB(track=true){
   try{
     if(track)logDbDiff(LAST_SAVED_DB,DB);LAST_SAVED_DB=clone(DB);
     const flat=flatDB();localStorage.setItem(CAL_DB_KEY,JSON.stringify(DB));localStorage.setItem(CAL_FLAT_KEY,JSON.stringify(flat));localStorage.setItem(CAL_CHANGE_KEY,JSON.stringify(CHANGE_LOG));localStorage.setItem(CAL_SETTINGS_KEY,JSON.stringify(CAL_SETTINGS));
     let meta={};try{meta=JSON.parse(localStorage.getItem(CAL_META_KEY)||'{}')}catch{}localStorage.setItem(CAL_META_KEY,JSON.stringify({...meta,localUpdatedAt:Date.now(),count:flat.length,changeCount:CHANGE_LOG.length}));
+    if(track)scheduleCalendarCloudUpload('calendar-updated');
   }catch(e){console.warn('Calendar save failed',e)}
 }
 function loadDB(){
@@ -2317,8 +2328,15 @@ function buildPeriodSummary(code,mode=analysisMode,anchor=analysisAnchor,titleKi
 }
 function buildChangeSummary(code){
   const changes=CHANGE_LOG.slice().reverse().slice(0,20),actionZh={add:'新增',update:'修改',delete:'刪除'},actionEn={add:'Added',update:'Updated',delete:'Deleted'};
-  if(code==='zh')return[`📝 VRT 日曆變更摘要`,`共 ${changes.length} 筆最近變更`,...(changes.length?changes.map(x=>`• ${String(x.at).slice(0,10)}｜${actionZh[x.action]||x.action}｜${x.date||'—'}｜${x.zh||x.en||'—'}`):['目前沒有變更紀錄。']),'🏭 Vantage River Textiles · HRA'].join('\n');
-  return[`📝 VRT Calendar Change Summary`,`${changes.length} recent changes`,...(changes.length?changes.map(x=>`• ${String(x.at).slice(0,10)} | ${actionEn[x.action]||x.action} | ${x.date||'—'} | ${x.en||x.zh||'—'}`):['No change records yet.']),'🏭 Vantage River Textiles · HRA'].join('\n')
+  const swapIds=[...new Set(changes.map(x=>(x.after||x.before||{}).swapId).filter(Boolean))],all=flatDB(),swapLines=swapIds.map(id=>{
+    const rows=all.filter(r=>r.swapId===id),from=rows.find(r=>r.swapRole==='original_to_workday'||r.type==='workday'),to=rows.find(r=>r.swapRole==='normal_to_holiday'||r.type==='substitute');
+    const reason=(to||from||{}).note||'—',name=(to||from||{});if(!from&&!to)return '';
+    return code==='zh'
+      ?`🔄 原假日 ${from?.date||to?.refdate||'—'}（${name.zh||name.en||'—'}）→ 正常上班；原正常日 ${to?.date||from?.refdate||'—'} → 調換假日；原因：${reason}`
+      :`🔄 Original holiday ${from?.date||to?.refdate||'—'} (${name.en||name.zh||'—'}) → normal workday; original workday ${to?.date||from?.refdate||'—'} → substitute holiday; reason: ${reason}`;
+  }).filter(Boolean),ordinary=changes.filter(x=>!(x.after||x.before||{}).swapId);
+  if(code==='zh')return[`📝 VRT 日曆變更摘要`,`共 ${changes.length} 筆最近變更`,...swapLines,...(ordinary.length?ordinary.map(x=>`• ${String(x.at).slice(0,10)}｜${actionZh[x.action]||x.action}｜${x.date||'—'}｜${x.zh||x.en||'—'}${(x.after||x.before||{}).note?'｜原因：'+(x.after||x.before||{}).note:''}`):(!swapLines.length?['目前沒有變更紀錄。']:[])),'🏭 Vantage River Textiles · HRA'].join('\n');
+  return[`📝 VRT Calendar Change Summary`,`${changes.length} recent changes`,...swapLines,...(ordinary.length?ordinary.map(x=>`• ${String(x.at).slice(0,10)} | ${actionEn[x.action]||x.action} | ${x.date||'—'} | ${x.en||x.zh||'—'}${(x.after||x.before||{}).note?' | reason: '+(x.after||x.before||{}).note:''}`):(!swapLines.length?['No change records yet.']:[])),'🏭 Vantage River Textiles · HRA'].join('\n')
 }
 function buildUpcomingSummary(code){
   const today=ymd(new Date()),year=+today.slice(0,4),list=[...getHols(year),...getHols(year+1)].filter(h=>h.date>=today&&!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,8);
@@ -2334,8 +2352,20 @@ function gasUrl(){return localStorage.getItem('ac_hra_gas_url')||''}
 async function postCalendarGas(payload){const url=gasUrl();if(!url)throw new Error(lang==='en'?'Please configure the GAS URL in Cloud Sync first.':'請先在雲端同步設定 GAS URL。');const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');return d}
 async function sendTelegram(){
   const stEl=document.getElementById('tg-status'),msg=buildTgMsg();stEl.innerHTML=`<div class="warn-box">${lang==='en'?'Sending manually…':'手動發送中…'} ✈️</div>`;
-  try{await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value});stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已發送到 Telegram 群組。'}</div>`;if(window.calPush)await window.calPush()}
+  try{const d=await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value}),x=d.data||d;if(!x.sent&&!x.messageId)throw new Error(x.error||(lang==='en'?'Telegram delivery was not confirmed.':'Telegram 未確認送達。'));stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已直接通知 Telegram 群組。'}</div>`;if(window.calPush)await window.calPush({auto:true})}
   catch(e){stEl.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}</div>`}setTimeout(()=>stEl.innerHTML='',8000)
+}
+function calendarApprovalItems(){
+  const changes=CHANGE_LOG.slice().reverse().slice(0,20),ids=[...new Set(changes.map(x=>(x.after||x.before||{}).swapId).filter(Boolean))],all=flatDB(),items=[];
+  ids.forEach(id=>{const rows=all.filter(r=>r.swapId===id),from=rows.find(r=>r.swapRole==='original_to_workday'||r.type==='workday'),to=rows.find(r=>r.swapRole==='normal_to_holiday'||r.type==='substitute');if(!from&&!to)return;const n=to||from,reason=n.note||'—';items.push({key:'CALSWAP|'+id,itemId:'CALSWAP|'+id,kind:'calendar_swap',name:n.zh||n.en||'Holiday swap',dept:'HRA',group:'Calendar',position:'Holiday / Workday swap',period:(to?.date||from?.date||ymd(new Date())).slice(0,7),amount:0,info:`Original holiday ${from?.date||to?.refdate||'—'} → workday; original workday ${to?.date||from?.refdate||'—'} → holiday; reason: ${reason}`})});
+  if(!items.length)changes.slice(0,10).forEach(x=>{const r=x.after||x.before||{};items.push({key:'CALCHANGE|'+(x.id||x.recordId||x.at),itemId:'CALCHANGE|'+(x.id||x.recordId||x.at),kind:'calendar_change',name:r.zh||r.en||'Calendar change',dept:'HRA',group:'Calendar',position:typeCfg(r.type||'legal').en,period:String(r.date||x.date||ymd(new Date())).slice(0,7),amount:0,info:`${x.action} ${r.date||x.date||'—'} · ${r.note||''}`})});
+  return items;
+}
+async function sendCalendarApproval(){
+  const stEl=document.getElementById('tg-status'),items=calendarApprovalItems();if(!items.length){stEl.innerHTML='<div class="warn-box">⚠️ 沒有新的日曆變更可送核。</div>';return}
+  stEl.innerHTML='<div class="warn-box">👀 正在送群組核可…</div>';
+  try{const period=items[0].period||ymd(new Date()).slice(0,7),d=await postCalendarGas({action:'approvalRequest',module:'calendar',tool:'calendar',scope:'swap',batch:'CAL-'+period.replace(/-/g,''),period:period,lang:document.getElementById('tg-lang').value==='en'?'en':'zh',route:'review',items:items,text:buildTgMsg(),inspector:'HRA',checker:'HRA',requestedBy:'calendar_web',idempotencyKey:['calendar',items.map(x=>x.key+'|'+x.info).sort().join(',')].join('|')}),x=d.data||d;if(!x.closed&&!x.messageId&&!x.sentToGroup&&!x.alreadyPending&&!x.alreadyDecided)throw new Error(x.error||'Telegram approval delivery was not confirmed');stEl.innerHTML=`<div class="success-msg">✅ ${x.closed||x.alreadyDecided?'此變更已完成核可，未重發':x.alreadyPending?'已有待核批次，未重發':'已送群組核可'}</div>`;if(window.calPush)await window.calPush({auto:true})}
+  catch(e){stEl.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}</div>`}setTimeout(()=>stEl.innerHTML='',10000)
 }
 function renderScheduleStatus(){
   const el=document.getElementById('schedule-status');if(!el)return;
@@ -2606,8 +2636,12 @@ function onTypeChange(){
   const type=document.getElementById('f-type').value;
   const hint=document.getElementById('type-hint');
   const rfg=document.getElementById('fg-ref');
+  const help=document.getElementById('swap-help'),refLabel=document.getElementById('f-ref-label'),noteLabel=document.getElementById('f-note-label');
   hint.innerHTML=`<div class="info-box" style="margin:0">${TYPE_HINTS[type]||''}</div>`;
-  rfg.style.display=(type==='substitute'||type==='makeup'||type==='cancelled'||type==='postponed')?'flex':'none';
+  rfg.style.display=(type==='substitute'||type==='workday'||type==='makeup'||type==='cancelled'||type==='postponed')?'flex':'none';
+  if(help)help.style.display=type==='substitute'?'block':'none';
+  if(refLabel)refLabel.textContent=type==='substitute'?'原假日日期（這一天改為正常上班）*':type==='workday'?'配對的新假日日期':'參照／原假日日期';
+  if(noteLabel)noteLabel.textContent=type==='substitute'?'交換原因 *':'備注 / 原因';
 }
 function calcDays(){
   const s=document.getElementById('f-date').value;
@@ -2618,25 +2652,37 @@ function calcDays(){
   }
 }
 function saveHol(){
-  const yr=+document.getElementById('f-year').value;
+  let yr=+document.getElementById('f-year').value;
   const type=document.getElementById('f-type').value;
   const date=document.getElementById('f-date').value;
   const zh=document.getElementById('f-zh').value.trim();
   if(!date||!zh){ alert('請填寫日期和中文名稱'); return; }
+  const refdate=document.getElementById('f-refdate').value,note=document.getElementById('f-note').value.trim();
+  if(type==='substitute'&&(!refdate||!note)){alert('調換假日必須填「原假日日期」及「交換原因」。');return;}
+  if(type==='substitute'&&refdate===date){alert('原假日日期與新假日日期不可相同。');return;}
+  yr=+(date.slice(0,4)||yr);
+  let old=null;Object.keys(DB).some(y=>{old=(DB[y]||[]).find(x=>x.id===(document.getElementById('f-id').value||editingId));return !!old});
+  const oldSwapId=old?.swapId||'',swapId=type==='substitute'?(oldSwapId||('SWAP-'+uid())):'';
   const h={
     id: document.getElementById('f-id').value||uid(),
     date, enddate:document.getElementById('f-enddate').value,
     zh, en:document.getElementById('f-en').value.trim(),
     km:document.getElementById('f-km').value.trim(),
     type, days:+document.getElementById('f-days').value||1,
-    note:document.getElementById('f-note').value.trim(),
-    refdate:document.getElementById('f-refdate').value,
+    note:note,
+    refdate:refdate,
     source:document.getElementById('f-source').value.trim(),
+    swapId:swapId,swapRole:type==='substitute'?'normal_to_holiday':(old?.swapRole||''),updatedAt:new Date().toISOString()
   };
+  if(oldSwapId&&(type!=='substitute'||oldSwapId!==swapId)){Object.keys(DB).forEach(y=>{DB[y]=DB[y].filter(x=>x.id===h.id||x.swapId!==oldSwapId)})}
+  Object.keys(DB).forEach(y=>{DB[y]=DB[y].filter(x=>x.id!==h.id)});
   if(!DB[yr]) DB[yr]=[];
-  const idx=DB[yr].findIndex(x=>x.id===h.id);
-  if(idx>=0) DB[yr][idx]=h;
-  else DB[yr].push(h);
+  DB[yr].push(h);
+  if(type==='substitute'){
+    Object.keys(DB).forEach(y=>{DB[y]=DB[y].filter(x=>x.id===h.id||x.swapId!==swapId||x.swapRole!=='original_to_workday')});
+    const wy=+refdate.slice(0,4);if(!DB[wy])DB[wy]=[];
+    DB[wy].push({id:uid(),date:refdate,enddate:'',zh:zh+'：原假日改為正常上班',en:(h.en||zh)+' — original holiday becomes a normal workday',km:(h.km||'')+(h.km?' — ':'')+'ថ្ងៃឈប់ដើមប្តូរជាថ្ងៃធ្វើការ',type:'workday',days:1,note:note,refdate:date,source:h.source,swapId:swapId,swapRole:'original_to_workday',updatedAt:h.updatedAt});
+  }
   saveDB(); closeModal(); init();
 }
 function confirmDelete(id){
@@ -2646,7 +2692,8 @@ function deleteHol(){
   if(confirm('確定要刪除這筆假日記錄嗎？')) deleteHolById(document.getElementById('f-id').value);
 }
 function deleteHolById(id){
-  Object.keys(DB).forEach(y=>{ DB[y]=DB[y].filter(h=>h.id!==id); });
+  let target=null;Object.keys(DB).some(y=>{target=(DB[y]||[]).find(h=>h.id===id);return !!target});
+  Object.keys(DB).forEach(y=>{ DB[y]=DB[y].filter(h=>h.id!==id&&(!target?.swapId||h.swapId!==target.swapId)); });
   saveDB(); closeModal(); init();
 }
 
@@ -2772,28 +2819,36 @@ init();
 
   function calendarSmartMergeRows(a,b){
     function snap(rows){var x=(rows||[]).find(function(r){return r&&r.kind==='calendarSnapshot'});return x||{db:dbFromFlat(rows||[]),changeLog:[],settings:{}};}
-    var l=snap(a),r=snap(b),db=dbFromFlat(HRASmartSync.mergeRows(flatDB(l.db),flatDB(r.db))),cm={};
-    [].concat(l.changeLog||[],r.changeLog||[]).forEach(function(x){var k=String(x.id||x.recordId||x.at||JSON.stringify(x));cm[k]=x;});
-    return [{kind:'calendarSnapshot',version:3,db:db,changeLog:Object.keys(cm).map(function(k){return cm[k]}),settings:Object.assign({},l.settings||{},r.settings||{}),updatedAt:new Date().toISOString()}];
+    var l=snap(a),r=snap(b),rows=HRASmartSync.mergeRows(flatDB(l.db),flatDB(r.db)),recordMap={},cm={};
+    rows.forEach(function(x){recordMap[String(x.id||JSON.stringify(x))]=x;});
+    [].concat(l.changeLog||[],r.changeLog||[]).forEach(function(x){var k=String(x.id||x.recordId||x.at||JSON.stringify(x)),old=cm[k];if(!old||String(x.at||'')>=String(old.at||''))cm[k]=x;});
+    var changes=Object.keys(cm).map(function(k){return cm[k]}).sort(function(x,y){return String(x.at||'').localeCompare(String(y.at||''));});
+    /* Change-log entries are tombstones as well as audit rows.  Applying the
+       newest add/update/delete after the row merge prevents a deleted holiday
+       from being resurrected when another phone downloads an older snapshot. */
+    changes.forEach(function(x){var rid=String(x.recordId||(x.after||x.before||{}).id||'');if(!rid)return;if(x.action==='delete')delete recordMap[rid];else if(x.after)recordMap[rid]=Object.assign({},x.after);});
+    var db=dbFromFlat(Object.keys(recordMap).map(function(k){return recordMap[k]}));
+    return [{kind:'calendarSnapshot',version:4,db:db,changeLog:changes.slice(-500),settings:Object.assign({},l.settings||{},r.settings||{}),updatedAt:new Date().toISOString()}];
   }
 
-  window.calPush = async function(){
+  window.calPush = async function(options){
+    options=options||{};
     if(!gasUrl){ calLog('請先設定 GAS URL','err'); return; }
     var btn = document.getElementById('calPushBtn');
-    if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
+    if(btn&&!options.auto){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
       saveDB(false);
       var count=flatDB().length;
-      var snapshot={kind:'calendarSnapshot',version:3,db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS,updatedAt:new Date().toISOString()};
+      var snapshot={kind:'calendarSnapshot',version:4,db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS,updatedAt:new Date().toISOString()};
       var d = await HRASmartSync.push({url:gasUrl,tool:'calendar',records:[snapshot],recordCount:count,
         summary:{calendarDays:count,changes:CHANGE_LOG.length},meta:{coverage:HRACloudGuard.coverage(DB,'calendar')},
-        mergeRecords:calendarSmartMergeRows,
+        mergeRecords:calendarSmartMergeRows,autoConfirmConflicts:!!options.auto,
         onStatus:function(s){calLog(s,'i')}});
       if(d && d.ok && !d.cancelled){
         HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
         var meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
         localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
-        calLog('✓ '+(lang==='en'?'Manual upload complete':'手動上傳完成')+' ('+count+'筆)','ok');
+        calLog('✓ '+(lang==='en'?(options.auto?'Automatic changed-data upload complete':'Manual upload complete'):(options.auto?'變更已自動上傳':'手動上傳完成'))+' ('+(d.uploaded||0)+' '+(lang==='en'?'changed':'筆變更')+')','ok');
         calShowStatus();
       } else if(d && d.cancelled){
         calLog('⚠ '+(lang==='en'?'Upload cancelled; cloud data was kept':'已取消覆蓋，雲端資料已保留'),'err');
@@ -2801,7 +2856,7 @@ init();
         calLog('✗ '+(d&&d.error||'GAS error'),'err');
       }
     } catch(e){ calLog('✗ '+e.message,'err'); }
-    finally{ if(btn){ btn.disabled=false; btn.innerHTML=lang==='en'?'☁ Upload':'☁ 上傳'; } }
+    finally{ if(btn&&!options.auto){ btn.disabled=false; btn.innerHTML=lang==='en'?'☁ Upload':'☁ 上傳'; } }
   };
 
   window.calPull = async function(){
@@ -2810,23 +2865,24 @@ init();
     if(btn){ btn.disabled=true; btn.innerHTML='<span class="calspin">⏳</span>'; }
     try{
       var res = await HRASmartSync.pull({url:gasUrl,tool:'calendar',localRecords:[{kind:'calendarSnapshot',db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS}],
-        mergeRecords:calendarSmartMergeRows,
+        mergeRecords:calendarSmartMergeRows,autoConfirmConflicts:true,
         onStatus:function(s){calLog(s,'i')}});
       if(res&&res.cancelled){calLog('⚠ '+(lang==='en'?'Download cancelled':'已取消下載'),'err');return;}
       if(!res||res.noCloud){calLog('☁️ '+(lang==='en'?'No cloud calendar data':'雲端尚無資料'),'i');return;}
       var recs = res.records || [];
       var snap=Array.isArray(recs)?recs.find(function(x){return x&&x.kind==='calendarSnapshot'}):null;
+      CAL_SYNC_APPLY=true;
       if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:CHANGE_LOG;CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{});}
       else if(Array.isArray(recs)&&recs.length){DB=dbFromFlat(recs);}
       else throw new Error(lang==='en'?'No calendar snapshot found':'雲端沒有可用的日曆資料');
       LAST_SAVED_DB=clone(DB);saveDB(false);init();
       HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
       var count=flatDB().length,meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
-      localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
-      calLog('✓ '+(lang==='en'?'Latest cloud data downloaded':'已下載最新雲端資料')+' ('+count+'筆)','ok');
+      localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),smartDownloadedAt:new Date().toISOString(),count:count,changeCount:CHANGE_LOG.length})));
+      calLog('✓ '+(lang==='en'?'Latest cloud changes downloaded':'已下載最新雲端變更')+' ('+(res.downloaded||0)+' '+(lang==='en'?'changed':'筆變更')+' · '+count+' '+(lang==='en'?'total':'筆總計')+')','ok');
       calShowStatus();
     } catch(e){ calLog('✗ '+e.message,'err'); }
-    finally{ if(btn){ btn.disabled=false; btn.innerHTML=lang==='en'?'⬇ Download':'⬇ 下載'; } }
+    finally{ CAL_SYNC_APPLY=false;if(btn){ btn.disabled=false; btn.innerHTML=lang==='en'?'⬇ Download':'⬇ 下載'; } }
   };
 
   // Init

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 合約與試用期管理 Contract & Probation</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=38"></script>
+<script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
@@ -819,6 +819,7 @@ async function smartImport(input){
     ? '<div class="text-emerald-700">✅ <b>'+esc(x.f)+'</b> → '+labelType(x.type)+' ('+esc(x.why)+') · '+L('讀取','read','អាន')+' '+x.n+' '+L('筆','records','កំណត់ត្រា')+' ('+L('新增','added','បានបន្ថែម')+' '+x.added+' / '+L('更新','updated','បានធ្វើបច្ចុប្បន្នភាព')+' '+x.updated+')</div>'
     : '<div class="text-rose-700">❌ <b>'+esc(x.f)+'</b> — '+esc(x.msg)+'</div>').join('');
   renderAll();
+  if(okN)scheduleContractCloudUpload('excel-import');
 }
 function labelType(t){ return t==='prob'?L('試用期 Probation','Probation','សាកល្បង') : t==='cont'?L('合約 5% Contract','Contract 5%','កិច្ចសន្យា 5%') : t==='finish'?L('到期終止 Finish','Finished contract','កិច្ចសន្យាបញ្ចប់') : t; }
 
@@ -1300,7 +1301,7 @@ function editEnd(k){
   if(v.trim()==='') r.contractEnd='';
   else if(/^\d{4}-\d{2}-\d{2}$/.test(v.trim())) r.contractEnd=v.trim();
   else { toast(L('日期格式需為 YYYY-MM-DD','Date must use YYYY-MM-DD format','កាលបរិច្ឆេទត្រូវប្រើទម្រង់ YYYY-MM-DD'),'error'); return; }
-  persist(); renderCont(); renderDash(); renderAlert();
+  persist(); renderCont(); renderDash(); renderAlert(); scheduleContractCloudUpload('contract-end-updated');
 }
 function renderFinish(){
   renderSummary('finish');
@@ -1747,6 +1748,16 @@ async function confirmSendTg(){
 // ═══════════════════════════════════════════════════════════
 // Cloud sync (tool = 'contract')
 // ═══════════════════════════════════════════════════════════
+const CONTRACT_SMART_BASE='ac_hra_contract_smart_downloaded_v39';
+let CONTRACT_AUTO_PUSH_TIMER=null;
+function scheduleContractCloudUpload(reason){
+  if(!GAS_URL)return;
+  clearTimeout(CONTRACT_AUTO_PUSH_TIMER);
+  CONTRACT_AUTO_PUSH_TIMER=setTimeout(()=>{
+    CONTRACT_AUTO_PUSH_TIMER=null;
+    Promise.resolve(cloudUpload({auto:true,reason})).catch(e=>console.warn('[contract auto upload]',e));
+  },900);
+}
 function flatRecords(){
   return [].concat(
     PROBS.map(r=>Object.assign({},r,{_kind:'prob'})),
@@ -1764,13 +1775,14 @@ async function cloudUpload(options={}){
     const summary={probs:PROBS.length,conts:CONTS.length,finish:FINISH.length,decisions:Object.keys(DECISIONS).length};
     const d=await HRASmartSync.push({url:GAS_URL,tool:'contract',records:allRecs,recordCount:allRecs.length,
       summary:summary,meta:{decisions:DECISIONS,coverage:HRACloudGuard.coverage(allRecs,'contract')},
+      allowDeletes:!!localStorage.getItem(CONTRACT_SMART_BASE),autoConfirmConflicts:!!options.auto,
       onStatus:s=>setSync('☁ '+s)});
     if(d && d.cancelled)return;
     if(d && d.needsPull)throw new Error(L('雲端有新資料，已保留；請先下載合併','Cloud has newer data and was kept; download to merge first','Cloud មានទិន្នន័យថ្មីជាង ហើយបានរក្សាទុក; សូមទាញយកដើម្បីបញ្ចូលគ្នា'));
     HRACloudGuard.markRecords('contract_records',allRecs);HRACloudGuard.markState('contract_decisions',DECISIONS);
     setSync('✓ '+new Date().toLocaleTimeString());
-    toast('☁ '+L('只上傳新增／變更並保留雲端資料','Only new/changed data uploaded; cloud data kept','បានបញ្ចូលតែទិន្នន័យថ្មី/កែប្រែ និងរក្សាទុក Cloud')+' — '+(d?.uploaded||0)+' '+L('筆','records','កំណត់ត្រា'));
-  }catch(e){ setSync(''); toast(L('上傳失敗：','Upload failed:','ការបញ្ចូលបរាជ័យ៖')+e.message,'error'); }
+    if(!options.auto)toast('☁ '+L('只上傳新增／變更並保留雲端資料','Only new/changed data uploaded; cloud data kept','បានបញ្ចូលតែទិន្នន័យថ្មី/កែប្រែ និងរក្សាទុក Cloud')+' — '+(d?.uploaded||0)+' '+L('筆','records','កំណត់ត្រា'));
+  }catch(e){ setSync(''); if(options.auto)console.warn('[contract auto upload]',e);else toast(L('上傳失敗：','Upload failed:','ការបញ្ចូលបរាជ័យ៖')+e.message,'error'); }
   btn.disabled=false; btn.classList.remove('opacity-50');
 }
 function contractMergeKey(r,kind){ return contractCanonicalKey(kind,r); }
@@ -1791,6 +1803,7 @@ async function cloudDownload(){
     FINISH=contractMergeList('finish',FINISH,merged.filter(r=>r._kind==='finish'));
     if(res.meta&&res.meta.decisions&&typeof res.meta.decisions==='object')DECISIONS=Object.assign({},DECISIONS,res.meta.decisions);
     await persist();renderAll();HRACloudGuard.markRecords('contract_records',flatRecords());HRACloudGuard.markState('contract_decisions',DECISIONS);
+    localStorage.setItem(CONTRACT_SMART_BASE,new Date().toISOString());
     setSync('✓ '+new Date().toLocaleTimeString());
     toast('☁ '+L('只下載變更並保留本機資料','Only changed data downloaded; local data kept','បានទាញយកតែទិន្នន័យកែប្រែ និងរក្សាទុកទិន្នន័យមូលដ្ឋាន')+' — '+L('試用','Probation','សាកល្បង')+' '+PROBS.length+' / '+L('合約','Contract','កិច្ចសន្យា')+' '+CONTS.length+' / '+L('終止','Finished','បញ្ចប់')+' '+FINISH.length);
   }catch(e){ setSync(''); toast(L('下載失敗：','Download failed:','ការទាញយកបរាជ័យ៖')+e.message,'error'); }
@@ -1839,7 +1852,7 @@ function importJSON(input){
       const d=JSON.parse(rd.result);
       PROBS=d.probs||[]; CONTS=d.conts||[]; FINISH=d.finish||[]; DECISIONS=d.decisions||{};
       normalizeContractCollections();
-      await persist(); renderAll(); toast(L('✅ 已還原備份','✅ Backup restored','✅ បានស្តារទិន្នន័យបម្រុងទុក'));
+      await persist(); renderAll(); scheduleContractCloudUpload('backup-restored'); toast(L('✅ 已還原備份','✅ Backup restored','✅ បានស្តារទិន្នន័យបម្រុងទុក'));
     }catch(e){ toast(L('還原失敗：','Restore failed:','ការស្តារបរាជ័យ៖')+e.message,'error'); }
   };
   rd.readAsText(f);
@@ -1847,7 +1860,7 @@ function importJSON(input){
 async function clearAll(){
   if(!confirm(L('確定清除全部合約/試用期資料？此動作無法復原。','Clear all contract/probation data? This cannot be undone.','លុបទិន្នន័យកិច្ចសន្យា/សាកល្បងទាំងអស់? សកម្មភាពនេះមិនអាចត្រឡប់វិញបានទេ។'))) return;
   PROBS=[]; CONTS=[]; FINISH=[]; DECISIONS={};
-  await persist(); renderAll(); toast(L('已清除全部資料','All data cleared','បានលុបទិន្នន័យទាំងអស់'));
+  await persist(); renderAll(); scheduleContractCloudUpload('all-data-cleared'); toast(L('已清除全部資料','All data cleared','បានលុបទិន្នន័យទាំងអស់'));
 }
 function exportCSV(tab){
   const rows=filterRows(tab);
@@ -2033,6 +2046,7 @@ function saveCt(){
   var merged=contractMergeRows(_ctKind,keep,[rec]);
   if(_ctKind==='prob')PROBS=merged.arr; else if(_ctKind==='cont')CONTS=merged.arr; else FINISH=merged.arr;
   if(typeof saveAll==='function')saveAll(); else if(typeof persist==='function')persist();
+  scheduleContractCloudUpload('online-record-saved');
   closeCt(); if(typeof renderAll==='function')renderAll();
   toast('✅ '+(_ctId?L('已更新','Updated','បានកែ'):L('已新增','Added','បានបន្ថែម'))+'：'+fid+' '+nm+
         ' · '+L('可送核可','ready for approval','អាចដាក់ស្នើ'));
@@ -2044,6 +2058,7 @@ function deleteCt(){
   var i=tgt.findIndex(function(x){return x._k===_ctId || x.factoryId===_ctId;});
   if(i>=0)tgt.splice(i,1);
   if(typeof saveAll==='function')saveAll(); else if(typeof persist==='function')persist();
+  scheduleContractCloudUpload('online-record-deleted');
   closeCt(); if(typeof renderAll==='function')renderAll();
   toast('✅ '+L('已刪除','Deleted','បានលុប'));
 }

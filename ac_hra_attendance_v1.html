@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VRT 考勤分析系統 v2</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=38"></script>
+<script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/pay-bridge.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
@@ -147,7 +147,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="cloud-dot" id="cloudDot"></div>
   <span class="cloud-lbl" id="cloudLbl" data-zh="雲端未設定（僅手動同步）" data-en="Cloud not configured (manual sync only)" data-km="Cloud មិនទាន់កំណត់ (ធ្វើដោយដៃ)">雲端未設定（僅手動同步）</span>
   <span class="cloud-ts" id="cloudTs"></span>
-  <span class="cloud-ts" data-zh="不會自動上傳或下載" data-en="No automatic upload or download" data-km="មិនផ្ទុកឡើង ឬទាញយកដោយស្វ័យប្រវត្តិ">不會自動上傳或下載</span>
+  <span class="cloud-ts" data-zh="更新／摘要後自動補傳；下載仍由你按" data-en="Auto-uploads changes/summary; download stays manual" data-km="ផ្ទុកឡើងដោយស្វ័យប្រវត្តិបន្ទាប់ពីកែប្រែ/សង្ខេប; ទាញយកដោយដៃ">更新／摘要後自動補傳；下載仍由你按</span>
   <div class="cloud-btns">
     <button class="btn-cloud btn-push" onclick="pushCloud()" id="btnPush" disabled title="上傳至雲端 Push to Cloud" style="font-size:15px;padding:4px 9px">☁↑</button>
     <button class="btn-cloud btn-pull" onclick="pullCloud()" id="btnPull" disabled title="從雲端拉取 Pull from Cloud" style="font-size:15px;padding:4px 9px">☁↓</button>
@@ -630,6 +630,7 @@ function saveDB(){
   markDataChanged();
   LS.set('log', IMPORT_LOG);
   updateHeader();
+  scheduleAutoSave();
   return saveToIDB(DB).catch(e=>{
     console.warn('[IDB save error]', e);
     toast(T('瀏覽器資料庫無法寫入，請先下載 JSON 備份','Browser database could not be written. Download a JSON backup now.','មិនអាចរក្សាទុកទិន្នន័យបាន'),'err');
@@ -2627,9 +2628,18 @@ function buildCloudSummary() {
   };
 }
 
-// Compatibility no-op. Imports are saved locally, but cloud upload is always manual.
+let ATT_AUTO_PUSH_TIMER=null;
+// Debounced changed-date upload.  pushCloud() compares the date manifest, so
+// unchanged history is never re-uploaded; edits to an existing date still ask
+// for confirmation before that date is replaced.
 function scheduleAutoSave() {
-  return false;
+  if(!GAS_URL||!DB.length)return false;
+  clearTimeout(ATT_AUTO_PUSH_TIMER);
+  ATT_AUTO_PUSH_TIMER=setTimeout(()=>{
+    ATT_AUTO_PUSH_TIMER=null;
+    Promise.resolve(pushCloud({auto:true})).catch(e=>console.warn('[attendance auto upload]',e));
+  },900);
+  return true;
 }
 
 // ── UI helpers ──

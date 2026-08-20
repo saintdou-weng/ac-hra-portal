@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=38"></script>
+<script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -904,7 +904,7 @@ async function importFiles(files){
       await new Promise(r=>setTimeout(r,0))
     }
     if(!recognized)throw new Error(tr('importFailed'));finalizeLatestRoster();
-    await persist();selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('importDone')}`);
+    await persist();scheduleCertificateCloudUpload('excel-import');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('importDone')}`);
     document.getElementById('importPreview').innerHTML=logs.map(x=>`<li>${esc(x)}</li>`).join('');setTab('dashboard')
   }catch(e){console.error(e);toast(`❌ ${e.message}`,5000)}
   finally{hideLoading();document.getElementById('fileInput').value='';document.getElementById('modalFileInput').value=''}
@@ -924,13 +924,13 @@ function openCertForm(id=''){
 async function saveCertificate(e){
   e.preventDefault();let c=STATE.certificates.find(x=>x.id===val('certId'));const fresh=!c;if(!c)c={id:uid('cert'),createdAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
   Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),cost:num(val('certCost'))||val('certCost'),startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),remark:val('certRemark'),updatedAt:new Date().toISOString()});
-  if(fresh)STATE.certificates.push(c);await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
+  if(fresh)STATE.certificates.push(c);await persist();scheduleCertificateCloudUpload('certificate-saved');closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
 async function deleteCertificate(id){
   if(!confirm(tr('confirmDelete')))return;
   STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);
   STATE.requests.forEach(r=>{r.items=(r.items||[]).filter(i=>!(i.kind==='certificate'&&i.id===id));});
-  await persist();renderAll();toast(`✅ ${tr('deleted')}`)
+  await persist();scheduleCertificateCloudUpload('certificate-deleted');renderAll();toast(`✅ ${tr('deleted')}`)
 }
 function openPersonForm(id=''){
   document.getElementById('personForm').reset();const p=STATE.people.find(x=>x.id===id)||{};
@@ -940,13 +940,13 @@ async function savePerson(e){
   e.preventDefault();const incoming={employeeId:val('personEmployeeId'),nameEn:val('personNameEn'),nameKh:val('personNameKh'),nickname:val('personNickname'),department:val('personDepartment'),status:val('personStatus'),sex:val('personSex'),nationality:val('personNationality'),dob:val('personDob'),joinDate:val('personJoin'),passport:val('personPassport'),passportExpiry:val('personPassportExpiry'),visaExpiry:val('personVisaExpiry'),visaApplyDate:val('personVisaApply'),visaReceivedDate:val('personVisaReceived'),visaNumber:val('personVisaNumber'),visaExpense:num(val('personVisaExpense')),workPermitExpiry:val('personWpExpiry'),workPermitApplyDate:val('personWpApply'),workPermitReceivedDate:val('personWpReceived'),workPermitNumber:val('personWpNumber'),workPermitExpense:num(val('personWpExpense')),residenceExpiry:val('personResidenceExpiry'),residenceApplyDate:val('personResidenceApply'),residenceReceivedDate:val('personResidenceReceived'),residenceExpense:num(val('personResidenceExpense')),phone:val('personPhone'),remark:val('personRemark'),updatedAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
   let p=STATE.people.find(x=>x.id===val('personId'));if(!p&&!val('personId'))p=findPerson(incoming);
   if(p)Object.assign(p,incoming);else STATE.people.push({...incoming,id:uid('person'),createdAt:new Date().toISOString(),rosterManaged:false,history:[]});
-  await persist();closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
+  await persist();scheduleCertificateCloudUpload('person-saved');closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
 async function deletePerson(id){
   if(!confirm(tr('confirmDelete')))return;
   STATE.people=STATE.people.filter(x=>x.id!==id);selectedPeople.delete(id);
   STATE.requests.forEach(r=>{r.items=(r.items||[]).filter(i=>!(i.kind==='person'&&i.id===id));});
-  await persist();renderAll();toast(`✅ ${tr('deleted')}`)
+  await persist();scheduleCertificateCloudUpload('person-deleted');renderAll();toast(`✅ ${tr('deleted')}`)
 }
 function selectItem(kind,id,on){(kind==='certificate'?selectedCerts:selectedPeople)[on?'add':'delete'](id)}
 function visibleIds(kind){
@@ -969,13 +969,13 @@ async function saveRequest(e){
   e.preventDefault();let r=STATE.requests.find(x=>x.id===val('requestId'));if(r&&r.status==='approved'&&val('requestStatus')!=='approved'){toast(tr('alreadyDecided'),'warn');return}const fresh=!r;if(!r)r={id:uid('req'),number:nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId};
   Object.assign(r,{title:val('requestTitle'),type:val('requestType'),applicant:val('requestApplicant'),dueDate:val('requestDue'),cost:num(val('requestCost')),status:val('requestStatus'),remark:val('requestRemark'),items:pendingRequestItems.map(x=>({...x,targetDate:val('requestDue')})),updatedAt:new Date().toISOString()});
   if(r.status==='pending'&&!r.submittedAt)r.submittedAt=new Date().toISOString();if(fresh)STATE.requests.push(r);
-  await persist();pendingRequestItems=[];closeModal('requestModal');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('saved')}`)
+  await persist();scheduleCertificateCloudUpload('request-saved');pendingRequestItems=[];closeModal('requestModal');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('saved')}`)
 }
 async function decideRequest(id,status){
   const r=STATE.requests.find(x=>x.id===id);if(!r)return;const opinion=window.prompt(tr('requestDecision'),r.opinion||'');if(opinion===null)return;
   r.status=status;r.opinion=opinion;r.decidedAt=new Date().toISOString();r.updatedAt=r.decidedAt;r.reviewerTelegramId=STATE.settings.approverTelegramId;
   if(status==='approved'&&r.dueDate)r.items?.forEach(i=>{const rec=i.kind==='certificate'?STATE.certificates.find(x=>x.id===i.id):STATE.people.find(x=>x.id===i.id);if(rec)rec.completedForDate=r.dueDate});
-  await persist();renderAll();toast(`✅ ${tr(status==='approved'?'approved':'rejected')}`)
+  await persist();scheduleCertificateCloudUpload('request-decided');renderAll();toast(`✅ ${tr(status==='approved'?'approved':'rejected')}`)
 }
 
 /* ── Backup, Excel export, settings and manual cloud sync ────────────── */
@@ -1001,6 +1001,8 @@ function saveSettings(){
   persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})
 }
 function gasUrl(){return localStorage.getItem(GAS_KEY)||localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||''}
+let certificateAutoCloudTimer=null;
+function scheduleCertificateCloudUpload(reason){if(!gasUrl())return;clearTimeout(certificateAutoCloudTimer);certificateAutoCloudTimer=setTimeout(()=>{certificateAutoCloudTimer=null;cloudPush({auto:true,reason})},900)}
 async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
@@ -1050,19 +1052,20 @@ function certSmartRows(state){const rows=[];['certificates','people','requests',
 function certRowsToState(rows){const out=defaultState();(rows||[]).forEach(row=>{if(row?.kind==='snapshot'&&row.payload){Object.assign(out,mergeCertificateState(out,row.payload));return}const section=row?._hraSection;if(section==='settings'){out.settings=Object.assign({},out.settings,row.payload||{});return}if(out[section]&&Array.isArray(out[section])){const copy=Object.assign({},row);delete copy._hraSection;delete copy._k;out[section].push(copy)}});return out}
 function certSmartMergeRows(a,b){return HRASmartSync.mergeRows(certSmartRows(certRowsToState(a)),certSmartRows(certRowsToState(b)))}
 async function cloudPush(options={}){
-  showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');
+  if(!options.auto)showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');
   try{
     const rows=certSmartRows(STATE),d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:rows,recordCount:rows.length,
       summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},
-      meta:{coverage:HRACloudGuard.coverage(STATE,'certificate_visa')},
-      onStatus:s=>showLoading((LANG==='en'?'Uploading… ':'上傳中… ')+s)});
+      meta:{coverage:HRACloudGuard.coverage(STATE,'certificate_visa')},allowDeletes:!!STATE.settings.smartDownloadedAt,autoConfirmConflicts:!!options.auto,
+      onStatus:s=>{if(!options.auto)showLoading((LANG==='en'?'Uploading… ':'上傳中… ')+s)}});
     if(d&&d.cancelled){toast(LANG==='en'?'Upload cancelled; cloud data was kept.':'已取消上傳，雲端資料已保留。');return}
     if(d&&d.needsPull)throw new Error(LANG==='en'?'Cloud changed; data was kept. Download/merge first.':'雲端已有變更，資料已保留，請先下載合併。');
     HRACloudGuard.markState('certificate_state',STATE);
     const pushCloudAt=d?.timestamp||d?.updatedAt||'';
     if(pushCloudAt){STATE.settings.lastCloudUpdatedAt=pushCloudAt;await persist()}
-    toast(`✅ ${tr('cloudSent')}`)
-  }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
+    if(!options.auto)toast(`✅ ${tr('cloudSent')}`)
+    return d
+  }catch(e){if(options.auto)console.warn('[certificate auto upload]',e);else toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);return{ok:false,error:e}}finally{if(!options.auto)hideLoading()}
 }
 async function cloudPull(){
   const url=gasUrl();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading manually…':'手動下載中…');
@@ -1075,7 +1078,7 @@ async function cloudPull(){
     const localData=STATE.certificates.length+STATE.people.length+STATE.requests.length+STATE.imports.length;
     if(remoteCount>0&&!incomingData&&!localData&&(remoteCount>1||remote.length>1))throw new Error(`雲端回報 ${remoteCount} 筆，但手機實際讀入 0 筆；請勿重新上傳空資料。 Cloud reports ${remoteCount} rows, but this phone received 0 rows; do not upload the empty data.`);
     if(remote.length&&(STATE.certificates.length||STATE.people.length)&&!confirm(`雲端有 ${remote.length} 筆變更；本機資料會保留並合併。確定下載？`))return;
-    STATE=mergeCertificateState(STATE,incoming);STATE.settings.lastCloudUpdatedAt=cloudUpdatedAt;await persist();HRACloudGuard.markState('certificate_state',STATE);renderAll();toast(`✅ ${tr('cloudReceived')} · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
+    STATE=mergeCertificateState(STATE,incoming);STATE.settings.lastCloudUpdatedAt=cloudUpdatedAt;STATE.settings.smartDownloadedAt=new Date().toISOString();await persist();HRACloudGuard.markState('certificate_state',STATE);renderAll();toast(`✅ ${tr('cloudReceived')} · ${Number(res.downloaded)||remote.length} changed · ${STATE.certificates.length+STATE.people.length+STATE.requests.length} 筆`)
   }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
 }
 
