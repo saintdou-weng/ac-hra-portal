@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AC HRA Manpower v2.9</title>
+<title>AC HRA Manpower v3.0</title>
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
@@ -184,7 +184,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="logo">👥</div>
     <div>
       <div class="title" data-zh="人力與招募管理" data-en="Manpower & Recruitment" data-km="ការគ្រប់គ្រងកម្លាំងពលកម្ម">人力與招募管理</div>
-      <div class="subtitle">AC HRA · VRT · MANPOWER v2.9</div>
+      <div class="subtitle">AC HRA · VRT · MANPOWER v3.0</div>
     </div>
     <div class="header-actions">
       <div class="cloud-state"><span id="cloudDot" class="dot"></span><span id="cloudState">Cloud —</span></div>
@@ -663,7 +663,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 'use strict';
 
 // ─────────────────────────────────────────────────────────────
-// AC HRA Manpower v2.9 · shared state
+// AC HRA Manpower v3.0 · shared state
 // ─────────────────────────────────────────────────────────────
 const DB_KEY='ac_hra_manpower_v2_db';
 const LEGACY_REQ_KEY='ac_hra_manpower_reqs';
@@ -1910,11 +1910,12 @@ function metricsForState(state,group={dim:'overall',value:null}){
   const passed=candidates.length?candidates.filter(r=>['pass'].includes(r.interviewResult)||r.joined).length:dailyPassed;
   const failed=candidates.length?candidates.filter(r=>['fail','no_show'].includes(r.interviewResult)).length:dailyFailed;
   const pending=candidates.length?candidates.filter(r=>r.interviewResult==='pending'&&!r.joined).length:Math.max(0,applicants-passed-failed);
+  const recruitJoined=candidates.length?candidates.filter(r=>r.joined||r.joinDate).length:dailyJoined;
   const joined=joins.length||dailyJoined;
   const resigned=resigns.length||dailyResigned||planResigned;
   const avgActual=averageActual(state,allPlans,daily);
   return{
-    required,actual,gap:required-actual,hired,applicants,passed,failed,pending,joined,resigned,
+    required,actual,gap:required-actual,hired,applicants,passed,failed,pending,recruitJoined,joined,resigned,
     net:joined-resigned,turnover:avgActual?resigned/avgActual*100:0,avgActual,
     fillRate:required?actual/required*100:0,planPeriod:latest[0]?.period||'',departments:uniq(latest.map(r=>r.dept)).length
   };
@@ -2249,7 +2250,7 @@ function renderRecruit(){
     kpiCard(L('錄取','Passed','ជាប់'),fmt(m.passed),m.applicants?pct(m.passed/m.applicants*100):'0.0%','ok'),
     kpiCard(L('未錄取','Failed','ធ្លាក់'),fmt(m.failed),'',m.failed?'danger':''),
     kpiCard(L('待確認','Pending','រង់ចាំ'),fmt(m.pending),'',m.pending?'warn':''),
-    kpiCard(L('實際報到','Joined','បានចូល'),fmt(m.joined),m.applicants?pct(m.joined/m.applicants*100):'0.0%','ok')
+    kpiCard(L('實際報到','Joined','បានចូល'),fmt(m.recruitJoined),m.applicants?pct(m.recruitJoined/m.applicants*100):'0.0%','ok')
   ].join('');
   const q=norm(el('rcSearch').value).toLowerCase(),dept=el('rcDept').value,res=el('rcResult').value,gender=el('rcGender').value;
   const rows=DB.candidates.filter(r=>inState(r.registerDate,st))
@@ -2798,6 +2799,83 @@ function populateTgPeriods(){
   const s=el('tgPeriod'),old=s.value;s.innerHTML=keys.map(k=>`<option value="${esc(k)}">${esc(k)}</option>`).join('');
   s.value=keys.includes(old)?old:keys.includes(cur)?cur:keys[0]||'';previewTelegram();
 }
+function recruitmentRowsForState(state){
+  return DB.candidates.filter(r=>inState(r.registerDate,state))
+    .sort((a,b)=>String(a.registerDate||'').localeCompare(String(b.registerDate||''))||String(a.name||'').localeCompare(String(b.name||'')));
+}
+function recruitmentResultText(r,lang){
+  if(r.joined||r.joinDate)return tgBi('已報到','Joined',lang);
+  if(r.interviewResult==='pass')return tgBi('錄取','Passed',lang);
+  if(r.interviewResult==='fail')return tgBi('未錄取','Failed',lang);
+  if(r.interviewResult==='no_show')return tgBi('未到面試','No show',lang);
+  return tgBi('待確認','Pending',lang);
+}
+function recruitmentWhere(r){
+  return [r.dept,r.section&&r.section!==r.dept?r.section:'',r.position].filter(Boolean).join(' / ')||'—';
+}
+function recruitmentStatsForState(state){
+  const rows=recruitmentRowsForState(state),m=metricsForState(state);
+  return{rows,applicants:m.applicants,passed:m.passed,failed:m.failed,pending:m.pending,joined:m.recruitJoined,
+    male:rows.filter(r=>String(r.gender||'').toUpperCase()==='M').length,
+    female:rows.filter(r=>String(r.gender||'').toUpperCase()==='F').length};
+}
+function buildRecruitmentSummaryHtml(state,lang,includeDept,maxPeople){
+  const s=recruitmentStatsForState(state),rows=s.rows,limit=Math.max(1,n(maxPeople)||12);
+  let t=`\n🎯 <b>${tgBi('招募','Recruitment',lang)}</b>\n`;
+  t+=`${tgBi('應徵','Applicants',lang)}：<b>${fmt(s.applicants)}</b>　${tgBi('錄取','Passed',lang)}：${fmt(s.passed)}　${tgBi('未錄取／未到','Failed / no-show',lang)}：${fmt(s.failed)}\n`;
+  t+=`${tgBi('待確認','Pending',lang)}：${fmt(s.pending)}　${tgBi('已報到','Joined',lang)}：${fmt(s.joined)}　${tgBi('報到率','Join rate',lang)}：${s.applicants?pct(s.joined/s.applicants*100):'0.0%'}\n`;
+  if(rows.length){
+    t+=`${tgBi('性別','Gender',lang)}：${tgBi('男','Male',lang)} ${fmt(s.male)} · ${tgBi('女','Female',lang)} ${fmt(s.female)} · ${tgBi('未填','Unknown',lang)} ${fmt(Math.max(0,rows.length-s.male-s.female))}\n`;
+    t+=`${tgBi('應徵人員明細','Applicant details',lang)}：\n`;
+    rows.slice(0,limit).forEach((r,i)=>{
+      const id=r.empId||r.phone||'—',profile=[r.gender?`${tgBi('性別','Gender',lang)} ${r.gender}`:'',n(r.age)?`${tgBi('年齡','Age',lang)} ${fmt(r.age)}`:''].filter(Boolean).join(' · ');
+      const extra=[`${tgBi('結果','Result',lang)} ${recruitmentResultText(r,lang)}`,r.joinDate?`${tgBi('報到','Joined',lang)} ${r.joinDate}`:'',r.referral?`${tgBi('來源','Source',lang)} ${r.referral}`:''].filter(Boolean).join(' · ');
+      t+=`· ${i+1}. ${esc(r.registerDate||'—')} · <b>${esc(r.name||'—')}</b> · ${esc(id)}\n`;
+      t+=`  ${esc(recruitmentWhere(r))}${profile?` · ${esc(profile)}`:''}\n`;
+      t+=`  ${esc(extra)}${r.noShowReason||r.remark?` · ${tgBi('備註','Remark',lang)} ${esc(r.noShowReason||r.remark)}`:''}\n`;
+    });
+    if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;
+  }else if(s.applicants){
+    t+=`ℹ️ ${tgBi('本期只有每日招募合計，來源檔沒有逐人名單。','Only daily recruitment totals are available; the source has no person-level list.',lang)}\n`;
+  }
+  if(includeDept&&rows.length){
+    const groups={};
+    rows.forEach(r=>{
+      const dept=r.dept||'—',section=r.section||'—',position=r.position||'—',key=[dept,section,position].join('¦');
+      if(!groups[key])groups[key]={dept,section,position,total:0,passed:0,failed:0,pending:0,joined:0};
+      const g=groups[key];g.total++;
+      if(r.joined||r.joinDate)g.joined++;
+      else if(r.interviewResult==='pass')g.passed++;
+      else if(['fail','no_show'].includes(r.interviewResult))g.failed++;
+      else g.pending++;
+    });
+    const detail=Object.values(groups).sort((a,b)=>b.total-a.total||[a.dept,a.section,a.position].join('/').localeCompare([b.dept,b.section,b.position].join('/'))).slice(0,12);
+    t+=`📋 <b>${tgBi('招募部門／組別／職位','Recruitment by Department / Section / Position',lang)}</b>\n`;
+    detail.forEach(g=>{
+      const label=[g.dept,g.section,g.position].filter((v,i,a)=>v&&v!=='—'&&a.indexOf(v)===i).join(' / ')||'—';
+      t+=`· ${esc(label)}：${tgBi('應徵','Applicants',lang)} ${fmt(g.total)} · ${tgBi('錄取','Passed',lang)} ${fmt(g.passed)} · ${tgBi('未錄取','Failed',lang)} ${fmt(g.failed)} · ${tgBi('待確認','Pending',lang)} ${fmt(g.pending)} · ${tgBi('已報到','Joined',lang)} ${fmt(g.joined)}\n`;
+    });
+    if(Object.keys(groups).length>detail.length)t+=`· … +${Object.keys(groups).length-detail.length} ${tgBi('組','groups',lang)}\n`;
+  }
+  return t;
+}
+function recruitApprovalKey(r){return `RC|${r._k||[r.registerDate,normName(r.name),r.phone||r.dob||''].join('|')}`}
+function recruitApprovalItems(rows){
+  return rows.map(r=>({key:recruitApprovalKey(r),kind:'recruit',id:r.empId||'',name:r.name||'—',dept:r.dept||'—',group:r.section||'—',position:r.position||'—',
+    gender:r.gender||'',age:n(r.age)||'',period:String(r.registerDate||'').slice(0,7),
+    info:`${tgBi('應徵日期','Register date','both')} ${r.registerDate||'—'} · ${tgBi('結果','Result','both')} ${recruitmentResultText(r,'both')}${r.joinDate?` · ${tgBi('報到','Joined','both')} ${r.joinDate}`:''}${r.phone?` · ${tgBi('電話','Phone','both')} ${r.phone}`:''}${r.referral?` · ${tgBi('來源','Source','both')} ${r.referral}`:''}${r.noShowReason||r.remark?` · ${tgBi('備註','Remark','both')} ${r.noShowReason||r.remark}`:''}`,
+    amount:0}));
+}
+function movementRowsForState(state){
+  const rows=[];
+  DB.joins.filter(r=>inState(r.joinDate,state)).forEach(r=>rows.push({kind:'join',date:r.joinDate,r}));
+  DB.resigns.filter(r=>inState(r.resignDate,state)).forEach(r=>rows.push({kind:'resign',date:r.resignDate,r}));
+  return rows.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))||String(a.r.name||'').localeCompare(String(b.r.name||'')));
+}
+function movementApprovalItems(rows){
+  return rows.map(x=>{const r=x.r,isJoin=x.kind==='join';return{key:`MV|${r._k||[x.kind,r.empId,x.date].join('|')}`,kind:x.kind,id:r.empId||'',name:r.name||'—',dept:r.dept||'—',group:r.section||'—',position:r.position||'—',gender:r.gender||'',age:n(r.age)||'',days:n(r.workingDays)||0,period:String(x.date||'').slice(0,7),
+    info:`${isJoin?tgBi('入職','Join','both'):tgBi('離職','Resign','both')} ${x.date||'—'}${!isJoin&&r.reason?` · ${tgBi('原因','Reason','both')} ${r.reason}`:''}${r.remark?` · ${tgBi('備註','Remark','both')} ${r.remark}`:''}`,amount:0};});
+}
 function buildTelegramHtml(){
   const state=tgPeriodState(),lang=el('tgLanguage').value,m=metricsForState(state),label=el('tgPeriod').value||pLabel(state);
   let t=`👥 <b>${tgBi('VRT 人力摘要','VRT Manpower Summary',lang)}</b>\n📅 ${tgBi('期間','Period',lang)}：${esc(label)}\n`;
@@ -2808,9 +2886,8 @@ function buildTelegramHtml(){
     t+=`${tgBi('尚缺','Gap',lang)}：<b>${fmt(m.gap)}</b>　${tgBi('完成度','Completion',lang)}：${pct(m.fillRate)}\n`;
   }
   if(el('tgRecruit').checked){
-    t+=`\n🎯 <b>${tgBi('招募','Recruitment',lang)}</b>\n`;
-    t+=`${tgBi('應徵','Applicants',lang)}：${fmt(m.applicants)}　${tgBi('錄取','Passed',lang)}：${fmt(m.passed)}　${tgBi('未錄取','Failed',lang)}：${fmt(m.failed)}\n`;
-    t+=`${tgBi('待確認','Pending',lang)}：${fmt(m.pending)}　${tgBi('報到率','Join rate',lang)}：${m.applicants?pct(m.joined/m.applicants*100):'0.0%'}\n`;
+    const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;
+    t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?18:8);
   }
   if(el('tgMovement').checked){
     t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n`;
@@ -2828,7 +2905,7 @@ function buildTelegramHtml(){
       if(joins.length+resigns.length>movementRows.length)t+=`· … +${joins.length+resigns.length-movementRows.length}\n`;
     }
   }
-  if(el('tgDept').checked){
+  if(el('tgDept').checked&&el('tgPlan').checked){
     const latest=latestPlanRows(plansForState(state,true)),dm={};
     latest.forEach(r=>{
       const d=r.dept||r.section||'—';
@@ -2870,24 +2947,57 @@ function openTelegram(){
 function telegramApprovalRows(){
   return plansForState(tgPeriodState(),true).filter(r=>!mpApprovalStatus(r));
 }
+function telegramApprovalItems(){
+  const state=tgPeriodState(),items=[];
+  if(el('tgPlan').checked)items.push(...mpApprovalItems(telegramApprovalRows()));
+  if(el('tgRecruit').checked){
+    const rows=recruitmentRowsForState(state).filter(r=>!(MP_DEC[recruitApprovalKey(r)]||{}).d);
+    items.push(...recruitApprovalItems(rows));
+  }
+  if(el('tgMovement').checked){
+    const rows=movementRowsForState(state).filter(x=>!(MP_DEC[`MV|${x.r._k||[x.kind,x.r.empId,x.date].join('|')}`]||{}).d);
+    items.push(...movementApprovalItems(rows));
+  }
+  return items;
+}
 function buildManpowerApprovalHtml(){
-  const lang=el('tgLanguage').value,rows=telegramApprovalRows(),label=el('tgPeriod').value||pLabel(tgPeriodState());
-  let t=`📋 <b>${tgBi('人力需求核可','Manpower request approval',lang)}</b>\n📅 ${tgBi('期間','Period',lang)}：${esc(label)}\n─────────────\n`;
-  if(!rows.length)return t+`✅ ${tgBi('本期沒有新的待核需求','No new pending manpower requests','មិនមានសំណើថ្មីដែលរង់ចាំ')}\n`;
-  t+=`${tgBi('需求筆數','Requests',lang)}：<b>${rows.length}</b>\n`;
-  rows.slice(0,24).forEach((r,i)=>{
-    const p=planProgress(r),label2=planFullLabel(r);
-    t+=`⏳ <b>${i+1}.</b> ${esc(label2)}\n`;
-    t+=`   ${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('已入職／完成','Joined / filled',lang)} ${fmt(p.filled)} · ${tgBi('已離職','Resigned',lang)} ${fmt(p.resigned)} · ${tgBi('缺口','Gap',lang)} ${fmt(p.gap)} · ${tgBi('完成度','Completion',lang)} ${pct(p.rate)}\n`;
-    t+=`   ${tgBi('條件','Conditions',lang)} ${esc(planConditions(r,lang))}\n`;
-    t+=`   ${tgBi('原因','Reason',lang)} ${esc(planReason(r,lang))}\n`;
-    if(p.rows.length){
-      const people=p.rows.slice(0,8).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');
-      t+=`   ${tgBi('已連動人員','Linked people',lang)} ${esc(people)}${p.rows.length>8?` · … +${p.rows.length-8}`:''}\n`;
+  const state=tgPeriodState(),lang=el('tgLanguage').value,label=el('tgPeriod').value||pLabel(state);
+  let t=`📋 <b>${tgBi('人力／招募審查','Manpower / Recruitment review',lang)}</b>\n📅 ${tgBi('期間','Period',lang)}：${esc(label)}\n─────────────\n`;
+  let sectionCount=0;
+  if(el('tgPlan').checked){
+    const rows=telegramApprovalRows();sectionCount++;
+    t+=`\n🏭 <b>${tgBi('人力需求','Manpower requisitions',lang)}</b>\n`;
+    if(!rows.length)t+=`✅ ${tgBi('本期沒有新的待核需求','No new pending manpower requests',lang)}\n`;
+    else{
+      t+=`${tgBi('需求筆數','Requests',lang)}：<b>${rows.length}</b>\n`;
+      rows.slice(0,16).forEach((r,i)=>{
+        const p=planProgress(r),label2=planFullLabel(r);
+        t+=`⏳ <b>${i+1}.</b> ${esc(label2)}\n`;
+        t+=`   ${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('已入職／完成','Joined / filled',lang)} ${fmt(p.filled)} · ${tgBi('缺口','Gap',lang)} ${fmt(p.gap)} · ${tgBi('完成度','Completion',lang)} ${pct(p.rate)}\n`;
+        t+=`   ${tgBi('條件','Conditions',lang)} ${esc(planConditions(r,lang))} · ${tgBi('原因','Reason',lang)} ${esc(planReason(r,lang))}\n`;
+      });
+      if(rows.length>16)t+=`· … +${rows.length-16}\n`;
     }
-  });
-  if(rows.length>24)t+=`· … +${rows.length-24}\n`;
-  t+=`\n${tgBi('審查後可逐筆核可或退件；已存在待核／已完成需求不會重發。','After review, each request can be approved or rejected; pending or completed requests are not resent.',lang)}`;
+  }
+  if(el('tgRecruit').checked){
+    sectionCount++;
+    const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;
+    t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?18:8);
+  }
+  if(el('tgMovement').checked){
+    sectionCount++;
+    const rows=movementRowsForState(state),joins=rows.filter(x=>x.kind==='join').length,resigns=rows.length-joins,limit=!el('tgPlan').checked&&!el('tgRecruit').checked?18:8;
+    t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n${tgBi('入職','Joined',lang)}：<b>${fmt(joins)}</b>　${tgBi('離職','Resigned',lang)}：<b>${fmt(resigns)}</b>　${tgBi('淨增減','Net',lang)}：${joins-resigns>0?'+':''}${fmt(joins-resigns)}\n`;
+    if(rows.length){
+      t+=`${tgBi('人員明細','People details',lang)}：\n`;
+      rows.slice(0,limit).forEach((x,i)=>{const r=x.r;t+=`· ${i+1}. ${x.kind==='join'?tgBi('入職','Join',lang):tgBi('離職','Resign',lang)} ${esc(r.empId||'—')} <b>${esc(r.name||'—')}</b> · ${esc(recruitmentWhere(r))} · ${esc(x.date||'—')}${x.kind==='resign'&&r.reason?` · ${tgBi('原因','Reason',lang)} ${esc(r.reason)}`:''}\n`});
+      if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;
+    }
+  }
+  if(!sectionCount)t+=`⚠️ ${tgBi('請至少勾選一個摘要項目','Select at least one summary section',lang)}\n`;
+  const itemCount=telegramApprovalItems().length;
+  t+=`\n📌 ${tgBi('本次可送審明細','Reviewable records',lang)}：<b>${fmt(itemCount)}</b>\n`;
+  t+=`${tgBi('每筆都可核可或退件；已在待核或已完成的同一筆資料不會重發。','Each record can be approved or rejected; identical pending or completed records are not resent.',lang)}`;
   return t;
 }
 function previewTelegram(){
@@ -2909,13 +3019,13 @@ async function fetchJsonWithTimeout(url,options={},timeoutMs=30000){
     throw e;
   }finally{if(timer)clearTimeout(timer)}
 }
-async function submitManpowerApprovalRows(rows,periodOverride){
+async function submitManpowerApprovalItems(items,periodOverride,scopeOverride){
   const url=gasUrl();if(!url){toast(L('請先設定 GAS URL','Set GAS URL first','សូមកំណត់ GAS URL'),'warn');return false}
-  rows=(rows||[]).filter(Boolean);
-  if(!rows.length){toast(L('沒有新的待核人力需求；已核或待核的資料不會重發','No new pending manpower requests; approved or pending requests are not resent','មិនមានសំណើថ្មី; សំណើបានអនុម័ត ឬកំពុងរង់ចាំមិនផ្ញើស្ទួន'),'warn');return false}
-  const items=mpApprovalItems(rows),period=periodOverride||el('tgPeriod')?.value||pKey(lds(NAV.approval.pivot),NAV.approval.mode)||'ALL';
+  items=(items||[]).filter(Boolean);
+  if(!items.length){toast(L('本期沒有可送審的逐筆資料；已核或待核資料不會重發','No person-level records are available for review; approved or pending records are not resent','មិនមានទិន្នន័យលម្អិតសម្រាប់ពិនិត្យ'),'warn');return false}
+  const period=periodOverride||el('tgPeriod')?.value||pKey(lds(NAV.approval.pivot),NAV.approval.mode)||'ALL';
   const tl=el('tgLanguage')?.value||LANG,lang=tl==='en'?'en':tl==='km'?'km':'zh';
-  const payload={action:'approvalRequest',type:'approvalRequest',module:'manpower',scope:'plan',batch:'MP-'+String(period).replace(/[^0-9A-Za-z]/g,''),period,route:'review',lang,items,
+  const payload={action:'approvalRequest',type:'approvalRequest',module:'manpower',scope:scopeOverride||'mixed',title:'Manpower / Recruitment Review',batch:'MP-'+String(period).replace(/[^0-9A-Za-z]/g,''),period,route:'review',lang,items,
     idempotencyKey:['manpower',period,items.map(x=>`${x.key}|${x.info}`).sort().join(',')].join('|'),requestedBy:'manpower_web',requestedAt:new Date().toISOString()};
   try{
     const d=await fetchJsonWithTimeout(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
@@ -2926,8 +3036,12 @@ async function submitManpowerApprovalRows(rows,periodOverride){
     MP_APPROVAL_SEL={};if(el('mpApprovalBody'))renderManpowerApproval();
     /* Telegram 送達確認與雲端同步分開；同步失敗不能讓按鈕一直停在 Sending。 */
     Promise.resolve(cloudUpload({auto:true})).catch(e=>console.warn('Background cloud upload:',e));
-    toast(L('人力需求已送群組審查','Manpower requests sent for group review','បានផ្ញើសំណើកម្លាំងពលកម្មទៅក្រុមពិនិត្យ'),'ok');return true;
+    toast(L('人力／招募明細已送群組審查','Manpower / recruitment details sent for group review','បានផ្ញើព័ត៌មានកម្លាំងពលកម្ម / ជ្រើសរើសទៅក្រុមពិនិត្យ'),'ok');return true;
   }catch(e){toast(e.message,'err');return false}
+}
+async function submitManpowerApprovalRows(rows,periodOverride){
+  rows=(rows||[]).filter(Boolean);
+  return submitManpowerApprovalItems(mpApprovalItems(rows),periodOverride,'plan');
 }
 async function sendTelegram(){
   const url=gasUrl();if(!url){closeModal('tgModal');goTab('settings');toast(L('請先設定 GAS URL','Set GAS URL first','កំណត់ GAS URL'),'warn');return}
@@ -2935,7 +3049,7 @@ async function sendTelegram(){
   const btn=el('tgSendBtn');btn.disabled=true;btn.textContent=L('傳送中…','Sending…','កំពុងផ្ញើ…');
   try{
     if(el('tgSendMode')?.value==='approval'){
-      const ok=await submitManpowerApprovalRows(telegramApprovalRows());if(ok)closeModal('tgModal');return;
+      const ok=await submitManpowerApprovalItems(telegramApprovalItems(),el('tgPeriod')?.value||'', 'selected');if(ok)closeModal('tgModal');return;
     }
     const d=await fetchJsonWithTimeout(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',tool:'manpower',text:LAST_TG_HTML})});
     if(d?.ok===false)throw new Error(d.error||'Telegram failed');
