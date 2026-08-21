@@ -72,7 +72,7 @@ tbody tr:hover{background:#f8fafc}
     <div class="leading-none">
         <p class="text-sm font-semibold text-slate-800" data-t="hdr_title">孕婦 · 產假 · 護理費 · 健檢費管理 Maternity</p>
       <p class="text-[10px] text-slate-400 mt-0.5">AC HRA Portal · Vantage River Textiles
-        <span class="ml-1 px-1.5 py-0.5 rounded bg-pink-50 text-pink-600 jmono border border-pink-100">v3.2</span>
+        <span class="ml-1 px-1.5 py-0.5 rounded bg-pink-50 text-pink-600 jmono border border-pink-100">v3.3</span>
         <span id="cloud-stat" class="ml-1 text-slate-300 jmono"></span></p>
     </div>
     <div class="flex-1"></div>
@@ -523,7 +523,7 @@ tbody tr:hover{background:#f8fafc}
 <script>
 'use strict';
 /* ═══════════════════════════════════════════════════════════════
-   AC HRA Portal — 孕婦·產假·護理費·健檢費模組 (ac_hra_maternity_v1.html · v3.1 內容)
+   AC HRA Portal — 孕婦·產假·護理費·健檢費模組 (ac_hra_maternity_v1.html · v3.3 內容)
    硬性規則：① GAS POST text/plain ② 日期 local getters 禁 toISOString
    ③ XLSX cellDates:false,raw:true + 序號自算(getUTC*) ④ TG HTML+escapeHtml
    ⑤ inline onclick 掛 window ⑥ 每分頁獨立期間 state ⑦ fetch/render try-catch-finally
@@ -2349,7 +2349,7 @@ function matBlock(M,bi){
 function nurBlock(Nr,bi){
   var ppl=new Set(Nr.map(function(r){return r.cardId;})).size;
   var amt=Nr.reduce(function(s,r){return s+(+r.amount||0);},0);
-  var t='💊 <b>'+esc(BL('護理費','Nursing',bi))+'：'+Nr.length+' '+esc(BL('筆','records',bi))+'</b>\n';
+  var t='💊 <b>'+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+'：'+Nr.length+' '+esc(BL('筆','records','កំណត់ត្រា',bi))+'</b>\n';
   t+='👥 '+esc(BL('人數','People',bi))+'：'+ppl+'　💵 '+esc(BL('金額','Amount',bi))+'：$'+fmt(amt)+'\n';
   t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
   var show=Nr.slice(0,30);
@@ -2389,11 +2389,11 @@ function healthBlock(H,bi){
 function medicalBlock(D,bi){
   var qty=D.reduce(function(s,r){return s+(+r.quantity||0);},0),amt=D.reduce(function(s,r){return s+(+r.amount||0);},0),dm={};
   D.forEach(function(r){var d=r.department||r.dept||L('未填','Unassigned','មិនបានបំពេញ');dm[d]=(dm[d]||0)+1;});
-  var t='💊 <b>'+esc(BL('醫療採購','Medical Purchase','ការទិញថ្នាំ',bi))+'：'+D.length+' '+esc(BL('筆','records','កំណត់ត្រា',bi))+'</b>\n';
+  var t='💊 <b>'+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+'：'+D.length+' '+esc(BL('筆','records','កំណត់ត្រា',bi))+'</b>\n';
   t+='📦 '+esc(BL('訂購數量','Ordered quantity','បរិមាណបញ្ជាទិញ',bi))+'：'+fmt0(qty)+'　💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+'：$'+fmt(amt)+'\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});
   if(dl.length){t+='<b>'+esc(BL('部門','By department','តាមផ្នែក',bi))+'</b>\n';dl.forEach(function(d){t+='· '+esc(d)+'：'+dm[d]+' '+esc(BL('筆','rows','ជួរ',bi))+'\n';});}
-  t+='<b>'+esc(BL('採購明細','Purchase details','ព័ត៌មានលម្អិតការទិញ',bi))+'</b>\n';
+  t+='<b>'+esc(BL('藥品明細','Medicine details','ព័ត៌មានលម្អិតអំពីថ្នាំ',bi))+'</b>\n';
   D.slice(0,30).forEach(function(r){
     t+='· '+esc(r.item||r.name||'—');
     if(r.productName)t+=' · '+esc(r.productName);
@@ -2427,6 +2427,60 @@ function apprStats(p,scope){
   pool.forEach(function(r){var x=DEC[r._k];if(!x||!x.d)pend++;else if(x.d==='ok')ok++;else no++;});
   return {ok:ok,no:no,pend:pend,total:pool.length};
 }
+function tgScopeLabel(scope,bi){
+  return scope==='preg'?BL('孕婦','Pregnant','ស្ត្រីមានផ្ទៃពោះ',bi)
+       : scope==='mat'?BL('產假','Maternity','លំហែមាតុភាព',bi)
+       : scope==='nur'?BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi)
+       : scope==='health'?BL('健檢費','Health Check Fee','ថ្លៃពិនិត្យសុខភាព',bi)
+       : scope==='med'?BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi)
+       : scope==='clinic'?BL('診所記錄','Clinic Record','កំណត់ត្រាគ្លីនិក',bi)
+       : BL('孕婦／產假／員工健康','Maternity & Employee Health','មាតុភាព និងសុខភាពបុគ្គលិក',bi);
+}
+/* Fee summaries must say whether the amount is actually usable.  A zero that
+   came from a blank Excel cell is not silently treated as a verified amount. */
+function summaryAmountAudit(d,scope){
+  var checked=0,total=0,issues=[];
+  function add(label,rows,amountOf,idOf){
+    (rows||[]).forEach(function(r){
+      checked++;
+      var n=Number(amountOf(r)),id=String(idOf(r)||'—');
+      if(!isFinite(n)||n<=0){
+        issues.push(label+' · '+id+'：金額未填或為 0 / missing or zero amount');
+      }else total+=n;
+    });
+  }
+  if(scope==='all'||scope==='mat')add('產假 / Maternity',d.M,function(r){return r.matAmount;},function(r){return r.idNo||r.name;});
+  if(scope==='all'||scope==='nur')add('護理費 / Nursing Fee',d.Nr,function(r){return r.amount;},function(r){return r.cardId||r.name;});
+  if(scope==='all'||scope==='health')add('健檢費 / Health Check Fee',d.H,function(r){return r.amount;},function(r){return r.idNo||r.empId||r.name;});
+  if(scope==='all'||scope==='med')add('藥品費 / Medicine Fee',d.D,function(r){return r.amount;},function(r){return r.item||r.productName||r.id;});
+  if(scope==='all'||scope==='clinic'){
+    var cs=d.C.filter(function(r){return r.type==='clinic_summary';});
+    if(d.C.length&&!cs.length){
+      checked++;
+      issues.push('診所 / Clinic：來源沒有金額摘要 / source has no amount summary');
+    }else cs.forEach(function(r){
+      checked++;
+      var n=Number(r.medicalFee);
+      if(r.medicalFeeProvided===false||!isFinite(n)||n<=0){
+        issues.push('診所 / Clinic · '+String(r.period||'—')+'：金額未提供 / amount not provided');
+      }else total+=n;
+    });
+  }
+  return {checked:checked,total:total,issues:issues};
+}
+function summaryAmountAuditBlock(d,scope){
+  var a=summaryAmountAudit(d,scope);
+  if(!a.checked)return '';
+  var t=HR;
+  if(a.issues.length){
+    t+='⚠️ <b>金額異常 / Amount anomaly（'+a.issues.length+'）</b>\n';
+    a.issues.slice(0,8).forEach(function(x){t+='· '+esc(x)+'\n';});
+    if(a.issues.length>8)t+='· … +'+(a.issues.length-8)+'\n';
+  }else{
+    t+='✅ <b>金額已核算正確 / Amount verified</b> · $'+fmt(a.total)+'\n';
+  }
+  return t;
+}
 function buildSummaryText(p,bi,scope){
   scope=scope||_tgScope||'all';
   var d=periodData(p);
@@ -2434,17 +2488,17 @@ function buildSummaryText(p,bi,scope){
   if(!need)return {err:L('此期間'+(scope==='preg'?'沒有孕婦':scope==='mat'?'沒有產假':scope==='nur'?'沒有護理費':scope==='health'?'沒有健檢費':scope==='med'?'沒有醫療採購':scope==='clinic'?'沒有診所':'')+'資料','No '+(scope==='preg'?'pregnant ':scope==='mat'?'maternity ':scope==='nur'?'nursing ':scope==='health'?'health-fee ':scope==='med'?'medical-purchase ':scope==='clinic'?'clinic ':'')+'data for this period')};
   var head=scope==='preg'?'🤰 <b>'+esc(BL('孕婦月報','Pregnant Report',bi))+'</b>'
           :scope==='mat'?'🍼 <b>'+esc(BL('產假月報','Maternity Report',bi))+'</b>'
-          :scope==='nur'?'💊 <b>'+esc(BL('護理費月報','Nursing Report',bi))+'</b>'
+          :scope==='nur'?'💊 <b>'+esc(BL('護理費月報','Nursing Fee Report','របាយការណ៍ថ្លៃថែទាំ',bi))+'</b>'
           :scope==='health'?'🏥 <b>'+esc(BL('健檢費月報','Health Fee Report',bi))+'</b>'
-          :scope==='med'?'💊 <b>'+esc(BL('醫療採購月報','Medical Purchase Report','របាយការណ៍ការទិញថ្នាំ',bi))+'</b>'
+          :scope==='med'?'💊 <b>'+esc(BL('藥品費月報','Medicine Fee Report','របាយការណ៍ថ្លៃថ្នាំ',bi))+'</b>'
           :scope==='clinic'?'🩺 <b>'+esc(BL('診所月報','Clinic Report','របាយការណ៍គ្លីនិក',bi))+'</b>'
-          :'👶 <b>'+esc(BL('孕婦產假護理費月報','Maternity & Nursing',bi))+'</b>';
+          :'👶 <b>'+esc(BL('孕婦／產假／員工健康月報','Maternity & Employee Health','របាយការណ៍មាតុភាព និងសុខភាពបុគ្គលិក',bi))+'</b>';
   var t=head+'\n📅 '+esc(BL('期間','Period',bi))+'：'+esc(p)+'\n🏭 VRT Sihanoukville\n'+HR;
   if(scope==='all'){
     t+='🤰 '+esc(BL('孕婦','Pregnant',bi))+'：<b>'+d.P.length+'</b>　🍼 '+esc(BL('產假','Maternity',bi))+'：<b>'+d.M.length+'</b>\n';
-    t+='💊 '+esc(BL('護理費','Nursing',bi))+'：<b>'+d.Nr.length+'</b> '+esc(BL('筆','recs',bi))+'　💵 $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
+    t+='💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+'：<b>'+d.Nr.length+'</b> '+esc(BL('筆','recs','កំណត់ត្រា',bi))+'　💵 $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
     t+='🏥 '+esc(BL('健檢費','Health Fee',bi))+'：<b>'+d.H.length+'</b> '+esc(BL('筆','recs',bi))+'　💵 $'+fmt(d.H.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
-    t+='💊 '+esc(BL('醫療採購','Medical Purchase','ការទិញថ្នាំ',bi))+'：<b>'+d.D.length+'</b> '+esc(BL('筆','recs','កំណត់ត្រា',bi))+'　💵 $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
+    t+='💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+'：<b>'+d.D.length+'</b> '+esc(BL('筆','recs','កំណត់ត្រា',bi))+'　💵 $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
     t+='🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+'：<b>'+d.C.length+'</b> '+esc(BL('筆','records','កំណត់ត្រា',bi))+'\n'+HR;
     t+=pregBlock(d.P,bi)+HR+matBlock(d.M,bi)+HR+nurBlock(d.Nr,bi)+HR+healthBlock(d.H,bi)+HR+medicalBlock(d.D,bi)+HR+clinicBlock(d.C,bi);
   }else if(scope==='preg'){ t+=pregBlock(d.P,bi); }
@@ -2453,9 +2507,10 @@ function buildSummaryText(p,bi,scope){
   else if(scope==='health'){ t+=healthBlock(d.H,bi); }
   else if(scope==='med'){ t+=medicalBlock(d.D,bi); }
   else { t+=clinicBlock(d.C,bi); }
+  t+=summaryAmountAuditBlock(d,scope);
   var st=apprStats(p,scope);
   t+=HR+'✔ '+esc(BL('已核可','Approved',bi))+' '+st.ok+' · ✖ '+esc(BL('已退回','Rejected',bi))+' '+st.no+' · ⏳ '+esc(BL('待核可','Pending',bi))+' '+st.pend+'\n';
-  t+='<i>'+esc(nowStamp())+' · AC HRA Maternity</i>';
+  t+='<i>'+esc(nowStamp())+' · AC HRA '+esc(tgScopeLabel(scope,bi))+'</i>';
   return {text:t};
 }
 function buildApprovalItems(p,scope){
@@ -2510,7 +2565,7 @@ function buildApprovalItems(p,scope){
   if(scope==='all'||scope==='med')d.D.forEach(function(r){
     var x=DEC[r._k]||{};
     items.push({key:r._k,kind:'medical_purchase',id:r.item||r.productName||r.id,name:r.item||r.productName||'',dept:r.department||r.dept||'',group:'',position:r.productName||'',gender:'',age:'',days:0,region:'',period:r.period,amount:+r.amount||0,
-      info:L('醫療採購','Medical purchase','ការទិញថ្នាំ')+' '+(r.productName||r.item||'')+' · '+L('數量','Qty','ចំនួន')+' '+fmt(r.quantity||0),decision:x.d||'',note:x.note||''});
+      info:'藥品費 / Medicine Fee · '+(r.productName||r.item||'')+' · '+L('數量','Qty','ចំនួន')+' '+fmt(r.quantity||0),decision:x.d||'',note:x.note||''});
   });
   return items;
 }

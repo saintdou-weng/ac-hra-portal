@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AC HRA Manpower v3.0</title>
+<title>AC HRA Manpower v3.1</title>
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
@@ -184,7 +184,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
     <div class="logo">👥</div>
     <div>
       <div class="title" data-zh="人力與招募管理" data-en="Manpower & Recruitment" data-km="ការគ្រប់គ្រងកម្លាំងពលកម្ម">人力與招募管理</div>
-      <div class="subtitle">AC HRA · VRT · MANPOWER v3.0</div>
+      <div class="subtitle">AC HRA · VRT · MANPOWER v3.1</div>
     </div>
     <div class="header-actions">
       <div class="cloud-state"><span id="cloudDot" class="dot"></span><span id="cloudState">Cloud —</span></div>
@@ -663,7 +663,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 'use strict';
 
 // ─────────────────────────────────────────────────────────────
-// AC HRA Manpower v3.0 · shared state
+// AC HRA Manpower v3.1 · shared state
 // ─────────────────────────────────────────────────────────────
 const DB_KEY='ac_hra_manpower_v2_db';
 const LEGACY_REQ_KEY='ac_hra_manpower_reqs';
@@ -1268,6 +1268,7 @@ function setLang(lang){
 }
 function applyLang(){
   qsa('[data-zh]').forEach(x=>{const v=x.dataset[LANG]||x.dataset.en||x.dataset.zh;if(v!=null)x.textContent=v});
+  qsa('[data-ph-zh]').forEach(x=>{const v=x.dataset[`ph${LANG[0].toUpperCase()}${LANG.slice(1)}`]||x.dataset.phEn||x.dataset.phZh;if(v!=null)x.placeholder=v});
   ['zh','en','km'].forEach(x=>el(`lang-${x}`)?.classList.toggle('on',LANG===x));
   document.documentElement.lang=LANG==='zh'?'zh-TW':LANG==='km'?'km':'en';
 }
@@ -1864,7 +1865,7 @@ function planProgress(plan){
 function planConditions(plan,lang='zh'){
   const a=[];
   const g=String(plan?.genderReq||plan?.genderRequirement||'').trim();
-  if(g&&g!=='any')a.push(`${tgBi('性別','Gender',lang)} ${fieldOptionLabel('genderReq',g)}`);
+  if(g&&g!=='any')a.push(`${tgBi('性別','Gender',lang)} ${fieldOptionLabel('genderReq',g,lang)}`);
   const min=n(plan?.ageMin),max=n(plan?.ageMax);
   if(min||max)a.push(`${tgBi('年齡','Age',lang)} ${min&&max?`${min}-${max}`:min?`${min}+`: `≤${max}`}`);
   const expRaw=norm(plan?.experienceReq||plan?.experience||plan?.relevantExperience),exp=fieldOptionLabel('experienceReq',expRaw,lang);
@@ -2431,68 +2432,192 @@ function renderOnboardingLink(){
 // ─────────────────────────────────────────────────────────────
 const FORM_FIELDS={
   plan:[
-    ['snapshotDate','日期 Date','date',true],['dept','部門 Department','text',true],
-    ['section','組別 Section','text'],['position','職位 Position','text',true],
-    ['required','需求人數 Required headcount','number',true],
-    ['genderReq','性別條件 Gender requirement','select:any|F|M|Other'],
-    ['ageMin','最低年齡 Minimum age','number'],['ageMax','最高年齡 Maximum age','number'],
-    ['experienceReq','相關經驗 Relevant experience','select:none|beginner|semi|experienced|any|other'],
-    ['educationReq','學歷 Education','select:none|primary|middle|highschool|vocational|associate|bachelor|master|any|other'],
-    ['manualJoined','已聘用／入職（手動） Manual joined / hired','number'],
-    ['manualResigned','離職人數（手動） Manual resigned','number'],
-    ['requestReason','需求原因 Request reason','select:resign_replacement|expansion|new_position|new_setup|seasonal|other'],
-    ['reasonDetail','原因說明 Reason details','textarea'],
-    ['remark','備註 Remark','textarea']
+    ['snapshotDate',['日期','Date','កាលបរិច្ឆេទ'],'date',true],
+    ['dept',['部門','Department','នាយកដ្ឋាន'],'choice:dept',true],
+    ['section',['組別','Section','ផ្នែក'],'text'],
+    ['position',['職位','Position','មុខតំណែង'],'choice:position',true],
+    ['required',['需求人數','Required headcount','ចំនួនត្រូវការ'],'number',true],
+    ['genderReq',['性別條件','Gender requirement','លក្ខខណ្ឌភេទ'],'select:any|F|M|Other'],
+    ['ageMin',['最低年齡','Minimum age','អាយុអប្បបរមា'],'number'],
+    ['ageMax',['最高年齡','Maximum age','អាយុអតិបរមា'],'number'],
+    ['experienceReq',['相關經驗','Relevant experience','បទពិសោធន៍ពាក់ព័ន្ធ'],'select:none|beginner|semi|experienced|any|other'],
+    ['educationReq',['學歷','Education','កម្រិតសិក្សា'],'select:none|primary|middle|highschool|vocational|associate|bachelor|master|any|other'],
+    ['manualJoined',['已聘用／入職（手動）','Manual joined / hired','បានជួល / ចូលធ្វើការ (បញ្ចូលដៃ)'],'number'],
+    ['manualResigned',['離職人數（手動）','Manual resigned','ចំនួនចាកចេញ (បញ្ចូលដៃ)'],'number'],
+    ['requestReason',['需求原因','Request reason','មូលហេតុតម្រូវការ'],'select:resign_replacement|expansion|new_position|new_setup|seasonal|other'],
+    ['reasonDetail',['原因說明','Reason details','ព័ត៌មានលម្អិតអំពីមូលហេតុ'],'textarea'],
+    ['remark',['備註','Remark','កំណត់សម្គាល់'],'textarea']
   ],
   candidate:[
-    ['registerDate','登記日 Register date','date',true],['name','姓名 Name','text',true],
-    ['dept','部門 Department','text'],['section','組別 Section','text'],['position','職位 Position','text'],
-    ['gender','性別 Gender','select:F|M|Other'],['dob','生日 Date of birth','date'],['phone','電話 Phone','text'],
-    ['referral','招募來源 Referral','text'],['interviewResult','面試結果 Interview result','select:pending|pass|fail|no_show'],
-    ['noShowReason','未到／未錄取原因 Reason','text'],['remark','備註 Remark','textarea']
+    ['registerDate',['登記日','Register date','ថ្ងៃចុះឈ្មោះ'],'date',true],
+    ['name',['姓名','Name','ឈ្មោះ'],'text',true],
+    ['dept',['部門','Department','នាយកដ្ឋាន'],'choice:dept'],
+    ['section',['組別','Section','ផ្នែក'],'text'],
+    ['position',['職位','Position','មុខតំណែង'],'choice:position'],
+    ['gender',['性別','Gender','ភេទ'],'select:F|M|Other'],
+    ['dob',['生日','Date of birth','ថ្ងៃខែឆ្នាំកំណើត'],'date'],
+    ['phone',['電話','Phone','លេខទូរស័ព្ទ'],'text'],
+    ['referral',['招募來源','Recruitment source','ប្រភពជ្រើសរើស'],'choice:recruitSource'],
+    ['interviewResult',['面試結果','Interview result','លទ្ធផលសម្ភាសន៍'],'select:pending|pass|fail|no_show'],
+    ['noShowReason',['未到／未錄取原因','No-show / rejection reason','មូលហេតុមិនមក / មិនជ្រើសរើស'],'choice:rejectionReason'],
+    ['remark',['備註','Remark','កំណត់សម្គាល់'],'textarea']
   ],
   join:[
-    ['joinDate','入職日 Join date','date',true],['empId','工號 Employee ID','text',true],
-    ['name','姓名 Name','text',true],['dept','部門 Department','text'],['section','組別 Section','text'],
-    ['position','職位 Position','text'],['gender','性別 Gender','select:F|M|Other'],['dob','生日 Date of birth','date'],
-    ['phone','電話 Phone','text'],['referral','招募來源 Referral','text'],['remark','備註 Remark','textarea']
+    ['joinDate',['入職日','Join date','ថ្ងៃចូលធ្វើការ'],'date',true],
+    ['empId',['工號','Employee ID','លេខបុគ្គលិក'],'text',true],
+    ['name',['姓名','Name','ឈ្មោះ'],'text',true],
+    ['dept',['部門','Department','នាយកដ្ឋាន'],'choice:dept'],
+    ['section',['組別','Section','ផ្នែក'],'text'],
+    ['position',['職位','Position','មុខតំណែង'],'choice:position'],
+    ['gender',['性別','Gender','ភេទ'],'select:F|M|Other'],
+    ['dob',['生日','Date of birth','ថ្ងៃខែឆ្នាំកំណើត'],'date'],
+    ['phone',['電話','Phone','លេខទូរស័ព្ទ'],'text'],
+    ['referral',['招募來源','Recruitment source','ប្រភពជ្រើសរើស'],'choice:recruitSource'],
+    ['remark',['備註','Remark','កំណត់សម្គាល់'],'textarea']
   ],
   resign:[
-    ['resignDate','離職日 Resign date','date',true],['empId','工號 Employee ID','text',true],
-    ['name','姓名 Name','text',true],['joinDate','到職日 Join date','date'],['dept','部門 Department','text'],
-    ['section','組別 Section','text'],['position','職位 Position','text'],['gender','性別 Gender','select:F|M|Other'],
-    ['resignType','離職方式 Resign type','select:resign|dismiss|self|expel'],['workingDays','在職天數 Working days','number'],
-    ['reason','離職原因 Reason','text'],['remark','備註 Remark','textarea']
+    ['resignDate',['離職日','Resign date','ថ្ងៃចាកចេញ'],'date',true],
+    ['empId',['工號','Employee ID','លេខបុគ្គលិក'],'text',true],
+    ['name',['姓名','Name','ឈ្មោះ'],'text',true],
+    ['joinDate',['到職日','Join date','ថ្ងៃចូលធ្វើការ'],'date'],
+    ['dept',['部門','Department','នាយកដ្ឋាន'],'choice:dept'],
+    ['section',['組別','Section','ផ្នែក'],'text'],
+    ['position',['職位','Position','មុខតំណែង'],'choice:position'],
+    ['gender',['性別','Gender','ភេទ'],'select:F|M|Other'],
+    ['resignType',['離職方式','Resign type','ប្រភេទចាកចេញ'],'select:resign|dismiss|self|expel'],
+    ['workingDays',['在職天數','Working days','ចំនួនថ្ងៃធ្វើការ'],'number'],
+    ['reason',['離職原因','Resign reason','មូលហេតុចាកចេញ'],'text'],
+    ['remark',['備註','Remark','កំណត់សម្គាល់'],'textarea']
   ],
   daily:[
-    ['date','日期 Date','date',true],['applicants','應徵 Applicants','number'],['passed','錄取 Passed','number'],
-    ['failed','未錄取 Failed','number'],['joined','入職 Joined','number'],['resigned','離職 Resigned','number'],
-    ['actual','實際人力 Actual manpower','number'],['remark','備註 Remark','textarea']
+    ['date',['日期','Date','កាលបរិច្ឆេទ'],'date',true],
+    ['applicants',['應徵','Applicants','អ្នកដាក់ពាក្យ'],'number'],
+    ['passed',['錄取','Passed','ជាប់'],'number'],
+    ['failed',['未錄取','Not selected','មិនជ្រើសរើស'],'number'],
+    ['joined',['入職','Joined','បានចូលធ្វើការ'],'number'],
+    ['resigned',['離職','Resigned','បានចាកចេញ'],'number'],
+    ['actual',['實際人力','Actual manpower','កម្លាំងជាក់ស្តែង'],'number'],
+    ['remark',['備註','Remark','កំណត់សម្គាល់'],'textarea']
+  ]
+};
+const FORM_CHOICES={
+  dept:[
+    {v:'Production',l:['生產部','Production','ផលិតកម្ម'],a:['production department','生產']},
+    {v:'Administration',l:['行政部','Administration','រដ្ឋបាល'],a:['admin','admin center','administrative']},
+    {v:'Human Resources',l:['人力資源部','Human Resources','ធនធានមនុស្ស'],a:['hr','human resource']},
+    {v:'Finance & Accounting',l:['財務／會計部','Finance & Accounting','ហិរញ្ញវត្ថុ និងគណនេយ្យ'],a:['finance','accounting']},
+    {v:'Quality Control',l:['品質部','Quality Control','ត្រួតពិនិត្យគុណភាព'],a:['qc','quality']},
+    {v:'Cutting',l:['裁剪部','Cutting','កាត់'],a:['cut','cutt']},
+    {v:'Sewing',l:['車縫部','Sewing','ដេរ'],a:['sew']},
+    {v:'Packing',l:['包裝部','Packing','វេចខ្ចប់']},
+    {v:'Warehouse',l:['倉庫','Warehouse','ឃ្លាំង']},
+    {v:'Industrial Engineering',l:['IE／工業工程','Industrial Engineering','វិស្វកម្មឧស្សាហកម្ម'],a:['ie']},
+    {v:'Maintenance',l:['機修／維修部','Maintenance','ជួសជុល និងថែទាំ'],a:['mechanic','mechanical']},
+    {v:'Compliance',l:['合規部','Compliance','អនុលោមភាព']},
+    {v:'Security',l:['保安部','Security','សន្តិសុខ']},
+    {v:'Clinic',l:['醫務室','Clinic','គ្លីនិក']},
+    {v:'Shipping',l:['出貨部','Shipping','ដឹកជញ្ជូន']},
+    {v:'Product Development',l:['產品開發部','Product Development','អភិវឌ្ឍន៍ផលិតផល'],a:['development']}
+  ],
+  position:[
+    {v:'Sewing Operator',l:['車縫工','Sewing Operator','កម្មករដេរ'],a:['operator','sewing worker']},
+    {v:'Helper',l:['助手','Helper','ជំនួយការ']},
+    {v:'Cutting Operator',l:['裁剪工','Cutting Operator','កម្មករកាត់']},
+    {v:'Cutting Helper',l:['裁剪助手','Cutting Helper','ជំនួយការកាត់']},
+    {v:'QC Inspector',l:['品檢員','QC Inspector','អ្នកត្រួតពិនិត្យគុណភាព'],a:['quality inspector']},
+    {v:'Packing Worker',l:['包裝工','Packing Worker','កម្មករវេចខ្ចប់']},
+    {v:'Warehouse Worker',l:['倉庫人員','Warehouse Worker','បុគ្គលិកឃ្លាំង']},
+    {v:'Mechanic',l:['機修工','Mechanic','ជាងម៉ាស៊ីន']},
+    {v:'IE',l:['IE 人員','IE','បុគ្គលិក IE']},
+    {v:'Clerk',l:['文員','Clerk','ស្មៀន']},
+    {v:'Team Leader',l:['組長','Team Leader','ប្រធានក្រុម']},
+    {v:'Supervisor',l:['主管','Supervisor','មេការ']},
+    {v:'Manager',l:['經理','Manager','អ្នកគ្រប់គ្រង']},
+    {v:'Security Guard',l:['保安員','Security Guard','សន្តិសុខ']},
+    {v:'Cleaner',l:['清潔工','Cleaner','អ្នកសម្អាត']},
+    {v:'Driver',l:['司機','Driver','អ្នកបើកបរ']},
+    {v:'Nurse',l:['護理人員','Nurse','គិលានុបដ្ឋាយិកា']}
+  ],
+  recruitSource:[
+    {v:'Walk-in',l:['自行應徵','Walk-in','មកដាក់ពាក្យផ្ទាល់']},
+    {v:'Employee Referral',l:['員工介紹','Employee Referral','ការណែនាំពីបុគ្គលិក'],a:['referral','introduce by']},
+    {v:'Social Media',l:['Facebook／社群媒體','Facebook / Social Media','Facebook / បណ្តាញសង្គម'],a:['facebook','social']},
+    {v:'Telegram',l:['Telegram','Telegram','Telegram']},
+    {v:'Recruitment Agency',l:['人力仲介','Recruitment Agency','ភ្នាក់ងារជ្រើសរើស'],a:['agency']},
+    {v:'School / Training Center',l:['學校／培訓中心','School / Training Center','សាលា / មជ្ឈមណ្ឌលបណ្តុះបណ្តាល'],a:['school','training center']},
+    {v:'Former Employee',l:['前員工回聘','Former Employee','អតីតបុគ្គលិក'],a:['rehire']},
+    {v:'Internal Transfer',l:['內部轉調','Internal Transfer','ផ្ទេរផ្ទៃក្នុង'],a:['internal']}
+  ],
+  rejectionReason:[
+    {v:'Skill Test Failed',l:['技能測試未通過','Skill Test Failed','មិនជាប់តេស្តជំនាញ']},
+    {v:'No Relevant Experience',l:['無相關經驗','No Relevant Experience','ខ្វះបទពិសោធន៍ពាក់ព័ន្ធ']},
+    {v:'Age Requirement',l:['不符年齡條件','Age Requirement','មិនត្រូវតាមលក្ខខណ្ឌអាយុ']},
+    {v:'Education Requirement',l:['不符學歷條件','Education Requirement','មិនត្រូវតាមលក្ខខណ្ឌការសិក្សា']},
+    {v:'Salary Expectation',l:['薪資期望不符','Salary Expectation','រំពឹងប្រាក់ខែមិនត្រូវគ្នា']},
+    {v:'Health Condition',l:['健康條件不符','Health Condition','សុខភាពមិនសមស្រប']},
+    {v:'Documents Incomplete',l:['文件不齊','Documents Incomplete','ឯកសារមិនគ្រប់']},
+    {v:'No Show',l:['未到面試','No Show','មិនមកសម្ភាសន៍']},
+    {v:'Position Filled',l:['職缺已滿','Position Filled','តំណែងពេញ']},
+    {v:'Candidate Withdrew',l:['應徵者取消','Candidate Withdrew','បេក្ខជនដកពាក្យ']},
+    {v:'Communication / Language',l:['溝通／語言不符','Communication / Language','ការទំនាក់ទំនង / ភាសា']}
   ]
 };
 function collection(kind){return kind==='plan'?DB.plans:kind==='candidate'?DB.candidates:kind==='join'?DB.joins:kind==='resign'?DB.resigns:DB.daily}
 function formRecord(kind,key){return collection(kind).find(r=>r._k===key)||{}}
-function fieldOptionLabel(key,value,lang=LANG){
+function localizedPart(parts,lang=LANG){
+  if(!Array.isArray(parts))return String(parts||'');
+  return lang==='en'?(parts[1]||parts[0]||''):lang==='km'?(parts[2]||parts[1]||parts[0]||''):(parts[0]||parts[1]||'');
+}
+function langDataAttrs(parts,prefix='data'){
+  const p=Array.isArray(parts)?parts:[String(parts||''),String(parts||''),String(parts||'')];
+  return `${prefix}-zh="${esc(p[0]||'')}" ${prefix}-en="${esc(p[1]||p[0]||'')}" ${prefix}-km="${esc(p[2]||p[1]||p[0]||'')}"`;
+}
+function fieldOptionLabels(key,value){
+  const gender={any:['不限','Any','គ្រប់ភេទ'],F:['女性','Female','ស្រី'],M:['男性','Male','ប្រុស'],Other:['其他','Other','ផ្សេងទៀត']};
   const maps={
-    genderReq:{any:['不限','Any','គ្រប់ភេទ'],F:['女性','Female','ស្រី'],M:['男性','Male','ប្រុស'],Other:['其他','Other','ផ្សេងទៀត']},
+    genderReq:gender,gender,
     experienceReq:{none:['無要求','No requirement','មិនត្រូវការ'],beginner:['新手','Beginner','អ្នកថ្មី'],semi:['半熟手','Semi-skilled','ពាក់កណ្តាលជំនាញ'],experienced:['熟手','Experienced','អ្នកជំនាញ'],any:['都可','Any experience','បានទាំងអស់'],other:['其他','Other','ផ្សេងទៀត']},
     educationReq:{none:['無要求','No requirement','មិនត្រូវការ'],primary:['小學','Primary school','បឋមសិក្សា'],middle:['國中','Middle school','អនុវិទ្យាល័យ'],highschool:['高中','High school','វិទ្យាល័យ'],vocational:['職校／技術','Vocational / technical','វិជ្ជាជីវៈ / បច្ចេកទេស'],associate:['專科','Associate degree','បរិញ្ញាបត្ររង'],bachelor:['大學','Bachelor degree','បរិញ្ញាបត្រ'],master:['碩士以上','Master or above','អនុបណ្ឌិតឡើង'],any:['不限','Any education','បានទាំងអស់'],other:['其他','Other','ផ្សេងទៀត']},
-    requestReason:{resign_replacement:['離職補缺','Resignation replacement','ជំនួសអ្នកចាកចេញ'],expansion:['擴大組織','Organization expansion','ពង្រីកអង្គការ'],new_position:['新增職位','New position','តំណែងថ្មី'],new_setup:['新編／新組','New setup / team','រៀបចំក្រុមថ្មី'],seasonal:['季節性需求','Seasonal demand','តម្រូវការតាមរដូវ'],other:['其他','Other','ផ្សេងទៀត']}
+    requestReason:{resign_replacement:['離職補缺','Resignation replacement','ជំនួសអ្នកចាកចេញ'],expansion:['擴大組織','Organization expansion','ពង្រីកអង្គការ'],new_position:['新增職位','New position','តំណែងថ្មី'],new_setup:['新編／新組','New setup / team','រៀបចំក្រុមថ្មី'],seasonal:['季節性需求','Seasonal demand','តម្រូវការតាមរដូវ'],other:['其他','Other','ផ្សេងទៀត']},
+    interviewResult:{pending:['待確認','Pending','រង់ចាំ'],pass:['錄取','Passed','ជាប់'],fail:['未錄取','Not selected','មិនជ្រើសរើស'],no_show:['未到面試','No show','មិនមកសម្ភាសន៍']},
+    resignType:{resign:['辭職','Resignation','លាឈប់'],dismiss:['辭退','Dismissal','បញ្ឈប់ការងារ'],self:['自離','Left without notice','ចាកចេញដោយមិនជូនដំណឹង'],expel:['開除','Termination','បណ្តេញចេញ']}
   };
-  const x=maps[key]?.[value];if(!x)return value;
+  return maps[key]?.[value]||[String(value??''),String(value??''),String(value??'')];
+}
+function fieldOptionLabel(key,value,lang=LANG){
+  const x=fieldOptionLabels(key,value);
   return lang==='en'?x[1]:lang==='km'?x[2]:lang==='both'?`${x[0]} ${x[1]}`:x[0];
+}
+function formChoiceToken(v){return String(v==null?'':v).trim().toLowerCase().replace(/[＆&]/g,' and ').replace(/[^a-z0-9\u1780-\u17ff\u3400-\u9fff]+/g,'')}
+function formChoiceMatch(kind,value){
+  const t=formChoiceToken(value);if(!t)return null;
+  return (FORM_CHOICES[kind]||[]).find(item=>[item.v,...item.l,...(item.a||[])].some(x=>formChoiceToken(x)===t))||null;
+}
+function renderFormChoice(fieldKey,choiceKind,value,required){
+  const matched=formChoiceMatch(choiceKind,value),custom=value&&!matched?String(value):'',selected=matched?matched.v:(custom?'__other__':'');
+  const blank=['請選擇','Select','សូមជ្រើសរើស'],other=['其他／自填','Other / custom','ផ្សេងទៀត / បញ្ចូលខ្លួនឯង'],customPh=['請輸入其他內容','Enter another value','សូមបញ្ចូលតម្លៃផ្សេង'];
+  const options=[`<option value="" ${langDataAttrs(blank)}${selected===''?' selected':''}>${esc(localizedPart(blank))}</option>`]
+    .concat((FORM_CHOICES[choiceKind]||[]).map(item=>`<option value="${esc(item.v)}" ${langDataAttrs(item.l)}${selected===item.v?' selected':''}>${esc(localizedPart(item.l))}</option>`))
+    .concat([`<option value="__other__" ${langDataAttrs(other)}${selected==='__other__'?' selected':''}>${esc(localizedPart(other))}</option>`]);
+  return `<select id="rf-${fieldKey}" class="select" data-choice-kind="${esc(choiceKind)}" onchange="recordChoiceChanged('${fieldKey}')" ${required?'required':''}>${options.join('')}</select>
+    <input id="rf-${fieldKey}-other" class="input${selected==='__other__'?'':' hidden'}" style="margin-top:6px" value="${esc(custom)}" placeholder="${esc(localizedPart(customPh))}" ${langDataAttrs(customPh,'data-ph')}>`;
+}
+function recordChoiceChanged(fieldKey){
+  const select=el(`rf-${fieldKey}`),other=el(`rf-${fieldKey}-other`);if(!select||!other)return;
+  const show=select.value==='__other__';other.classList.toggle('hidden',!show);if(show)other.focus();
 }
 function renderRecordFields(record={}){
   const kind=el('recordType').value,fields=FORM_FIELDS[kind]||[];
   el('recordFields').innerHTML=fields.map(([k,label,type,req])=>{
-    const v=record[k]??'',full=type==='textarea'?' full':'';
+    const v=record[k]??'',full=type==='textarea'?' full':'',displayLabel=req&&Array.isArray(label)?label.map(x=>`${x} *`):label;
     let control;
     if(type==='textarea')control=`<textarea id="rf-${k}" class="input">${esc(v)}</textarea>`;
+    else if(type.startsWith('choice:'))control=renderFormChoice(k,type.slice(7),v,req);
     else if(type.startsWith('select:')){
       const baseOpts=type.slice(7).split('|'),opts=Array.from(new Set(v!==''&&!baseOpts.includes(String(v))?[String(v),...baseOpts]:baseOpts));
-      control=`<select id="rf-${k}" class="select">${opts.map(x=>`<option value="${esc(x)}"${String(v)===x?' selected':''}>${esc(fieldOptionLabel(k,x))}</option>`).join('')}</select>`;
+      control=`<select id="rf-${k}" class="select">${opts.map(x=>{const parts=fieldOptionLabels(k,x);return `<option value="${esc(x)}" ${langDataAttrs(parts)}${String(v)===x?' selected':''}>${esc(localizedPart(parts))}</option>`}).join('')}</select>`;
     }else control=`<input id="rf-${k}" class="input" type="${type}" value="${esc(v)}" ${type==='number'?'min="0" step="1"':''} ${req?'required':''}>`;
-    return `<div class="field${full}"><label>${esc(label)}${req?' *':''}</label>${control}</div>`;
+    return `<div class="field${full}"><label ${langDataAttrs(displayLabel)}>${esc(localizedPart(displayLabel))}</label>${control}</div>`;
   }).join('');
 }
 function openRecordModal(kind='plan',encodedKey=''){
@@ -2512,7 +2637,9 @@ function readOnlineForm(kind){
   const r={};
   (FORM_FIELDS[kind]||[]).forEach(([k,,type])=>{
     const x=el(`rf-${k}`);if(!x)return;
-    r[k]=type==='number'?(norm(x.value)===''?'':n(x.value)):norm(x.value);
+    if(type==='number')r[k]=norm(x.value)===''?'':n(x.value);
+    else if(type.startsWith('choice:'))r[k]=x.value==='__other__'?norm(el(`rf-${k}-other`)?.value):norm(x.value);
+    else r[k]=norm(x.value);
   });
   return r;
 }
@@ -2713,14 +2840,62 @@ function migrateCloudLegacy(payload){
   });
   return parsed;
 }
+function manpowerCloudKind(r){
+  const raw=norm(r?._kind||r?.kind||r?._hraSection||r?.collection||r?.recordType).toLowerCase().replace(/[\s_-]+/g,'');
+  const aliases={
+    plan:'plan',req:'plan',reqs:'plan',request:'plan',requisition:'plan',demand:'plan',manpower:'plan',plans:'plan',
+    candidate:'candidate',candidates:'candidate',recruit:'candidate',recruitment:'candidate',applicant:'candidate',applicants:'candidate',
+    join:'join',joined:'join',joining:'join',hire:'join',hired:'join',
+    resign:'resign',resigned:'resign',resignation:'resign',turnover:'resign',
+    daily:'daily',general:'daily',statistics:'daily',statistic:'daily'
+  };
+  if(aliases[raw])return aliases[raw];
+  const prefix=String(r?._k||r?.key||'').trim().charAt(0).toUpperCase();
+  if(prefix==='P')return'plan';if(prefix==='C')return'candidate';if(prefix==='J')return'join';if(prefix==='R')return'resign';if(prefix==='D')return'daily';
+  /* Older Recruitment uploads sometimes had no _kind, or used recruit /
+     applicant.  Infer them before checking joinDate because a linked
+     candidate can legitimately contain both registerDate and joinDate. */
+  if(r?.registerDate||r?.interviewResult!==undefined||r?.noShowReason!==undefined)return'candidate';
+  if((r?.name||r?.candidateName)&&(r?.phone||r?.referral)&&!r?.resignDate&&!r?.empId)return'candidate';
+  if(r?.snapshotDate||r?.required!==undefined||r?.requestReason!==undefined)return'plan';
+  if(r?.resignDate)return'resign';
+  if(r?.joinDate&&r?.empId)return'join';
+  if(r?.date&&(r?.applicants!==undefined||r?.passed!==undefined||r?.failed!==undefined||r?.actual!==undefined))return'daily';
+  return'';
+}
+function normalizeManpowerCloudRow(raw,index=0){
+  if(!raw||typeof raw!=='object')return null;
+  const r={...raw},kind=manpowerCloudKind(r);if(!kind)return null;
+  r._kind=kind;
+  if(kind==='candidate'){
+    r.registerDate=parseDate(r.registerDate||r.date||r.applyDate||r.createdDate)||String(r.registerDate||r.date||'').slice(0,10);
+    r.name=norm(r.name||r.candidateName);r.phone=digits(r.phone||r.telephone||r.mobile);
+    r.interviewResult=r.interviewResult||mapInterview(r.result||r.status);
+    r._k=r._k||r.key||`C|${r.registerDate||'undated'}|${normName(r.name)||'NONAME'}|${r.phone||r.dob||r.id||r.rowNo||index}`;
+  }else if(kind==='plan'){
+    const d=parseDate(r.snapshotDate||r.date||r.period),period=String(r.period||d||'').slice(0,7);
+    r.period=period;r.snapshotDate=d||(period?`${period}-01`:'');r.dept=norm(r.dept||r.department);r.section=norm(r.section||r.group);r.position=norm(r.position||r.title);
+    r.required=n(r.required??r.requested??r.need);
+    r._k=r._k||r.key||`P|${period||'undated'}|${normKey(r.dept)}|${normKey(r.section||r.dept)}|${normKey(r.position)}`;
+  }else if(kind==='join'){
+    r.empId=digits(r.empId||r.employeeId||r.idNo);r.joinDate=parseDate(r.joinDate||r.date)||String(r.joinDate||r.date||'').slice(0,10);
+    r._k=r._k||r.key||`J|${r.empId||normName(r.name)||index}|${String(r.joinDate||'undated').slice(0,7)}`;
+  }else if(kind==='resign'){
+    r.empId=digits(r.empId||r.employeeId||r.idNo);r.resignDate=parseDate(r.resignDate||r.date)||String(r.resignDate||r.date||'').slice(0,10);
+    r._k=r._k||r.key||`R|${r.empId||normName(r.name)||index}|${String(r.resignDate||'undated').slice(0,7)}`;
+  }else{
+    r.date=parseDate(r.date||r.recordDate)||String(r.date||r.recordDate||'').slice(0,10);
+    r._k=r._k||r.key||`D|${r.date||index}`;
+  }
+  return r;
+}
 function normalizeManpowerCloudRows(records){
   const out=[];
-  arrayValue(records).forEach(r=>{
+  arrayValue(records).forEach((r,index)=>{
     if(!r||typeof r!=='object')return;
-    if(r.kind==='snapshot'&&r.payload){const x=migrateCloudLegacy(r.payload);out.push(...x.plans,...x.candidates,...x.joins,...x.resigns,...x.daily);return}
+    if((r.kind==='snapshot'||r._kind==='snapshot')&&r.payload){const x=migrateCloudLegacy(r.payload);out.push(...x.plans,...x.candidates,...x.joins,...x.resigns,...x.daily);return}
     if(r.reqs||r.recruit||r.plans||r.candidates||r.joins||r.resigns||r.daily){const x=migrateCloudLegacy(r);out.push(...x.plans,...x.candidates,...x.joins,...x.resigns,...x.daily);return}
-    const kind=r._kind||r.kind;
-    if(['plan','candidate','join','resign','daily'].includes(kind))out.push({...r,_kind:kind});
+    const normalized=normalizeManpowerCloudRow(r,index);if(normalized)out.push(normalized);
   });
   return out;
 }
@@ -2777,13 +2952,22 @@ async function cloudDownload(){
     if(mainRes?.meta?.decisions&&typeof mainRes.meta.decisions==='object'){
       MP_DEC={...mainRes.meta.decisions,...MP_DEC};saveMpDec();
     }
-    const records=normalizeManpowerCloudRows(mainRes?.records||[]),movement=normalizeManpowerCloudRows(moveRes?.records||[]).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
+    const rawMain=arrayValue(mainRes?.records),rawMovement=arrayValue(moveRes?.records);
+    const records=normalizeManpowerCloudRows(rawMain),movement=normalizeManpowerCloudRows(rawMovement).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
     const all=[...records,...movement];
+    if(rawMain.length&&!records.length)throw new Error(L(
+      `雲端回傳 ${rawMain.length} 筆 Manpower 資料，但格式無法辨識；已停止空白覆蓋`,
+      `Cloud returned ${rawMain.length} Manpower record(s), but their format was not recognized; blank overwrite was stopped`,
+      `Cloud បានផ្ញើទិន្នន័យ Manpower ${rawMain.length} កំណត់ត្រា ប៉ុន្តែមិនអាចស្គាល់ទម្រង់បាន; បានបញ្ឈប់ការជំនួសដោយទិន្នន័យទទេ`));
     if((mainRes?.noCloud||!records.length)&&(!movement.length||moveRes?.noCloud))throw new Error(L('雲端尚無 Manpower／入離職資料','No Manpower or movement data in cloud','មិនមានទិន្នន័យ Manpower/ចូលចេញក្នុង Cloud'));
     const parsed=splitCloudRecords(all),stats=mergeParsed(parsed,{interactive:true});
     const saved=await saveDB();populateFilters();renderAll();
-    setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${all.length}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
-    if(saved.ok){lsSet('ac_hra_manpower_smart_downloaded_v1',new Date().toISOString());markCloudManifest(all);toast(`${L('只下載變更；Manpower 與平台入離職已合併','Only changed data downloaded; Manpower and platform movement merged','ទាញយកតែការកែប្រែ; Manpower និង Join/Resign បានបញ្ចូល')} · ${statText(stats)}`,'ok');}
+    const cloudBreakdown=L(
+      `需求 ${parsed.plans.length}｜招募 ${parsed.candidates.length}｜入職 ${parsed.joins.length}｜離職 ${parsed.resigns.length}｜每日 ${parsed.daily.length}`,
+      `Plans ${parsed.plans.length} | Recruitment ${parsed.candidates.length} | Join ${parsed.joins.length} | Resign ${parsed.resigns.length} | Daily ${parsed.daily.length}`,
+      `តម្រូវការ ${parsed.plans.length} | ជ្រើសរើស ${parsed.candidates.length} | ចូល ${parsed.joins.length} | ចាកចេញ ${parsed.resigns.length} | ប្រចាំថ្ងៃ ${parsed.daily.length}`);
+    setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${all.length} · ${cloudBreakdown}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
+    if(saved.ok){lsSet('ac_hra_manpower_smart_downloaded_v1',new Date().toISOString());markCloudManifest(all);toast(`${L('只下載變更；Manpower 與平台入離職已合併','Only changed data downloaded; Manpower and platform movement merged','ទាញយកតែការកែប្រែ; Manpower និង Join/Resign បានបញ្ចូល')} · ${cloudBreakdown} · ${statText(stats)}`,'ok');}
   }catch(e){setCloudState('err',L('下載失敗','Download failed','ទាញយកបរាជ័យ'));toast(e.message,'err')}
   finally{if(btn){btn.classList.remove('busy');btn.disabled=false}}
 }
@@ -3164,7 +3348,7 @@ window.addEventListener('storage',async function(e){
 Object.assign(window,{
   setLang,smartImport,goTab,setPeriodMode,movePeriod,todayPeriod,jumpPeriod,
   renderManpower,renderManpowerApproval,mpApprovalSelectAll,mpApprovalMark,mpApprovalSync,sendManpowerApproval,setMpPeriodGrain,jumpManpowerPeriod,renderRecruit,renderMovement,setReportGrain,toggleReportMetric,jumpReportPeriod,renderReport,renderAnalysis,
-  openRecordModal,recordTypeChanged,saveOnlineRecord,deleteRecord,closeModal,modalBackdrop,
+  openRecordModal,recordTypeChanged,recordChoiceChanged,saveOnlineRecord,deleteRecord,closeModal,modalBackdrop,
   saveSettings,testCloud,cloudUpload,cloudDownload,openTelegram,populateTgPeriods,previewTelegram,sendTelegram,
   exportExcel,exportReportExcel,backupJSON,restoreJSON,clearAllData
 });
