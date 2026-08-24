@@ -8,6 +8,7 @@
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
+<script src="shared/hra-attachments.js?v=42"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -125,7 +126,7 @@ tr.sel{background:#eff6ff}
         <th class="px-3 py-2">#</th><th class="px-3 py-2">工號 ID</th><th class="px-3 py-2">姓名 Name</th>
         <th class="px-3 py-2">部門 Dept</th><th class="px-3 py-2">職務 Position</th><th class="px-3 py-2">到職 Join</th>
         <th class="px-3 py-2">試用到期 Prob.End</th><th class="px-3 py-2">評估 Eval</th>
-        <th class="px-3 py-2 text-right">分數</th><th class="px-3 py-2">結果</th><th class="px-3 py-2">備註</th><th class="px-3 py-2">離職 Resign</th><th class="px-3 py-2">操作 Actions</th>
+        <th class="px-3 py-2 text-right">分數 Score</th><th class="px-3 py-2">等級 Grade</th><th class="px-3 py-2">結果</th><th class="px-3 py-2">備註／考核單</th><th class="px-3 py-2">離職 Resign</th><th class="px-3 py-2">操作 Actions</th>
       </tr></thead><tbody id="tb-prob"></tbody>
     </table></div>
   </div>
@@ -695,6 +696,7 @@ function normalizeContractRow(kind,row){
   r.factoryId=contractId(r);
   r._k=contractCanonicalKey(kind,r);
   r.source=contractSourceMerge(r.source,'');
+  if(kind==='prob'&&!r.grade&&r.score!==''&&r.score!=null)r.grade=scoreGrade(r.score);
   if(!r.updatedAt)r.updatedAt=nowISO();
   return r;
 }
@@ -1260,11 +1262,12 @@ function renderProb(){
       +'<td class="px-3 py-2 jmono font-semibold">'+esc(probationEndOf(r)||'—')+'</td>'
       +'<td class="px-3 py-2 jmono text-slate-500">'+esc(r.evalDate||'—')+'</td>'
       +'<td class="px-3 py-2 text-right jmono">'+(r.score===''||r.score==null?'—':r.score)+'</td>'
+      +'<td class="px-3 py-2 font-bold">'+esc(r.grade||scoreGrade(r.score)||'—')+'</td>'
       +'<td class="px-3 py-2 font-semibold '+rc+'">'+esc((r.result||'pending').toUpperCase())+'</td>'
-      +'<td class="px-3 py-2 text-slate-500 text-[11.5px]">'+esc(r.remarks||r.remark||'')+'</td>'
+      +'<td class="px-3 py-2 text-slate-500 text-[11.5px]">'+esc(r.remarks||r.remark||'')+' '+contractEvidenceLinks(r.evidence)+'</td>'
       +'<td class="px-3 py-2">'+(linkedResignCell(r,probationEndOf(r))||'<span class="text-slate-300">—</span>')+'</td>'
       +'<td class="px-3 py-2"><button class="text-sky-600 hover:text-sky-800" onclick="openCt(\'prob\',\''+esc(r._k)+'\')" title="編輯 Edit">✏️</button></td></tr>';
-  }).join('') : emptyRow(13);
+  }).join('') : emptyRow(14);
 }
 function renderCont(){
   renderSummary('cont');
@@ -1432,8 +1435,11 @@ function expiryStats(tab,rows){
 }
 function resultStats(rows){
   const p=rows.filter(r=>r.result==='pass').length, f=rows.filter(r=>r.result==='fail').length;
-  return {p,f,pending:Math.max(0,rows.length-p-f),rate:pct(p,rows.length),avgScore:(()=>{const a=rows.map(r=>N(r.score)).filter(v=>v>0);return a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'—';})()};
+  const grades={A:0,B:0,C:0,D:0,F:0};rows.forEach(r=>{const g=r.grade||scoreGrade(r.score);if(grades[g]!==undefined)grades[g]++;});
+  return {p,f,pending:Math.max(0,rows.length-p-f),rate:pct(p,rows.length),avgScore:(()=>{const a=rows.map(r=>N(r.score)).filter(v=>v>0);return a.length?(a.reduce((x,y)=>x+y,0)/a.length).toFixed(1):'—';})(),grades};
 }
+function scoreGrade(v){const n=Number(v);if(v===''||v==null||!isFinite(n)||n<0||n>100)return'';return n>=90?'A':n>=80?'B':n>=70?'C':n>=60?'D':'F';}
+function contractEvidenceLinks(items){const a=window.HRAAttachments?HRAAttachments.links(items||[]):[];return a.map((u,i)=>'<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Appraisal evidence">📎'+(i+1)+'</a>').join(' ');}
 function rowExpiry(tab,r){ return tab==='prob'?probationEndOf(r):tab==='cont'?contractEndOf(r):''; }
 function rowDecision(tab,r){
   const d=rowExpiry(tab,r), id=String(r.factoryId||r.id||''), keys=[];
@@ -1459,6 +1465,8 @@ function exceptionRows(tab,rows){
     if(tab!=='finish' && !expiry) reasons.push(L('缺到期日','missing expiry','ខ្វះថ្ងៃផុតកំណត់'));
     if(d&&d<today&&dec.d!=='approve') reasons.push(L('已逾期','overdue','ហួសកំណត់'));
     if(tab==='prob'&&String(r.result||'').toLowerCase()==='fail') reasons.push(L('試用未通過','probation failed','សាកល្បងមិនជាប់'));
+    if(tab==='prob'&&r.score!==''&&r.score!=null&&(N(r.score)<0||N(r.score)>100)) reasons.push(L('評分超出 0–100','score outside 0–100','ពិន្ទុនៅក្រៅ 0–100'));
+    if(tab==='prob'&&['pass','fail'].indexOf(String(r.result||'').toLowerCase())>=0&&(r.score===''||r.score==null)) reasons.push(L('已有結果但缺考核分數','result entered but appraisal score missing','មានលទ្ធផល ប៉ុន្តែខ្វះពិន្ទុវាយតម្លៃ'));
     if(tab==='prob'&&String(r.result||'').toLowerCase()==='pending'&&d&&d<=today&&dec.d!=='approve') reasons.push(L('到期未評估','expired without evaluation','ផុតកំណត់មិនទាន់វាយតម្លៃ'));
     if(reasons.length) out.push({tab,row:r,expiry,reasons:[...new Set(reasons)]});
   });
@@ -1472,6 +1480,7 @@ function detailText(tab,rows,limit){
     const resigned=linkedResignText(r,e);
     s+='• '+esc(r.factoryId||'—')+' '+esc(r.name||'—')+' · '+esc(r.dept||r.section||r.line||'—')+' · '+esc(r.position||'—')
       +' · '+L('入職','Join','ចូល')+' '+esc(r.joinDate||'—')+' · '+L('到期','End','បញ្ចប់')+' '+esc(e||'—')
+      +(tab==='prob'?' · '+L('分數','Score','ពិន្ទុ')+' '+esc(r.score===''||r.score==null?'—':r.score)+' / '+L('等級','Grade','កម្រិត')+' '+esc(r.grade||scoreGrade(r.score)||'—'):'')
       +' · '+status+(left==null?'':' ('+(left<0?L('逾期','overdue','ហួសកំណត់'):left+' '+L('天','days','ថ្ងៃ'))+')')
       +(resigned?' · ⚠ '+esc(resigned):'')+'\n';
   });
@@ -1574,7 +1583,8 @@ function buildText(src){
     t+='✅ '+L('通過','Pass')+' '+rs.p+'　❌ '+L('未通過','Fail')+' '+rs.f
       +'　◻ '+L('待評估','Pending')+' '+rs.pending
       +'　📈 '+L('通過率','Pass rate')+' '+rs.rate
-      +'\n🧮 '+L('平均評分','Average score','ពិន្ទុមធ្យម')+'：'+rs.avgScore;
+      +'\n🧮 '+L('平均評分','Average score','ពិន្ទុមធ្យម')+'：'+rs.avgScore
+      +' · '+L('等級分布','Grade distribution','ការបែងចែកកម្រិត')+' A '+rs.grades.A+' / B '+rs.grades.B+' / C '+rs.grades.C+' / D '+rs.grades.D+' / F '+rs.grades.F;
   }
   if(ex) t+='\n⏰ '+L('30 天內到期','Expiring in 30 days')+'：'+ex.d30
       +' · '+L('90 天內到期','Expiring in 90 days')+'：'+ex.d90;
@@ -1865,7 +1875,7 @@ async function clearAll(){
 function exportCSV(tab){
   const rows=filterRows(tab);
   if(!rows.length){ toast(L('目前期間無資料','No data for the current period','គ្មានទិន្នន័យសម្រាប់រយៈពេលបច្ចុប្បន្ន'),'warn'); return; }
-  const cols = tab==='prob' ? ['factoryId','name','dept','joinDate','probEnd','evalDate','score','result','remarks']
+  const cols = tab==='prob' ? ['factoryId','name','dept','section','position','joinDate','probEnd','evalDate','score','grade','result','remarks','evidence']
              : tab==='cont' ? ['factoryId','name','dept','joinDate','contractEnd','avgSalary','totalSalary','severance5']
              : ['factoryId','name','section','period','salary','annualLeave','severance5','amount','remarks'];
   const body=rows.map(r=>cols.map(c=>{
@@ -2024,10 +2034,12 @@ function openCt(kind,id){
   var box=document.getElementById('ct-modal'); if(!box)return;
   document.getElementById('ct-title').textContent=(r?L('編輯','Edit','កែ'):L('新增','New','បន្ថែម'))+' '+
     (_ctKind==='prob'?L('試用期','Probation','សាកល្បង'):_ctKind==='cont'?L('合約','Contract','កិច្ចសន្យា'):L('終止','Finished','បញ្ចប់'));
-  ['factoryId','name','dept','section','position','gender','joinDate','contractStart','contractEnd','probEnd','period','amount','severance5','result','remark']
+  ['factoryId','name','dept','section','position','gender','joinDate','contractStart','contractEnd','probEnd','evalDate','score','grade','period','amount','severance5','result','remark']
    .forEach(function(k){ var n=document.getElementById('ct-'+k); if(n) n.value=r?(r[k]!=null?r[k]:''):''; });
   document.getElementById('ct-del').style.display=_ctId?'':'none';
   box.style.display='flex';
+  updateCtGrade();
+  if(window.HRAAttachments)HRAAttachments.mount('ct-evidence',{module:'contract',items:r&&r.evidence||[],recordKey:function(){return _ctId||document.getElementById('ct-factoryId').value||'new-probation';},period:function(){return String(document.getElementById('ct-probEnd').value||document.getElementById('ct-contractEnd').value||'').slice(0,7);},onError:function(e){toast(e.message,'error');}});
 }
 function closeCt(){ var b=document.getElementById('ct-modal'); if(b)b.style.display='none'; _ctId=null; }
 function saveCt(){
@@ -2035,10 +2047,11 @@ function saveCt(){
   var fid=g('factoryId').replace(/\s+/g,''), nm=g('name');
   if(!/^\d{2,6}$/.test(fid)){ toast(L('工號需為 2-6 位數字','ID must be 2-6 digits','លេខត្រូវជា 2-6 ខ្ទង់'),'error'); return; }
   if(!nm){ toast(L('請輸入姓名','Name required','សូមបញ្ចូលឈ្មោះ'),'error'); return; }
+  var score=g('score')===''?null:Number(g('score'));if(score!=null&&(!isFinite(score)||score<0||score>100)){toast(L('考核分數必須為 0–100','Appraisal score must be 0–100','ពិន្ទុវាយតម្លៃត្រូវតែ 0–100'),'error');return;}
   var rec={ factoryId:fid,name:nm,dept:g('dept'),section:g('section'),position:g('position'),
     gender:g('gender'),joinDate:g('joinDate'),contractStart:g('contractStart'),contractEnd:g('contractEnd'),
-    probEnd:g('probEnd'),period:g('period'),amount:numOrNull(g('amount')),severance5:numOrNull(g('severance5')),result:g('result'),
-    remark:g('remark'),remarks:g('remark'),source:'online',updatedAt:new Date().toISOString() };
+    probEnd:g('probEnd'),evalDate:g('evalDate'),score:score,grade:g('grade')||scoreGrade(score),period:g('period'),amount:numOrNull(g('amount')),severance5:numOrNull(g('severance5')),result:g('result'),
+    remark:g('remark'),remarks:g('remark'),evidence:window.HRAAttachments?HRAAttachments.get('ct-evidence'):[],source:'online',updatedAt:new Date().toISOString() };
   rec=normalizeContractRow(_ctKind,rec);
   var tgt=_ctKind==='prob'?PROBS:_ctKind==='cont'?CONTS:FINISH;
   var keep=tgt.filter(function(x){return !_ctId || (x._k!==_ctId && x.factoryId!==_ctId);});
@@ -2063,6 +2076,8 @@ function deleteCt(){
   toast('✅ '+L('已刪除','Deleted','បានលុប'));
 }
 Object.assign(window,{openCt:openCt,closeCt:closeCt,saveCt:saveCt,deleteCt:deleteCt});
+function updateCtGrade(){var s=document.getElementById('ct-score'),g2=document.getElementById('ct-grade');if(s&&g2&&!g2.value)g2.value=scoreGrade(s.value);}
+Object.assign(window,{updateCtGrade:updateCtGrade});
 </script>
 
 <div id="ct-modal" style="display:none;position:fixed;inset:0;z-index:1000;align-items:center;justify-content:center;background:rgba(15,23,42,.4);backdrop-filter:blur(2px);padding:16px">
@@ -2082,11 +2097,15 @@ Object.assign(window,{openCt:openCt,closeCt:closeCt,saveCt:saveCt,deleteCt:delet
     <div><label class="ctl">合約起 Start</label><input id="ct-contractStart" type="date" class="cti"></div>
     <div><label class="ctl">合約迄 End</label><input id="ct-contractEnd" type="date" class="cti"></div>
     <div><label class="ctl">試用到期 Prob End</label><input id="ct-probEnd" type="date" class="cti"></div>
+    <div><label class="ctl">評估日期 Eval Date</label><input id="ct-evalDate" type="date" class="cti"></div>
+    <div><label class="ctl">考核分數 Score (0–100)</label><input id="ct-score" type="number" min="0" max="100" step="0.1" class="cti" oninput="document.getElementById('ct-grade').value=scoreGrade(this.value)"></div>
+    <div><label class="ctl">考核等級 Grade</label><select id="ct-grade" class="cti"><option value="">自動 Auto</option><option>A</option><option>B</option><option>C</option><option>D</option><option>F</option></select></div>
     <div><label class="ctl">期間 Period</label><input id="ct-period" type="month" class="cti"></div>
     <div><label class="ctl">金額 Amount</label><input id="ct-amount" type="number" step="0.01" class="cti"></div>
     <div><label class="ctl">5% 提存 Reserve</label><input id="ct-severance5" type="number" step="0.01" class="cti"></div>
     <div><label class="ctl">評估結果 Result</label><select id="ct-result" class="cti"><option value="">—</option><option value="pass">通過 Pass</option><option value="fail">未通過 Fail</option></select></div>
     <div style="grid-column:span 2"><label class="ctl">備註 Remark</label><input id="ct-remark" class="cti"></div>
+    <div style="grid-column:1/-1"><label class="ctl">考核單／照片／PDF Appraisal form / evidence</label><div id="ct-evidence" style="margin-top:4px"></div></div>
   </div>
   <div style="padding:12px 18px;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;gap:8px;flex-shrink:0">
     <button id="ct-del" onclick="deleteCt()" style="display:none;padding:9px 14px;border-radius:8px;border:1px solid #fecaca;background:#fef2f2;color:#dc2626;font-size:12px">🗑 刪除</button>

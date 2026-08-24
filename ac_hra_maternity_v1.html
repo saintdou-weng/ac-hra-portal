@@ -8,6 +8,7 @@
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
+<script src="shared/hra-attachments.js?v=42"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -379,6 +380,7 @@ tbody tr:hover{background:#f8fafc}
       <div><label class="text-[11px] font-semibold text-slate-500">NSSF No.</label><input id="e-nssfNo" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 jmono"></div>
       <div><label class="text-[11px] font-semibold text-slate-500">聯絡電話 Phone</label><input id="e-contactPhone" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2"></div>
       <div class="col-span-2"><label class="text-[11px] font-semibold text-slate-500">備註 Remark</label><input id="e-remark" class="mt-1 w-full text-sm border border-slate-200 rounded-lg px-3 py-2"></div>
+      <div class="col-span-2"><label class="text-[11px] font-semibold text-slate-500">孕婦／產假佐證 Photo / PDF evidence</label><div id="mat-evidence" class="mt-1"></div></div>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
       <button onclick="closeEmp()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
@@ -478,6 +480,7 @@ tbody tr:hover{background:#f8fafc}
       <div><label class="rl">第幾個月 Month #</label><input id="n-monthNo" class="ri jmono" placeholder="1-24 或 Last"></div>
       <div><label class="rl">金額 Amount</label><input id="n-amount" type="number" step="0.01" class="ri jmono" placeholder="15"></div>
       <div class="col-span-2"><label class="rl">備註 Remark</label><input id="n-remark" class="ri"></div>
+      <div class="col-span-2"><label class="rl">護理費佐證 Nursing evidence</label><div id="nur-evidence" class="mt-1"></div></div>
       <p id="nur-warn" class="col-span-2 text-[11px] text-amber-600" style="display:none"></p>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
@@ -505,6 +508,7 @@ tbody tr:hover{background:#f8fafc}
       <div><label class="rl">到職日 Join Date</label><input id="h-joinDate" type="date" class="ri"></div>
       <div><label class="rl">健檢月 Health Month *</label><input id="h-period" type="month" class="ri jmono"></div>
       <div><label class="rl">金額 Amount *</label><input id="h-amount" type="number" step="0.01" class="ri jmono"></div>
+      <div class="col-span-2"><label class="rl">健檢佐證 Health evidence</label><div id="health-evidence" class="mt-1"></div></div>
       <p id="health-warn" class="col-span-2 text-[11px] text-amber-600" style="display:none"></p>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
@@ -512,6 +516,15 @@ tbody tr:hover{background:#f8fafc}
       <button onclick="closeHealth()" class="flex-1 text-xs font-medium px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-slate-600">取消 Cancel</button>
       <button onclick="saveHealthRec()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600">儲存 Save</button>
     </div>
+  </div>
+</div>
+
+<!-- ══════════ 藥品照片／PDF 佐證 ══════════ -->
+<div id="med-evidence-modal" class="fixed inset-0 z-[1000] hidden items-center justify-center bg-slate-900/40 backdrop-blur-sm no-print p-4">
+  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2"><span class="text-xl">💊</span><p id="med-evidence-title" class="flex-1 text-sm font-bold text-slate-800">藥品佐證 Medicine evidence</p><button onclick="closeMedicalEvidence()" class="text-slate-300 hover:text-slate-500 text-xl">&times;</button></div>
+    <div class="px-5 py-4"><div id="med-evidence"></div></div>
+    <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2"><button onclick="closeMedicalEvidence()" class="flex-1 text-xs px-3 py-2.5 rounded-lg border border-slate-200 bg-white">取消 Cancel</button><button onclick="saveMedicalEvidence()" class="flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-cyan-600 text-white">儲存 Save</button></div>
   </div>
 </div>
 
@@ -539,6 +552,7 @@ function setHtml(id,v){ var n=el(id); if(n)n.innerHTML=v; return !!n; }
 function p2(n){return(n<10?'0':'')+n;}
 function lds(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function maternityEvidenceLinks(items){var a=window.HRAAttachments?HRAAttachments.links(items||[]):[];return a.length?a.map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Evidence">📎'+(i+1)+'</a>';}).join(' '):'';}
 function norm(s){return String(s==null?'':s).trim().toLowerCase().replace(/\s+/g,' ');}
 function N(v){var n=parseFloat(String(v==null?'':v).replace(/[^0-9.\-]/g,''));return isFinite(n)?n:0;}
 function fmt(n){return(+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
@@ -1715,7 +1729,7 @@ function renderPreg(){
     rows.forEach(function(r){
       var toEdd=dayDiff(today,r.edd);
       var eddCls=toEdd!=null&&toEdd>=0&&toEdd<=30?'text-rose-600 font-semibold':'text-slate-500';
-      h+='<tr><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td>'+
+      h+='<tr><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+' '+maternityEvidenceLinks(r.evidence)+'</td><td>'+esc(r.dept)+'</td>'+
         '<td>'+esc(r.group)+'</td><td>'+esc(r.position)+'</td><td class="text-right jmono">'+esc(r.age)+'</td>'+
         '<td class="jmono">'+esc(r.edd||'—')+'</td><td class="text-right jmono '+eddCls+'">'+(toEdd==null?'—':toEdd+L('天','d'))+'</td>'+
         '<td>'+statusBadge(r.status)+'</td><td class="jmono text-slate-400">'+esc(r.registerTime||'—')+'</td>'+
@@ -1828,7 +1842,7 @@ function renderNur(){
       '<th>'+L('第幾月','Month#')+'</th><th class="text-right">'+L('金額','Amount')+'</th><th>'+L('核可','Appr')+'</th><th>'+L('離職狀態','Resign')+'</th><th class="no-print"></th></tr></thead><tbody>';
     if(!rows.length)h+='<tr><td colspan="11" class="text-center text-slate-400 py-6">'+L('此期間沒有護理費記錄','No nursing records')+'</td></tr>';
     rows.forEach(function(r){
-      h+='<tr><td class="jmono">'+esc(r.cardId)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td>'+
+      h+='<tr><td class="jmono">'+esc(r.cardId)+'</td><td>'+esc(r.name)+' '+maternityEvidenceLinks(r.evidence)+'</td><td>'+esc(r.dept)+'</td>'+
         '<td class="jmono text-slate-400">'+esc(r.babyDob||'—')+'</td><td class="jmono text-slate-400">'+esc(r.startMonth||'—')+'</td>'+
         '<td class="jmono">'+esc(r.payMonth)+'</td><td class="jmono">'+esc(r.monthNo||'—')+'</td>'+
         '<td class="text-right jmono font-semibold">$'+fmt(r.amount)+'</td><td>'+decBadge(r._k)+'</td><td>'+(resignTag(r,r.payMonth)||'<span class="text-slate-300">—</span>')+'</td>'+
@@ -1913,7 +1927,7 @@ function renderMed(){
     setHtml('med-kpi',kpiCard(fmt0(rows.length),'',L('採購列','Purchase rows'),'text-cyan-600')+kpiCard('$'+fmt(amount),'',L('採購合計','Purchase total'),'text-emerald-600')+kpiCard(fmt0(qty),'',L('訂購數量','Ordered quantity'),'text-sky-600')+kpiCard(fmt0(months.length),'',L('月份','Months'),'text-slate-700'));
     var h='<table><thead><tr><th>'+L('月份','Month')+'</th><th>'+L('藥品','Item')+'</th><th>'+L('產品','Product')+'</th><th>'+L('用途／說明','Description')+'</th><th class="text-right">'+L('庫存','Stock')+'</th><th class="text-right">'+L('訂購數量','Qty')+'</th><th>'+L('單位','Unit')+'</th><th class="text-right">'+L('單價','Unit Price')+'</th><th class="text-right">'+L('金額','Amount')+'</th><th>'+L('來源','Source')+'</th><th class="no-print"></th></tr></thead><tbody>';
     if(!rows.length)h+='<tr><td colspan="11" class="text-center text-slate-400 py-6">'+L('此期間沒有醫療採購記錄','No medical purchase records')+'</td></tr>';
-    rows.slice().sort(function(a,b){return String(a.period||'').localeCompare(String(b.period||''))||(a.item||'').localeCompare(b.item||'');}).forEach(function(r){h+='<tr><td class="jmono">'+esc(r.period||'—')+'</td><td>'+esc(r.item||r.name||'—')+'</td><td>'+esc(r.productName||'—')+'</td><td>'+esc(r.description||'—')+'</td><td class="text-right jmono">'+fmt(r.inStock||0)+'</td><td class="text-right jmono">'+fmt(r.quantity||0)+'</td><td>'+esc(r.unit||'—')+'</td><td class="text-right jmono">$'+fmt(r.unitPrice||0)+'</td><td class="text-right jmono font-semibold">$'+fmt(r.amount||0)+'</td><td class="text-[10px] text-slate-400">'+esc(r.sourceFile||r.source||'—')+'</td><td class="no-print"><button onclick="deleteMedical(\''+esc(r.id)+'\')" class="text-xs text-rose-400 hover:text-rose-700" title="'+L('刪除','Delete')+'">🗑</button></td></tr>';});
+    rows.slice().sort(function(a,b){return String(a.period||'').localeCompare(String(b.period||''))||(a.item||'').localeCompare(b.item||'');}).forEach(function(r){h+='<tr><td class="jmono">'+esc(r.period||'—')+'</td><td>'+esc(r.item||r.name||'—')+' '+maternityEvidenceLinks(r.evidence)+'</td><td>'+esc(r.productName||'—')+'</td><td>'+esc(r.description||'—')+'</td><td class="text-right jmono">'+fmt(r.inStock||0)+'</td><td class="text-right jmono">'+fmt(r.quantity||0)+'</td><td>'+esc(r.unit||'—')+'</td><td class="text-right jmono">$'+fmt(r.unitPrice||0)+'</td><td class="text-right jmono font-semibold">$'+fmt(r.amount||0)+'</td><td class="text-[10px] text-slate-400">'+esc(r.sourceFile||r.source||'—')+'</td><td class="no-print"><button onclick="openMedicalEvidence(\''+esc(r.id)+'\')" class="text-xs text-cyan-600" title="'+L('照片／佐證','Photo / evidence','រូបភាព / ភស្តុតាង')+'">📷</button> <button onclick="deleteMedical(\''+esc(r.id)+'\')" class="text-xs text-rose-400 hover:text-rose-700" title="'+L('刪除','Delete')+'">🗑</button></td></tr>';});
     h+='</tbody></table>';setHtml('med-tbl',h);
   }catch(e){console.error('[renderMed]',e);}
 }
@@ -2726,6 +2740,7 @@ function openEmp(id){
   var f=['idNo','name','dept','group','position','status','birthday','edd','registerTime','leaveStart','returnDate','totalDays','nssfNo','contactPhone','remark'];
   f.forEach(function(k){ var n=el('e-'+k); if(!n)return; n.value=r?(r[k]!=null?r[k]:''):(k==='totalDays'?90:(k==='status'?'pregnant':'')); });
   var m=el('emp-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+  if(window.HRAAttachments)HRAAttachments.mount('mat-evidence',{module:'maternity',items:r&&r.evidence||[],recordKey:function(){return _editEmpId||el('e-idNo').value||'new-maternity';},period:function(){return String(el('e-leaveStart').value||el('e-registerTime').value||'').slice(0,7);},onError:function(e){toast(e.message,'warn');}});
 }
 function closeEmp(){ var m=el('emp-modal'); m.classList.add('hidden'); m.classList.remove('flex'); _editEmpId=null; }
 function saveEmp(){
@@ -2736,7 +2751,7 @@ function saveEmp(){
   var rec={idNo:idNo,name:name,dept:g('dept'),group:g('group'),position:g('position'),status:g('status')||'pregnant',
     birthday:g('birthday'),edd:g('edd'),registerTime:g('registerTime'),applyDate:g('leaveStart'),leaveStart:g('leaveStart'),
     returnDate:g('returnDate'),totalDays:parseInt(g('totalDays'),10)||90,nssfNo:g('nssfNo'),contactPhone:g('contactPhone'),
-    remark:g('remark'),remarks:g('remark'),gender:'F'};
+    remark:g('remark'),remarks:g('remark'),evidence:window.HRAAttachments?HRAAttachments.get('mat-evidence'):[],gender:'F',updatedAt:nowStamp()};
   rec.age=calcAge(rec.birthday,null); if(rec.age==null)rec.age='';
   rec.type=rec.status;
   if(_editEmpId){
@@ -2821,6 +2836,7 @@ function openNur(id){
   var d=el('nur-del'); if(d)d.style.display=_nurId?'':'none';
   var w=el('nur-warn'); if(w){w.style.display='none';w.textContent='';}
   var m=el('nur-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+  if(window.HRAAttachments)HRAAttachments.mount('nur-evidence',{module:'maternity',items:r&&r.evidence||[],recordKey:function(){return _nurId||el('n-cardId').value||'new-nursing';},period:function(){return el('n-payMonth').value||'';},onError:function(e){toast(e.message,'warn');}});
 }
 function closeNur(){ var m=el('nur-modal'); m.classList.add('hidden'); m.classList.remove('flex'); _nurId=null; }
 function saveNurRec(){
@@ -2836,7 +2852,7 @@ function saveNurRec(){
   var rec={ _k:card+'|'+pm, id:_nurId||('n_'+uid()), cardId:card, name:name,
     dept:g('dept')||emp.dept||'', babyDob:g('babyDob'), startMonth:g('startMonth'),
     payMonth:pm, monthNo:g('monthNo'), amount:parseFloat(g('amount'))||(+SETS.nurFee||15),
-    remark:g('remark'), sheetName:L('線上新增','Online','បញ្ចូលតាមអនឡាញ'), source:'online', updatedAt:nowStamp() };
+    remark:g('remark'),evidence:window.HRAAttachments?HRAAttachments.get('nur-evidence'):[], sheetName:L('線上新增','Online','បញ្ចូលតាមអនឡាញ'), source:'online', updatedAt:nowStamp() };
   var base=_nurId?NUR.filter(function(x){return x.id!==_nurId;}):NUR;
   var dup=base.filter(function(x){return x._k===rec._k;})[0];
   var m2=mergeInto(base,[rec],{interactive:true}); if(m2.cancelled)return; NUR=m2.arr;
@@ -2867,6 +2883,7 @@ function openHealth(id){
   var d=el('health-del');if(d)d.style.display=_healthId?'':'none';
   var w=el('health-warn');if(w){w.style.display='none';w.textContent='';}
   var m=el('health-modal');m.classList.remove('hidden');m.classList.add('flex');
+  if(window.HRAAttachments)HRAAttachments.mount('health-evidence',{module:'maternity',items:r&&r.evidence||[],recordKey:function(){return _healthId||el('h-idNo').value||'new-health';},period:function(){return el('h-period').value||'';},onError:function(e){toast(e.message,'warn');}});
 }
 function closeHealth(){var m=el('health-modal');m.classList.add('hidden');m.classList.remove('flex');_healthId=null;}
 function saveHealthRec(){
@@ -2876,7 +2893,7 @@ function saveHealthRec(){
   if(!name)return bad(L('請輸入姓名','Name is required','សូមបញ្ចូលឈ្មោះ'));
   if(!/^\d{4}-\d{2}$/.test(period))return bad(L('請選擇健檢月份','Health month is required','សូមជ្រើសខែពិនិត្យ'));
   var rec={_k:'HF|'+id+'|'+period,id:_healthId||('h_'+uid()),idNo:id,empId:id,name:name,gender:g('gender').toUpperCase().slice(0,1),
-    dept:g('dept'),joinDate:g('joinDate'),period:period,payMonth:period,amount:N(g('amount')),type:'health_fee',source:'online',updatedAt:nowStamp()};
+    dept:g('dept'),joinDate:g('joinDate'),period:period,payMonth:period,amount:N(g('amount')),evidence:window.HRAAttachments?HRAAttachments.get('health-evidence'):[],type:'health_fee',source:'online',updatedAt:nowStamp()};
   var base=_healthId?HF.filter(function(x){return x.id!==_healthId;}):HF, old=base.filter(function(x){return x._k===rec._k;})[0];
   var m=mergeInto(base,[rec],{interactive:true});if(m.cancelled)return;HF=m.arr;
   saveHealth();rebuildFilterOptions();closeHealth();renderAll();
@@ -2893,6 +2910,15 @@ function deleteMedical(id){
   if(!id||!confirm(L('確定刪除這筆醫療採購？刪除會在下次同步後反映到雲端。','Delete this medical purchase record? The deletion will sync to cloud.','លុបកំណត់ត្រាទិញថ្នាំនេះ?')))return;
   MED=MED.filter(function(r){return r.id!==id;});saveMedical();rebuildFilterOptions();renderAll();scheduleCloudUpload('medical-deleted');toast(L('已刪除','Deleted','បានលុប'),'ok');
 }
+var _medEvidenceId=null;
+function openMedicalEvidence(id){
+  var r=MED.filter(function(x){return x.id===id;})[0];if(!r)return;_medEvidenceId=id;
+  setTxt('med-evidence-title',L('藥品佐證','Medicine evidence','ភស្តុតាងថ្នាំ')+' · '+(r.item||r.productName||''));
+  var m=el('med-evidence-modal');m.classList.remove('hidden');m.classList.add('flex');
+  if(window.HRAAttachments)HRAAttachments.mount('med-evidence',{module:'maternity',items:r.evidence||[],recordKey:function(){return _medEvidenceId||'medicine';},period:function(){return r.period||'';},onError:function(e){toast(e.message,'warn');}});
+}
+function closeMedicalEvidence(){var m=el('med-evidence-modal');m.classList.add('hidden');m.classList.remove('flex');_medEvidenceId=null;}
+function saveMedicalEvidence(){var r=MED.filter(function(x){return x.id===_medEvidenceId;})[0];if(!r)return;if(window.HRAAttachments)r.evidence=HRAAttachments.get('med-evidence');r.updatedAt=nowStamp();saveMedical();closeMedicalEvidence();renderAll();scheduleCloudUpload('medical-evidence-saved');toast(L('已儲存藥品佐證','Medicine evidence saved','បានរក្សាទុកភស្តុតាងថ្នាំ'),'ok');}
 function deleteClinic(id){
   if(!id||!confirm(L('確定刪除這筆診所資料？刪除會在下次同步後反映到雲端。','Delete this clinic record? The deletion will sync to cloud.','លុបកំណត់ត្រាគ្លីនិកនេះ?')))return;
   CLINIC=CLINIC.filter(function(r){return r.id!==id;});saveClinic();rebuildFilterOptions();renderAll();scheduleCloudUpload('clinic-deleted');toast(L('已刪除','Deleted','បានលុប'),'ok');
