@@ -4,12 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
-<script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=39"></script>
-<script src="shared/inspector.js"></script>
-<script src="shared/status-link.js"></script>
-<script src="shared/hra-attachments.js?v=42"></script>
-<script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -195,6 +189,7 @@ tbody tr:hover{background:#f8fafc}
     <select id="f-res-reason" onchange="renderResign()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">全部原因 All Reason</option></select>
     <select id="f-res-gen" onchange="renderResign()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">性別 Gender</option><option value="F">F</option><option value="M">M</option></select>
     <input id="f-res-q" oninput="renderResign()" placeholder="搜尋工號/姓名 Search" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[140px]">
+    <button onclick="openRec('resign')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">＋ 新增 Add</button>
     <button onclick="resetFilters('resign')" class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺</button>
     <span id="res-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -266,7 +261,6 @@ tbody tr:hover{background:#f8fafc}
     <button onclick="apprMark('ok')"  class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">✔ 標記核可</button>
     <button onclick="openReject()"    class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">✖ 標記退回</button>
     <button onclick="apprMark('')"    class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺ 清除</button>
-    <button id="btn-decision-sync" onclick="manualDecisionSync()" data-t="sync_dec" class="text-xs px-2.5 py-1.5 rounded-md border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100">🔄 同步已核可</button>
     <button onclick="openTg('approval')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️ 送出核可請求</button>
     <span id="appr-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -349,16 +343,9 @@ tbody tr:hover{background:#f8fafc}
         <div><label class="text-[11px] font-semibold text-slate-500 uppercase">期間 Period</label>
           <select id="tg-period" onchange="previewTg()" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"></select></div>
       </div>
-      <div id="tg-route-wrap" class="hidden">
-        <label class="text-[11px] font-semibold text-slate-500 uppercase">核可路徑 ROUTE</label>
-        <div class="mt-1.5 grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg">
-          <button id="tgr-review" type="button" onclick="setTgRoute('review')"
-            class="text-xs px-3 py-1.5 rounded-md transition">👥 群組審核 Review</button>
-          <button id="tgr-direct" type="button" onclick="setTgRoute('direct')"
-            class="text-xs px-3 py-1.5 rounded-md transition">🚀 直送核可 Direct</button>
-        </div>
-        <p id="tg-route-note" class="mt-1 text-[10px] text-slate-400 leading-relaxed"></p>
-      </div>
+      <div><label class="text-[11px] font-semibold text-slate-500 uppercase">申請人／檢查人 Applicant / Inspector *</label>
+        <input id="tg-actor" oninput="saveTgActor();previewTg()" placeholder="例：Phary / HRA" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white">
+        <p class="mt-1 text-[10px] text-slate-400">會顯示在摘要／核可訊息；同一瀏覽器下次自動帶入。</p></div>
       <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
         <input type="checkbox" id="tg-bi" checked onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
@@ -426,8 +413,8 @@ tbody tr:hover{background:#f8fafc}
         <div class="rec-resign"><label class="rl">在職天數 Days</label><input id="r-workingDays" type="number" class="ri jmono" placeholder="留空自動計算"></div>
         <div class="rec-resign"><label class="rl">結算金額 Amount</label><input id="r-amount" type="number" step="0.01" class="ri jmono"></div>
         <div class="rec-join"><label class="rl">介紹人 Introducer</label><input id="r-introducer" class="ri"></div>
+        <div class="col-span-2 md:col-span-3"><label class="rl">員工照片 / 證件 Employee Photo / Certificate</label><div class="flex flex-wrap gap-2 items-center"><input id="r-evidence" type="file" accept="image/*,.pdf" multiple class="text-xs"><button type="button" onclick="document.getElementById('r-camera').click()" class="text-xs px-3 py-2 rounded-lg border border-slate-200 bg-white">📷 拍照 Camera</button><input id="r-camera" type="file" accept="image/*" capture="environment" class="hidden"><span id="r-evidence-list" class="text-[11px] text-slate-500"></span></div></div>
         <div class="col-span-2 md:col-span-3"><label class="rl">備註 Remark</label><input id="r-remark" class="ri"></div>
-        <div class="col-span-2 md:col-span-3"><label class="rl">員工照片／入離職佐證 Employee photo / evidence</label><div id="onb-evidence" class="mt-1"></div></div>
       </div>
       <p id="rec-warn" class="mt-3 text-[11px] text-amber-600" style="display:none"></p>
     </div>
@@ -515,6 +502,9 @@ var PALETTE=['#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8a
 /* ── STATE ───────────────────────────────────────────────── */
 var JOINS=[], RESIGNS=[], SETTLES=[], SETS={}, DEC={}, META={};
 var LANG=(function(){try{return localStorage.getItem('ac_hra_lang')||'zh';}catch(e){return 'zh';}})(), TAB='ov', _charts={}, _apprRows=[], _apprSel={}, _tgMode='summary', _tgScope='both', _tgFrom='header';
+var K_TG_ACTOR='hra_operator_name';
+function tgActor(){var n=el('tg-actor');return String((n&&n.value)||'').trim();}
+function saveTgActor(){try{var v=tgActor();if(v)localStorage.setItem(K_TG_ACTOR,v);}catch(e){}}
 /* ⑥ 每個分頁自己的期間 state */
 var NAV={ ov:{mode:'month',pivot:new Date()},
           join:{mode:'month',pivot:new Date()},
@@ -529,7 +519,7 @@ var I18N={
      k_join:'入職 Join',k_resign:'離職 Resign',k_net:'淨增減 Net',k_hc:'期末在職 HC',k_to:'流動率 Turnover',k_ten:'平均在職天數',
      c_trend:'入離職趨勢',c_type:'離職類型',c_rpt:'期間報表',c_rpt2:'點選任一列可切換期間',
      c_reasondist:'離職原因分佈',c_deptten:'部門 / 年資分佈',c_deptdist:'部門 / 線別分佈',c_refdist:'介紹人統計',
-     t_joindet:'入職明細',t_resdet:'離職明細',t_settle:'結算單對照',t_appr:'核可清單',sync_dec:'🔄 同步已核可',
+     t_joindet:'入職明細',t_resdet:'離職明細',t_settle:'結算單對照',t_appr:'核可清單',
      dim:'統計維度',dimside:'對象',c_dim:'維度分佈',c_to:'流動率趨勢',c_dimtbl:'維度明細',c_totbl:'月度流動率',
      s_cloud:'雲端 / Telegram',s_hc:'在職人數基準',s_ov:'逐月在職人數覆寫',s_about:'相容性',
      dz1:'智慧匯入 Smart Import',
@@ -540,7 +530,7 @@ var I18N={
      k_join:'Joins',k_resign:'Resigns',k_net:'Net Change',k_hc:'Closing HC',k_to:'Turnover Rate',k_ten:'Avg Tenure (days)',
      c_trend:'Join / Resign Trend',c_type:'Resign Type',c_rpt:'Period Report',c_rpt2:'Click a row to switch period',
      c_reasondist:'Reason Distribution',c_deptten:'Dept / Tenure',c_deptdist:'Dept / Line',c_refdist:'Introducer Stats',
-     t_joindet:'Join Records',t_resdet:'Resign Records',t_settle:'Settlement Audit',t_appr:'Approval List',sync_dec:'🔄 Sync approvals',
+     t_joindet:'Join Records',t_resdet:'Resign Records',t_settle:'Settlement Audit',t_appr:'Approval List',
      dim:'Dimension',dimside:'Scope',c_dim:'Distribution',c_to:'Turnover Trend',c_dimtbl:'Dimension Table',c_totbl:'Monthly Turnover',
      s_cloud:'Cloud / Telegram',s_hc:'Headcount Baseline',s_ov:'Monthly HC Override',s_about:'Compatibility',
      dz1:'Smart Import',
@@ -552,7 +542,7 @@ var I18N={
      k_join:'🟢 ចូលធ្វើការ',k_resign:'🔴 ចេញពីការងារ',k_hc:'👥 បុគ្គលិកសរុប',k_to:'📉 អត្រាចេញ',k_ten:'⏱ រយៈពេលមធ្យម',
      c_trend:'និន្នាការចូល/ចេញ',c_type:'ប្រភេទចេញ',c_rpt:'របាយការណ៍តាមដំណាក់កាល',c_rpt2:'ចុចជួរដើម្បីប្តូរ',
      c_reasondist:'ចែកតាមមូលហេតុ',c_deptten:'ផ្នែក / អាយុការងារ',c_deptdist:'ផ្នែក / ខ្សែ',c_refdist:'អ្នកណែនាំ',
-     t_joindet:'បញ្ជីចូលធ្វើការ',t_resdet:'បញ្ជីចេញពីការងារ',t_settle:'បញ្ជីទូទាត់',t_appr:'បញ្ជីអនុម័ត',sync_dec:'🔄 ធ្វើសមកាលកម្មការអនុម័ត',
+     t_joindet:'បញ្ជីចូលធ្វើការ',t_resdet:'បញ្ជីចេញពីការងារ',t_settle:'បញ្ជីទូទាត់',t_appr:'បញ្ជីអនុម័ត',
      dim:'វិមាត្រ',dimside:'វិសាលភាព',s_cloud:'ពពក / Telegram',s_about:'ភាពត្រូវគ្នា',
      dz1:'នាំចូលឆ្លាតវៃ',dz2:'អូសទម្លាក់ ឬចុច · ប្រភេទឯកសារស្គាល់ដោយស្វ័យប្រវត្តិ',
      dz3:'មិនទាន់នាំចូលឯកសារ។ អាចទម្លាក់ច្រើនឯកសារក្នុងពេលតែមួយ។',
@@ -760,79 +750,20 @@ function loadData(){
   if(!SETS.basis)SETS.basis='avg';
   if(!SETS.hcOverride)SETS.hcOverride={};
   JOINS.forEach(ensureJoinKey); RESIGNS.forEach(ensureResignKey);
-  var sharedJ=[],sharedR=[];
-  try{sharedJ=JSON.parse(localStorage.getItem(K_JOINS)||'[]');}catch(e){}
-  try{sharedR=JSON.parse(localStorage.getItem(K_RESIGNS)||'[]');}catch(e){}
-  if(Array.isArray(sharedJ)&&sharedJ.length)JOINS=mergeInto(JOINS,sharedJ).arr;
-  if(Array.isArray(sharedR)&&sharedR.length)RESIGNS=mergeInto(RESIGNS,sharedR).arr;
-  JOINS.forEach(ensureJoinKey); RESIGNS.forEach(ensureResignKey);
-  JOINS=mergeInto([],JOINS).arr;
-  RESIGNS=mergeInto([],RESIGNS).arr;
 }
-function ensureJoinKey(r){
-  if(r.empId && r.joinDate) r._k='J|'+r.empId+'|'+String(r.joinDate).slice(0,7);
-  else if(!r._k) r._k='J|'+(r.empId||('x'+(r.id||uid())));
-  if(!r.id)r.id='j_'+uid(); return r;
-}
-function ensureResignKey(r){
-  if(r.empId && r.resignDate) r._k='R|'+r.empId+'|'+String(r.resignDate).slice(0,7);
-  else if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid())));
-  if(!r.id)r.id='r_'+uid(); return r;
-}
+function ensureJoinKey(r){ if(!r._k) r._k='J|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='j_'+uid(); return r; }
+function ensureResignKey(r){ if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='r_'+uid(); return r; }
 /* ⑦ 寫入仍是 v2 的 key 與欄位名稱 → COMPLETE 模組照常讀得到 */
-function syncSharedMovement(){
-  try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS.map(function(r){var x=Object.assign({},r);x._kind='join';return x;})));}catch(e){}
-  try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS.map(function(r){var x=Object.assign({},r);x._kind='resign';return x;})));}catch(e){}
-}
-function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));syncSharedMovement();}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
-function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));syncSharedMovement();}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
+function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
+function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
 function saveSettles(){ try{localStorage.setItem(K_SETTLES,JSON.stringify(SETTLES));}catch(e){} }
-var _decSyncTimer=null, _decSyncBusy=false;
-function saveDec(){
-  try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){}
-  scheduleDecisionSync();
-}
+function saveDec(){ try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){} }
 function saveMeta(){ try{localStorage.setItem(K_META,JSON.stringify(META));}catch(e){} }
 function saveSetsRaw(){ try{localStorage.setItem(K_SETS,JSON.stringify(SETS));}catch(e){} }
 function gasUrl(){
   return (SETS.gasUrl||'').trim() ||
          (localStorage.getItem(K_GAS_SHARED)||'').trim() ||
          (localStorage.getItem(K_GAS_OLD)||'').trim() || DEFAULT_GAS;
-}
-/* 將網頁本機的核可標記同步到 GAS 批次；否則網頁顯示已核可，
-   Telegram 異常排程仍只看到伺服器的 pending。離線時靜默保留，
-   下次開頁或再次標記會重試。 */
-function syncDecisionsToGas(){
-  var keys=Object.keys(DEC).filter(function(k){return DEC[k]&&DEC[k].d;});
-  if(!keys.length||_decSyncBusy)return Promise.resolve(null);
-  var u=gasUrl(); if(!u)return Promise.resolve(null);
-  _decSyncBusy=true;
-  return fetch(u,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body:JSON.stringify({action:'syncDecisions',module:TOOL,decisions:DEC,requestedBy:'onboarding_web'})})
-    .then(function(r){return r.text();})
-    .then(function(txt){
-      var d=null; try{d=JSON.parse(txt);}catch(e){}
-      if(!d||d.ok===false)throw new Error((d&&d.error)||'GAS decision sync failed');
-      if(d.data&&d.data.updated)console.log('[DEC SYNC]',d.data);
-      return d;
-    })
-    .catch(function(e){console.warn('[DEC SYNC]',e.message||e);return null;})
-    .then(function(d){_decSyncBusy=false;return d;});
-}
-function manualDecisionSync(){
-  var b=el('btn-decision-sync'); if(b)b.disabled=true;
-  syncDecisionsToGas().then(function(d){
-    if(d&&d.ok){
-      var x=d.data||d;
-      toast(L('已同步核可狀態：更新 '+(x.updated||0)+' 筆','Approval statuses synced: '+(x.updated||0)+' updated','បានធ្វើសមកាលកម្ម៖ បានធ្វើបច្ចុប្បន្នភាព '+(x.updated||0)),'ok');
-    }else{
-      toast(L('沒有可同步的本機核可，或 GAS 尚未連線','No local approvals to sync, or GAS is not connected','គ្មានការអនុម័តក្នុងម៉ាស៊ីនសម្រាប់ធ្វើសមកាលកម្ម ឬ GAS មិនបានតភ្ជាប់'),'warn');
-    }
-  }).finally(function(){if(b)b.disabled=false;});
-}
-function scheduleDecisionSync(){
-  if(_decSyncTimer)clearTimeout(_decSyncTimer);
-  _decSyncTimer=setTimeout(function(){_decSyncTimer=null;syncDecisionsToGas();},250);
 }
 
 /* ═══════════ 正規化 / 分類 ═══════════ */
@@ -859,38 +790,6 @@ function isSewLine(n){ return /^LINE\d+$/.test(n||''); }
 function lineOf(r){
   var n=normalizeGroup(r.section||r.dept||'');
   return n || L('未分類','Unassigned');
-}
-/* 部門／線別篩選不能用原始字串直接比對：同一組可能被寫成
-   Line 4、LINE4、L04，或有些檔案放在 dept、有些放在 section。 */
-function groupKey(v){
-  var s=String(v==null?'':v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim();
-  if(!s)return '';
-  var compact=s.toUpperCase().replace(/[\s_\-–—\/]+/g,'');
-  var m=compact.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);
-  if(m)return 'LINE'+(+m[1]);
-  var n=normalizeGroup(s);
-  return String(n||s).replace(/[\s\u00a0]+/g,'').toUpperCase();
-}
-function groupLabel(v){
-  var s=String(v==null?'':v).replace(/[\u200b\ufeff]/g,'').replace(/[\u00a0\u3000]/g,' ').trim().replace(/\s+/g,' ');
-  var k=groupKey(s),m=k.match(/^LINE(\d+)$/);
-  return m?'Line '+(+m[1]):(s||L('未分類','Unassigned'));
-}
-function rowGroupMatches(r,wanted){
-  if(!wanted)return true;
-  var k=groupKey(wanted);
-  return [r.dept,r.section,r.group].some(function(v){return groupKey(v)===k;});
-}
-function groupOptions(rows,includeSection){
-  var map={};
-  rows.forEach(function(r){
-    [r.dept,includeSection?r.section:'',includeSection?r.group:''].forEach(function(v){
-      var k=groupKey(v); if(k&&!map[k])map[k]=groupLabel(v);
-    });
-  });
-  return Object.keys(map).map(function(k){return {value:k,label:map[k]};}).sort(function(a,b){
-    return a.label.localeCompare(b.label,undefined,{numeric:true});
-  });
 }
 function reasonCatOf(raw){
   var s=String(raw||'').toLowerCase(); if(!s)return '';
@@ -1055,7 +954,7 @@ function parseResignSheet(rows,sheetName){
     var age=cAge>=0?parseInt(cs(row[cAge]),10):NaN;
     if(!isFinite(age)||age<=0||age>99){ var a2=calcAge(dob,rd); age=(a2==null?'':a2); }
     var reason=cRea>=0?cs(row[cRea]):'';
-    out.push({ _k:'R|'+empId+'|'+rd.slice(0,7), id:'r_'+uid(), empId:empId, name:nm,
+    out.push({ _k:'R|'+empId, id:'r_'+uid(), empId:empId, name:nm,
       resignDate:rd, joinDate:jd,
       dept:cDept>=0?cs(row[cDept]):'', section:cDept>=0?cs(row[cDept]):'',
       position:cPos>=0?cs(row[cPos]):'',
@@ -1100,7 +999,7 @@ function parseJoinSheet(rows,sheetName){
     var age=cAge>=0?parseInt(cs(row[cAge]),10):NaN;
     if(!isFinite(age)||age<=0||age>99){ var a2=calcAge(dob,jd); age=(a2==null?'':a2); }
     var intro=cInt>=0?cs(row[cInt]):'';
-    out.push({ _k:'J|'+empId+'|'+jd.slice(0,7), id:'j_'+uid(), empId:empId, name:nm, joinDate:jd,
+    out.push({ _k:'J|'+empId, id:'j_'+uid(), empId:empId, name:nm, joinDate:jd,
       dept:cDept>=0?cs(row[cDept]):'', section:cSec>=0?cs(row[cSec]):'',
       position:cPos>=0?cs(row[cPos]):'',
       gender:(cGen>=0?cs(row[cGen]):'').toUpperCase().slice(0,1)||'',
@@ -1217,59 +1116,15 @@ function colL(n){
   return s;
 }
 
-/* 同工號同月份只允許一筆 Join / Resign。日期或部門職位被修正時，
-   先由使用者確認是否以新資料更新；取消則保留原資料。 */
-function prepareMovementIncoming(target,incoming,kind,interactive){
-  var isJoin=kind==='join', ensure=isJoin?ensureJoinKey:ensureResignKey, dateField=isJoin?'joinDate':'resignDate';
-  var byKey={}, order=[], conflicts=[], existing={};
-  (target||[]).forEach(function(r){ensure(r);if(r._k)existing[r._k]=r;});
-  (incoming||[]).forEach(function(raw){
-    var r=Object.assign({},raw);ensure(r);var old=byKey[r._k];
-    if(!old){byKey[r._k]=r;order.push(r._k);}else if(String(old[dateField]||'')!==String(r[dateField]||''))conflicts.push({old:old,new:r});
-    else byKey[r._k]=r;
-    var ex=existing[r._k];
-    if(ex&&String(ex[dateField]||'')!==String(r[dateField]||''))conflicts.push({old:ex,new:r});
-  });
-  var skip={};
-  if(conflicts.length&&interactive&&typeof window.confirm==='function'){
-    var sample=conflicts.slice(0,4).map(function(x){return x.new.empId+' ('+x.old[dateField]+' → '+x.new[dateField]+')';}).join('\n');
-    var ok=window.confirm(L(
-      '同一工號同一月份已有'+(isJoin?'入職':'離職')+'資料，是否以新資料更新？\n\n'+sample,
-      'The same employee already has a '+(isJoin?'join':'resign')+' record in this month. Update it with the new data?\n\n'+sample,
-      'មានទិន្នន័យ '+(isJoin?'ចូល':'ចាកចេញ')+' របស់បុគ្គលិកដដែលក្នុងខែនេះ។ ធ្វើបច្ចុប្បន្នភាពដោយទិន្នន័យថ្មី?\n\n'+sample));
-    if(!ok)conflicts.forEach(function(x){skip[x.new._k]=1;});
-  }
-  return order.map(function(k){return byKey[k];}).filter(function(r){return !skip[r._k];});
-}
-
 /* ═══════════ ② 去重合併 upsert ═══════════ */
-function mergeInto(target,incoming,options){
-  options=options||{};
-  if(options.interactive&&incoming&&incoming.length){
-    var first=incoming[0], kind=first&&first._kind||(first&&first.resignDate!==undefined?'resign':first&&first.joinDate!==undefined?'join':'');
-    if(kind==='join'||kind==='resign'){
-      var before=incoming.length; incoming=prepareMovementIncoming(target,incoming,kind,true);
-      if(incoming.length<before)options.cancelled=true;
-    }
-  }
+function mergeInto(target,incoming){
   var map={}, order=[];
   target.forEach(function(r){ if(!map[r._k])order.push(r._k); map[r._k]=r; });
   var added=0, updated=0, dupEvent=[];
   incoming.forEach(function(r){
     var k=r._k;
-    var matchKey=k;
-    /* 舊版線上資料可能只有 J|工號 / R|工號；若新 Excel 補上日期，
-       先和同一工號唯一的無日期鍵合併，避免歷史資料被拆成兩筆。 */
-    if(!map[matchKey]){
-      var parts=String(k||'').split('|'), base=parts.slice(0,2).join('|');
-      if(map[base]) matchKey=base;
-      else if(parts.length===2){
-        var cand=Object.keys(map).filter(function(x){return x.indexOf(base+'|')===0;});
-        if(cand.length===1)matchKey=cand[0];
-      }
-    }
-    if(map[matchKey]){
-      var ex=map[matchKey];
+    if(map[k]){
+      var ex=map[k];
       /* 同工號但離職日相差過大 → 視為另一次離職事件，保留為 #n，不覆蓋 */
       if(r.resignDate && ex.resignDate && r.resignDate!==ex.resignDate){
         var gap=Math.abs(dayDiff(ex.resignDate,r.resignDate)||0);
@@ -1296,7 +1151,7 @@ function mergeInto(target,incoming,options){
       map[k]=r; order.push(k); added++;
     }
   });
-  return { arr:order.map(function(k){return map[k];}), added:added, updated:updated, dupEvent:dupEvent, cancelled:!!options.cancelled };
+  return { arr:order.map(function(k){return map[k];}), added:added, updated:updated, dupEvent:dupEvent };
 }
 
 /* ═══════════ ③ 結算單 → 離職記錄 合併（不新增第二筆） ═══════════ */
@@ -1331,7 +1186,7 @@ function attachSettlements(resigns,setts){
          警示卻不會跳。改成「只要日期不同就列出來」，落點一目了然。 */
       if(bd>0) farMatch.push({id:s.empId,name:s.name,settle:s.settleDate,resign:best.resignDate,gap:bd});
     }else if(s.isResign){
-      var nr={ _k:'R|'+s.empId+'|'+String(s.settleDate||'').slice(0,7), id:'r_'+uid(), empId:s.empId, name:s.name,
+      var nr={ _k:'R|'+s.empId, id:'r_'+uid(), empId:s.empId, name:s.name,
         resignDate:s.settleDate||'', joinDate:'',
         dept:s.dept||'', section:s.dept||'', position:s.position||'',
         gender:'', dob:'', age:'',
@@ -1371,7 +1226,6 @@ function onFiles(files){
   });
   seq.then(function(){
     saveJoins(); saveResigns(); saveSettles();
-    scheduleAutoCloudUpload();
     META.updatedAt=nowStamp(); saveMeta();
     var head='<div class="font-semibold text-slate-700 mb-1.5">📋 '+L('匯入報告','Import report')+' · '+nowStamp()+'</div>';
     var foot='<div class="mt-2 pt-2 border-t border-slate-100 text-slate-600">'+
@@ -1402,8 +1256,8 @@ function readOne(file){
             if(/^resign/i.test(sn)){ var a=parseResignSheet(rows,sn); inR=inR.concat(a.rows); warns=warns.concat(a.warn); }
             else if(/^(jion|join)/i.test(sn)){ var b=parseJoinSheet(rows,sn); inJ=inJ.concat(b.rows); warns=warns.concat(b.warn); }
           });
-          var mj=mergeInto(JOINS,inJ,{interactive:true});   JOINS=mj.arr;
-          var mr=mergeInto(RESIGNS,inR,{interactive:true}); RESIGNS=mr.arr;
+          var mj=mergeInto(JOINS,inJ);   JOINS=mj.arr;
+          var mr=mergeInto(RESIGNS,inR); RESIGNS=mr.arr;
           dups=mr.dupEvent;
           nj=inJ.length; nr=inR.length;
           detail.push(L('入職','Join')+' '+inJ.length+' ('+L('新增','new')+' '+mj.added+' / '+L('更新','upd')+' '+mj.updated+')');
@@ -1471,18 +1325,11 @@ function fillSel(id,vals,keepFirst){
   s.innerHTML=head+vals.map(function(v){return '<option value="'+esc(v)+'">'+esc(v)+'</option>';}).join('');
   if(vals.indexOf(cur)>=0)s.value=cur;
 }
-function fillGroupSel(id,rows,includeSection){
-  var s=el(id); if(!s)return;
-  var cur=groupKey(s.value), head=s.options[0]?s.options[0].outerHTML:'';
-  var opts=groupOptions(rows,includeSection);
-  s.innerHTML=head+opts.map(function(o){return '<option value="'+esc(o.value)+'">'+esc(o.label)+'</option>';}).join('');
-  if(opts.some(function(o){return o.value===cur;}))s.value=cur;
-}
 function uniqSorted(arr){ var s={}; arr.forEach(function(v){ if(v)s[v]=1; }); return Object.keys(s).sort(); }
 function rebuildFilterOptions(){
-  fillGroupSel('f-join-dept',JOINS,true);
-  fillGroupSel('f-join-sec',JOINS,true);
-  fillGroupSel('f-res-dept',RESIGNS,true);
+  fillSel('f-join-dept',uniqSorted(JOINS.map(function(r){return r.dept;})));
+  fillSel('f-join-sec', uniqSorted(JOINS.map(function(r){return r.section;})));
+  fillSel('f-res-dept', uniqSorted(RESIGNS.map(function(r){return r.dept;})));
   fillSel('f-res-reason',uniqSorted(RESIGNS.map(function(r){return r.reasonCat;})));
 }
 
@@ -1677,8 +1524,8 @@ function joinFiltered(){
   var fd=el('f-join-dept').value, fs=el('f-join-sec').value, fg=el('f-join-gen').value,
       fq=(el('f-join-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&!rowGroupMatches(r,fd))return false;
-    if(fs&&!rowGroupMatches(r,fs))return false;
+    if(fd&&r.dept!==fd)return false;
+    if(fs&&r.section!==fs)return false;
     if(fg&&(r.gender||'')!==fg)return false;
     if(fq&&((r.empId||'')+' '+(r.name||'')).toLowerCase().indexOf(fq)<0)return false;
     return true;
@@ -1689,7 +1536,7 @@ function resignFiltered(){
   var fd=el('f-res-dept').value, ft=el('f-res-type').value, fr=el('f-res-reason').value,
       fg=el('f-res-gen').value, fq=(el('f-res-q').value||'').trim().toLowerCase();
   return rows.filter(function(r){
-    if(fd&&!rowGroupMatches(r,fd))return false;
+    if(fd&&r.dept!==fd)return false;
     if(ft&&(r.resignType||'resign')!==ft)return false;
     if(fr&&(r.reasonCat||'')!==fr)return false;
     if(fg&&(r.gender||'')!==fg)return false;
@@ -1748,7 +1595,7 @@ function renderResignKpi(rows){
   });
   h+='</tbody></table>'; setHtml('res-reason-bd', h);
   /* 部門 / 年資分佈 */
-  var dm={}; rows.forEach(function(r){ var d=groupLabel(r.section||r.dept||r.group); if(!dm[d])dm[d]={n:0,days:0,dn:0}; dm[d].n++; if(+r.workingDays>0){dm[d].days+=+r.workingDays;dm[d].dn++;} });
+  var dm={}; rows.forEach(function(r){ var d=r.dept||'—'; if(!dm[d])dm[d]={n:0,days:0,dn:0}; dm[d].n++; if(+r.workingDays>0){dm[d].days+=+r.workingDays;dm[d].dn++;} });
   var dl=Object.keys(dm).sort(function(a,b){return dm[b].n-dm[a].n;});
   var h2='<table><thead><tr><th>'+L('部門','Dept')+'</th><th class="text-right">'+L('人數','Count')+'</th><th class="text-right">'+L('平均年資','Avg Tenure')+'</th></tr></thead><tbody>';
   if(!dl.length)h2+='<tr><td colspan="3" class="text-center text-slate-400 py-6">'+L('無資料','No data')+'</td></tr>';
@@ -1769,13 +1616,13 @@ function renderJoin(){
     var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('入職日','Join Date')+'</th>'+
       '<th>'+L('部門','Dept')+'</th><th>'+L('線別','Section')+'</th><th>'+L('職務','Position')+'</th>'+
       '<th>'+L('性別','Gender')+'</th><th class="text-right">'+L('年齡','Age')+'</th><th>'+L('介紹人','Referrer')+'</th>'+
-      '<th>'+L('電話','Tel')+'</th><th>'+L('照片／佐證','Photo / Evidence','រូបភាព / ភស្តុតាង')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="13" class="text-center text-slate-400 py-6">'+L('此期間沒有入職記錄','No join records in this period')+'</td></tr>';
+      '<th>'+L('電話','Tel')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
+    if(!rows.length)h+='<tr><td colspan="12" class="text-center text-slate-400 py-6">'+L('此期間沒有入職記錄','No join records in this period')+'</td></tr>';
     rows.forEach(function(r){
       h+='<tr><td class="jmono">'+esc(r.empId)+'</td><td>'+esc(r.name)+'</td><td class="jmono">'+esc(r.joinDate)+'</td>'+
         '<td>'+esc(r.dept)+'</td><td>'+esc(r.section)+'</td><td>'+esc(r.position)+'</td>'+
         '<td class="jmono">'+esc(r.gender)+'</td><td class="text-right jmono">'+esc(r.age)+'</td>'+
-        '<td>'+esc(r.introducer)+'</td><td class="jmono">'+esc(r.tel)+'</td><td>'+evidenceCell(r.evidence)+'</td><td>'+decBadge(r._k)+'</td>'+
+        '<td>'+esc(r.introducer)+'</td><td class="jmono">'+esc(r.tel)+'</td><td>'+decBadge(r._k)+'</td>'+
         '<td class="no-print"><button onclick="openRec(\'join\',\''+r.id+'\')" title="編輯 Edit" class="text-xs text-slate-400 hover:text-emerald-600">✏️</button></td></tr>';
     });
     h+='</tbody></table>';
@@ -1798,10 +1645,6 @@ function decBadge(k){
   if(d.d==='ok')return '<span class="pill bg-emerald-50 text-emerald-700">✔ '+L('核可','OK')+'</span>';
   return '<span class="pill bg-rose-50 text-rose-700" title="'+esc(d.note||'')+'">✖ '+L('退回','Rej')+'</span>';
 }
-function evidenceCell(items){
-  var links=window.HRAAttachments?HRAAttachments.links(items||[]):[];
-  return links.length?links.map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Evidence">📎'+(i+1)+'</a>';}).join(' '):'<span class="text-slate-300">—</span>';
-}
 function renderResign(){
   try{
     var rows=resignFiltered();
@@ -1812,8 +1655,8 @@ function renderResign(){
       '<th>'+L('到職日','Join Date')+'</th><th>'+L('部門/線別','Dept/Line')+'</th><th>'+L('職務','Position')+'</th>'+
       '<th>'+L('性別','G')+'</th><th class="text-right">'+L('年齡','Age')+'</th><th>'+L('類型','Type')+'</th>'+
       '<th class="text-right">'+L('在職天數','Days')+'</th><th>'+L('原因','Reason')+'</th>'+
-      '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('照片／佐證','Photo / Evidence','រូបភាព / ភស្តុតាង')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="15" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
+      '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
+    if(!rows.length)h+='<tr><td colspan="14" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
     rows.forEach(function(r){
       var amt=r.hasSettlement?('💵 '+fmt(r.amount)):'<span class="text-slate-300">—</span>';
       var rea=r.reasonCat?('<span class="pill bg-slate-100 text-slate-600">'+esc(L(REASON_ZH[r.reasonCat]||r.reasonCat,r.reasonCat))+'</span> <span class="text-slate-400 text-[10px]">'+esc(r.reason||'')+'</span>')
@@ -1823,7 +1666,7 @@ function renderResign(){
         '<td>'+esc(r.dept)+'</td><td>'+esc(r.position)+'</td><td class="jmono">'+esc(r.gender)+'</td>'+
         '<td class="text-right jmono">'+esc(r.age)+'</td><td>'+typeBadge(r.resignType||'resign')+'</td>'+
         '<td class="text-right jmono">'+fmt0(r.workingDays||0)+'</td><td>'+rea+'</td>'+
-        '<td class="text-right jmono">'+amt+'</td><td>'+evidenceCell(r.evidence)+'</td><td>'+decBadge(r._k)+'</td>'+
+        '<td class="text-right jmono">'+amt+'</td><td>'+decBadge(r._k)+'</td>'+
         '<td class="no-print"><button onclick="openRec(\'resign\',\''+r.id+'\')" title="編輯 Edit" class="text-xs text-slate-400 hover:text-rose-600">✏️</button></td></tr>';
     });
     h+='</tbody></table>';
@@ -1855,7 +1698,7 @@ function renderSettles(){
 /* ═══════════ 流動分析 ═══════════ */
 var RESIGN_ONLY_DIMS={reasonCat:1,resignType:1,tenureBand:1,salaryBand:1};
 function dimValue(r,dim,kind){
-  if(dim==='dept')      return groupLabel(r.section||r.dept||r.group);
+  if(dim==='dept')      return r.dept||L('未分類','Unassigned');
   if(dim==='line')      return lineOf(r);
   if(dim==='position')  return r.position||L('未分類','Unassigned');
   if(dim==='gender')    return (r.gender||'').toUpperCase()==='M'?L('男','Male'):(r.gender||'').toUpperCase()==='F'?L('女','Female'):L('未填','—');
@@ -2002,7 +1845,6 @@ function apprMark(d,note){
     else DEC[k]={d:d,note:note||'',at:nowStamp()};
   });
   saveDec(); _apprSel={};
-  scheduleAutoCloudUpload();
   toast((d==='ok'?'✔ ':(d==='no'?'✖ ':'↺ '))+ks.length+' '+L('筆已更新','rows updated'),'ok');
   renderAll();
 }
@@ -2032,45 +1874,33 @@ function gasPost(payload){
     headers:{'Content-Type':'text/plain;charset=utf-8'},          /* ① 避開 CORS preflight */
     body:JSON.stringify(payload)});
 }
-function gasPushJson(payload){
-  return gasPost(payload).then(function(res){return res.json();});
-}
-var ONB_CLOUD_MANIFEST='ac_hra_onboarding_cloud_manifest_v2', _autoCloudTimer=null;
-function cloudFingerprint(r){
-  var o={};Object.keys(r||{}).sort().forEach(function(k){if(k!=='updatedAt')o[k]=r[k];});return JSON.stringify(o);
-}
-function cloudState(){try{return JSON.parse(localStorage.getItem(ONB_CLOUD_MANIFEST)||'{}')||{};}catch(e){return{};}}
-function cloudDelta(recs){
-  var old=cloudState();return recs.filter(function(r){return old[(r._kind||'record')+'|'+(r._k||r.id||JSON.stringify(r))]!==cloudFingerprint(r);});
-}
-function markCloudState(recs){
-  var old=cloudState();recs.forEach(function(r){old[(r._kind||'record')+'|'+(r._k||r.id||JSON.stringify(r))]=cloudFingerprint(r);});
-  old.__decisions=JSON.stringify(DEC);try{localStorage.setItem(ONB_CLOUD_MANIFEST,JSON.stringify(old));}catch(e){}
-}
-function scheduleAutoCloudUpload(){
-  clearTimeout(_autoCloudTimer);
-  _autoCloudTimer=setTimeout(function(){cloudUpload({auto:true});},700);
-}
-function cloudUpload(options){
-  options=options||{};
-  var url=gasUrl(),btn=el('btn-cloud-up');
-  if(!url){if(!options.auto)toast(L('請先設定 GAS URL','Set GAS URL first'),'warn');return Promise.resolve({skipped:true});}
-  var allRecs=flatRecords(),summary={joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,
-    decisions:Object.keys(DEC).length,updatedAt:nowStamp()};
-  if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
-  return HRASmartSync.push({url:url,tool:'onboarding',records:allRecs,recordCount:allRecs.length,
-    summary:summary,meta:{decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride},
-      coverage:HRACloudGuard.coverage(allRecs,'onboarding')},
-    onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(d){
-    if(d && d.cancelled) throw new Error(L('已取消變更，雲端資料已保留','Change cancelled; cloud data was kept','បានបោះបង់; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'));
-    if(d && d.needsPull) throw new Error(L('雲端有新資料，已保留；請稍後再同步','Cloud has newer data; it was kept. Sync again later','Cloud មានទិន្នន័យថ្មីជាង; បានរក្សាទុក'));
+function cloudUpload(){
+  var btn=el('btn-cloud-up'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
+  var recs=flatRecords();
+  var summary={joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,
+               decisions:Object.keys(DEC).length,updatedAt:nowStamp()};
+  var total=Math.max(1,Math.ceil(recs.length/CHUNK));
+  var seq=Promise.resolve(), sent=0;
+  for(var i=0;i<total;i++){
+    (function(idx){
+      seq=seq.then(function(){
+        var slice=recs.slice(idx*CHUNK,(idx+1)*CHUNK);
+        var p={action:'push',type:'push',tool:TOOL,records:slice,recordCount:recs.length,
+               summary:summary,updatedAt:lds(new Date()),decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride}};
+        if(total>1){ p.chunk=idx; p.totalChunks=total; }
+        return gasPost(p).then(function(){ sent+=slice.length; });
+      });
+    })(i);
+  }
+  seq.then(function(){
     META.cloudUpdatedAt=summary.updatedAt; META.updatedAt=summary.updatedAt; saveMeta();
-    markCloudState(allRecs);
-    setTxt('cloud-stat','☁ '+summary.updatedAt);
-    if(!options.auto)toast('☁↑ '+L('只上傳新增／變更，並保留雲端資料','Only new/changed data uploaded; cloud data kept')+' '+(d.uploaded||0)+' '+L('筆','records'),'ok');
-    return d||{ok:true};
-  }).catch(function(e){toast(L('上傳失敗：','Upload failed: ')+e.message,'error');return{ok:false,error:e};})
-    .then(function(d){if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}return d;});
+    setTxt('cloud-stat', '☁ '+summary.updatedAt);
+    toast('☁↑ '+L('已上傳','Uploaded')+' '+sent+' '+L('筆','records'),'ok');
+  }).catch(function(e){
+    toast(L('上傳失敗：','Upload failed: ')+e.message,'error');
+  }).then(function(){
+    if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
+  });
 }
 function digRecords(d){
   /* ⚠ 必須逐層往下挖 data.data.records */
@@ -2090,9 +1920,8 @@ function applyCloud(recs,silent){
     else if(o.resignDate!==undefined){ ensureResignKey(o); r.push(o); }
     else if(o.joinDate!==undefined){ ensureJoinKey(o); j.push(o); }
   });
-  var mj=mergeInto(JOINS,j,{interactive:true}), mr=mergeInto(RESIGNS,r,{interactive:true});
-  if(mj.cancelled||mr.cancelled){ if(!silent)toast(L('已取消有衝突的入離職更新','Conflicting movement update cancelled','បានបោះបង់ការធ្វើបច្ចុប្បន្នភាពចូល/ចេញ'),'warn'); return; }
-  JOINS=mj.arr; RESIGNS=mr.arr;
+  var mj=mergeInto(JOINS,j); JOINS=mj.arr;
+  var mr=mergeInto(RESIGNS,r); RESIGNS=mr.arr;
   var ms=mergeInto(SETTLES,s); SETTLES=ms.arr;
   saveJoins(); saveResigns(); saveSettles();
   rebuildFilterOptions(); renderAll();
@@ -2100,15 +1929,32 @@ function applyCloud(recs,silent){
     ' ('+L('新增','new')+' '+(mj.added+mr.added+ms.added)+' / '+L('更新','upd')+' '+(mj.updated+mr.updated+ms.updated)+')','ok');
 }
 function cloudDownload(silent){
-  var btn=el('btn-cloud-down');if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50');}
-  var url=gasUrl(),local=flatRecords();
-  return HRASmartSync.pull({url:url,tool:'onboarding',localRecords:local,onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(res){
-    if(res&&res.cancelled)return;
-    if(!res||res.noCloud){if(!silent)toast(L('雲端尚無資料','No cloud data'),'warn');return;}
-    applyCloud(res.records||[],silent);
-    META.cloudUpdatedAt=nowStamp();saveMeta();setTxt('cloud-stat','☁ '+META.cloudUpdatedAt);
-  }).catch(function(e){if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');})
-    .then(function(){if(btn&&!silent){btn.disabled=false;btn.classList.remove('opacity-50');}});
+  var btn=el('btn-cloud-down'); if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50');}
+  var base=gasUrl()+'?action=pull&tool='+TOOL;
+  return fetch(base+'&meta=1').then(function(r){return r.json();}).then(function(d){
+    var info=(d&&d.data)||{};
+    if(info.chunked&&info.meta&&info.meta.totalChunks){
+      var n=info.meta.totalChunks, acc=[], seq=Promise.resolve();
+      for(var i=0;i<n;i++){
+        (function(idx){ seq=seq.then(function(){
+          return fetch(base+'&chunk='+idx).then(function(r2){return r2.json();}).then(function(d2){
+            var rec=digRecords(d2)||[]; acc=acc.concat(rec);
+          });
+        }); })(i);
+      }
+      return seq.then(function(){ return acc; });
+    }
+    return digRecords(d)||[];
+  }).then(function(recs){
+    if(!recs||!recs.length){ if(!silent)toast(L('雲端尚無資料','No cloud data'),'warn'); return; }
+    applyCloud(recs,silent);
+    META.cloudUpdatedAt=nowStamp(); saveMeta();
+    setTxt('cloud-stat', '☁ '+META.cloudUpdatedAt);
+  }).catch(function(e){
+    if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');
+  }).then(function(){
+    if(btn&&!silent){btn.disabled=false;btn.classList.remove('opacity-50');}
+  });
 }
 /* 啟動靜默同步：⚠ 比較一定用 !==，不要用 > */
 function autoSync(){
@@ -2176,6 +2022,7 @@ function tgPeriods(type){
 }
 function openTg(mode){
   _tgFrom = (mode==='approval')?'appr':'header';
+  try{var actor=localStorage.getItem(K_TG_ACTOR)||'';if(el('tg-actor'))el('tg-actor').value=actor;}catch(e){}
   _tgMode = (mode==='approval')?'approval':'summary';
   /* 依目前分頁預選內容來源：入職分頁→join、離職分頁→resign，其餘→both */
   _tgScope = TAB==='join'?'join' : TAB==='resign'?'resign' : 'both';
@@ -2264,16 +2111,6 @@ function syncTgSendBtn(){
                         : L('📄 傳送摘要 Send Summary','📄 Send Summary');
   if(!btn.disabled) btn.className = app?TG_BTN_CLS_APP:TG_BTN_CLS_SUM;
 }
-var _tgRoute='review';
-function setTgRoute(r){
-  _tgRoute=(r==='direct')?'direct':'review';
-  var a=el('tgr-review'), b=el('tgr-direct'), d=(_tgRoute==='direct');
-  if(a) a.className='text-xs px-3 py-1.5 rounded-md transition '+(!d?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
-  if(b) b.className='text-xs px-3 py-1.5 rounded-md transition '+( d?'bg-white shadow-sm font-semibold text-amber-700':'text-slate-500 font-medium');
-  setTxt('tg-route-note', d
-    ? L('直接私訊核可人，一步到位（不經群組審查）','Sent straight to the approver — no group review step')
-    : L('先送群組，審查人按「確認審查」後才轉給核可人','Goes to the group first; an approval request reaches the approver only after a reviewer confirms'));
-}
 function setTgMode(m){
   _tgMode=m;
   var app=(m==='approval');
@@ -2288,9 +2125,6 @@ function setTgMode(m){
         'GAS creates an approval batch; the group message carries numbered buttons. Re-sending identical data hits the same batch instead of posting again.')
     : L('摘要只是通知，不會產生核可批次，群組不會有按鈕。要核可請切到上面的「核可 Approval」。',
         'Summary is a notification only — no batch, no buttons. Switch to "Approval" above to request approval.'));
-  var rw=el('tg-route-wrap');
-  if(rw) rw.className = app ? '' : 'hidden';
-  if(app) setTgRoute(_tgRoute);
   /* ★ 切到核可時，若有結算資料就自動改用結算日基準（理由同 openTg） */
   if(app && _tgScope!=='join' && settleDatesWithData().length &&
      el('tg-ptype') && el('tg-ptype').value!=='settle'){
@@ -2324,19 +2158,9 @@ function joinBlock(J,bi){
   var sew=J.filter(function(r){return isSewLine(normalizeGroup(r.section||r.dept));}).length;
   var m=J.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=J.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
-  var dm={}; J.forEach(function(r){var k=groupLabel(r.section||r.dept||r.group);dm[k]=(dm[k]||0)+1;});
-  var departed=J.filter(function(r){
-    return window.HRAStatusLink&&HRAStatusLink.forEmployee&&HRAStatusLink.forEmployee(r,r.joinDate);
-  });
+  var dm={}; J.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
   var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+'：'+J.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing',bi))+' '+sew+'）'):'')+'\n';
   t+='· '+esc(BL('男','Male','ប្រុស',bi))+' '+m+' · '+esc(BL('女','Female','ស្រី',bi))+' '+f+'\n';
-  if(departed.length){
-    t+='⚠ '+esc(BL('其中已離職','Already resigned','បានចាកចេញរួច'))+'：'+departed.length+'\n';
-    t+=departed.slice(0,8).map(function(r){
-      var x=HRAStatusLink.forEmployee(r,r.joinDate);
-      return '· '+esc(r.factoryId||r.empId||'—')+' '+esc(r.name||'—')+(x&&x._statusDate?' · '+x._statusDate:'');
-    }).join('\n')+'\n';
-  }
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
   if(dl.length){ t+='<b>'+esc(BL('入職部門','By department','តាមផ្នែក',bi))+'</b>\n'; dl.forEach(function(k){ t+='· '+esc(k)+'：'+dm[k]+'\n'; }); }
   return t;
@@ -2348,7 +2172,7 @@ function resignBlock(R,p,bi){
   var tc={}; R.forEach(function(r){var k=r.resignType||'resign';tc[k]=(tc[k]||0)+1;});
   /* ★ 部門明細：人數 + 結算金額 */
   var dm={}; R.forEach(function(r){
-    var k=groupLabel(r.section||r.dept||r.group); if(!dm[k])dm[k]={n:0,amt:0};
+    var k=r.dept||'—'; if(!dm[k])dm[k]={n:0,amt:0};
     dm[k].n++; dm[k].amt+=(+r.amount||0);
   });
   var rc={}; R.forEach(function(r){var k=r.reasonCat||'Other';rc[k]=(rc[k]||0)+1;});
@@ -2418,6 +2242,8 @@ function buildSummaryText(p,bi,scope){
   t+=HR+'✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' '+st.ok+' · ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' '+st.no+' · ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' '+st.pend+'\n';
   /* ★ 核算聲明（三語） */
   t+='<i>'+esc(BL('以上人數與金額已經系統核算','Headcount and amounts verified by system','ចំនួន និងទឹកប្រាក់ត្រូវបានផ្ទៀងផ្ទាត់',bi))+'</i>\n';
+  var actor=tgActor();
+  if(actor)t+='👤 '+esc(BL('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកពិនិត្យ',bi))+'：<b>'+esc(actor)+'</b>\n';
   t+='<i>'+esc(nowStamp())+' · AC HRA Onboarding v3</i>';
   return {text:t};
 }
@@ -2436,7 +2262,7 @@ function buildApprovalItems(p,scope){
   /* ★ 核可 key 不直接用 _k：匯入的是 'R|工號'（沒日期），線上新增的是 'R|工號|離職日'，
      同一個人兩種格式，帳本會漏擋；而且沒日期表示回鍋員工二次離職會被誤擋。
      這裡一律用「工號＋日期」重組，不動 _k（_k 仍供匯入合併使用）。 */
-  function apprKey(pfx,id,dt){ return pfx+'|'+(id||'')+'|'+(String(dt||'').slice(0,7)); }
+  function apprKey(pfx,id,dt){ return pfx+'|'+(id||'')+'|'+(String(dt||'').slice(0,10)); }
   if(scope!=='join') d.R.forEach(function(r){
     var x=DEC[r._k]||{};
     items.push({key:apprKey('R',r.empId,r.resignDate),kind:'resign',id:r.empId,name:r.name,
@@ -2513,6 +2339,9 @@ function confirmTg(){
      後面的 .then(解鎖) 永遠不會執行 → 按鈕就永久卡在 disabled，
      而且一則錯誤訊息都不會出現。這就是「連傳送鈕都按不下去」。 */
   try{
+    var actor=tgActor();
+    if(!actor){ toast(L('請先填寫申請人／檢查人','Please enter Applicant / Inspector','សូមបញ្ចូលអ្នកស្នើ / អ្នកពិនិត្យ'),'warn'); if(el('tg-actor'))el('tg-actor').focus(); return; }
+    saveTgActor();
     var r=buildSummaryText(p,bi,scope);
     if(r.err){ toast(r.err,'error'); return; }
     var sTag=scope==='join'?'J':scope==='resign'?'R':'B';
@@ -2523,14 +2352,13 @@ function confirmTg(){
         batch:'OB-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
         /* ★ 'S:' 只是內部基準前綴，送給 GAS 的期間要是人看得懂的字 */
         period: isSettleKey(p) ? (String(p).slice(2)+' '+L('結算 Settle','Settle')) : p,
-        route: _tgRoute,
         lang:LANG, count:items.length, items:items, text:r.text,
         /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
         idempotencyKey:['onboarding',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
-        requestedBy:'onboarding_v3', requestedAt:nowStamp() };
+        applicant:actor, inspector:actor, checker:actor, requestedBy:actor, requestedAt:nowStamp() };
     }else{
-      payload={ action:'telegram', type:'notify', tool:TOOL, scope:scope, text:r.text };
+      payload={ action:'telegram', type:'notify', tool:TOOL, scope:scope, text:r.text, applicant:actor, inspector:actor, checker:actor };
     }
   }catch(e){
     console.error('[confirmTg build]', e);
@@ -2552,20 +2380,6 @@ function confirmTg(){
   }).then(function(d){
     if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
     var dd=d.data||d;
-    /* 「GAS 收到請求」不等於「Telegram 已送達」。
-       核可一定要有實際 message_id；否則不關閉視窗、不觸發成功上傳，
-       讓使用者知道可重送，而且同一批會由 GAS 自動補發。 */
-    if(!_tgMode || _tgMode==='approval'){
-      if(!dd.closed && (!dd.messageId || dd.sentToGroup===false)){
-        throw new Error(L('GAS 已收到，但 Telegram 沒有回傳群組訊息編號，未確認送達；請再按一次送出。',
-                          'GAS accepted the request, but Telegram returned no group message ID. Delivery is not confirmed; please send again.',
-                          'GAS បានទទួលសំណើ ប៉ុន្តែ Telegram មិនបានត្រឡប់លេខសារក្រុមទេ។ មិនទាន់បញ្ជាក់ថាបានផ្ញើ សូមផ្ញើម្តងទៀត។'));
-      }
-    }else if(!dd.sent || !dd.messageId){
-      throw new Error(L('Telegram 沒有回傳群組訊息編號，未確認送達；請檢查 Bot／群組設定。',
-                        'Telegram returned no group message ID, so delivery is not confirmed. Check the bot/group settings.',
-                        'Telegram មិនបានត្រឡប់លេខសារក្រុមទេ ដូច្នេះមិនទាន់បញ្ជាក់ការផ្ញើ។ សូមពិនិត្យ Bot និងក្រុម។'));
-    }
     if(dd.closed){
       toast(L('這批先前已核可並關閉，未重複送出','Batch was already approved and closed — not re-sent')
             +(dd.batchId?(' · '+dd.batchId):''),'warn');
@@ -2579,7 +2393,6 @@ function confirmTg(){
       if(dd.skipped) msg+=' · '+L('略過已核可 ','skipped already-approved ')+dd.skipped;
       toast(msg,'ok');
     }
-    scheduleAutoCloudUpload();
     closeTg();
   }).catch(function(e){
     console.error('[confirmTg send]', e);
@@ -2653,8 +2466,8 @@ function importJSON(input){
   fr.onload=function(){
     try{
       var d=JSON.parse(fr.result);
-      if(Array.isArray(d.joins)){ d.joins.forEach(ensureJoinKey); JOINS=mergeInto(JOINS,d.joins,{interactive:true}).arr; }
-      if(Array.isArray(d.resigns)){ d.resigns.forEach(ensureResignKey); RESIGNS=mergeInto(RESIGNS,d.resigns,{interactive:true}).arr; }
+      if(Array.isArray(d.joins)){ d.joins.forEach(ensureJoinKey); JOINS=mergeInto(JOINS,d.joins).arr; }
+      if(Array.isArray(d.resigns)){ d.resigns.forEach(ensureResignKey); RESIGNS=mergeInto(RESIGNS,d.resigns).arr; }
       if(Array.isArray(d.settles)){ SETTLES=mergeInto(SETTLES,d.settles).arr; }
       if(d.decisions&&typeof d.decisions==='object'){ Object.keys(d.decisions).forEach(function(k){DEC[k]=d.decisions[k];}); }
       if(d.settings&&typeof d.settings==='object'){ Object.keys(d.settings).forEach(function(k){ if(SETS[k]===undefined)SETS[k]=d.settings[k]; }); }
@@ -2684,17 +2497,6 @@ function renderAll(){
   }catch(e){ console.error(e); }
 }
 
-/* Manpower 與本頁同源時，另一頁的新增、修改、刪除立即反映。 */
-window.addEventListener('storage',function(e){
-  if(e.key!==K_JOINS&&e.key!==K_RESIGNS)return;
-  try{
-    if(e.key===K_JOINS){JOINS=JSON.parse(e.newValue||'[]')||[];JOINS.forEach(ensureJoinKey);JOINS=mergeInto([],JOINS).arr;}
-    else{RESIGNS=JSON.parse(e.newValue||'[]')||[];RESIGNS.forEach(ensureResignKey);RESIGNS=mergeInto([],RESIGNS).arr;}
-    rebuildFilterOptions();renderAll();
-    toast(L('Manpower 入離職已同步','Manpower movement synced','បានធ្វើសមកាលកម្មចលនា'),'ok');
-  }catch(err){console.warn('Movement storage sync:',err)}
-});
-
 
 /* ═══════════════════════════════════════════════════════════════
    線上操作：新增 / 編輯 / 刪除記錄
@@ -2722,8 +2524,12 @@ function fillDatalists(){
   fill('dl-prov', PROVINCES);
   fill('dl-reason', uniqSorted(RESIGNS.map(function(r){return r.reason;})).slice(0,60));
 }
+var _recEvidenceFiles=[];
+function recFileData(f){return new Promise(function(ok,no){var rd=new FileReader();rd.onload=function(){ok(String(rd.result||''));};rd.onerror=no;rd.readAsDataURL(f);});}
+async function uploadRecEvidence(files,recordKey,period){var out=[];for(var i=0;i<files.length;i++){var f=files[i],data=await recFileData(f),b64=data.split(',')[1]||'';var res=await gasPost({action:'uploadAttachment',module:'onboarding',recordKey:recordKey,period:period,fileName:f.name,mimeType:f.type||(/\.pdf$/i.test(f.name)?'application/pdf':'image/jpeg'),data:b64,base64:b64});out.push((res&&res.data)||res);}return out;}
+function bindRecEvidence(){var a=el('r-evidence'),c=el('r-camera');function pick(inp){_recEvidenceFiles=Array.prototype.slice.call(inp.files||[]);var lab=el('r-evidence-list');if(lab)lab.textContent=_recEvidenceFiles.map(function(f){return f.name;}).join(' · ');}if(a)a.onchange=function(){pick(a)};if(c)c.onchange=function(){pick(c)};}
 function openRec(kind,id){
-  _recId=id||null;
+  _recId=id||null; _recEvidenceFiles=[]; bindRecEvidence();
   fillDatalists();
   var r=null;
   if(id){
@@ -2743,12 +2549,12 @@ function openRec(kind,id){
     if(k==='resignType'&&!r)v='resign';
     n.value=v;
   });
+  var evid=el('r-evidence-list');if(evid)evid.innerHTML=(r&&r.evidence&&r.evidence.length)?r.evidence.map(function(x){return '<a target="_blank" href="'+esc(x.url||x.previewUrl||'#')+'">📎 '+esc(x.fileName||x.name||'file')+'</a>';}).join(' · '):'';
   var w=el('rec-warn'); if(w){w.style.display='none';w.textContent='';}
   var m=el('rec-modal'); if(m){m.classList.remove('hidden');m.classList.add('flex');}
-  if(window.HRAAttachments)HRAAttachments.mount('onb-evidence',{module:'onboarding',items:r&&r.evidence||[],recordKey:function(){return _recId||el('r-empId').value||'new-employee';},period:function(){return String((_recKind==='resign'?el('r-resignDate').value:el('r-joinDate').value)||'').slice(0,7);},onError:function(e){toast(e.message,'warn');}});
 }
 function closeRec(){ var m=el('rec-modal'); if(m){m.classList.add('hidden');m.classList.remove('flex');} _recId=null; }
-function saveRec(){
+async function saveRec(){
   var g=function(k){ var n=el('r-'+k); return n?String(n.value||'').trim():''; };
   var empId=g('empId').replace(/\s+/g,''), name=g('name'), w=el('rec-warn');
   function bad(msg){ if(w){w.style.display='';w.textContent='⚠️ '+msg;} toast(msg,'warn'); return false; }
@@ -2764,30 +2570,31 @@ function saveRec(){
   }
   var age=parseInt(g('age'),10);
   if((!isFinite(age)||age<=0)&&g('birthday')){ var a=calcAge(g('birthday'),mainDate); if(a!=null)age=a; }
+  var oldRec=_recId?(JOINS.concat(RESIGNS).filter(function(x){return x.id===_recId;})[0]):null;
+  var evidence=(oldRec&&oldRec.evidence)||[];
+  if(_recEvidenceFiles.length){try{evidence=await uploadRecEvidence(_recEvidenceFiles,_recId||empId,mainDate.slice(0,7));}catch(e){toast(L('附件上傳失敗：','Evidence upload failed: ')+e.message,'warn');}}
   var base={ empId:empId,name:name,engName:g('engName'),dept:g('dept'),section:g('section'),
     position:g('position'),gender:g('gender'),birthday:g('birthday'),
     age:(isFinite(age)&&age>0)?age:'',marital:g('marital'),region:g('region'),
-    tel:g('phone'),phone:g('phone'),remark:g('remark'),evidence:window.HRAAttachments?HRAAttachments.get('onb-evidence'):[],source:'online',updatedAt:nowStamp() };
+    tel:g('phone'),phone:g('phone'),remark:g('remark'),evidence:evidence,source:'online',updatedAt:nowStamp() };
   if(isJoin){
-    var jr=Object.assign({},base,{ _kind:'join', _k:'J|'+empId+'|'+g('joinDate').slice(0,7), id:_recId||('j_'+uid()),
+    var jr=Object.assign({},base,{ _k:'J|'+empId+'|'+g('joinDate'), id:_recId||('j_'+uid()),
       joinDate:g('joinDate'), introducer:g('introducer') });
-    var jo={interactive:true}, jm=mergeInto(_recId?JOINS.filter(function(x){return x.id!==_recId;}):JOINS,[jr],jo);
-    if(jo.cancelled)return; JOINS=jm.arr;
+    JOINS=mergeInto(_recId?JOINS.filter(function(x){return x.id!==_recId;}):JOINS,[jr]).arr;
   }else{
-    var rr=Object.assign({},base,{ _kind:'resign', _k:'R|'+empId+'|'+g('resignDate').slice(0,7), id:_recId||('r_'+uid()),
+    var rr=Object.assign({},base,{ _k:'R|'+empId+'|'+g('resignDate'), id:_recId||('r_'+uid()),
       joinDate:g('joinDate'), resignDate:g('resignDate'),
       resignType:g('resignType')||'resign', reason:g('reason'),
       reasonCat:reasonCatOf(g('reason')||g('remark')),
       workingDays:(isFinite(days)&&days>0)?days:0,
       amount:parseFloat(g('amount'))||0,
       hasSettlement:(parseFloat(g('amount'))||0)>0 });
-    var ro={interactive:true}, rm=mergeInto(_recId?RESIGNS.filter(function(x){return x.id!==_recId;}):RESIGNS,[rr],ro);
-    if(ro.cancelled)return; RESIGNS=rm.arr;
+    RESIGNS=mergeInto(_recId?RESIGNS.filter(function(x){return x.id!==_recId;}):RESIGNS,[rr]).arr;
   }
   saveJoins(); saveResigns();
-  scheduleAutoCloudUpload();
+  var wasEdit=!!_recId;
   rebuildFilterOptions(); closeRec(); renderAll();
-  toast((_recId?L('已更新','Updated','បានកែ'):L('已新增','Added','បានបន្ថែម'))+'：'+empId+' '+name+
+  toast((wasEdit?L('已更新','Updated','បានកែ'):L('已新增','Added','បានបន្ថែម'))+'：'+empId+' '+name+
         ' · '+L('可於核可分頁送審','ready for approval','អាចដាក់ស្នើអនុម័ត'),'ok');
   return true;
 }
@@ -2796,7 +2603,7 @@ function deleteRec(){
   if(!confirm(L('確定刪除這筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
   JOINS=JOINS.filter(function(x){return x.id!==_recId;});
   RESIGNS=RESIGNS.filter(function(x){return x.id!==_recId;});
-  saveJoins(); saveResigns(); scheduleAutoCloudUpload(); rebuildFilterOptions(); closeRec(); renderAll();
+  saveJoins(); saveResigns(); rebuildFilterOptions(); closeRec(); renderAll();
   toast(L('已刪除','Deleted','បានលុប'),'ok');
 }
 
@@ -2808,8 +2615,7 @@ Object.assign(window,{
   renderJoin:renderJoin, renderResign:renderResign, renderAnly:renderAnly, renderAppr:renderAppr,
   resetFilters:resetFilters,
   cloudUpload:cloudUpload, cloudDownload:cloudDownload,
-  manualDecisionSync:manualDecisionSync,
-  openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods, syncTgSendBtn:syncTgSendBtn, setTgRoute:setTgRoute,
+  openTg:openTg, closeTg:closeTg, setTgMode:setTgMode, setTgScope:setTgScope, fillTgPeriods:fillTgPeriods, syncTgSendBtn:syncTgSendBtn, saveTgActor:saveTgActor,
   previewTg:previewTg, confirmTg:confirmTg,
   apprToggle:apprToggle, apprSelectAll:apprSelectAll, apprMark:apprMark,
   openReject:openReject, closeReject:closeReject, confirmReject:confirmReject,
@@ -2853,8 +2659,6 @@ function init(){
     rebuildFilterOptions();
     setTab('ov');
     if(META.updatedAt) setTxt('cloud-stat', '☁ '+(META.cloudUpdatedAt||META.updatedAt));
-    /* 讓既有的本機「已核可」也能補回伺服器，修復之前未同步的批次。 */
-    setTimeout(syncDecisionsToGas,500);
     autoSync();
   }catch(e){ console.error(e); toast('初始化錯誤：'+e.message,'error'); }
 }

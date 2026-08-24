@@ -4,14 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>VRT 考勤分析系統 v2</title>
-<script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=39"></script>
-<script src="shared/inspector.js"></script>
-<script src="shared/approval.js"></script>
-<script src="shared/hra-attachments.js?v=42"></script>
-<script src="shared/attendance-leave.js?v=42"></script>
-<script src="shared/pay-bridge.js"></script>
-<script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -125,13 +117,21 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 /* Cloud status badge in header */
 .hstat.cloud-stat .hstat-v{font-size:12px;cursor:pointer}
 
+
+/* ── Online CRUD + Employee Leave ── */
+.online-toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-bottom:10px}.online-toolbar input,.online-toolbar select{border:1px solid #d0d5e8;border-radius:6px;padding:6px 8px;font-size:11px;background:#fff;color:#1e2640}.online-toolbar input[type=text]{min-width:180px}
+.online-note{font-size:10px;color:#6b7a9e;background:#f7f8fc;border:1px solid #e2e6f0;border-radius:7px;padding:8px 10px;margin-bottom:10px;line-height:1.6}
+.att-edit-grid{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px}.att-edit-grid label{font-size:9px;color:#6b7a9e;font-weight:700;display:block;margin-bottom:3px}.att-edit-grid input,.att-edit-grid select{width:100%;border:1px solid #d0d5e8;border-radius:6px;padding:6px 8px;font-size:12px}.att-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1000;display:none;align-items:center;justify-content:center;padding:14px}.att-modal.open{display:flex}.att-modal-box{background:#fff;border-radius:12px;max-width:900px;width:100%;max-height:92vh;overflow:auto;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.leave-frame{width:100%;height:calc(100vh - 190px);min-height:650px;border:1px solid #e2e6f0;border-radius:9px;background:#fff}
+@media(max-width:760px){.att-edit-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.leave-frame{height:calc(100vh - 170px);min-height:700px}}
+
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="logo">VRT</div>
-  <div><div class="h-title" data-zh="考勤分析系統" data-en="Attendance Analytics" data-km="ប្រព័ន្ធវិភាគវត្តមាន">考勤分析系統</div><div class="h-sub">ATTENDANCE ANALYTICS · v2</div></div>
+  <div><div class="h-title" data-zh="考勤分析系統" data-en="Attendance Analytics" data-km="ប្រព័ន្ធវិភាគវត្តមាន">考勤分析系統</div><div class="h-sub">ATTENDANCE ANALYTICS · v3</div></div>
   <div class="h-stats">
     <div class="hstat"><div class="hstat-v" id="hRecs">0</div><div class="hstat-l" data-zh="總記錄" data-en="Records">總記錄</div></div>
     <div class="hstat"><div class="hstat-v" id="hDays">0</div><div class="hstat-l" data-zh="天數" data-en="Days">天數</div></div>
@@ -150,7 +150,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="cloud-dot" id="cloudDot"></div>
   <span class="cloud-lbl" id="cloudLbl" data-zh="雲端未設定（僅手動同步）" data-en="Cloud not configured (manual sync only)" data-km="Cloud មិនទាន់កំណត់ (ធ្វើដោយដៃ)">雲端未設定（僅手動同步）</span>
   <span class="cloud-ts" id="cloudTs"></span>
-  <span class="cloud-ts" data-zh="更新／摘要後自動補傳；下載仍由你按" data-en="Auto-uploads changes/summary; download stays manual" data-km="ផ្ទុកឡើងដោយស្វ័យប្រវត្តិបន្ទាប់ពីកែប្រែ/សង្ខេប; ទាញយកដោយដៃ">更新／摘要後自動補傳；下載仍由你按</span>
+  <span class="cloud-ts" data-zh="不會自動上傳或下載" data-en="No automatic upload or download" data-km="មិនផ្ទុកឡើង ឬទាញយកដោយស្វ័យប្រវត្តិ">不會自動上傳或下載</span>
   <div class="cloud-btns">
     <button class="btn-cloud btn-push" onclick="pushCloud()" id="btnPush" disabled title="上傳至雲端 Push to Cloud" style="font-size:15px;padding:4px 9px">☁↑</button>
     <button class="btn-cloud btn-pull" onclick="pullCloud()" id="btnPull" disabled title="從雲端拉取 Pull from Cloud" style="font-size:15px;padding:4px 9px">☁↓</button>
@@ -167,17 +167,16 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 
 <div class="tabs">
   <div class="tab on" onclick="goTab('upload',this)">📥 <span data-zh="上傳考勤" data-en="Import">上傳考勤</span></div>
-  <div class="tab" onclick="goTab('daily',this)">📊 <span data-zh="每日報告" data-en="Daily">每日報告</span></div>
+  <div class="tab" onclick="goTab('entry',this)">✏️ <span data-zh="線上操作" data-en="Online Entry" data-km="បញ្ចូលតាមអនឡាញ">線上操作</span></div>
   <div class="tab" onclick="goTab('leave',this)">📝 <span data-zh="員工請假" data-en="Employee Leave" data-km="ការសុំច្បាប់">員工請假</span></div>
+  <div class="tab" onclick="goTab('daily',this)">📊 <span data-zh="每日報告" data-en="Daily">每日報告</span></div>
   <div class="tab" onclick="goTab('weekly',this)">📅 <span data-zh="週統計" data-en="Weekly">週統計</span></div>
   <div class="tab" onclick="goTab('monthly',this)">📆 <span data-zh="月／年列表" data-en="Monthly / Yearly" data-km="ប្រចាំខែ / ឆ្នាំ">月／年列表</span></div>
   <div class="tab" onclick="goTab('yearly',this)">📈 <span data-zh="年度分析" data-en="Yearly">年度分析</span></div>
   <div class="tab" onclick="goTab('dept',this)">🏢 <span data-zh="部門分析" data-en="Dept">部門分析</span></div>
-  <div class="tab" onclick="goTab('hours',this)">⏱️ <span data-zh="考勤總時數" data-en="Attendance Hours" data-km="ម៉ោងវត្តមាន">考勤總時數</span></div>
   <div class="tab" onclick="goTab('group',this)">📊 <span data-zh="組別分析" data-en="Group">組別分析</span></div>
   <div class="tab" onclick="goTab('records',this)">📋 <span data-zh="所有記錄" data-en="Records">所有記錄</span></div>
   <div class="tab" onclick="goTab('sewcmp',this)">🔵 <span data-zh="出勤×車縫" data-en="Att×Sewing">出勤×車縫</span></div>
-  <div class="tab" onclick="goTab('jrcmp',this)">🔎 <span data-zh="入離職對照" data-en="Join/Resign Check" data-km="ពិនិត្យចូល／ចាកចេញ">入離職對照</span></div>
 </div>
 
 <!-- ══ UPLOAD ══ -->
@@ -229,6 +228,30 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   </details>
 </div>
 
+
+<!-- ══ ONLINE ENTRY / CRUD ══ -->
+<div class="sec" id="sec-entry">
+  <div class="card">
+    <div class="ct"><span data-zh="✏️ 考勤線上新增／編輯" data-en="✏️ Attendance Online Add / Edit" data-km="✏️ បន្ថែម / កែប្រែវត្តមាន">✏️ 考勤線上新增／編輯</span></div>
+    <div class="online-note" data-zh="可直接新增、修改、刪除考勤列。新日期建議至少建立各組明細，再按「重算 Grand Total」，日報與 Telegram 才能使用完整總數。Excel 匯入仍保留，適合大量資料。" data-en="Add, edit or delete attendance rows directly. For a new date, enter detail rows then use Rebuild Grand Total so Daily/Telegram totals are complete. Excel import remains available for bulk data." data-km="អាចបន្ថែម កែប្រែ ឬលុបទិន្នន័យវត្តមានដោយផ្ទាល់។">可直接新增、修改、刪除考勤列。新日期建議至少建立各組明細，再按「重算 Grand Total」，日報與 Telegram 才能使用完整總數。Excel 匯入仍保留，適合大量資料。</div>
+    <div class="online-toolbar">
+      <input type="date" id="oe-date" onchange="renderOnlineEntry()">
+      <input type="text" id="oe-q" placeholder="搜尋部門／組別／Line" data-placeholder-zh="搜尋部門／組別／Line" data-placeholder-en="Search dept / section / line" oninput="renderOnlineEntry()">
+      <select id="oe-type" onchange="renderOnlineEntry()"><option value="">全部類型 All Types</option><option value="detail">明細 Detail</option><option value="subtotal">小計 Subtotal</option><option value="grand">總計 Grand</option></select>
+      <button class="btn btn-t" onclick="openAttendanceEditor()">＋ <span data-zh="新增" data-en="Add">新增</span></button>
+      <button class="btn btn-g" onclick="rebuildGrandTotal()">🧮 <span data-zh="重算 Grand Total" data-en="Rebuild Grand Total">重算 Grand Total</span></button>
+      <span id="oe-count" style="font-size:11px;color:#8b95b8;margin-left:auto"></span>
+    </div>
+    <div class="twrap" id="oe-table"></div>
+  </div>
+</div>
+
+<!-- ══ EMPLOYEE LEAVE (independent page inside Attendance) ══ -->
+<div class="sec" id="sec-leave">
+  <div class="online-note" data-zh="員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。" data-en="Employee Leave is an independent page inside Attendance. Employee data can reuse HRA PAY when available, with manual add/edit as fallback." data-km="ការសុំច្បាប់ជាទំព័រឯករាជ្យនៅក្នុង Attendance។">員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。</div>
+  <iframe id="employeeLeaveFrame" class="leave-frame" src="ac_hra_employee_leave_v1.html" title="Employee Leave" allow="camera"></iframe>
+</div>
+
 <!-- ══ DAILY ══ -->
 <div class="sec" id="sec-daily">
   <div class="frow">
@@ -247,9 +270,6 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   </div>
   <div class="card"><div class="ct" data-zh="考勤日報表" data-en="Daily Attendance Report" data-km="របាយការណ៍វត្តមានប្រចាំថ្ងៃ">考勤日報表</div><div class="twrap" id="dayTable"></div></div>
 </div>
-
-<!-- ══ EMPLOYEE LEAVE — independent from attendance aggregates ══ -->
-<div class="sec" id="sec-leave"></div>
 
 <!-- ══ WEEKLY ══ -->
 <div class="sec" id="sec-weekly">
@@ -300,7 +320,6 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
           <th data-zh="天數" data-en="Days" data-km="ថ្ងៃ">天數</th>
           <th data-zh="平均在職" data-en="Avg Headcount" data-km="បុគ្គលិកមធ្យម">平均在職</th>
           <th data-zh="平均出勤" data-en="Avg Attendance" data-km="វត្តមានមធ្យម">平均出勤</th>
-          <th class="hours-field" data-zh="總時數" data-en="Total Hours" data-km="ម៉ោងសរុប">總時數</th>
           <th data-zh="出勤率" data-en="Attendance Rate" data-km="អត្រាវត្តមាន">出勤率</th>
           <th data-zh="缺勤" data-en="Absence" data-km="អវត្តមាន">缺勤</th>
           <th data-zh="新進" data-en="Join" data-km="ចូលថ្មី">新進</th>
@@ -379,26 +398,6 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   </div>
 </div>
 
-<!-- ══ HOURS ══ -->
-<div class="sec" id="sec-hours">
-  <div class="frow" style="flex-wrap:wrap;gap:8px">
-    <label style="color:#6b7a9e" data-zh="期間模式" data-en="Period Mode" data-km="របៀបរយៈពេល">期間模式</label>
-    <select id="hoursMode" onchange="hoursModeChange()">
-      <option value="day" data-zh="單日" data-en="Day" data-km="ថ្ងៃ">單日</option>
-      <option value="week" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</option>
-      <option value="month" selected data-zh="月" data-en="Month" data-km="ខែ">月</option>
-      <option value="year" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</option>
-    </select>
-    <button class="btn btn-g" onclick="navHours(-1)" style="padding:6px 12px;font-size:16px">◀</button>
-    <select id="hoursSel" onchange="renderHours()" style="min-width:125px"></select>
-    <button class="btn btn-g" onclick="navHours(1)" style="padding:6px 12px;font-size:16px">▶</button>
-    <select id="hoursDeptSel" onchange="renderHours()" style="min-width:150px"></select>
-  </div>
-  <div id="hoursKpi" class="kpi-strip"></div>
-  <div id="hoursSourceNote" class="tip" style="margin-bottom:12px"></div>
-  <div class="card"><div class="ct" data-zh="部門／組別考勤總時數" data-en="Attendance Hours by Department / Section" data-km="ម៉ោងវត្តមានតាមផ្នែក / ក្រុម">部門／組別考勤總時數</div><div class="twrap" id="hoursTable"></div></div>
-</div>
-
 <!-- ══ GROUP ══ -->
 <div class="sec" id="sec-group">
   <div class="frow" style="flex-wrap:wrap;gap:10px;align-items:center">
@@ -470,6 +469,36 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   </div>
 </div>
 
+
+<div id="attendanceEditModal" class="att-modal">
+  <div class="att-modal-box">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px"><b id="ae-title">新增考勤 / Add Attendance</b><button class="btn btn-g" onclick="closeAttendanceEditor()">✕</button></div>
+    <div class="att-edit-grid">
+      <div><label>日期 Date *</label><input type="date" id="ae-date"></div>
+      <div><label>資料類型 Type</label><select id="ae-kind"><option value="detail">明細 Detail</option><option value="subtotal">小計 Subtotal</option><option value="grand">總計 Grand</option></select></div>
+      <div><label>部門 Department</label><input id="ae-dept"></div>
+      <div><label>組別 Section</label><input id="ae-sect"></div>
+      <div><label>Line</label><input id="ae-line"></div>
+      <div><label>男 Male</label><input type="number" min="0" id="ae-m"></div>
+      <div><label>女 Female</label><input type="number" min="0" id="ae-f"></div>
+      <div><label>出勤 Attendance</label><input type="number" min="0" id="ae-att"></div>
+      <div><label>新進 Join</label><input type="number" min="0" id="ae-join"></div>
+      <div><label>離職 Resign</label><input type="number" min="0" id="ae-resign"></div>
+      <div><label>調入 Transfer In</label><input type="number" min="0" id="ae-ti"></div>
+      <div><label>調出 Transfer Out</label><input type="number" min="0" id="ae-to"></div>
+      <div><label>AL 特休</label><input type="number" min="0" id="ae-al"></div>
+      <div><label>PL 事假</label><input type="number" min="0" id="ae-pl"></div>
+      <div><label>SL 病假</label><input type="number" min="0" id="ae-sl"></div>
+      <div><label>NP 無薪／曠缺</label><input type="number" min="0" id="ae-np"></div>
+      <div><label>Bus 公假／出差</label><input type="number" min="0" id="ae-bus"></div>
+      <div><label>FL 喪假／特殊假</label><input type="number" min="0" id="ae-fl"></div>
+      <div><label>ML 產假</label><input type="number" min="0" id="ae-ml"></div>
+      <div><label>停工 Idle</label><input type="number" min="0" id="ae-idle"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="btn btn-g" onclick="closeAttendanceEditor()">取消 Cancel</button><button class="btn btn-t" onclick="saveAttendanceEditor()">💾 儲存 Save</button></div>
+  </div>
+</div>
+
 <div id="tabBusy" class="tab-busy" data-zh="正在整理報表…" data-en="Preparing report…" data-km="កំពុងរៀបចំរបាយការណ៍…">正在整理報表…</div>
 <div id="toasts"></div>
 
@@ -486,10 +515,7 @@ const LS={
 function toNum(v){if(v==null||v==='')return 0;const n=Number(v);if(!isFinite(n))return 0;if(n>0&&n<1)return 0;return Math.round(n);}
 
 // ── Data store ──
-// Legacy Attendance snapshots may contain a manually imported Hours field.
-// Drop it on load so old values cannot override the automatic HRA Pay bridge.
-function stripAttendanceHours(rows){return(Array.isArray(rows)?rows:[]).map(r=>({...r,hours:null,hoursPresent:false}))}
-let DB=stripAttendanceHours(LS.get('db')||[]);// Array of parsed row objects
+let DB=LS.get('db')||[];// Array of parsed row objects
 let IMPORT_LOG=LS.get('log')||[];
 // DB_META — tracks source, version, updatedAt for cloud vs local comparison
 let DB_META=LS.get('meta')||{updatedAt:'',cloudUpdatedAt:'',version:0,source:'local'};
@@ -617,7 +643,7 @@ async function loadFromIDB() {
 // Local-only startup. Cloud upload/download is always initiated by the user.
 (async function smartStartup() {
   try {
-    const recs = stripAttendanceHours(await loadFromIDB());
+    const recs = await loadFromIDB();
     if (recs.length > 0 && recs.length >= DB.length) {
       DB = recs;
       IMPORT_LOG = [...new Set(recs.map(r => r.date).filter(Boolean))];
@@ -633,11 +659,9 @@ async function loadFromIDB() {
 
 
 function saveDB(){
-  DB=stripAttendanceHours(DB);
   markDataChanged();
   LS.set('log', IMPORT_LOG);
   updateHeader();
-  scheduleAutoSave();
   return saveToIDB(DB).catch(e=>{
     console.warn('[IDB save error]', e);
     toast(T('瀏覽器資料庫無法寫入，請先下載 JSON 備份','Browser database could not be written. Download a JSON backup now.','មិនអាចរក្សាទុកទិន្នន័យបាន'),'err');
@@ -677,6 +701,43 @@ function allMonths(){return[...ensureDataIndex().months];}
 function grandForDate(d){return ensureDataIndex().grandByDate.get(d);}
 function rowsForDate(d){return ensureDataIndex().byDate.get(d)||[];}
 function subtotalsForDate(d){return ensureDataIndex().subtotalsByDate.get(d)||[];}
+
+
+// ═══════ ONLINE ATTENDANCE CRUD ═══════
+let ATT_EDIT_INDEX=-1;
+const ATT_NUM_FIELDS=['m','f','att','join','resign','ti','to','al','pl','sl','np','bus','fl','ml','idle'];
+function _oeDateDefault(){const e=document.getElementById('oe-date');if(e&&!e.value)e.value=_latestInDB()||new Date().toISOString().slice(0,10);return e?e.value:''}
+function attendanceKind(r){return r.isGrand?'grand':r.isSubtotal?'subtotal':'detail'}
+function renderOnlineEntry(){
+  const d=_oeDateDefault(),q=(document.getElementById('oe-q')?.value||'').trim().toLowerCase(),typ=document.getElementById('oe-type')?.value||'';
+  let rows=DB.map((r,i)=>({r,i})).filter(x=>(!d||x.r.date===d)&&(!typ||attendanceKind(x.r)===typ));
+  if(q)rows=rows.filter(x=>[x.r.dept,x.r.sect,x.r.line].join(' ').toLowerCase().includes(q));
+  const box=document.getElementById('oe-table');if(!box)return;
+  document.getElementById('oe-count').textContent=rows.length+' rows';
+  if(!rows.length){box.innerHTML='<div style="padding:22px;text-align:center;color:#9ca3af">No records / 無資料</div>';return}
+  box.innerHTML='<table class="dtbl"><thead><tr><th>Type</th><th>Date</th><th>Department</th><th>Section</th><th>Line</th><th>M</th><th>F</th><th>Att</th><th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>Join</th><th>Resign</th><th>Action</th></tr></thead><tbody>'+rows.map(x=>{const r=x.r;return `<tr class="${r.isGrand?'grand':r.isSubtotal?'sub':''}"><td>${attendanceKind(r)}</td><td>${r.date||''}</td><td>${r.dept||''}</td><td>${r.sect||''}</td><td>${r.line||''}</td><td>${r.m||0}</td><td>${r.f||0}</td><td>${r.att||0}</td><td>${r.al||0}</td><td>${r.pl||0}</td><td>${r.sl||0}</td><td>${r.np||0}</td><td>${r.bus||0}</td><td>${r.fl||0}</td><td>${r.ml||0}</td><td>${r.join||0}</td><td>${r.resign||0}</td><td style="white-space:nowrap"><button class="btn btn-g" onclick="openAttendanceEditor(${x.i})">✏️</button> <button class="btn btn-d" onclick="deleteAttendanceRow(${x.i})">🗑</button></td></tr>`}).join('')+'</tbody></table>';
+}
+function _aeSet(id,v){const e=document.getElementById('ae-'+id);if(e)e.value=v==null?'':v}
+function openAttendanceEditor(index){
+  ATT_EDIT_INDEX=Number.isInteger(index)?index:-1; const r=ATT_EDIT_INDEX>=0?DB[ATT_EDIT_INDEX]:null;
+  _aeSet('date',r?.date||_oeDateDefault()||new Date().toISOString().slice(0,10));_aeSet('kind',r?attendanceKind(r):'detail');_aeSet('dept',r?.dept||'');_aeSet('sect',r?.sect||'');_aeSet('line',r?.line||'');
+  ATT_NUM_FIELDS.forEach(k=>_aeSet(k,r?.[k]||0));document.getElementById('ae-title').textContent=r?T('編輯考勤','Edit Attendance','កែប្រែវត្តមាន'):T('新增考勤','Add Attendance','បន្ថែមវត្តមាន');document.getElementById('attendanceEditModal').classList.add('open');
+}
+function closeAttendanceEditor(){document.getElementById('attendanceEditModal').classList.remove('open');ATT_EDIT_INDEX=-1}
+async function saveAttendanceEditor(){
+  const date=document.getElementById('ae-date').value;if(!date){toast(T('請填日期','Date required','ត្រូវការកាលបរិច្ឆេទ'),'err');return}
+  const kind=document.getElementById('ae-kind').value;const r={date,dept:(document.getElementById('ae-dept').value||'').trim(),sect:(document.getElementById('ae-sect').value||'').trim(),line:(document.getElementById('ae-line').value||'').trim(),tr:0,isSubtotal:kind==='subtotal',isGrand:kind==='grand',source:'online',updatedAt:new Date().toISOString()};
+  ATT_NUM_FIELDS.forEach(k=>r[k]=toNum(document.getElementById('ae-'+k).value));
+  if(r.isGrand&&!r.dept)r.dept='總人數 / Grand Total'; if(r.isSubtotal&&!r.sect)r.sect=(r.dept||'')+' 小計';
+  if(ATT_EDIT_INDEX>=0)DB[ATT_EDIT_INDEX]={...DB[ATT_EDIT_INDEX],...r};else DB.push(r);
+  if(!IMPORT_LOG.includes(date))IMPORT_LOG.push(date); await saveDB();closeAttendanceEditor();document.getElementById('oe-date').value=date;renderOnlineEntry();toast(T('已儲存','Saved','បានរក្សាទុក'),'ok');
+}
+async function deleteAttendanceRow(index){const r=DB[index];if(!r)return;if(!confirm(T('確定刪除此考勤列？','Delete this attendance row?','លុបទិន្នន័យនេះ?')))return;DB.splice(index,1);await saveDB();renderOnlineEntry();toast(T('已刪除','Deleted','បានលុប'),'ok')}
+async function rebuildGrandTotal(){
+  const date=_oeDateDefault();if(!date)return;const detail=DB.filter(r=>r.date===date&&!r.isGrand&&!r.isSubtotal);if(!detail.length){toast(T('此日期沒有明細可重算','No detail rows for this date','មិនមានទិន្នន័យលម្អិត'),'err');return}
+  const g={date,dept:'總人數 / Grand Total',sect:'',line:'',tr:0,isSubtotal:false,isGrand:true,source:'online-auto',updatedAt:new Date().toISOString()};ATT_NUM_FIELDS.forEach(k=>g[k]=detail.reduce((n,r)=>n+(Number(r[k])||0),0));
+  const i=DB.findIndex(r=>r.date===date&&r.isGrand);if(i>=0)DB[i]={...DB[i],...g};else DB.push(g);if(!IMPORT_LOG.includes(date))IMPORT_LOG.push(date);await saveDB();renderOnlineEntry();toast(T('Grand Total 已重算','Grand Total rebuilt','បានគណនាឡើងវិញ'),'ok');
+}
 
 // ═══════ LANGUAGE ═══════
 let LANG=['zh','en','km'].includes(LS.get('lang'))?LS.get('lang'):'zh';
@@ -722,17 +783,16 @@ function renderTab(name,force){
   if(busy)busy.classList.add('on');
   const run=async()=>{
     try{
-      if(name==='daily'){populateDateSel('dsel');renderDaily();}
-      else if(name==='leave'&&window.AttendanceLeave){AttendanceLeave.render();}
+      if(name==='entry'){renderOnlineEntry();}
+      else if(name==='leave'){const fr=document.getElementById('employeeLeaveFrame');if(fr&&!fr.src)fr.src='ac_hra_employee_leave_v1.html';}
+      else if(name==='daily'){populateDateSel('dsel');renderDaily();}
       else if(name==='weekly'){populateWeekSel();renderWeekly();}
       else if(name==='monthly'){populateMonthSel();renderMonthly();}
       else if(name==='yearly'){populateYearSel();renderYearly();}
       else if(name==='dept'){populateDeptPeriodSel();renderDept();}
-      else if(name==='hours'){populateHoursPeriodSel();renderHours();if(typeof payBridgeAutoSync==='function')payBridgeAutoSync();}
       else if(name==='group')renderGroupAnalysis();
       else if(name==='records')renderRecords();
       else if(name==='sewcmp')await initSewCmp();
-      else if(name==='jrcmp')renderJRCompare();
       TAB_RENDER_REV[name]=DATA_REV;
     }catch(e){
       console.error('[renderTab]',name,e);
@@ -745,35 +805,6 @@ function renderAll(){
   Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
   renderTab(ACTIVE_TAB,true);
 }
-
-// HRA Pay is the only accepted source for Attendance total-hours fields.
-// Until the automatic bridge finishes, leave the controls alone; after it
-// finishes, hide the complete hours surface when no usable source exists.
-function attendanceHoursAvailable(){return typeof payBridgeHasHours==='function'&&payBridgeHasHours()}
-function setAttendanceHoursVisibility(available){
-  const show=!!available;
-  document.querySelectorAll('.hours-field').forEach(el=>{el.style.display=show?'':'none'});
-  const tab=document.querySelector(".tab[onclick=\"goTab('hours',this)\"]");
-  if(tab)tab.style.display=show?'':'none';
-  const sec=document.getElementById('sec-hours');
-  if(sec&&!show){
-    sec.style.display='none';
-    if(ACTIVE_TAB==='hours'){
-      const first=document.querySelector(".tab[onclick=\"goTab('daily',this)\"]");
-      if(first)goTab('daily',first);
-    }
-  }else if(sec)sec.style.display='';
-}
-function hoursKpi(grain,key){
-  if(!attendanceHoursAvailable())return '';
-  const x=periodHoursValue(grain,key);
-  return kpiHtml(T('考勤總時數','Total Hours','ម៉ោងសរុប'),formatHours(x.value),hoursSourceSub(grain,key));
-}
-window.addEventListener('ac-hra-pay-updated',e=>{
-  setAttendanceHoursVisibility(!!(e.detail&&e.detail.available));
-  Object.keys(TAB_RENDER_REV).forEach(k=>delete TAB_RENDER_REV[k]);
-  renderAll();
-});
 
 // ═══════ NAV ═══════
 function fillPeriodSelect(id,values,labelFn){
@@ -837,9 +868,8 @@ function renderDaily(){
     kpiHtml(T('出勤率','Attendance Rate','អត្រាវត្តមាន'),rate!=null?(rate*100).toFixed(1)+'%':'—',`${T('出勤','Attendance','វត្តមាន')}:${att}`,rateClass(rate||0))+
     kpiHtml(T('缺勤','Absence','អវត្តមាន'),absent,`ML:${g?g.ml:0}`+(_sw.absSum>0?` ${T('車縫','Sewing','ដេរ')}:${_sw.absSum}`:''))+
     kpiHtml(T('新進','Join','ចូលថ្មី'),g?g.join:0,_sw.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_sw.joinSum}`:'')+
-    kpiHtml(T('離職','Resign','លាឈប់'),g?g.resign:0,(g&&ttl>0?T('流失率:','Turnover:','អត្រាចាកចេញ:')+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?` ${T('車縫','Sewing','ដេរ')}:`+_sw.resignSum:''))+ 
-    kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0)+
-    hoursKpi('day',d);
+    kpiHtml(T('離職','Resign','លាឈប់'),g?g.resign:0,(g&&ttl>0?T('流失率:','Turnover:','អត្រាចាកចេញ:')+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?` ${T('車縫','Sewing','ដេរ')}:`+_sw.resignSum:''))+
+    kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0);
 
   // Leave pie — smaller with person count labels
   if(g){
@@ -885,8 +915,7 @@ function renderWeekly(){
     kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${T('總出勤','Total Attendance','វត្តមានសរុប')}:${totalAtt}`,rateClass(avgRate||0))+
     kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swW.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.joinSum}`:'',totalJoin>0?'good':'')+
     kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swW.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.resignSum}`:'',totalResign>0?'bad':'')+
-    kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—')+
-    hoursKpi('week',wk);
+    kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
 
   // Trend
   mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -924,8 +953,7 @@ function renderMonthly(){
     kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
     kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swM.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.joinSum}`:'')+
     kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swM.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.resignSum}`:'',totalResign>0?'bad':'')+
-    kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%')+
-    hoursKpi('month',m);
+    kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%');
 
   // Daily rate trend
   mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:T('目標92%','Target 92%','គោលដៅ 92%'),data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -938,34 +966,6 @@ function renderMonthly(){
   renderSectionCards(dates,'monthGrpCards');
 }
 
-function hoursForDate(date){
-  // Attendance workbooks are intentionally not a work-hours source. HRA Pay
-  // is read in the background and supplies this value through the bridge.
-  const x=typeof payBridgeHoursForPeriod==='function'?payBridgeHoursForPeriod('day',date):null;
-  return x&&x.known?x.total:null;
-}
-function totalHoursForDates(dates){
-  const vals=(dates||[]).map(hoursForDate).filter(v=>v!=null);
-  return vals.length?vals.reduce((s,v)=>s+v,0):null;
-}
-function formatHours(v){return v==null?'—':Number(v).toFixed(2)}
-function sumKnownHours(vals){
-  const a=(vals||[]).filter(v=>v!=null);
-  return a.length?a.reduce((s,v)=>s+Number(v||0),0):null;
-}
-function periodHoursValue(grain,key){
-  if(typeof payBridgeHoursForPeriod==='function'){
-    const p=payBridgeHoursForPeriod(grain,key);
-    if(p&&p.known)return{value:p.total,source:p.source||'payroll',known:true,projection:p};
-  }
-  return{value:null,source:'none',known:false};
-}
-function hoursSourceSub(grain,key){
-  const x=periodHoursValue(grain,key);
-  if(x.source==='payroll')return T('來源：HRA Pay Payroll／工作日推算','Source: HRA Pay Payroll / work-days derived','ប្រភព៖ HRA Pay Payroll / គណនាពីថ្ងៃធ្វើការ');
-  if(x.source==='meal')return T('來源：HRA Pay Meal Fee／餐日推算','Source: HRA Pay Meal Fee / meal-days derived','ប្រភព៖ HRA Pay Meal Fee / គណនាពីថ្ងៃអាហារ');
-  return T('尚無可用工時','No hours available','មិនមានម៉ោង');
-}
 function attendancePeriodMetrics(grain,key){
   const dates=periodDates(grain,key);
   const grands=dates.map(grandForDate).filter(Boolean);
@@ -976,11 +976,10 @@ function attendancePeriodMetrics(grain,key){
   const resign=grands.reduce((sum,g)=>sum+(g.resign||0),0);
   const avgHC=grands.length?grands.reduce((sum,g)=>sum+(g.m||0)+(g.f||0),0)/grands.length:0;
   const avgAttendance=grands.length?attendance/grands.length:0;
-  const hours=periodHoursValue(grain,key).value;
   return{
     key,days:grands.length,avgHC,avgAttendance,
     rate:reports>0?attendance/reports:null,
-    absence,join,resign,hours,
+    absence,join,resign,
     turnover:avgHC>0?resign/avgHC:null
   };
 }
@@ -1002,11 +1001,11 @@ function renderAttendancePeriodList(){
     const turnover=x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%';
     return`<tr class="${key===active?'active':''}" onclick="jumpAttendancePeriod('${key}')">
       <td style="text-align:left">${key===active?'◀ ':''}<b>${key}</b></td>
-      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td><td class="hours-field">${formatHours(x.hours)}</td>
+      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td>
       <td>${rateBadge(x.rate)}</td><td>${x.absence}</td><td>${x.join}</td><td>${x.resign}</td><td>${turnover}</td>
     </tr>`;
   }).join('');
-  if(!keys.length)body.innerHTML=`<tr><td colspan="10">${T('尚無期間資料','No period data','មិនមានទិន្នន័យ')}</td></tr>`;
+  if(!keys.length)body.innerHTML=`<tr><td colspan="9">${T('尚無期間資料','No period data','មិនមានទិន្នន័យ')}</td></tr>`;
 }
 function jumpAttendancePeriod(key){
   if(ATT_LIST_GRAIN==='month'){
@@ -1112,78 +1111,15 @@ function renderDept(){
   }
 }
 
-// ═══════ ATTENDANCE HOURS ═══════
-function hoursPeriodValues(mode){
-  if(mode==='day')return allDates().reverse();
-  if(mode==='week')return[...ensureDataIndex().weeks].reverse();
-  if(mode==='year')return[...ensureDataIndex().years].reverse();
-  return[...ensureDataIndex().months].reverse();
-}
-function populateHoursPeriodSel(){
-  const mode=document.getElementById('hoursMode')?.value||'month',sel=document.getElementById('hoursSel');if(!sel)return;
-  const old=sel.value,vals=hoursPeriodValues(mode);fillPeriodSelect('hoursSel',vals,v=>mode==='week'?'W '+v:v);if(vals.includes(old))sel.value=old;
-  const ds=document.getElementById('hoursDeptSel'),oldD=ds?.value||'';
-  if(ds){
-    const names=[...new Set(DB.map(r=>[r.dept||'',r.sect||''].join('¦')).filter(x=>x!=='¦'))].sort();
-    const bridgeKey=sel.value||vals[0]||'';
-    const bridge=typeof payBridgeHoursForPeriod==='function'?payBridgeHoursForPeriod(mode,bridgeKey):null;
-    (bridge?.groups||[]).forEach(g=>names.push([g.dept||'',g.sect||''].join('¦')));
-    const unique=[...new Set(names.filter(x=>x!=='¦'))].sort();
-    ds.innerHTML='<option value="">'+T('全部部門／組別','All departments / sections','គ្រប់ផ្នែក / ក្រុម')+'</option>'+unique.map(k=>{const [d,s]=k.split('¦');return`<option value="${k}">${d}${s&&s!==d?' / '+s:''}</option>`}).join('');
-    if(unique.includes(oldD))ds.value=oldD;
-  }
-}
-function hoursModeChange(){populateHoursPeriodSel();renderHours();}
-function navHours(dir){nav('hoursSel',dir);renderHours();}
-function hoursSourceRows(dates){
-  const out=[];
-  const hasHours=r=>{
-    if(!r||r.hours==null||r.hours==='')return false;
-    const x=Number(r&&r.hours);if(!isFinite(x)||x<0)return false;
-    return r.hoursPresent===true||x>0;
-  };
-  (dates||[]).forEach(d=>{
-    const rows=rowsForDate(d),detail=rows.filter(r=>!r.isGrand&&!r.isSubtotal&&hasHours(r)),sub=rows.filter(r=>r.isSubtotal&&!r.isGrand&&hasHours(r));
-    (detail.length?detail:sub).forEach(r=>out.push(r));
-  });
-  return out;
-}
-function renderHours(){
-  const mode=document.getElementById('hoursMode')?.value||'month',key=document.getElementById('hoursSel')?.value;if(!key)return;
-  const dates=periodDates(mode,key),wanted=document.getElementById('hoursDeptSel')?.value||'';
-  const bridge=typeof payBridgeHoursForPeriod==='function'?payBridgeHoursForPeriod(mode,key):null;
-  const sourceRows=bridge&&bridge.known?(bridge.groups||[]):[],groups={};
-  const filtered=sourceRows.filter(g=>!wanted||[g.dept||'',g.sect||''].join('¦')===wanted);
-  filtered.forEach(r=>{
-    const dept=r.dept||'—',sect=r.sect||'—',line=r.position||'—',gk=[dept,sect,line].join('¦');
-    if(!groups[gk])groups[gk]={dept,sect,line,hours:0,att:0,days:0,rows:0};
-    groups[gk].hours+=Number(r.hours||0);groups[gk].rows+=Number(r.rows||1);
-  });
-  const total=Object.values(groups).reduce((s,r)=>s+r.hours,0),att=Object.values(groups).reduce((s,r)=>s+r.att,0);
-  const known=!!(bridge&&bridge.known), title=bridge?.source==='meal'?T('HRA Pay Meal Fee 推算工時','HRA Pay Meal Fee Derived Hours','ម៉ោងគណនាពី HRA Pay Meal Fee'):T('HRA Pay Payroll 工時','HRA Pay Payroll Hours','ម៉ោង HRA Pay Payroll');
-  document.getElementById('hoursKpi').innerHTML=
-    kpiHtml(title,known?formatHours(total):'—',`${T('期間','Period','រយៈពេល')} ${key}`)+
-    kpiHtml(T('平均每日時數','Average per Day','មធ្យមក្នុងមួយថ្ងៃ'),known&&dates.length?formatHours(total/dates.length):'—',`${dates.length} ${T('天','days','ថ្ងៃ')}`)+
-    kpiHtml(T('涵蓋部門／組別','Departments / Sections','ផ្នែក / ក្រុម'),Object.keys(groups).length,`${T('HRA Pay 資料筆數','HRA Pay source rows','ជួរទិន្នន័យ HRA Pay')}: ${bridge?.rows||0}`);
-  document.getElementById('hoursSourceNote').innerHTML=known
-    ?'✅ '+T('工時由 HRA Pay 背景資料自動整理；優先使用 Payroll 工時，其次用工作日或 Meal Fee 餐日推算，並按部門／組別彙總。','Hours were assembled automatically from HRA Pay in the background: Payroll hours first, then work-days or Meal Fee meal-days, grouped by department / section.','ម៉ោងត្រូវបានរៀបចំដោយស្វ័យប្រវត្តិពី HRA Pay៖ Payroll ជាមុន បន្ទាប់មកថ្ងៃធ្វើការ ឬថ្ងៃអាហារ ហើយបែងចែកតាមផ្នែក / ក្រុម។')
-    :'⚠️ '+T('目前沒有可讀取的 HRA Pay 工時來源；總工時欄位會自動隱藏，不要求你重新整理或匯入任何新格式。','No readable HRA Pay hours source is available. Total-hours fields are hidden automatically; no new format or manual import is required.','មិនមានប្រភពម៉ោង HRA Pay ដែលអាចអានបានទេ។ វាលម៉ោងសរុបនឹងលាក់ដោយស្វ័យប្រវត្តិ។');
-  const vals=Object.values(groups).sort((a,b)=>b.hours-a.hours);
-  let html='<table class="dtbl"><thead><tr><th>'+T('部門','Department','ផ្នែក')+'</th><th>'+T('分區','Section','ក្រុម')+'</th><th>'+T('組別／職稱','Line / Title','បន្ទាត់ / តួនាទី')+'</th><th>'+T('總時數','Total Hours','ម៉ោងសរុប')+'</th><th>'+T('平均每日','Avg / Day','មធ្យម/ថ្ងៃ')+'</th><th>'+T('出勤','Attendance','វត្តមាន')+'</th><th>'+T('資料天數','Days','ថ្ងៃ')+'</th></tr></thead><tbody>';
-  vals.forEach(g=>{html+=`<tr><td>${g.dept}</td><td>${g.sect}</td><td>${g.line}</td><td><b>${formatHours(g.hours)}</b></td><td>${known&&dates.length?formatHours(g.hours/dates.length):'—'}</td><td>—</td><td>${g.rows}</td></tr>`});
-  if(!vals.length)html+=`<tr><td colspan="7">${T('此期間沒有可用工時資料','No hours data for this period','មិនមានទិន្នន័យម៉ោងសម្រាប់រយៈពេលនេះ')}</td></tr>`;
-  html+='</tbody></table>';document.getElementById('hoursTable').innerHTML=html;
-}
-
 // ═══════ RECORDS ═══════
 function renderRecords(){
   const zh_r=LANG==='zh';document.getElementById('recInfo').textContent=zh_r?`共 ${DB.length} 筆記錄，${allDates().length} 天`:`${DB.length} records · ${allDates().length} days`;
   const dates=allDates().reverse();
-  let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th class="hours-field">Hours</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
+  let html='<table class="dtbl"><thead><tr><th>Date</th><th>Dept.</th><th>Section</th><th>Group/Title</th><th>M</th><th>F</th><th>TTL</th><th>Att.</th><th>Rate%</th><th>Type</th></tr></thead><tbody>';
   // Show latest 500 rows
   const show=dates.slice(0,5).flatMap(rowsForDate).slice(0,500);
   show.forEach(r=>{const c=calc(r);const rc=c.rate!=null?(c.rate*100).toFixed(1)+'%':'—';const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
-    html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td class="hours-field">${Number(r.hours||0).toFixed(2)}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
+    html+=`<tr class="${cls}"><td>${r.date}</td><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td><td>${r.m}</td><td>${r.f}</td><td>${c.ttl}</td><td>${r.att}</td><td class="${c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb'}">${rc}</td><td>${r.isGrand?'<span class="badge bg">Grand</span>':r.isSubtotal?'<span class="badge bi">Sub</span>':''}</td></tr>`;});
   html+='</tbody></table>';document.getElementById('recTable').innerHTML=html;
 }
 
@@ -1194,14 +1130,14 @@ function renderAttTable(rows,date,containerId){
   let html=`<table class="dtbl"><thead><tr>
   <th rowspan="2" style="min-width:120px">${deptH}</th><th rowspan="2" style="min-width:100px">${sectH}</th><th rowspan="2" style="min-width:180px">${lineH}</th>
   <th colspan="3">${hcH}</th><th>${T('新進','Join','ចូលថ្មី')}</th><th>T-In</th><th>${T('培訓','Training','បណ្តុះបណ្តាល')}</th><th>T-Out</th><th>${T('離職','Resign','លាឈប់')}</th><th>${reportH}</th>
-  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>${T('停工','Idle','ផ្អាក')}</th><th>${absH}</th><th>${attH}</th><th class="hours-field">${T('總時數','Hours','ម៉ោង')}</th><th style="background:#14574a;color:#fff">${T('出勤率','Rate','អត្រា')}%</th></tr>
+  <th>AL</th><th>PL</th><th>SL</th><th>NP</th><th>Bus</th><th>FL</th><th>ML</th><th>${T('停工','Idle','ផ្អាក')}</th><th>${absH}</th><th>${attH}</th><th style="background:#14574a;color:#fff">${T('出勤率','Rate','អត្រា')}%</th></tr>
   <tr><th>M</th><th>F</th><th>TTL</th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th><th></th></tr></thead><tbody>`;
   rows.forEach(r=>{
     const c=calc(r),rc=c.rate===null?'':c.rate>=0.92?'rg':c.rate>=0.85?'rw':'rb',rs=c.rate===null?'—':(c.rate*100).toFixed(1)+'%';
     const cls=r.isGrand?'grand':r.isSubtotal?'sub':'';
     html+=`<tr class="${cls}"><td class="dept-cell">${r.dept}</td><td class="sect-cell">${r.sect}</td><td class="line-cell">${r.line}</td>
     <td>${r.m}</td><td>${r.f}</td><td><b>${c.ttl}</b></td><td>${r.join}</td><td>${r.ti}</td><td>${r.tr}</td><td>${r.to}</td><td>${r.resign}</td><td>${c.report}</td>
-    <td>${r.al}</td><td>${r.pl}</td><td>${r.sl}</td><td>${r.np}</td><td>${r.bus}</td><td>${r.fl}</td><td class="${r.ml>0?'ml-h':''}">${r.ml}</td><td class="${r.idle>0?'idle-h':''}">${r.idle}</td><td>${c.absent}</td><td><b>${r.att}</b></td><td class="hours-field">${Number(r.hours||0).toFixed(2)}</td><td class="${rc}"><b>${rs}</b></td></tr>`;});
+    <td>${r.al}</td><td>${r.pl}</td><td>${r.sl}</td><td>${r.np}</td><td>${r.bus}</td><td>${r.fl}</td><td class="${r.ml>0?'ml-h':''}">${r.ml}</td><td class="${r.idle>0?'idle-h':''}">${r.idle}</td><td>${c.absent}</td><td><b>${r.att}</b></td><td class="${rc}"><b>${rs}</b></td></tr>`;});
   html+='</tbody></table>';document.getElementById(containerId).innerHTML=html;
 }
 
@@ -1223,7 +1159,7 @@ function renderYearly(){
     const totalJ=gs.reduce((s,g)=>s+g.join,0);
     const totalR=gs.reduce((s,g)=>s+g.resign,0);
     const turnover=avgTtl>0?(totalR/gs.length/avgTtl*100):0;
-    return{month:m,days:dates.length,avgRate,avgTtl,totalAtt:tAtt,totalHours:periodHoursValue('month',m).value,totalJ,totalR,turnover};
+    return{month:m,days:dates.length,avgRate,avgTtl,totalAtt:tAtt,totalJ,totalR,turnover};
   });
 
   // Year totals
@@ -1235,7 +1171,6 @@ function renderYearly(){
   const yRate=yRep>0?yAtt/yRep:null;
   const yJ=mData.reduce((s,m)=>s+m.totalJ,0);
   const yR=mData.reduce((s,m)=>s+m.totalR,0);
-  const yHours=sumKnownHours(mData.map(m=>m.totalHours));
   const yTurnover=yTtl>0?(yR/yDays/yTtl*100):0;
 
   const _yrAllDates=periodDates('year',yr);
@@ -1247,8 +1182,7 @@ function renderYearly(){
     kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
     kpiHtml(T('年度新進','Year Join','ចូលថ្មីប្រចាំឆ្នាំ'),yJ,_swY.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.joinSum}`:'',yJ>0?'good':'')+
     kpiHtml(T('年度離職','Year Resign','លាឈប់ប្រចាំឆ្នាំ'),yR,_swY.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.resignSum}`:'',yR>0?'bad':'')+
-    kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%')+
-    (attendanceHoursAvailable()?kpiHtml(T('年度考勤總時數','Annual Attendance Hours','ម៉ោងវត្តមានប្រចឆ្នាំ'),formatHours(yHours),''):'');
+    kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%');
 
   // Monthly rate trend
   mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
@@ -1287,38 +1221,58 @@ function tgLabel(zh,en,lang){
   if(lang==='en')return en;
   return zh+' / '+en;
 }
-/* ═══ 部門／組別中英對照 ═══
-   摘要的標籤原本就是雙語，但部門／組別名稱是從 Excel 讀進來的原始中文，
-   之前直接輸出 → 這就是「有些只有中文」的來源。這裡逐詞翻譯。 */
+/* Telegram 部門／組別中英對照。優先完整詞，再做一般詞彙翻譯。 */
+const TG_DEPT_EXACT={
+  '技術部':'Technical Dept',
+  '包裝/成品':'Packing / Finished Goods',
+  '包裝／成品':'Packing / Finished Goods',
+  '生產部其它':'Production Dept Others',
+  '生產部其他':'Production Dept Others',
+  '生產部':'Production Dept',
+  '車工':'Sewing Operators',
+  '行政中心辦公室人員':'Admin Center Office Staff',
+  '行政中心':'Admin Center',
+  '裁剪部':'Cutting Dept','裁床部':'Cutting Dept',
+  '品管部':'Quality Control Dept','品保部':'Quality Assurance Dept',
+  '倉庫':'Warehouse','主料倉':'Fabric Warehouse','輔料倉':'Trims Warehouse',
+  '機修部':'Maintenance Dept','樣品室':'Sample Room','食堂':'Canteen',
+  '保全部':'Security Dept','人事部':'HR Dept','總務部':'GA Dept',
+  '財務部':'Finance Dept','會計部':'Accounting Dept','採購部':'Purchasing Dept',
+  '業務部':'Merchandising Dept','船務部':'Shipping Dept'
+};
 const TG_TERM_EN={
-  '車縫':'Sewing','縫紉':'Sewing','針車':'Sewing','裁剪':'Cutting','裁床':'Cutting',
+  '行政中心辦公室人員':'Admin Center Office Staff','行政中心':'Admin Center','生產部其它':'Production Dept Others','生產部其他':'Production Dept Others',
+  '包裝/成品':'Packing / Finished Goods','包裝／成品':'Packing / Finished Goods','技術部':'Technical Dept','生產部':'Production Dept',
+  '車工':'Sewing Operators','車縫':'Sewing','縫紉':'Sewing','針車':'Sewing','裁剪':'Cutting','裁床':'Cutting',
   '包裝':'Packing','成品':'Finished Goods','後整':'Finishing','整燙':'Ironing','燙工':'Ironing',
-  '品管':'QC','品保':'QA','檢驗':'Inspection','驗布':'Fabric Inspection',
-  '倉庫':'Warehouse','物料':'Material','裁片':'Cut Parts','原料':'Raw Material',
+  '品管':'QC','品保':'QA','品質':'Quality','檢驗':'Inspection','驗布':'Fabric Inspection','技術':'Technical','生產':'Production',
+  '倉庫':'Warehouse','物料':'Material','裁片':'Cut Parts','原料':'Raw Material','主料':'Fabric','輔料':'Trims',
   '機修':'Mechanic','維修':'Maintenance','工務':'Facilities','電工':'Electrician',
   '樣品':'Sample','馬克':'Marker','繡花':'Embroidery','印花':'Printing',
-  '生管':'PC','行政':'Admin','人事':'HR','總務':'GA','保全':'Security','清潔':'Cleaning',
+  '生管':'PC','行政':'Admin','人事':'HR','總務':'GA','保全':'Security','清潔':'Cleaning','中心':'Center','辦公室':'Office','人員':'Staff',
   '財務':'Finance','會計':'Accounting','採購':'Purchasing','業務':'Merchandising','船務':'Shipping',
   '組長':'Supervisor','班長':'Line Leader','主管':'Manager','管理':'Management',
   '其他':'Others','其它':'Others','未分類':'Unclassified','合計':'Total','小計':'Subtotal',
-  '線':'Line','組':'Sec','部':'Dept','課':'Sec','廠':'Plant','間接':'Indirect','直接':'Direct',
+  '線':'Line','組':'Section','部':'Dept','課':'Section','廠':'Plant','間接':'Indirect','直接':'Direct',
 };
 function tgTermEn(s){
-  let out=String(s||''),hit=false;
-  Object.keys(TG_TERM_EN).sort((a,b)=>b.length-a.length).forEach(zh=>{
-    if(out.indexOf(zh)>=0){ out=out.split(zh).join(' '+TG_TERM_EN[zh]+' '); hit=true; }
+  var raw=String(s||'').trim();if(!raw)return '';
+  if(TG_DEPT_EXACT[raw])return TG_DEPT_EXACT[raw];
+  var out=raw,hit=false;
+  Object.keys(TG_TERM_EN).sort(function(a,b){return b.length-a.length;}).forEach(function(zh){
+    if(out.indexOf(zh)>=0){out=out.split(zh).join(' '+TG_TERM_EN[zh]+' ');hit=true;}
   });
-  out=out.replace(/\s+/g,' ').trim();
-  return hit&&out?out:'';
+  out=out.replace(/\s+/g,' ').replace(/\s*\/\s*/g,' / ').trim();
+  /* 若翻完仍有中文，代表不是完整翻譯；避免輸出半中半英。 */
+  return hit&&!/[\u4e00-\u9fff]/.test(out)?out:'';
 }
-/* 部門／組別名稱：both 模式輸出「中文 (English)」，查不到就只留原文，不亂翻 */
 function tgName(s,lang){
-  const zh=String(s||'').trim(); if(!zh) return '';
-  if(!/[\u4e00-\u9fff]/.test(zh)) return zh;      // 本來就是英文/代號 → 原樣
-  const en=tgTermEn(zh);
-  if(lang==='zh'||!en) return zh;
-  if(lang==='en') return en;
-  return zh+' ('+en+')';
+  var zh=String(s||'').replace(/小計|subtotal/gi,'').trim();if(!zh)return '';
+  if(!/[\u4e00-\u9fff]/.test(zh))return zh;
+  var en=TG_DEPT_EXACT[zh]||tgTermEn(zh);
+  if(lang==='zh'||!en)return zh;
+  if(lang==='en')return en;
+  return zh+' / '+en;
 }
 function telegramRateIcon(rate){return rate==null?'':rate>=.95?'🌟':rate>=.90?'✅':rate>=.87?'⚠️':'🔴';}
 function populateTelegramPeriods(preferred){
@@ -1369,7 +1323,6 @@ function buildTelegramSummary(mode,key,lang){
   text+=`📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)}: ${rateText} ${telegramRateIcon(x.rate)}\n`;
   text+=`👥 ${tgLabel('平均在職','Average Headcount',lang)}: ${Math.round(x.avgHC)}  ✅ ${tgLabel('平均出勤','Average Attendance',lang)}: ${Math.round(x.avgAttendance)}\n`;
   text+=`📅 ${tgLabel('資料天數','Days',lang)}: ${x.days}  ⚠️ ${tgLabel('缺勤','Absence',lang)}: ${x.absence}\n`;
-  text+=`⏱️ ${tgLabel('考勤總時數','Total Attendance Hours',lang)}: ${formatHours(x.hours)}\n`;
   text+=`🟢 ${tgLabel('新進','Join',lang)}: ${x.join}  🔴 ${tgLabel('離職','Resign',lang)}: ${x.resign}  📉 ${tgLabel('流失率','Turnover',lang)}: ${x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%'}\n`;
 
   if(mode==='daily'&&grands[0]){
@@ -1396,21 +1349,23 @@ function buildTelegramSummary(mode,key,lang){
   const sections=aggregateSections(dates).sort((a,b)=>{
     const ar=a.report?a.att/a.report:2,br=b.report?b.att/b.report:2;
     return ar-br;
-  }).slice(0,12);
+  });
   if(sections.length){
-    text+=`${sep}\n🏢 ${tgLabel('部門／組別重點','Department / Section Highlights',lang)}\n`;
+    text+=`${sep}\n🏢 ${tgLabel('各部門／組別出勤與請假','Attendance & Leave by Department / Section',lang)}\n`;
     sections.forEach(s=>{
       const rate=s.report?s.att/s.report:null;
-      const dn=tgName(s.dept,lang), sn=tgName(s.name,lang);
-      const label=s.dept&&s.dept!==s.name?dn+' / '+sn:sn;
-      text+=`${telegramRateIcon(rate)} ${label}: ${rate==null?'—':(rate*100).toFixed(1)+'%'}  NP:${s.np} ML:${s.ml}\n`;
+      const dn=tgName(s.dept,lang),sn=tgName(s.name,lang);
+      const label=s.dept&&s.dept!==s.name?(dn+' / '+sn):(sn||dn);
+      text+=`${telegramRateIcon(rate)} ${label}: ${rate==null?'—':(rate*100).toFixed(1)+'%'}\n`;
+      text+=`   AL:${s.al||0}  PL:${s.pl||0}  SL:${s.sl||0}  NP:${s.np||0}  Bus:${s.bus||0}  FL:${s.fl||0}  ML:${s.ml||0}`;
+      if(s.idle)text+=`  ${tgLabel('停工','Idle',lang)}:${s.idle}`;
+      text+='\n';
     });
-  }
-  /* 假別代碼圖例：NP／ML 這些代碼英文讀者看不懂，非純中文模式補一行 */
-  if(lang!=='zh'&&/AL:|NP:/.test(text)){
-    text+=`${sep}\n📖 ${tgLabel('假別代碼','Leave Codes',lang)}\n`;
-    text+=`AL ${tgLabel('特休','Annual',lang)} · PL ${tgLabel('事假','Personal',lang)} · SL ${tgLabel('病假','Sick',lang)} · NP ${tgLabel('曠職','No-Pay/Absent',lang)}\n`;
-    text+=`Bus ${tgLabel('公假','Business',lang)} · FL ${tgLabel('喪假','Funeral',lang)} · ML ${tgLabel('產假','Maternity',lang)}\n`;
+    if(lang!=='zh'){
+      text+=`${sep}\n📖 ${tgLabel('假別代碼','Leave Codes',lang)}\n`;
+      text+=`AL ${tgLabel('特休','Annual Leave',lang)} · PL ${tgLabel('事假','Personal Leave',lang)} · SL ${tgLabel('病假','Sick Leave',lang)} · NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)}\n`;
+      text+=`Bus ${tgLabel('公假／出差','Business Leave',lang)} · FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} · ML ${tgLabel('產假','Maternity Leave',lang)}\n`;
+    }
   }
   return text.trim();
 }
@@ -1430,7 +1385,7 @@ function copyTg(){
 
 // ═══════ PARSER — Dynamic column detection (supports 2020+ Excel layouts) ═══════
 // Fallback COL used only if header detection fails
-const COL_FALLBACK={dept:1,sect:2,line:3,m:4,f:5,ttl:6,join:7,ti:8,tr:9,to:10,resign:11,report:12,al:13,pl:14,sl:15,np:16,bus:17,fl:18,ml:19,absTotal:20,att:21,rate:22,idle:23,hours:-1};
+const COL_FALLBACK={dept:1,sect:2,line:3,m:4,f:5,ttl:6,join:7,ti:8,tr:9,to:10,resign:11,report:12,al:13,pl:14,sl:15,np:16,bus:17,fl:18,ml:19,absTotal:20,att:21,rate:22,idle:23};
 
 // Cell normalizer: strips newlines, collapse spaces, lowercase for matching
 function normCell(c){return String(c||'').replace(/[\r\n]+/g,' ').replace(/\s+/g,' ').trim().toLowerCase();}
@@ -1457,9 +1412,6 @@ const COL_MATCHERS={
   fl:   c=>/特假|\bfl\b/i.test(c),
   ml:   c=>/產假|maternity|\bml\b/i.test(c)&&!/出勤率|rate/i.test(c),
   idle: c=>/停工|suspend|\bidle\b/i.test(c),
-  // Attendance is not a work-hours import source. HRA Pay is read by the
-  // background bridge, so Total Hours / 工時 columns are deliberately ignored.
-  hours: c=>false,
   // att: "出勤人數/Actual Attend" - MUST contain 出勤 or attend but NOT 出勤率/rate
   att:  c=>((/出勤.{0,8}人數|actual.{0,5}attend/i.test(c))||(/^att\.?$/i.test(c)))&&!/率|rate/i.test(c),
   rate: c=>/出勤率|attendance.rate|rate%/i.test(c),
@@ -1518,7 +1470,6 @@ function parseSheet(data,dateStr){
     return Math.round(n);
   };
   const gs=(row,key)=>{const i=COL[key];if(i==null||i>=(row||[]).length)return'';return String(row[i]||'').trim();};
-  const gh=(row,key)=>{const i=COL[key];if(i==null||i<0||i>=(row||[]).length)return null;const v=row[i];if(v==null||v==='')return null;const x=Number(v);return isFinite(x)&&x>=0?Math.round(x*100)/100:null;};
 
   for(let r=start;r<data.length;r++){
     const row=data[r];if(!row||row.length<4)continue;
@@ -1530,75 +1481,58 @@ function parseSheet(data,dateStr){
     const isSubtotal=!isGrand&&combined.includes('小計');
     const m=gn(row,'m'),f=gn(row,'f');
     if(!dept&&!sect&&!line&&m===0&&f===0&&!isSubtotal&&!isGrand)continue;
-    rows.push({date:dateStr,dept:normDept(dept),sect:normDept(sect),line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),hours:null,hoursPresent:false,isSubtotal,isGrand});
+    rows.push({date:dateStr,dept:normDept(dept),sect:normDept(sect),line,m,f,join:gn(row,'join'),resign:gn(row,'resign'),ti:gn(row,'ti'),to:gn(row,'to'),tr:gn(row,'tr'),al:gn(row,'al'),pl:gn(row,'pl'),sl:gn(row,'sl'),np:gn(row,'np'),bus:gn(row,'bus'),fl:gn(row,'fl'),ml:gn(row,'ml'),idle:gn(row,'idle'),att:gn(row,'att'),isSubtotal,isGrand});
     if(isGrand)break;
   }
   return rows;
 }
 
-// Fast date check: uses SHEET NAME as day + the Date: cell for year/month.
-// The workbook's displayed Date value is authoritative.  Do not derive the
-// month from Date.getMonth(), because SheetJS may materialize an Excel date
-// just before midnight in the browser's local timezone (e.g. 8/1 -> 7/31).
+// Fast date check: uses SHEET NAME as day + Date: cell for year/month
+// This avoids timezone issues: sheet name "06" is always day 6 regardless of timezone
 function quickDateCheck(wb,sheetName){
   const ws=wb.Sheets[sheetName];if(!ws)return null;
-  const sheetText=String(sheetName||'').trim();
-  // These are workbook helper sheets, not daily pages.  In particular, the
-  // old template sheet "(1)" contains a stale 2020 Date: cell and must not
-  // be imported as a real attendance day.
-  if(/^\(\d+\)$/.test(sheetText)||/^(attend|resign|summary|chart)$/i.test(sheetText))return null;
 
-  // Excel's formatted display (cell.w) is the safest source.  It preserves
-  // the date shown in Excel, including dates on the first day of a month.
-  function excelDateToYearMonth(nv,display){
-    const text=String(display==null||display===''?nv:display).trim();
-    let match=text.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
-    if(match) return {y:+match[1],m:+match[2],d:+match[3]};
-
-    // Common Excel display format: 8/1/26 or 8-1-2026.
-    match=text.match(/^(0?[1-9]|1[0-2])[\/\-\.](0?[1-9]|[12]\d|3[01])[\/\-\.](\d{2}|\d{4})(?:\D|$)/);
-    if(match){
-      let y=+match[3];
-      if(y<100)y+=y>=70?1900:2000;
-      return {y,m:+match[1],d:+match[2]};
+  // Helper: parse Excel date value timezone-safe
+  // Always use the DATE: cell for YEAR+MONTH, sheet name for DAY
+  function excelDateToYearMonth(nv){
+    if(nv instanceof Date){
+      // Use UTC components (XLSX cellDates:true stores as UTC midnight of that date)
+      // But some timezones shift this - so try both UTC and local, prefer UTC
+      const utcY=nv.getUTCFullYear(),utcM=nv.getUTCMonth()+1,utcD=nv.getUTCDate();
+      const locY=nv.getFullYear(),locM=nv.getMonth()+1,locD=nv.getDate();
+      // If UTC and local differ by 1 day, local is likely correct (cellDates stores local midnight)
+      // Return ONLY year+month (day will come from sheet name)
+      if(utcY>=2000) return {y:locY,m:locM}; // use local year+month
+      return null;
     }
-
-    // When cellDates is disabled, SheetJS exposes the raw Excel serial.
-    // Convert it in UTC so the browser timezone cannot change the month.
     if(typeof nv==='number'&&nv>40000&&nv<60000){
       const d=new Date(Math.round((nv-25569)*86400)*1000);
       if(d.getUTCFullYear()<2000)return null;
       return {y:d.getUTCFullYear(),m:d.getUTCMonth()+1};
     }
-
-    // Fallback for cellDates:true.  SheetJS dates represent the Excel date
-    // on the UTC calendar; using local getMonth() is what caused 8/1 to be
-    // interpreted as 7/1 in Asia/Phnom_Penh.
-    if(nv instanceof Date){
-      const y=nv.getUTCFullYear(),m=nv.getUTCMonth()+1;
-      if(y>=2000&&m>=1&&m<=12)return {y,m,d:nv.getUTCDate()};
-    }
+    const s=String(nv||'');
+    const match=s.match(/(20\d{2})[\/\-\.](0?[1-9]|1[0-2])[\/\-\.](\d{1,2})/);
+    if(match&&+match[1]>=2000) return {y:+match[1],m:+match[2]};
     return null;
   }
 
   // Step 1: Try to use sheet name as DAY (most reliable — no timezone issue)
   // Sheet name is "06", "07", "31" etc.
-  const snMatch = sheetText.match(/^(?:day\s*)?(0?[1-9]|[12]\d|3[01])(?:\D|$)/i);
-  const snDay = snMatch ? +snMatch[1] : 0;
-  const snIsDay = snDay>=1 && snDay<=31;
+  const snDay = parseInt(sheetName, 10);
+  const snIsDay = !isNaN(snDay) && snDay>=1 && snDay<=31 && /^\d{1,2}$/.test(sheetName.trim());
 
   // Step 2: Find Date: cell for year+month
   let ym = null;
-  for(let R=0;R<8&&!ym;R++){
-    for(let C=0;C<40&&!ym;C++){
+  for(let R=0;R<6&&!ym;R++){
+    for(let C=0;C<30&&!ym;C++){
       const addr=XLSX.utils.encode_cell({r:R,c:C});
       const cell=ws[addr];if(!cell)continue;
       const v=String(cell.v||'').trim();
-      if(!/^date\s*:?\s*$/i.test(v))continue;
-      for(let off=1;off<=6;off++){
+      if(!/^date:?$/i.test(v))continue;
+      for(let off=1;off<=3;off++){
         const nAddr=XLSX.utils.encode_cell({r:R,c:C+off});
         const nCell=ws[nAddr];if(!nCell)continue;
-        ym=excelDateToYearMonth(nCell.v,nCell.w);
+        ym=excelDateToYearMonth(nCell.v);
         if(ym)break;
       }
     }
@@ -1606,11 +1540,11 @@ function quickDateCheck(wb,sheetName){
 
   // Step 3: Also scan first 10 rows for any date-like text (e.g. "2026.4.6 attendance")
   if(!ym){
-    for(let R=0;R<12&&!ym;R++){
-      for(let C=0;C<20&&!ym;C++){
+    for(let R=0;R<10&&!ym;R++){
+      for(let C=0;C<10&&!ym;C++){
         const addr=XLSX.utils.encode_cell({r:R,c:C});
         const cell=ws[addr];if(!cell)continue;
-        const s=String(cell.w||cell.v||'');
+        const s=String(cell.v||'');
         const m=s.match(/(20\d{2})[.\/\-](0?[1-9]|1[0-2])[.\/\-](\d{1,2})/);
         if(m&&+m[1]>=2000){ym={y:+m[1],m:+m[2],d:+m[3]};}
       }
@@ -1631,9 +1565,9 @@ function quickDateCheck(wb,sheetName){
   }
 
   const dateStr=`${ym.y}-${String(ym.m).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  // Validate as a calendar date without using local timezone conversion.
-  const check=new Date(Date.UTC(ym.y,ym.m-1,day));
-  if(isNaN(check.getTime())||check.getUTCFullYear()!==ym.y||check.getUTCMonth()+1!==ym.m||check.getUTCDate()!==day)return null;
+  // Validate it's a real date
+  const check=new Date(dateStr);
+  if(isNaN(check.getTime())||check.getUTCFullYear()<2000)return null;
   return dateStr;
 }
 
@@ -1642,10 +1576,37 @@ async function parseWorkbook(wb, progressFn, overwrite){
   const results=[],dedupLog=[],newDates=[],skippedDates=[];
   const total=wb.SheetNames.length;
 
+  // ── Phase 0: 全本共識年月掃描（防止單一 sheet 年月被誤讀）──
+  // 例：sheet '01' 的 2026-05-01 有時被解成 2026-04-01（序號邊界問題）
+  // 解法：先掃全部 sheet 取共識年月，再逐一校正衝突者
+  const _ymMap={};
+  for(const sn of wb.SheetNames){
+    const ds=quickDateCheck(wb,sn);
+    if(ds&&/^\d{4}-\d{2}-\d{2}$/.test(ds)){
+      const ym=ds.slice(0,7);
+      if(+ym.slice(0,4)>=2020) _ymMap[ym]=(_ymMap[ym]||0)+1;
+    }
+  }
+  // 找最多票的年月（排除很舊的年份，如 template sheet 的 2020-03）
+  let _consensusYM=null,_maxVote=0;
+  for(const[ym,cnt] of Object.entries(_ymMap)){
+    if(cnt>_maxVote){_consensusYM=ym;_maxVote=cnt;}
+  }
+
   // Phase 1: Quick scan all sheets for dates (fast — only reads cells directly, no full decode)
   const sheetDates=[];
   for(const sn of wb.SheetNames){
     let dateStr=quickDateCheck(wb,sn);
+    // ── 共識校正：若年月與共識不同，嘗試用共識年月+原日期替換 ──
+    if(dateStr&&_consensusYM&&dateStr.slice(0,7)!==_consensusYM){
+      const day=dateStr.slice(8); // DD
+      const candidate=_consensusYM+'-'+day;
+      const chk=new Date(candidate);
+      if(!isNaN(chk)&&chk.getUTCFullYear()>=2020){
+        console.log('[DateConsensus] sheet',sn,':',dateStr,'→',candidate,'(consensus',_consensusYM+')');
+        dateStr=candidate;
+      }
+    }
     const alreadyHave=dateStr&&IMPORT_LOG.includes(dateStr);
     sheetDates.push({sn,dateStr,alreadyHave});
   }
@@ -1696,28 +1657,28 @@ async function extractMSG(file){
   const results=[];
 
   // ── Method A: OLE/CFB walk (proper MSG parsing via XLSX.CFB) ──
-  // Outlook stores the attachment stream beside the storage object.  The
-  // CFB reader exposes the stream's storage as "fat"/"minifat", not as the
-  // parent __attach_version1.0_* name, so matching e.storage to the parent
-  // name silently misses every attachment on some MSG files.  Scan the CFB
-  // streams themselves and let XLSX validate the candidate bytes.
   try{
     const cfb=XLSX.CFB.read(new Uint8Array(buf),{type:'array'});
-    const seen=new Set();
-    for(const entry of (cfb.FileIndex||[])){
-      if(!entry||!entry.content||entry.content.length<50)continue;
-      const bytes=entry.content;
-      const m0=bytes[0],m1=bytes[1];
-      const isXlsx=m0===0x50&&m1===0x4B;
-      const isXls =m0===0xD0&&m1===0xCF;
-      if(!isXlsx&&!isXls)continue;
-      const sig=String(bytes.length)+':'+Array.from(bytes.slice(0,16)).join(',');
-      if(seen.has(sig))continue;
-      seen.add(sig);
-      try{
-        const wb=XLSX.read(bytes,{type:'array',cellDates:true});
-        if(wb.SheetNames.length>0)results.push({name:`att_cfb_${results.length}.${isXlsx?'xlsx':'xls'}`,data:bytes,wb});
-      }catch(e){}
+    const attachStorages=[...new Set(
+      cfb.FileIndex
+        .filter(e=>e.name&&e.name.startsWith('__attach_version1.0'))
+        .map(e=>e.name)
+    )];
+    for(const storageName of attachStorages){
+      const streamNames=['__substg1.0_37010102','AttachDataW','__substg1.0_3701000D'];
+      for(const sn of streamNames){
+        const entry=cfb.FileIndex.find(e=>e.name===sn&&e.storage===storageName);
+        if(!entry||!entry.content||entry.content.length<50)continue;
+        const bytes=entry.content;
+        const m0=bytes[0],m1=bytes[1];
+        const isXlsx=m0===0x50&&m1===0x4B;
+        const isXls =m0===0xD0&&m1===0xCF;
+        if(!isXlsx&&!isXls)continue;
+        try{
+          const wb=XLSX.read(bytes,{type:'array',cellDates:true});
+          if(wb.SheetNames.length>0){results.push({name:`att_cfb_${results.length}.${isXlsx?'xlsx':'xls'}`,data:bytes,wb});break;}
+        }catch(e){}
+      }
     }
     if(results.length)return results;
   }catch(e){}
@@ -1854,14 +1815,13 @@ function aggregateSections(dates){
       const nm=sectName(r);
       const dept=(r.dept||'').replace(/小計|subtotal/gi,'').trim();
       const key=dept+'¦'+nm;
-      if(!map[key])map[key]={name:nm,dept,att:0,ttl:0,hours:0,report:0,m:0,f:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,join:0,resign:0,absent:0,days:0};
+      if(!map[key])map[key]={name:nm,dept,att:0,ttl:0,report:0,m:0,f:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,idle:0,join:0,resign:0,absent:0,days:0};
       const c=calc(r);
       map[key].att+=r.att;
-      map[key].hours+=(Number(r.hours)||0);
       map[key].ttl+=(r.m+r.f);map[key].m+=r.m;map[key].f+=r.f;
       map[key].report+=c.report;
       map[key].al+=r.al;map[key].pl+=r.pl;map[key].sl+=r.sl;map[key].np+=r.np;
-      map[key].bus+=r.bus;map[key].fl+=r.fl;map[key].ml+=r.ml;
+      map[key].bus+=r.bus;map[key].fl+=r.fl;map[key].ml+=r.ml;map[key].idle+=(r.idle||0);
       map[key].join+=r.join;map[key].resign+=r.resign;
       map[key].absent+=c.absent;
       map[key].days++;
@@ -2199,7 +2159,7 @@ function renderGroupAnalysis(){
 
 // ═══════ BACKUP / RESTORE ═══════
 function backupJSON(){const data={db:DB,log:IMPORT_LOG,ts:new Date().toISOString()};const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vrt_att_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('📦 已備份','ok');}
-function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=stripAttendanceHours(d.db);IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
 function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB();toast('🗑 已清除','ok');}
 function exportAllCSV(){if(!DB.length){toast('無資料','err');return;}
   const h=['date','dept','sect','line','m','f','ttl','join','resign','report','al','pl','sl','np','bus','fl','ml','idle','absent','att','rate','isSubtotal','isGrand'];
@@ -2304,17 +2264,18 @@ async function testConnection() {
 async function checkCloudVersion() {
   if (!GAS_URL || !DB.length) return;
   try {
-    const d = await attendanceMeta();
-    if (!d || !Number(d.recordCount||0)) return;
-    cloudSnap = d;
-    const cloudTs = new Date(d.updatedAt || 0);
-    const localTs = new Date(DB_META.cloudUpdatedAt || localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || 0);
-    if (cloudTs > localTs) {
+    const r = await fetch(GAS_URL + '?action=status', { method:'GET', redirect:'follow' });
+    const d = await r.json();
+    if (!d.ok || !d.attendance) return;
+    cloudSnap = d.attendance;
+    const cloudTs = new Date(d.attendance.timestamp);
+    const localTs = new Date(localStorage.getItem(CLOUD_CFG_KEY + '_lastPush') || 0);
+    if (cloudTs > localTs && d.attendance.recordCount > DB.length) {
       // Cloud is newer — show banner
-      showCloudUpdateBanner({recordCount:d.recordCount,timestamp:d.updatedAt});
+      showCloudUpdateBanner(d.attendance);
     }
     setSyncStatus('synced', '');
-    document.getElementById('cloudTs').textContent = formatTs(d.updatedAt);
+    document.getElementById('cloudTs').textContent = formatTs(d.attendance.timestamp);
   } catch(e) {}
 }
 
@@ -2330,152 +2291,81 @@ function showCloudUpdateBanner(snap) {
 }
 
 // ── PUSH to Cloud ──
-// Keep this field list identical to ga_attendance_cloud.gs.  The hash is
-// intentionally based on the daily report rows, not on upload time, so a
-// phone with an older/smaller snapshot only sends dates that really changed.
-const ATT_HASH_FIELDS=['date','dept','sect','line','m','f','join','resign','ti','to','tr','al','pl','sl','np','bus','fl','ml','idle','att','hours','isSubtotal','isGrand'];
-function attField(v){return v===undefined||v===null?'':String(v)}
-function attRowSignature(r){return ATT_HASH_FIELDS.map(k=>attField(r?.[k])).join('\x1f')}
-function fnv1a32Hex(s){let h=2166136261;for(let i=0;i<String(s||'').length;i++){h^=String(s||'').charCodeAt(i);h=Math.imul(h,16777619)}return ('00000000'+(h>>>0).toString(16)).slice(-8)}
-function attendanceDateStats(rows){const b={};(rows||[]).forEach(r=>{const d=attField(r?.date).slice(0,10);if(!d)return;(b[d]??=[]).push(attRowSignature(r))});const out={};Object.keys(b).sort().forEach(d=>{const a=b[d].sort();out[d]={count:a.length,hash:fnv1a32Hex(a.join('\x1e'))}});return out}
-async function attendanceMeta(){
-  const r=await fetch(GAS_URL+'?action=attendanceMeta&tool=attendance',{method:'GET',redirect:'follow'}),d=await r.json();
-  if(!d?.ok)throw new Error(d?.error||'Attendance meta unavailable');
-  return d.data||{};
-}
-async function attendanceDiffRequest(dateStats,dates,metaOnly){
-  const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({
-    action:'attendanceDiff',tool:'attendance',dateStats:dateStats||{},dates:Array.isArray(dates)?dates:[],metaOnly:!!metaOnly
-  })});
-  const d=await r.json();
-  if(!d?.ok)throw new Error(d?.error||'Attendance difference unavailable');
-  return d.data||{};
-}
-async function sendAttendanceChunk(payload,index,total){
-  let last;
-  for(let attempt=1;attempt<=3;attempt++){
-    try{
-      const d=await HRACloudGuard.push(payload,async function(safePayload){
-        const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(safePayload)});
-        return r.json();
-      },LANG==='en'?'en':(LANG==='km'?'km':'zh'));
-      if(d?.cancelled)return d;
-      if(d?.ok)return d;
-      last=new Error(d?.error||'GAS rejected upload');
-    }catch(e){last=e}
-    if(attempt<3){setSyncStatus('syncing',`${T('重試中…','Retrying…','កំពុងព្យាយាមម្ដងទៀត…')} ${index+1}/${total} (${attempt+1}/3)`);await new Promise(r=>setTimeout(r,700*attempt))}
-  }
-  throw last||new Error('Upload failed');
-}
-async function pushCloud(options={}) {
+async function pushCloud() {
   if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
   if (!DB.length) { toast(T('尚無資料可上傳','No data to upload','គ្មានទិន្នន័យសម្រាប់ផ្ទុកឡើង'), 'err'); return; }
 
+  // ── Debug: show what we're about to push ─────────────────────────
+  const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
+  console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
+  toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+': '+DB.length+' · '+_latestAttDate, 'info');
+
   setSyncStatus('syncing', T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…'));
   setProgress(0, true);
+  const summary = buildCloudSummary();
+  // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
+  const _PUSH_CHUNK = Math.min(CHUNK_SIZE, 3000); // 3000 records ≈ 700KB per chunk
+  const totalChunks = Math.ceil(DB.length / _PUSH_CHUNK);
+  let allOk = true;
+  // Include updatedAt = latest date in DB (not push timestamp)
+  const _pushUpdatedAt = _latestAttDate || new Date().toISOString().slice(0,10);
+
   try {
-    const localStats=attendanceDateStats(DB),remote=await attendanceMeta(),remoteStats=remote.dateStats||{};
-    if(Number(remote.recordCount||0)>0&&!Object.keys(remoteStats).length){
-      throw new Error(T('無法取得雲端日期索引，為避免整包覆蓋，已停止上傳。請先部署最新 GS。','Cloud date index is unavailable. Upload stopped to prevent a full overwrite. Deploy the latest GS first.','មិនអាចអានសន្ទស្សន៍កាលបរិច្ឆេទ Cloud បានទេ។ បានបញ្ឈប់ការផ្ទុកឡើង ដើម្បីការពារការជំនួសទិន្នន័យទាំងមូល។ សូមដាក់ពង្រាយ GS ថ្មីបំផុត។'));
-    }
-    const localDates=Object.keys(localStats).sort(),remoteDates=new Set(Object.keys(remoteStats));
-    const newDates=localDates.filter(d=>!remoteDates.has(d));
-    const changedDates=localDates.filter(d=>remoteStats[d]&&(
-      Number(remoteStats[d].count)!==Number(localStats[d].count)||String(remoteStats[d].hash||'')!==String(localStats[d].hash||'')));
-    const remoteOnlyDates=Object.keys(remoteStats).filter(d=>!localStats[d]).sort();
-    if(!newDates.length&&!changedDates.length){
-      setSyncStatus('synced',T('雲端已是最新','Cloud is already up to date','Cloud មានទិន្នន័យថ្មីបំផុត'));
-      toast(T('☁️ 沒有新增或修改的日期，不需重新上傳','☁️ No new or changed dates; nothing to upload','☁️ គ្មានថ្ងៃថ្មី ឬកែប្រែ មិនចាំបាច់ផ្ទុកឡើងទេ'),'ok');
-      setProgress(0,false);
-      return;
-    }
-    const requiresConfirm=changedDates.length>0||!options.auto;
-    if(requiresConfirm&&!confirm(T(
-      `雲端差異確認\n\n雲端缺少本機資料：${newDates.length} 個日期（會新增）\n本機資料有變更：${changedDates.length} 個日期（會替換該日期）\n雲端有、本機沒有：${remoteOnlyDates.length} 個日期（保留雲端，不刪除）\n預計只上傳：${newDates.concat(changedDates).length} 個日期、${DB.filter(r=>new Set(newDates.concat(changedDates)).has(attField(r?.date).slice(0,10))).length} 筆\n\n確定補上／更新差異資料嗎？`,
-      `Cloud difference check\n\nMissing in cloud: ${newDates.length} date(s) (add)\nChanged locally: ${changedDates.length} date(s) (replace those dates)\nCloud-only dates: ${remoteOnlyDates.length} (keep cloud data; do not delete)\nOnly these differences will be uploaded.\n\nContinue?`,
-      `ពិនិត្យភាពខុសគ្នា Cloud\n\nខ្វះនៅ Cloud: ${newDates.length} ថ្ងៃ\nបានកែប្រែនៅម៉ាស៊ីន: ${changedDates.length} ថ្ងៃ\nមានតែនៅ Cloud: ${remoteOnlyDates.length} ថ្ងៃ (រក្សាទុក)\nបន្តបញ្ចូលទិន្នន័យខុសគ្នា?`))){setSyncStatus('idle','');setProgress(0,false);return}
-    const selectedDates=new Set([...newDates,...changedDates]),selected=DB.filter(r=>selectedDates.has(attField(r?.date).slice(0,10)));
-    const _latestAttDate=localDates.at(-1)||'',_firstAttDate=localDates[0]||'',summary=buildCloudSummary();
-    const _PUSH_CHUNK=Math.min(CHUNK_SIZE,3000),totalChunks=Math.ceil(selected.length/_PUSH_CHUNK);
-    const _pushUpdatedAt=new Date().toISOString();
-    const _syncId='att-'+Date.now()+'-'+Math.random().toString(36).slice(2,8);
-    toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+`: ${selected.length} records · ${newDates.length+changedDates.length} date(s)`, 'info');
     for (let i = 0; i < totalChunks; i++) {
-      const chunk = selected.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
-      const isLast = i === totalChunks - 1;
+      const chunk = DB.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
       setProgress((i / totalChunks) * 100);
-      setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
+      if (i % 5 === 0) setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
 
       const payload = {
         action      : 'push',
         tool        : 'attendance',
         chunk       : i,
         totalChunks,
-        syncId      : _syncId,
-        mode        : 'merge',
         records     : chunk,
-        // Keep non-final chunk requests small.  The server only needs the
-        // metadata when it commits the final merged payload.
-        recordCount : isLast ? DB.length : undefined,
-        updatedAt   : _pushUpdatedAt,
-        coverage    : isLast ? {firstDate:_firstAttDate, latestDate:_latestAttDate, source:'attendance'} : undefined,
-        importLog   : isLast ? IMPORT_LOG : undefined,
-        dateStats   : isLast ? localStats : undefined,
-        replaceDates: isLast ? changedDates : [],
-        summary     : isLast ? summary : undefined,
-        pushedBy    : isLast ? 'attendance_cloud_v1' : undefined,
+        recordCount : DB.length,
+        updatedAt   : _pushUpdatedAt,   // ← latest DATE in records, not push timestamp
+        importLog   : i === 0 ? IMPORT_LOG : [],  // only send importLog in first chunk
+        summary     : i === 0 ? summary : {},
+        pushedBy    : 'attendance_cloud_v1',
       };
-      const d=await sendAttendanceChunk(payload,i,totalChunks);
-      if(!d||d.cancelled)throw new Error(T('使用者取消上傳','Upload cancelled','បានបោះបង់ការផ្ទុកឡើង'));
+
+      const r = await fetch(GAS_URL, {
+        method      : 'POST',
+        redirect    : 'follow',
+        headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
+        body        : JSON.stringify(payload),
+      });
+      const d = await r.json();
+      if (!d.ok) { allOk = false; break; }
     }
 
     setProgress(100);
-    lastSyncTs = new Date().toISOString();
-    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
-    saveMeta({updatedAt:_latestAttDate,source:'cloud'});
-    try{const _m=await attendanceMeta(),_nct=_m.updatedAt||lastSyncTs;saveMeta({cloudUpdatedAt:_nct});updateSyncBadge(_latestInDB(DB),_nct,LS.get('sewMeta')?.updatedAt||'','')}catch(e){updateSyncBadge(_latestInDB(DB),lastSyncTs,LS.get('sewMeta')?.updatedAt||'','')}
-    setSyncStatus('synced',T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-    toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${selected.length} / ${totalChunks} · +${newDates.length} / ↻${changedDates.length}`,'ok');
+    if (allOk) {
+      lastSyncTs = new Date().toISOString();
+      localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
+      saveMeta({updatedAt: _pushUpdatedAt, source:'cloud'});
+      // Re-fetch cloud meta to sync cloudUpdatedAt (so next startup won't re-pull)
+      try{
+        const _mr=await fetch(GAS_URL+'?action=pull&tool=attendance&meta=1',{method:'GET',redirect:'follow'});
+        const _md=await _mr.json();
+        const _nct=_md.data?.chunked?(_md.data?.meta?.timestamp||''):(_md.data?.data?.updatedAt||'');
+        if(_nct)saveMeta({cloudUpdatedAt:_nct});
+        updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
+      }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
+      setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
+      toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
+    } else {
+      setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
+      toast(T('❌ 部分上傳失敗，請重試','❌ Upload incomplete. Try again.','❌ ផ្ទុកឡើងមិនពេញលេញ'), 'err');
+    }
   } catch(e) {
-    setSyncStatus('failed',T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
-    toast(T('❌ 上傳失敗：','❌ Upload failed: ','❌ ការផ្ទុកឡើងបរាជ័យ៖ ')+e.message,'err');
+    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
+    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
   }
   setTimeout(() => setProgress(0, false), 2000);
 }
 
 // ── PULL from Cloud ──
-// Keep local-only dates when a phone is pulling an older/smaller cloud
-// snapshot.  This is the client-side counterpart to the GAS merge guard.
-// Attendance rows do not carry an employee ID, so use the daily report's
-// natural key instead of the generic cloud record key.
-function attendanceMergeKey(r){
-  if(!r||typeof r!=='object')return null;
-  const date=String(r.date||'').slice(0,10);
-  if(!date)return null;
-  return [date,r.dept||'',r.sect||'',r.line||'',r.isSubtotal?'S':'',r.isGrand?'G':''].join('|');
-}
-function mergeAttendanceLocalCloud(localRows,cloudRows,replaceDates){
-  const map=new Map(),order=[];
-  const replace=new Set((replaceDates||[]).map(d=>String(d).slice(0,10)));
-  function put(r,prefer){
-    const k=attendanceMergeKey(r);
-    if(!k){order.push({key:null,row:r});return;}
-    if(!map.has(k))order.push({key:k,row:r});
-    if(prefer||!map.has(k))map.set(k,r);
-  }
-  (localRows||[]).forEach(r=>{
-    if(replace.has(String(r?.date||'').slice(0,10)))return;
-    put(r,false);
-  });
-  (cloudRows||[]).forEach(r=>put(r,true));
-  const seen=new Set(),out=[];
-  order.forEach(x=>{
-    if(x.key===null){out.push(x.row);return;}
-    if(seen.has(x.key))return;
-    seen.add(x.key);out.push(map.get(x.key));
-  });
-  return out;
-}
 async function pullCloud(silent) {
   if (!GAS_URL) { if (!silent) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); } return; }
 
@@ -2483,51 +2373,59 @@ async function pullCloud(silent) {
   setProgress(0, true);
 
   try {
-    // Step 1: Get only the cloud date index, never the full attendance file.
-    const localStats=attendanceDateStats(DB),remote=await attendanceMeta(),remoteStats=remote.dateStats||{};
-    if(Number(remote.recordCount||0)>0&&!Object.keys(remoteStats).length){
-      throw new Error(T('無法取得雲端日期索引，已停止完整下載。請先部署最新 GS。','Cloud date index is unavailable, so the full download was stopped. Deploy the latest GS first.','មិនអាចអានសន្ទស្សន៍កាលបរិច្ឆេទ Cloud បានទេ ដូច្នេះបានបញ្ឈប់ការទាញយកទាំងមូល។ សូមដាក់ពង្រាយ GS ថ្មីបំផុត។'));
-    }
-    if (!Number(remote.recordCount||0) && !Object.keys(remoteStats).length) {
+    // Step 1: Get meta
+    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
+    const d1 = await r1.json();
+
+    if (!d1.ok) { setSyncStatus('failed', T('下載失敗','Download failed','ទាញយកបរាជ័យ')); toast(T('❌ 下載失敗','❌ Download failed','❌ ទាញយកបរាជ័យ'), 'err'); return; }
+    if (!d1.data || d1.data.data === null || d1.data.message === '尚無雲端資料') {
       setSyncStatus('idle', T('雲端尚無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
       if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
       setProgress(0, false); return;
     }
-    const localDates=new Set(Object.keys(localStats));
-    const cloudDates=Object.keys(remoteStats).sort();
-    const cloudOnlyDates=cloudDates.filter(d=>!localDates.has(d));
-    const changedDates=cloudDates.filter(d=>localStats[d]&&(
-      Number(localStats[d].count)!==Number(remoteStats[d].count)||String(localStats[d].hash||'')!==String(remoteStats[d].hash||'')));
-    const diffDates=[...cloudOnlyDates,...changedDates];
-    if(!diffDates.length){
-      const cloudTs2=remote.updatedAt||'';
-      saveMeta({cloudUpdatedAt:cloudTs2,updatedAt:_latestInDB(DB),source:'cloud'});
-      setSyncStatus('synced',T('雲端已是最新','Cloud is already up to date','Cloud មានទិន្នន័យថ្មីបំផុត'));
-      if(!silent)toast(T('☁️ 沒有新的或變更的資料，不需重新下載','☁️ No new or changed data; nothing to download','☁️ គ្មានទិន្នន័យថ្មី ឬកែប្រែ មិនចាំបាច់ទាញយកទេ'),'ok');
-      setProgress(0,false);return;
-    }
-    const diffRecordCount=diffDates.reduce((n,d)=>n+      +Number(remoteStats[d]?.count||0),0);
-    if(!silent&&!confirm(T(
-      `雲端差異確認\n\n雲端新增、本機沒有：${cloudOnlyDates.length} 個日期\n雲端內容變更：${changedDates.length} 個日期（會替換該日期）\n預計只下載：約 ${diffRecordCount} 筆\n本機其他未變更資料會保留，不會整包覆蓋。\n\n確定下載差異資料嗎？`,
-      `Cloud difference check\n\nNew on cloud, missing locally: ${cloudOnlyDates.length} date(s)\nChanged on cloud: ${changedDates.length} date(s) (replace those dates)\nAbout ${diffRecordCount} records will be downloaded.\nUnchanged local data will be kept.\n\nContinue?`,
-      `ពិនិត្យភាពខុសគ្នា Cloud\n\nថ្មីនៅ Cloud: ${cloudOnlyDates.length} ថ្ងៃ\nបានកែប្រែនៅ Cloud: ${changedDates.length} ថ្ងៃ\nប្រហែល ${diffRecordCount} កំណត់ត្រានឹងទាញយក។\nបន្តទាញយកទិន្នន័យខុសគ្នា?`))){
-      setSyncStatus('idle','');setProgress(0,false);return;
+
+    // Step 2: Confirm only if manual pull (not silent auto-sync)
+    const cloudTs2 = d1.data?.chunked ? (d1.data?.meta?.timestamp||'') : (d1.data?.data?.updatedAt||'');
+    if (!silent && DB.length > 0) {
+      const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
+      if (!confirm(T(
+        `雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n拉取後會以雲端快照取代本機資料，不會產生重複紀錄。\n確定拉取？`,
+        `Cloud has ${cloudRecs} records (${formatTs(cloudTs2)}).\nLocal has ${DB.length} records.\n\nThe cloud snapshot will replace local data, so duplicates are not created.\nContinue?`,
+        `Cloud: ${cloudRecs} / Local: ${DB.length}\nបន្តទាញយក?`
+      ))) {
+        setSyncStatus('idle', ''); setProgress(0, false); return;
+      }
     }
 
-    let pullDB=[];
-    const PULL_DATE_BATCH=30;
-    for(let i=0;i<diffDates.length;i+=PULL_DATE_BATCH){
-      const batch=diffDates.slice(i,i+PULL_DATE_BATCH);
-      setProgress((i/diffDates.length)*90);
-      // Dates were already identified from the lightweight meta response;
-      // do not resend the 1,600-date local index on every batch request.
-      const d=await attendanceDiffRequest({},batch,false);
-      pullDB.push(...(d.records||[]));
-    }
-    setProgress(92);
+    let pullDB    = [];
+    let pullLog   = [];
+    let recordCount = 0;
 
-    // Step 3: Load pulled data into memory.  Merge instead of replacing the
-    // phone's snapshot, so an older cloud copy cannot erase 8/1+ local data.
+    if (!d1.data?.chunked) {
+      // Non-chunked: d1.data.data = the pushed payload object
+      const payload = d1.data?.data || {};
+      pullDB  = payload.records || payload.employees || [];
+      pullLog = payload.importLog || [];
+      recordCount = pullDB.length;
+      setProgress(100);
+    } else {
+      // Chunked
+      const meta   = d1.data?.meta || {};
+      const chunks = meta.totalChunks || 1;
+      pullLog = meta.importLog || [];
+      recordCount = meta.recordCount || 0;
+
+      for (let i = 0; i < chunks; i++) {
+        setProgress((i / chunks) * 80);
+        const r = await fetch(`${GAS_URL}?action=pull&tool=attendance&chunk=${i}`, { method:'GET', redirect:'follow' });
+        const d = await r.json();
+        pullDB.push(...(d.data?.records || d.records || []));
+      }
+      setProgress(90);
+    }
+
+    // Step 3: Load pulled data into memory
+    // Use sewing approach: full data in memory, only recent 90 days in localStorage
     if (!pullDB.length) {
       if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
       setSyncStatus('idle', T('雲端無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
@@ -2535,19 +2433,17 @@ async function pullCloud(silent) {
       return;
     }
 
-    // Load ALL records into memory; cloud wins only for the same daily-row
-    // key, while local-only rows/dates remain available on the phone.
-    const localCountBefore=DB.length;
-    DB = mergeAttendanceLocalCloud(DB,pullDB,changedDates);
+    // Load ALL records into memory
+    DB = pullDB;
 
     // Build IMPORT_LOG from pulled data
-    IMPORT_LOG = [...new Set(DB.map(r => r.date).filter(Boolean))];
+    IMPORT_LOG = [...new Set(pullDB.map(r => r.date).filter(Boolean))];
     markDataChanged();
 
     // Save ALL to IndexedDB (no size limit, persists across page refresh)
     try {
-      await saveToIDB(DB);
-      toast(`💾 ${T('已儲存至本機','Saved locally','បានរក្សាទុកក្នុងម៉ាស៊ីន')} (${DB.length})`, 'ok');
+      await saveToIDB(pullDB);
+      toast(`💾 ${T('已儲存至本機','Saved locally','បានរក្សាទុកក្នុងម៉ាស៊ីន')} (${pullDB.length})`, 'ok');
     } catch(idbErr) { console.warn('[IDB]', idbErr); }
     try { LS.set('log', IMPORT_LOG); } catch(e2) {}
 
@@ -2556,14 +2452,15 @@ async function pullCloud(silent) {
     lastSyncTs = new Date().toISOString();
     localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
     setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-    // Save the exact remote timestamp so a later check does not re-pull.
-    const _exactCloudTs = remote.updatedAt||lastSyncTs;
-    saveMeta({cloudUpdatedAt:_exactCloudTs, updatedAt:_latestInDB(DB), source:'cloud'});
-    console.log('[pullCloud] merged local='+localCountBefore+' cloud='+pullDB.length+' result='+DB.length+' cloudUpdatedAt='+_exactCloudTs);
-    updateSyncBadge(_latestInDB(DB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
+    // Save EXACT cloudTs so next startup !== check won't re-pull
+    const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
+    const _exactCloudTs = cloudTs2||_cloudMeta?.updatedAt||_cloudMeta?.timestamp||lastSyncTs;
+    saveMeta({cloudUpdatedAt:_exactCloudTs, updatedAt:_latestInDB(pullDB), source:'cloud'});
+    console.log('[pullCloud] saved cloudUpdatedAt='+_exactCloudTs);
+    updateSyncBadge(_latestInDB(pullDB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
     setProgress(100);
 
-    toast(`✅ ${T('下載完成','Download complete','ទាញយកជោគជ័យ')} — ${DB.length}`, 'ok');
+    toast(`✅ ${T('下載完成','Download complete','ទាញយកជោគជ័យ')} — ${pullDB.length}`, 'ok');
 
     // Re-render all views with new data
     try { renderAll(); } catch(e) { console.warn('[pullCloud] renderAll:', e); }
@@ -2585,7 +2482,7 @@ async function sendTgMsg(text) {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'telegram', tool: 'attendance', text }),
+      body: JSON.stringify({ action: 'telegram', text }),
     });
   } catch(e) { console.warn('sendTgMsg error:', e); }
 }
@@ -2602,14 +2499,10 @@ async function sendViaTg() {
       method: 'POST',
       redirect: 'follow',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'telegram', tool: 'attendance', text }),
+      body: JSON.stringify({ action: 'telegram', text }),
     });
     const d = await r.json();
-    if (d.ok) {
-      toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok');
-      /* 摘要成功後補送尚未同步的日期；新增日期自動送出，修改既有日期仍會要求確認。 */
-      await pushCloud({auto:true});
-    }
+    if (d.ok) { toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok'); }
     else       { toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + (d.error || ''), 'err'); }
   } catch(e) {
     toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
@@ -2636,18 +2529,9 @@ function buildCloudSummary() {
   };
 }
 
-let ATT_AUTO_PUSH_TIMER=null;
-// Debounced changed-date upload.  pushCloud() compares the date manifest, so
-// unchanged history is never re-uploaded; edits to an existing date still ask
-// for confirmation before that date is replaced.
+// Compatibility no-op. Imports are saved locally, but cloud upload is always manual.
 function scheduleAutoSave() {
-  if(!GAS_URL||!DB.length)return false;
-  clearTimeout(ATT_AUTO_PUSH_TIMER);
-  ATT_AUTO_PUSH_TIMER=setTimeout(()=>{
-    ATT_AUTO_PUSH_TIMER=null;
-    Promise.resolve(pushCloud({auto:true})).catch(e=>console.warn('[attendance auto upload]',e));
-  },900);
-  return true;
+  return false;
 }
 
 // ── UI helpers ──
@@ -2774,9 +2658,12 @@ function isSCLine(lineId) {
 // ── Period key helpers ───────────────────────────────────
 function scPeriodKey(dateStr) {
   if (!dateStr) return '';
-  dateStr=String(dateStr).slice(0,10);
   if (SC_MODE==='day')   return dateStr.slice(0,10);
-  if (SC_MODE==='week') return weekStartKey(dateStr);
+  if (SC_MODE==='week') {
+    const d=new Date(dateStr), jan=new Date(d.getFullYear(),0,1);
+    const w=Math.ceil(((d-jan)/86400000+jan.getDay()+1)/7);
+    return `${d.getFullYear()}-W${String(w).padStart(2,'0')}`;
+  }
   if (SC_MODE==='month') return dateStr.slice(0,7);
   if (SC_MODE==='year')  return dateStr.slice(0,4);
   return dateStr.slice(0,10);
@@ -2912,9 +2799,7 @@ async function renderSewCmp() {
       attRowCount++;
     });
 
-    // 4. Build sewMap: lineId → daily headcount, days, pcs.
-    // A sewing system can contain several style/order rows for one line/day;
-    // summing workers across those rows counts the same people repeatedly.
+    // 4. Build sewMap: lineId → {wSum, days, pcs}
     const sewMap = {};
     let sewRowCount = 0;
     sew.forEach(r => {
@@ -2922,13 +2807,9 @@ async function renderSewCmp() {
       const lid = normSCLine(String(r.lineNo||r.line||'').trim());
       if (!isSCLine(lid)) return;
       if (lineFilter && lid !== lineFilter) return;
-      if (!sewMap[lid]) sewMap[lid] = {dayWorkers:{}, days:new Set(), pcs:0};
+      if (!sewMap[lid]) sewMap[lid] = {wSum:0, days:new Set(), pcs:0};
       const w = +r.workers||0;
-      const day=toDateStr(r.date);
-      if (w > 0 && day) {
-        sewMap[lid].days.add(day);
-        sewMap[lid].dayWorkers[day]=Math.max(sewMap[lid].dayWorkers[day]||0,w);
-      }
+      if (w > 0) { sewMap[lid].wSum += w; sewMap[lid].days.add(toDateStr(r.date)); }
       sewMap[lid].pcs += (+r.pieces||0);
       sewRowCount++;
     });
@@ -2939,8 +2820,7 @@ async function renderSewCmp() {
       attLineHC[lid] = Math.round(v.hcSum / (v.days.size||1));
     });
     Object.entries(sewMap).forEach(([lid,v]) => {
-      const daily=Object.values(v.dayWorkers);
-      sewLineW[lid] = Math.round(daily.reduce((s,n)=>s+n,0) / (daily.length||1));
+      sewLineW[lid] = Math.round(v.wSum / (v.days.size||1));
     });
 
     // 6. Totals
@@ -3082,47 +2962,6 @@ async function renderSewCmp() {
   }
 }
 
-// ══════════════════════════════════════════════════════════
-// JOIN / RESIGN ↔ ATTENDANCE CHECK
-// Attendance remains the master table; Join/Resign is used for validation.
-// ══════════════════════════════════════════════════════════
-let JR_MODE='month',JR_PERIODS=[];
-function jrDate(v){
-  if(!v)return'';
-  if(v instanceof Date&&!isNaN(v))return`${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
-  const s=String(v).trim();if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
-  const d=new Date(s);return isNaN(d)?s.slice(0,10):`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-}
-function jrKey(d){d=jrDate(d);if(!d)return'';if(JR_MODE==='week')return weekStartKey(d);if(JR_MODE==='month')return d.slice(0,7);if(JR_MODE==='year')return d.slice(0,4);return d;}
-function jrLabel(k){return JR_MODE==='week'?k+' ~ '+jrDate(new Date(new Date(k+'T00:00:00Z').getTime()+6*86400000)):JR_MODE==='year'?k+'年':k;}
-function jrRows(key){
-  let joins=[],resigns=[];try{joins=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[]}catch(e){}try{resigns=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[]}catch(e){}
-  return{joins:joins.filter(r=>jrKey(r.joinDate)===key),resigns:resigns.filter(r=>jrKey(r.resignDate)===key)};
-}
-function jrUniqueCount(rows,dateField){const seen=new Set();rows.forEach(r=>{const d=jrDate(r[dateField]),id=String(r.empId||r.idNo||r.name||'').trim();if(d)seen.add((id||'row')+'|'+d);});return seen.size;}
-function jrDatesForKey(key){return allDates().filter(d=>jrKey(d)===key);}
-function jrMetric(key){const dates=jrDatesForKey(key),grands=dates.map(grandForDate).filter(Boolean),src=jrRows(key);return{key,days:dates.length,attJoin:grands.reduce((s,r)=>s+(+r.join||0),0),attResign:grands.reduce((s,r)=>s+(+r.resign||0),0),portalJoin:jrUniqueCount(src.joins,'joinDate'),portalResign:jrUniqueCount(src.resigns,'resignDate'),src};}
-function jrBuildPeriods(){
-  const keys=new Set(allDates().map(jrKey));
-  [['ac_hra_joins','joinDate'],['ac_hra_resigns','resignDate']].forEach(([k,f])=>{try{(JSON.parse(localStorage.getItem(k)||'[]')||[]).forEach(r=>keys.add(jrKey(r[f])))}catch(e){}});
-  JR_PERIODS=[...keys].filter(Boolean).sort().reverse();const sel=document.getElementById('jr-sel');if(!sel)return;const old=sel.value;sel.innerHTML=JR_PERIODS.map(k=>`<option value="${k}">${jrLabel(k)}</option>`).join('');if(JR_PERIODS.includes(old))sel.value=old;
-}
-function jrMode(mode){JR_MODE=mode;jrBuildPeriods();renderJRCompare();}
-function jrStep(dir){
-  const sel=document.getElementById('jr-sel');if(!sel)return;
-  const opts=[...sel.options].map(o=>o.value),i=opts.indexOf(sel.value),ni=i-dir;
-  if(ni>=0&&ni<opts.length){sel.value=opts[ni];renderJRCompare();}
-}
-function renderJRCompare(){
-  const sel=document.getElementById('jr-sel');if(!sel)return;jrBuildPeriods();const key=sel.value||JR_PERIODS[0];if(!key)return;
-  ['jr-d','jr-w','jr-m','jr-y'].forEach(id=>{const b=document.getElementById(id),on=id.endsWith(JR_MODE[0]);if(b){b.style.background=on?'#f0fdf8':'#fff';b.style.color=on?'#1a6e5c':'';b.style.fontWeight=on?'600':'400';}});
-  const rows=JR_PERIODS.map(jrMetric),x=jrMetric(key),jd=x.portalJoin-x.attJoin,rd=x.portalResign-x.attResign;
-  document.getElementById('jr-kpi').innerHTML=kpiHtml(T('考勤新進','Attendance Join','ចូលតាមវត្តមាន'),x.attJoin,`Portal: ${x.portalJoin}`,jd===0?'good':'bad')+kpiHtml(T('考勤離職','Attendance Resign','ចាកចេញតាមវត្តមាន'),x.attResign,`Portal: ${x.portalResign}`,rd===0?'good':'bad')+kpiHtml(T('新進差異','Join Difference','ខុសគ្នាចូល'),(jd>0?'+':'')+jd,'Portal − Attendance',jd===0?'good':'bad')+kpiHtml(T('離職差異','Resign Difference','ខុសគ្នាចាកចេញ'),(rd>0?'+':'')+rd,'Portal − Attendance',rd===0?'good':'bad');
-  document.getElementById('jr-note').textContent=T('Attendance 是主表；Portal Join／Resign 只作核對。差異不會自動修改，需回查日期、工號及是否漏匯入。','Attendance is the master table. Portal Join/Resign is validation only; differences are not auto-corrected. Check dates, IDs and missing imports.','វត្តមានជាតារាងមេ។ Join/Resign គ្រាន់តែផ្ទៀងផ្ទាត់។');
-  document.getElementById('jr-body').innerHTML=rows.map(r=>{const a=r.portalJoin-r.attJoin,b=r.portalResign-r.attResign,ok=a===0&&b===0;return`<tr class="${r.key===key?'active':''}" onclick="document.getElementById('jr-sel').value='${r.key}';renderJRCompare()"><td style="text-align:left"><b>${r.key===key?'◀ ':''}${jrLabel(r.key)}</b></td><td>${r.attJoin}</td><td>${r.portalJoin}</td><td style="color:${a?'#ef4444':'#10b981'};font-weight:700">${a>0?'+':''}${a}</td><td>${r.attResign}</td><td>${r.portalResign}</td><td style="color:${b?'#ef4444':'#10b981'};font-weight:700">${b>0?'+':''}${b}</td><td>${ok?'✅ '+T('一致','Match','ត្រូវគ្នា'):'⚠️ '+T('需核查','Check','ត្រូវពិនិត្យ')}</td></tr>`}).join('')||`<tr><td colspan="8">${T('尚無可比較資料','No comparable data','មិនមានទិន្នន័យ')}</td></tr>`;
-  const detail=[];if(jd)detail.push(`Join: Attendance ${x.attJoin} / Portal ${x.portalJoin}`);if(rd)detail.push(`Resign: Attendance ${x.attResign} / Portal ${x.portalResign}`);document.getElementById('jr-detail').innerHTML=detail.length?`<b>${T('目前期間差異','Current period differences','ភាពខុសគ្នារយៈពេលនេះ')}</b><br>${detail.join('<br>')}`:`✅ ${T('目前期間入職與離職人數一致','Join and resign counts match for this period','ចំនួនចូល និងចាកចេញត្រូវគ្នា')}`;
-}
-
 </script>
 
 <!-- ══════════ TAB: 出勤×車縫比較 ══════════ -->
@@ -3166,31 +3005,9 @@ function renderJRCompare(){
   </div>
 </div>
 
-<!-- ══════════ TAB: 入離職對照 ══════════ -->
-<div class="sec" id="sec-jrcmp">
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;padding:10px 14px;background:#fff;border:1px solid #e2e6f0;border-radius:10px">
-    <div style="display:flex;gap:4px">
-      <button id="jr-w" onclick="jrMode('week')" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;background:#fff;cursor:pointer" data-zh="週" data-en="Week" data-km="សប្តាហ៍">週</button>
-      <button id="jr-m" onclick="jrMode('month')" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;background:#f0fdf8;color:#1a6e5c;font-weight:600;cursor:pointer" data-zh="月" data-en="Month" data-km="ខែ">月</button>
-      <button id="jr-y" onclick="jrMode('year')" style="padding:5px 10px;border:1px solid #e2e6f0;border-radius:6px;background:#fff;cursor:pointer" data-zh="年" data-en="Year" data-km="ឆ្នាំ">年</button>
-    </div>
-    <button onclick="jrStep(-1)" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer">◀</button>
-    <select id="jr-sel" onchange="renderJRCompare()" style="font-family:monospace;font-size:12px;border:1px solid #d0d5e8;border-radius:6px;padding:4px 8px;min-width:130px"></select>
-    <button onclick="jrStep(1)" style="padding:5px 10px;border:1px solid #d0d5e8;border-radius:6px;background:#fff;cursor:pointer">▶</button>
-  </div>
-  <div id="jr-kpi" class="kpi-strip"></div>
-  <div class="card" style="margin-bottom:12px"><div id="jr-note" style="font-size:12px;line-height:1.7;color:#6b7a9e"></div></div>
-  <div class="card"><div class="ct" data-zh="Join／Resign 與 Attendance 期間對照" data-en="Join/Resign vs Attendance Period Check" data-km="ការពិនិត្យ Join/Resign និងវត្តមានតាមរយៈពេល">Join／Resign 與 Attendance 期間對照</div><div class="twrap"><table class="dtbl" style="min-width:850px"><thead><tr><th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th><th>Att Join</th><th>Portal Join</th><th>Join Diff</th><th>Att Resign</th><th>Portal Resign</th><th>Resign Diff</th><th data-zh="結果" data-en="Status" data-km="ស្ថានភាព">結果</th></tr></thead><tbody id="jr-body"></tbody></table></div></div>
-  <div class="card" style="margin-top:12px"><div class="ct" data-zh="目前期間核查" data-en="Current Period Check" data-km="ការពិនិត្យរយៈពេលបច្ចុប្បន្ន">目前期間核查</div><div id="jr-detail" style="font-size:12px;line-height:1.8;color:#6b7a9e"></div></div>
-</div>
-
 <script>
 setLang(LANG);
 setSyncStatus('idle','');
-// HRA Pay hours are read automatically after the Attendance page is ready.
-// There is no import/export/compare action for the user to perform.
-setAttendanceHoursVisibility(false);
-setTimeout(()=>{if(typeof payBridgeAutoSync==='function')payBridgeAutoSync()},0);
 </script>
 </body>
 </html>

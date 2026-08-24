@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>員工請假單 – VANTAGE RIVER TEXTILES CO., LTD</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Sans+Khmer:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ─── Base ─────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Noto Sans TC','Noto Sans Khmer',sans-serif;background:#EDE9E0;font-size:13px}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-thumb{background:#1A5276;border-radius:3px}
+
+/* ─── Layout ────────────────────────────────── */
+#app{display:flex;flex-direction:column;height:100vh}
+#topbar{background:linear-gradient(135deg,#0D2B45 0%,#1A5276 100%);color:#fff;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 8px rgba(0,0,0,.28);flex-shrink:0;gap:10px}
+#topbar .co{font-size:9px;opacity:.65;letter-spacing:1px}
+#topbar .ti{font-size:14px;font-weight:700}
+.lang-btns{display:flex;gap:4px}
+.lang-btn{padding:3px 12px;border-radius:20px;border:none;cursor:pointer;font-size:11px;background:rgba(255,255,255,.15);color:#fff;font-weight:400;transition:.15s}
+.lang-btn.active{background:#fff;color:#0D2B45;font-weight:700}
+#body{display:flex;flex:1;overflow:hidden}
+
+/* ─── Sidebar ────────────────────────────────── */
+#sidebar{width:215px;background:#fff;border-right:1px solid #E0D9CE;display:flex;flex-direction:column;flex-shrink:0}
+#sb-top{padding:10px;border-bottom:1px solid #E0D9CE}
+#sb-top label{font-size:8px;color:#AAA;font-weight:600;letter-spacing:1px;display:block;margin-bottom:5px}
+#emp-search{width:100%;padding:5px 8px;border:1px solid #DDD;border-radius:6px;font-size:11px;outline:none}
+#emp-list{flex:1;overflow-y:auto}
+.emp-item{padding:9px 10px;cursor:pointer;border-bottom:1px solid #F5F2EA;border-left:3px solid transparent;transition:.1s}
+.emp-item:hover{background:#F8F9FA}
+.emp-item.active{background:#EBF2FA;border-left-color:#1A5276}
+.emp-item .en{font-size:11px;font-weight:600;color:#0D2B45}
+.emp-item .kh{font-size:10px;color:#AAA;margin-top:1px}
+.emp-item .meta{font-size:9px;color:#1A5276;margin-top:1px}
+.emp-badges{display:flex;gap:3px;margin-top:3px}
+.badge-abs{font-size:8px;background:#FDEDEC;color:#E74C3C;padding:1px 4px;border-radius:3px}
+.badge-sick{font-size:8px;background:#FEF9E7;color:#D68910;padding:1px 4px;border-radius:3px}
+#sb-btns{padding:8px;border-top:1px solid #E0D9CE;display:flex;flex-direction:column;gap:4px}
+
+/* ─── Main ────────────────────────────────────── */
+#main{flex:1;overflow-y:auto;padding:14px}
+
+/* ─── Emp info card ─────────────────────────────── */
+.emp-card{background:#fff;border-radius:10px;padding:13px 16px;margin-bottom:12px;box-shadow:0 1px 6px rgba(0,0,0,.07)}
+.emp-card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.emp-name-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.emp-name-en{font-size:17px;font-weight:700;color:#0D2B45}
+.emp-name-kh{font-size:11px;color:#AAA}
+.emp-fields{display:flex;gap:14px;margin-top:8px;flex-wrap:wrap}
+.emp-field label{font-size:8px;color:#CCC;text-transform:uppercase;letter-spacing:.4px;display:block}
+.emp-field span{font-size:11px;color:#333;margin-top:1px;display:block}
+.anom-box{margin-top:10px;border-left:3px solid #E67E22;background:#FEF9E7;border-radius:0 6px 6px 0;padding:8px 12px}
+.anom-title{font-size:11px;font-weight:700;color:#D35400;margin-bottom:3px}
+.anom-row.warn{font-size:11px;color:#D68910}
+.anom-row.err{font-size:11px;color:#C0392B}
+.anom-ok{margin-top:8px;font-size:11px;color:#27AE60}
+
+/* ─── Tabs ────────────────────────────────────── */
+.tab-bar{display:flex;gap:2px;background:#fff;border-radius:8px;padding:3px;width:fit-content;box-shadow:0 1px 4px rgba(0,0,0,.06);margin-bottom:12px}
+.tab-btn{padding:6px 18px;border:none;cursor:pointer;font-size:12px;border-radius:6px;background:transparent;color:#555;font-weight:400;font-family:inherit;transition:.15s}
+.tab-btn.active{background:#1A5276;color:#fff;font-weight:600}
+
+/* ─── Filter bar ─────────────────────────────── */
+.filter-bar{display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.filter-bar span{font-size:11px;color:#666}
+.fm-btn{padding:4px 12px;border:none;border-radius:20px;cursor:pointer;font-size:11px;background:#EDE9E0;color:#555;font-family:inherit;transition:.15s}
+.fm-btn.active{background:#1A5276;color:#fff;font-weight:600}
+.filter-date{font-size:11px;padding:4px 8px;border:1px solid #DDD;border-radius:6px;outline:none}
+.filter-actions{margin-left:auto;display:flex;gap:6px}
+
+/* ─── Buttons ────────────────────────────────── */
+.btn-primary{padding:6px 15px;border:none;border-radius:7px;cursor:pointer;font-size:12px;background:#1A5276;color:#fff;font-weight:600;font-family:inherit;transition:.15s}
+.btn-primary:hover{background:#154360}
+.btn-secondary{padding:6px 15px;border:1px solid #ccc;border-radius:7px;cursor:pointer;font-size:12px;background:#fff;color:#555;font-family:inherit}
+.btn-danger{padding:4px 9px;border:1px solid #E53935;border-radius:5px;cursor:pointer;font-size:10px;background:#fff;color:#E53935;font-family:inherit}
+.btn-sm-primary{padding:6px 8px;border:none;border-radius:7px;cursor:pointer;font-size:11px;background:#1A5276;color:#fff;font-weight:600;font-family:inherit;width:100%}
+.btn-sm-secondary{padding:6px 8px;border:1px solid #ccc;border-radius:7px;cursor:pointer;font-size:11px;background:#fff;color:#555;font-family:inherit;width:100%}
+.btn-print{padding:5px 13px;border:1px solid #ccc;border-radius:7px;cursor:pointer;font-size:11px;background:#fff;color:#333;font-family:inherit}
+.btn-del-lv{padding:3px 7px;border:1px solid #E53935;border-radius:4px;cursor:pointer;font-size:9px;background:#fff;color:#E53935;font-family:inherit}
+
+/* ─── A4 Card ────────────────────────────────── */
+.a4-card{background:#fff;border-radius:8px;padding:26px 28px;box-shadow:0 2px 14px rgba(0,0,0,.1);max-width:990px;margin:0 auto 14px}
+.a4-header{text-align:center;padding-bottom:12px;border-bottom:2.5px solid #0D2B45;margin-bottom:14px}
+.a4-co{font-size:9px;color:#888;letter-spacing:1.2px;text-transform:uppercase}
+.a4-title{font-size:13px;font-weight:700;color:#0D2B45;margin-top:4px;line-height:1.4}
+.a4-docno{font-size:9px;color:#AAA;margin-top:3px}
+
+/* ─── Employee header row (form style) ─────────── */
+.emp-header-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1.2fr 1.2fr;gap:0;border:1px solid #BBBBBB;margin-bottom:0}
+.emp-hcell{padding:5px 8px;border-right:1px solid #BBBBBB;border-bottom:1px solid #BBBBBB}
+.emp-hcell:last-child{border-right:none}
+.emp-hcell .lbl{font-size:8px;color:#555;display:block}
+.emp-hcell .lbl-kh{font-size:8px;color:#888;display:block}
+.emp-hcell .val{font-size:11px;font-weight:500;color:#111;min-height:16px;margin-top:2px}
+
+/* ─── Leave Table ───────────────────────────── */
+.leave-table-wrap{border:1px solid #BBBBBB;border-top:none;overflow-x:auto}
+table.leave-tbl{width:100%;border-collapse:collapse;font-size:9.5px;min-width:980px}
+table.leave-tbl th{padding:4px 5px;text-align:center;font-weight:600;color:#222;border-right:1px solid #BBBBBB;border-bottom:1.5px solid #BBBBBB;background:#F0EDE4;white-space:nowrap;line-height:1.3}
+table.leave-tbl th:last-child{border-right:none}
+table.leave-tbl td{padding:5px 5px;text-align:center;border-right:1px solid #DDDDDD;border-bottom:1px solid #DDDDDD;color:#222;vertical-align:middle}
+table.leave-tbl td:last-child{border-right:none}
+table.leave-tbl tr:last-child td{border-bottom:none}
+table.leave-tbl tr.absent-row{background:#FEF9E7}
+table.leave-tbl .th-group{font-size:8px;font-weight:700;background:#E8E3D8;border-bottom:1px solid #BBBBBB}
+.lt-badge{display:inline-block;padding:2px 6px;border-radius:10px;font-size:8px;font-weight:600;white-space:nowrap}
+.no-records{text-align:center;padding:28px;color:#CCC;font-size:12px}
+
+/* ─── Summary Row ───────────────────────────── */
+.summary-row{display:flex;flex-wrap:wrap;gap:10px;padding:10px 12px;background:#F8F5EE;border:1px solid #BBBBBB;border-top:none;align-items:center}
+.sum-item{text-align:center;min-width:44px}
+.sum-item .sv{font-size:19px;font-weight:700;line-height:1}
+.sum-item .sl{font-size:7.5px;color:#888;margin-top:2px}
+.sum-divider{width:1px;background:#DDD;align-self:stretch;margin:0 6px}
+.sum-total .sv{color:#0D2B45}
+
+/* ─── Signature row ─────────────────────────── */
+.sig-row{display:flex;gap:0;border:1px solid #BBBBBB;border-top:none}
+.sig-cell{flex:1;text-align:center;padding:4px 6px 6px;border-right:1px solid #BBBBBB}
+.sig-cell:last-child{border-right:none}
+.sig-line{height:32px;border-bottom:1px solid #AAA;margin-bottom:4px}
+.sig-lbl{font-size:7.5px;color:#888;line-height:1.3}
+
+/* ─── Analytics ──────────────────────────────── */
+.chart-card{background:#fff;border-radius:10px;padding:14px 16px;margin-bottom:12px;box-shadow:0 1px 6px rgba(0,0,0,.07)}
+.chart-title{font-size:12px;font-weight:700;color:#0D2B45;margin-bottom:12px}
+canvas.mini-chart{width:100% !important;height:200px !important}
+
+/* ─── Modal ─────────────────────────────────── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:1000}
+.modal-overlay.open{display:flex}
+.modal-box{background:#fff;border-radius:14px;padding:22px;width:90%;max-width:480px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.modal-title{font-size:14px;font-weight:700;color:#0D2B45;margin-bottom:14px}
+.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.modal-field label{font-size:9px;color:#AAA;display:block;margin-bottom:3px}
+.modal-field input,.modal-field select{width:100%;padding:6px 9px;border:1px solid #DDD;border-radius:6px;font-size:12px;outline:none;font-family:inherit}
+.modal-field.full{grid-column:1/-1}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+
+/* ─── Import drop zone ───────────────────────── */
+.drop-zone{border:2px dashed #1A5276;border-radius:10px;padding:36px 20px;text-align:center;cursor:pointer;color:#1A5276;background:#EBF2FA;font-size:13px;font-weight:500;transition:.2s}
+.drop-zone:hover,.drop-zone.drag{background:#D6EAF8}
+.drop-note{font-size:10px;color:#AAA;margin-top:10px}
+
+/* ─── Print ────────────────────────────────── */
+@media print{
+  #topbar,#sidebar,.tab-bar,.filter-bar,.no-print,#sb-btns{display:none!important}
+  #body{display:block}
+  #main{padding:0;overflow:visible}
+  .a4-card{box-shadow:none;border-radius:0;padding:18px 20px;max-width:none;page-break-after:always}
+  .emp-card,.anom-ok,.anom-box{display:none!important}
+  .leave-table-wrap{overflow:visible}
+  table.leave-tbl{font-size:8px;min-width:0}
+}
+
+/* ─── HRA shared Telegram / evidence additions ─── */
+.leave-sendbar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:0 0 10px;padding:8px 10px;background:#fff;border:1px solid #E0D9CE;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+.leave-sendbar label{font-size:9px;color:#888;font-weight:600}.leave-sendbar input{min-width:170px;flex:1;padding:6px 8px;border:1px solid #DDD;border-radius:6px;font-size:11px;font-family:inherit}
+.evidence-links{font-size:10px;color:#1A5276;line-height:1.7;margin-top:4px}.evidence-links a{color:#1A5276;text-decoration:none}.evidence-links a:hover{text-decoration:underline}
+
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ── Top Bar ── -->
+<div id="topbar">
+  <div>
+    <div class="co">VANTAGE RIVER TEXTILES CO., LTD</div>
+    <div class="ti" id="ui-title">請假管理系統</div>
+  </div>
+  <div class="lang-btns">
+    <button class="lang-btn active" onclick="setLang('zh')">中文</button>
+    <button class="lang-btn" onclick="setLang('en')">EN</button>
+    <button class="lang-btn" onclick="setLang('km')">ខ្មែរ</button>
+  </div>
+</div>
+
+<div id="body">
+<!-- ── Sidebar ── -->
+<div id="sidebar">
+  <div id="sb-top">
+    <label id="lbl-employees">員工列表</label>
+    <input type="text" id="emp-search" placeholder="搜索 / Search..." oninput="renderEmpList()">
+  </div>
+  <div id="emp-list"></div>
+  <div id="sb-btns" class="no-print">
+    <button class="btn-sm-primary" id="btn-add-emp" onclick="openEmpModal()">+ 新增員工</button>
+    <button class="btn-sm-secondary" id="btn-sync-pay" onclick="syncFromHraPay()">↻ HRA PAY 更新</button>
+    <button class="btn-sm-secondary" id="btn-import" onclick="openModal('modal-import')">從 Excel 匯入</button>
+  </div>
+</div>
+
+<!-- ── Main ── -->
+<div id="main">
+  <!-- Employee info card -->
+  <div class="emp-card no-print" id="emp-card" style="display:none">
+    <div class="emp-card-top">
+      <div style="flex:1">
+        <div class="emp-name-row">
+          <span class="emp-name-en" id="ec-name-en"></span>
+          <span class="emp-name-kh" id="ec-name-kh"></span>
+        </div>
+        <div class="emp-fields" id="ec-fields"></div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn-sm-secondary no-print" id="btn-edit-emp" onclick="openEmpModal(selId)">✏️ 編輯</button>
+        <button class="btn-danger no-print" id="btn-del-emp" onclick="deleteEmp()"></button>
+      </div>
+    </div>
+    <div id="ec-anom"></div>
+  </div>
+
+  <div id="tabs-area" style="display:none">
+    <!-- Tabs -->
+    <div class="tab-bar no-print">
+      <button class="tab-btn active" id="tab-record" onclick="switchTab('record')"></button>
+      <button class="tab-btn" id="tab-analytics" onclick="switchTab('analytics')"></button>
+    </div>
+
+    <!-- ── Leave Record ── -->
+    <div id="panel-record">
+      <div class="leave-sendbar no-print">
+        <label>👤 <span id="tg-actor-label">檢查人 / Inspector</span></label>
+        <input id="tg-actor" placeholder="填寫發送人姓名 / Enter sender name" oninput="localStorage.setItem('ac_hra_leave_actor',this.value)">
+        <button class="btn-secondary" onclick="sendLeaveTelegram('summary')">📱 摘要 Summary</button>
+        <button class="btn-primary" onclick="sendLeaveTelegram('approval')">✅ 送核可 Approval</button>
+        <span id="tg-status" style="font-size:10px;color:#888"></span>
+      </div>
+      <div class="a4-card" id="a4-form">
+        <!-- A4 Header -->
+        <div class="a4-header">
+          <div class="a4-co">VANTAGE RIVER TEXTILES CO., LTD</div>
+          <div class="a4-title">Leave Record &nbsp;/&nbsp; 請假單 &nbsp;/&nbsp; កំណត់ត្រាការសុំច្បាប់</div>
+          <div class="a4-docno">No.: VRT-R-HR-02</div>
+        </div>
+
+        <!-- Employee header (form style matching Excel layout) -->
+        <div class="emp-header-grid" id="a4-emp-header">
+          <div class="emp-hcell">
+            <span class="lbl">Name / 姓名</span>
+            <span class="lbl-kh">ឈ្មោះ</span>
+            <div class="val" id="a4-name"></div>
+          </div>
+          <div class="emp-hcell">
+            <span class="lbl">ID Code / 工號</span>
+            <span class="lbl-kh">អត្តលេខ</span>
+            <div class="val" id="a4-id"></div>
+          </div>
+          <div class="emp-hcell">
+            <span class="lbl">Dept. / 部門</span>
+            <span class="lbl-kh">ផ្នែក</span>
+            <div class="val" id="a4-dept"></div>
+          </div>
+          <div class="emp-hcell">
+            <span class="lbl">Position / 職稱</span>
+            <span class="lbl-kh">តួនាទី</span>
+            <div class="val" id="a4-pos"></div>
+          </div>
+          <div class="emp-hcell" style="border-right:none">
+            <span class="lbl">Join Date / 入職日期</span>
+            <span class="lbl-kh">កាលបរិច្ឆេទចូលធ្វើការ</span>
+            <div class="val" id="a4-join"></div>
+          </div>
+        </div>
+
+        <!-- Filter bar -->
+        <div class="filter-bar no-print" style="margin-top:10px">
+          <span id="lbl-filter">篩選：</span>
+          <button class="fm-btn" id="fm-all" onclick="setFm('all')"></button>
+          <button class="fm-btn active" id="fm-month" onclick="setFm('month')"></button>
+          <button class="fm-btn" id="fm-week" onclick="setFm('week')"></button>
+          <button class="fm-btn" id="fm-day" onclick="setFm('day')"></button>
+          <button class="fm-btn" id="fm-year" onclick="setFm('year')"></button>
+          <input type="date" class="filter-date" id="filter-date" value="2026-04-18" oninput="renderRecord()">
+          <div class="filter-actions">
+            <button class="btn-print" onclick="window.print()">🖨 列印</button>
+            <button class="btn-primary no-print" id="btn-add-lv" onclick="openLeaveModal()"></button>
+          </div>
+        </div>
+
+        <!-- Leave table -->
+        <div class="leave-table-wrap">
+          <table class="leave-tbl" id="leave-table">
+            <thead id="leave-thead"></thead>
+            <tbody id="leave-tbody"></tbody>
+          </table>
+        </div>
+
+        <!-- Summary -->
+        <div class="summary-row" id="leave-summary"></div>
+
+        <!-- Signature -->
+        <div class="sig-row" id="sig-row"></div>
+      </div>
+    </div><!-- end panel-record -->
+
+    <!-- ── Analytics ── -->
+    <div id="panel-analytics" style="display:none">
+      <div class="chart-card">
+        <div class="chart-title" id="chart-title-type"></div>
+        <canvas id="chart-type" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title" id="chart-title-monthly"></div>
+        <canvas id="chart-monthly" height="200"></canvas>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title" id="chart-title-all"></div>
+        <canvas id="chart-all" height="220"></canvas>
+      </div>
+    </div>
+  </div><!-- end tabs-area -->
+
+  <div id="no-emp-msg" style="text-align:center;color:#CCC;margin-top:80px;font-size:15px">請選擇員工 / Select Employee</div>
+</div><!-- end main -->
+</div><!-- end body -->
+</div><!-- end app -->
+
+<!-- ── Add Leave Modal ── -->
+<div class="modal-overlay" id="modal-leave">
+  <div class="modal-box">
+    <div class="modal-title" id="ml-title">新增請假記錄</div>
+    <div class="modal-grid">
+      <div class="modal-field">
+        <label id="lbl-startDate">開始日期</label>
+        <input type="date" id="lv-sDate" value="2026-04-01">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-endDate">結束日期</label>
+        <input type="date" id="lv-eDate" value="2026-04-01">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-sH">開始 時 / Hr</label>
+        <input type="number" id="lv-sH" value="8" min="0" max="23">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-sM">開始 分 / Min</label>
+        <input type="number" id="lv-sM" value="0" min="0" max="59">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-eH">結束 時 / Hr</label>
+        <input type="number" id="lv-eH" value="17" min="0" max="23">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-eM">結束 分 / Min</label>
+        <input type="number" id="lv-eM" value="0" min="0" max="59">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-subH">小計（時）/ Sub-total hrs</label>
+        <input type="number" id="lv-subH" value="8" min="0">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-lvType">假期類型 / Leave Type</label>
+        <select id="lv-type"></select>
+      </div>
+      <div class="modal-field">
+        <label id="lbl-alApply">年假使用 / AL Apply</label>
+        <input type="number" id="lv-alApply" value="0" min="0">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-alAccum">年假累計 / AL Accum.</label>
+        <input type="number" id="lv-alAccum" value="12" min="0">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-alBal">年假剩餘 / AL Balance</label>
+        <input type="number" id="lv-alBal" value="12" min="0">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-sub">代理人 / Substitute</label>
+        <input type="text" id="lv-sub">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-sup">主管 / Supervisor</label>
+        <input type="text" id="lv-sup">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-fd">廠協理 / Factory Director</label>
+        <input type="text" id="lv-fd">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-hr">人事 / HR</label>
+        <input type="text" id="lv-hr">
+      </div>
+      <div class="modal-field">
+        <label id="lbl-am">管理部經理 / Admin. Manager</label>
+        <input type="text" id="lv-am">
+      </div>
+      <div class="modal-field full">
+        <label id="lbl-remark">備注 / Remark</label>
+        <input type="text" id="lv-remark">
+      </div>
+      <div class="modal-field full">
+        <label>📎 假單／佐證 Leave Slip / Evidence (Photo / PDF)</label>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          <input type="file" id="lv-evidence" accept="image/*,.pdf" multiple style="flex:1">
+          <button type="button" class="btn-secondary" onclick="document.getElementById('lv-camera').click()">📷 拍照 Camera</button>
+          <input type="file" id="lv-camera" accept="image/*" capture="environment" style="display:none">
+        </div>
+        <div id="lv-evidence-list" class="evidence-links">—</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-leave')" id="btn-cancel-lv">取消</button>
+      <button class="btn-primary" onclick="saveLeave()" id="btn-save-lv">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Employee Modal ── -->
+<div class="modal-overlay" id="modal-emp">
+  <div class="modal-box">
+    <div class="modal-title" id="me-title">新增員工</div>
+    <div class="modal-grid">
+      <div class="modal-field"><label id="lbl-fid">工號 Factory ID</label><input type="text" id="ne-fid"></div>
+      <div class="modal-field"><label id="lbl-nameEn">英文名 English Name</label><input type="text" id="ne-nameEn"></div>
+      <div class="modal-field"><label id="lbl-nameKh">高棉名 Khmer Name</label><input type="text" id="ne-nameKh"></div>
+      <div class="modal-field"><label id="lbl-gender">性別 Gender</label>
+        <select id="ne-gender"><option value="F">F</option><option value="M">M</option></select></div>
+      <div class="modal-field"><label id="lbl-dob">出生日期 Birth Date</label><input type="date" id="ne-dob"></div>
+      <div class="modal-field"><label id="lbl-joinDate">入職日期 Join Date</label><input type="date" id="ne-joinDate"></div>
+      <div class="modal-field"><label id="lbl-dept">部門 Department</label><input type="text" id="ne-dept"></div>
+      <div class="modal-field"><label id="lbl-sec">組別 Section</label><input type="text" id="ne-sec"></div>
+      <div class="modal-field full"><label id="lbl-pos">職稱 Position</label><input type="text" id="ne-pos"></div>
+      <div class="modal-field"><label id="lbl-phone">電話 Phone</label><input type="text" id="ne-phone"></div>
+      <div class="modal-field"><label id="lbl-nat">國籍 Nationality</label><input type="text" id="ne-nat" value="Khmer"></div>
+      <div class="modal-field full"><label id="lbl-addr">地址 Address</label><input type="text" id="ne-addr"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-emp')" id="btn-cancel-emp">取消</button>
+      <button class="btn-primary" onclick="saveEmp()" id="btn-save-emp">儲存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Import Modal ── -->
+<div class="modal-overlay" id="modal-import">
+  <div class="modal-box">
+    <div class="modal-title" id="mi-title">從 Excel 匯入員工資料</div>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="handleDrop(event)">
+      📂 點擊或拖放 .xlsx 檔案
+      <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" onchange="handleFileInput(this)">
+    </div>
+    <div class="drop-note" id="mi-note">系統將自動識別 VRT 員工資料格式，重複工號將自動跳過。</div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-import')">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════
+// TRANSLATIONS
+// ═══════════════════════════════════════════════════════════
+const T = {
+  zh:{
+    title:"請假管理系統",employees:"員工列表",search:"搜索...",noEmp:"請選擇員工",
+    tabRecord:"請假記錄",tabAnalytics:"數據分析",
+    addLeave:"+ 新增假期",addEmp:"+ 新增員工",editLeave:"編輯請假",editEmp:"編輯員工",delEmp:"刪除員工",syncPay:"↻ 從 HRA PAY 更新",
+    save:"儲存",cancel:"取消",filterBy:"篩選：",
+    all:"全部",day:"日",week:"週",month:"月",year:"年",
+    id:"工號",dept:"部門",section:"組別",position:"職稱",joinDate:"入職日期",
+    gender:"性別",phone:"電話",address:"地址",nationality:"國籍",birthDate:"出生日期",
+    nameEn:"英文名",nameKh:"高棉名",fid:"工號 Factory ID",
+    startDate:"開始日期",endDate:"結束日期",subHours:"小計（時）",leaveType:"假期類型",
+    medPaid:"有薪病假",sick:"無薪病假",personal:"事假",
+    maternity:"產假",workInj:"工傷假",marriage:"婚假",
+    funeral:"喪假",annual:"年假",business:"公差",absent:"曠職",
+    alApply:"年假使用",alAccum:"年假累計",alBal:"年假剩餘",
+    substitute:"代理人",supervisor:"主管",factoryDir:"廠協理",
+    hr:"人事",adminMgr:"管理部經理",totalDays:"總請假天數",totalLeave:"假期統計",
+    noRecords:"無請假記錄",
+    anomalies:"⚠ 異常提示",noAnomalies:"✓ 無異常",
+    tooManySick:"病假過多",absenceAlert:"曠職記錄",overlapAlert:"假期重疊",
+    importEmp:"從 Excel 匯入",importNote:"系統將自動識別 VRT 員工資料格式，重複工號將自動跳過。",
+    empSummary:"全體員工概覽",monthlyTrend:"每月請假趨勢",remark:"備注",
+    chartTypeTitle:"假期類型分佈",chartMonthTitle:"每月請假趨勢",chartAllTitle:"全體員工概覽",
+    months:["1月","2月","3月","4月","5月","6月","7月","8月","9月","10月","11月","12月"],
+  },
+  en:{
+    title:"Leave Management System",employees:"Employees",search:"Search...",noEmp:"Select an employee",
+    tabRecord:"Leave Record",tabAnalytics:"Analytics",
+    addLeave:"+ Add Leave",addEmp:"+ Add Employee",editLeave:"Edit Leave",editEmp:"Edit Employee",delEmp:"Remove",syncPay:"↻ Sync HRA PAY",
+    save:"Save",cancel:"Cancel",filterBy:"Filter:",
+    all:"All",day:"Day",week:"Week",month:"Month",year:"Year",
+    id:"Factory ID",dept:"Department",section:"Section",position:"Position",joinDate:"Join Date",
+    gender:"Gender",phone:"Phone",address:"Address",nationality:"Nationality",birthDate:"Birth Date",
+    nameEn:"English Name",nameKh:"Khmer Name",fid:"Factory ID",
+    startDate:"Start Date",endDate:"End Date",subHours:"Sub-Total (hrs)",leaveType:"Leave Type",
+    medPaid:"Medical Leave (Paid)",sick:"Sick Leave",personal:"Personal Leave",
+    maternity:"Maternity Leave",workInj:"Work Injury Leave",marriage:"Marriage Leave",
+    funeral:"Funeral Leave",annual:"Annual Leave",business:"Business Trip",absent:"Absent",
+    alApply:"AL Apply",alAccum:"AL Accumulate",alBal:"AL Balance",
+    substitute:"Substitute",supervisor:"Supervisor",factoryDir:"Factory Director",
+    hr:"HR",adminMgr:"Admin. Manager",totalDays:"Total Days",totalLeave:"Leave Summary",
+    noRecords:"No leave records",
+    anomalies:"⚠ Anomaly Alerts",noAnomalies:"✓ No anomalies detected",
+    tooManySick:"Excessive sick leave",absenceAlert:"Unexcused absence",overlapAlert:"Overlapping leave",
+    importEmp:"Import Excel",importNote:"System auto-detects VRT employee format. Duplicate IDs are skipped.",
+    empSummary:"All Employees Overview",monthlyTrend:"Monthly Leave Trend",remark:"Remark",
+    chartTypeTitle:"Leave Type Distribution",chartMonthTitle:"Monthly Leave Trend",chartAllTitle:"All Employees Overview",
+    months:["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+  },
+  km:{
+    title:"ប្រព័ន្ធគ្រប់គ្រងការសុំច្បាប់",employees:"បញ្ជីបុគ្គលិក",search:"ស្វែងរក...",noEmp:"ជ្រើសរើសបុគ្គលិក",
+    tabRecord:"កំណត់ត្រាច្បាប់",tabAnalytics:"វិភាគ",
+    addLeave:"+ បន្ថែមច្បាប់",addEmp:"+ បន្ថែមបុគ្គលិក",editLeave:"កែច្បាប់",editEmp:"កែបុគ្គលិក",delEmp:"លុប",syncPay:"↻ ទាញពី HRA PAY",
+    save:"រក្សាទុក",cancel:"បោះបង់",filterBy:"ត្រង:",
+    all:"ទាំងអស់",day:"ថ្ងៃ",week:"សប្ដាហ៍",month:"ខែ",year:"ឆ្នាំ",
+    id:"អត្តលេខ",dept:"ផ្នែក",section:"ក្រុម",position:"តួនាទី",joinDate:"ចូលធ្វើការ",
+    gender:"ភេទ",phone:"ទូរស័ព្ទ",address:"អាសយដ្ឋាន",nationality:"សញ្ជាតិ",birthDate:"ថ្ងៃខែឆ្នាំ",
+    nameEn:"ឈ្មោះឡាតាំង",nameKh:"ឈ្មោះខ្មែរ",fid:"អត្តលេខ",
+    startDate:"ចាប់ពី",endDate:"ដល់",subHours:"សរុបម៉ោង",leaveType:"ប្រភេទ",
+    medPaid:"ច្បាប់ឈឺ(បង្វិល)",sick:"ច្បាប់ឈឺ",personal:"ធុរៈ",
+    maternity:"មាតុភាព",workInj:"គ្រោះថ្នាក់",marriage:"រៀបការ",
+    funeral:"មរណភាព",annual:"ប្រចាំឆ្នាំ",business:"បេសកកម្ម",absent:"អវត្តមាន",
+    alApply:"ប្រើ AL",alAccum:"សរុប AL",alBal:"AL នៅសល់",
+    substitute:"អ្នកជំនួស",supervisor:"ប្រធានផ្នែក",factoryDir:"ប្រធានរោងចក្រ",
+    hr:"ធនធានមនុស្ស",adminMgr:"ប្រធានរដ្ឋបាល",totalDays:"សរុបថ្ងៃ",totalLeave:"សរុបច្បាប់",
+    noRecords:"គ្មានកំណត់ត្រា",
+    anomalies:"⚠ ការព្រមាន",noAnomalies:"✓ គ្មានការព្រមាន",
+    tooManySick:"ច្បាប់ឈឺច្រើន",absenceAlert:"អវត្តមានដោយគ្មានច្បាប់",overlapAlert:"ច្បាប់ត្រួតគ្នា",
+    importEmp:"នាំចូលពី Excel",importNote:"ប្រព័ន្ធនឹងទទួលស្គាល់ទម្រង់ VRT ដោយស្វ័យប្រវត្តិ។",
+    empSummary:"ទិដ្ឋភាពបុគ្គលិកទាំងអស់",monthlyTrend:"និន្នាការ",remark:"កំណត់",
+    chartTypeTitle:"ការបែងចែកប្រភេទច្បាប់",chartMonthTitle:"និន្នាការ​ច្បាប់​តាម​ខែ",chartAllTitle:"ទិដ្ឋភាពបុគ្គលិកទាំងអស់",
+    months:["មករា","កុម្ភៈ","មីនា","មេសា","ឧសភា","មិថុនា","កក្កដា","សីហា","កញ្ញា","តុលា","វិច្ឆិកា","ធ្នូ"],
+  },
+};
+
+// ═══════════════════════════════════════════════════════════
+// LEAVE TYPES
+// ═══════════════════════════════════════════════════════════
+const LT = [
+  {k:"medPaid", c:"#16A085"},{k:"sick",     c:"#1ABC9C"},
+  {k:"personal",c:"#E67E22"},{k:"maternity",c:"#E91E63"},
+  {k:"workInj", c:"#C0392B"},{k:"marriage", c:"#8E44AD"},
+  {k:"funeral", c:"#7F8C8D"},{k:"annual",   c:"#2980B9"},
+  {k:"business",c:"#2471A3"},{k:"absent",   c:"#E74C3C"},
+];
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let lang = "zh";
+let emps = [];
+let lvs  = {};
+let selId = null;
+let activeTab = "record";
+let fm = "month";
+let charts = {};
+let editingEmpId = null;
+let editingLvId = null;
+
+// ═══════════════════════════════════════════════════════════
+// SEED DATA (from employee information file)
+// ═══════════════════════════════════════════════════════════
+const SEED_EMPS = [
+  {id:"E10",   fid:"10",   nameEn:"NHEL CHANTHEA",     nameKh:"ញ៉ិល ចន័្នធា",   g:"F",dob:"1982-08-15",joinDate:"2013-11-01",dept:"Production",    sec:"Supervisor",    pos:"Supervisor Line 6,7,8",  phone:"069273891",  nat:"Khmer",addr:"Group13, Phum3, Sangkat1, Sihanouk ville"},
+  {id:"E14",   fid:"14",   nameEn:"Koem Sarim",         nameKh:"គឹម សារិន",       g:"F",dob:"1975-05-01",joinDate:"2013-11-01",dept:"ADMINISTRATION",sec:"GA",             pos:"Cleaner",               phone:"016369829",  nat:"Khmer",addr:"Phum5, Sangkat4, Sihanouk ville"},
+  {id:"E30",   fid:"30",   nameEn:"Phouk Sina",         nameKh:"ភោក ស៊ីណា",       g:"F",dob:"1982-11-08",joinDate:"2013-11-01",dept:"Production",    sec:"Supervisor",    pos:"Supervisor Line 1,2,3", phone:"015745455",  nat:"Khmer",addr:"Phum2, Sangkat1, Sihanouk ville"},
+  {id:"E171",  fid:"171",  nameEn:"Sorm Chanthy",       nameKh:"សោម ចន្ធី",       g:"F",dob:"1989-05-15",joinDate:"2013-11-15",dept:"ADMINISTRATION",sec:"HR",             pos:"Nurse",                 phone:"010596057",  nat:"Khmer",addr:"Phum4, Sangkat4, Sihanouk ville"},
+  {id:"E372",  fid:"372",  nameEn:"LY BONRETH",         nameKh:"លី ប៊ុនរិទ្ធ",    g:"M",dob:"1983-02-15",joinDate:"2013-11-16",dept:"ADMINISTRATION",sec:"ME",             pos:"Leader Maintenance",    phone:"0965720624", nat:"Khmer",addr:"Pumi 3, Sangkat 3, Sihanouk ville"},
+  {id:"E546",  fid:"546",  nameEn:"SORM THINEA",        nameKh:"សោម ធិនា",        g:"F",dob:"1993-10-05",joinDate:"2013-11-26",dept:"Production",    sec:"QC A",          pos:"Leader QC A",           phone:"0967151232", nat:"Khmer",addr:"Pumi 3, Sangkat 1, Sihanouk ville"},
+  {id:"E1505", fid:"1505", nameEn:"CHHHE MONG HOURT",  nameKh:"ឆឹម ម៉ុងហួត",    g:"M",dob:"1970-02-10",joinDate:"2016-04-04",dept:"ADMINISTRATION",sec:"HR",             pos:"Doctor",                phone:"016258111",  nat:"Khmer",addr:"Phum5, Sangkat4, Sihanouk ville"},
+  {id:"E1569", fid:"1569", nameEn:"SORN SINAT",         nameKh:"សន ស៊ីណាត",       g:"F",dob:"1986-09-01",joinDate:"2016-08-25",dept:"Production",    sec:"Line 9",        pos:"Leader Line 9",         phone:"0712236356", nat:"Khmer",addr:"Phum2, Sangkat1, Sihanouk ville"},
+  {id:"E1689", fid:"1689", nameEn:"YEM CHAN VEASNA",    nameKh:"យ៉ែម ចាន់វាសនា",  g:"F",dob:"1986-08-25",joinDate:"2016-08-25",dept:"Production",    sec:"Line 8",        pos:"Leader Line 8",         phone:"0963980551", nat:"Khmer",addr:"Phum3, Sangkat1, Sihanouk ville"},
+  {id:"E1747", fid:"1747", nameEn:"OUNG SARA",          nameKh:"អ៊ួង សារ៉ា",      g:"F",dob:"1984-01-10",joinDate:"2016-11-25",dept:"Production",    sec:"QC B",          pos:"Leader QC B",           phone:"0969282998", nat:"Khmer",addr:"Phum2, Sangkat1, Sihanouk ville"},
+];
+
+function seedLeaves() {
+  const types=["medPaid","sick","personal","annual","business","marriage","funeral"];
+  SEED_EMPS.forEach((e,ei)=>{
+    if(lvs[e.id]!==undefined)return;
+    lvs[e.id]=[];
+    const n=2+(ei%5);
+    for(let i=0;i<n;i++){
+      const mo=String(Math.floor(Math.random()*3)+1).padStart(2,"0");
+      const d =String(Math.floor(Math.random()*20)+1).padStart(2,"0");
+      const ed=String(Math.min(28,parseInt(d)+(Math.random()>.6?1:0))).padStart(2,"0");
+      lvs[e.id].push({id:"L"+Date.now()+i,startDate:`2026-0${mo}-${d}`,endDate:`2026-0${mo}-${ed}`,
+        sH:8,sM:0,eH:17,eM:0,subH:8,leaveType:types[(i+ei)%types.length],
+        alApply:0,alAccum:12,alBal:12,substitute:"",supervisor:"",factoryDir:"",hr:"",adminMgr:"",remark:""});
+    }
+    // anomaly seeds
+    if(ei===0) lvs[e.id].push({id:"LABS",startDate:"2026-04-07",endDate:"2026-04-07",sH:8,sM:0,eH:17,eM:0,subH:8,leaveType:"absent",alApply:0,alAccum:12,alBal:12,substitute:"",supervisor:"",factoryDir:"",hr:"",adminMgr:"",remark:""});
+    if(ei===2){
+      lvs[e.id].push({id:"LSK2",startDate:"2026-02-12",endDate:"2026-02-12",sH:8,sM:0,eH:17,eM:0,subH:8,leaveType:"sick",alApply:0,alAccum:12,alBal:12,substitute:"",supervisor:"",factoryDir:"",hr:"",adminMgr:"",remark:""});
+      lvs[e.id].push({id:"LSK3",startDate:"2026-03-08",endDate:"2026-03-08",sH:8,sM:0,eH:17,eM:0,subH:8,leaveType:"sick",alApply:0,alAccum:12,alBal:12,substitute:"",supervisor:"",factoryDir:"",hr:"",adminMgr:"",remark:""});
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════
+// STORAGE
+// ═══════════════════════════════════════════════════════════
+function saveData(){
+  try{localStorage.setItem("vrt_emps",JSON.stringify(emps));localStorage.setItem("vrt_lvs",JSON.stringify(lvs));}catch(e){}
+}
+function loadData(){
+  try{
+    const e=localStorage.getItem("vrt_emps");
+    const l=localStorage.getItem("vrt_lvs");
+    if(e)emps=JSON.parse(e); else emps=[...SEED_EMPS];
+    if(l)lvs=JSON.parse(l);
+    seedLeaves();
+  }catch(e){emps=[...SEED_EMPS];seedLeaves();}
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function tr(){return T[lang];}
+function ltColor(k){return(LT.find(l=>l.k===k)||{c:"#888"}).c;}
+function xlDate(s){if(!s||isNaN(Number(s)))return"";const d=new Date((Number(s)-25569)*86400000);return d.toISOString().slice(0,10);}
+function padHM(n){return String(n).padStart(2,"0");}
+
+function getRange(m,ds){
+  if(m==="all")return null;
+  const d=new Date(ds);if(isNaN(d))return null;
+  if(m==="day")return{s:ds,e:ds};
+  if(m==="week"){
+    const s=new Date(d);s.setDate(d.getDate()-d.getDay());
+    const e=new Date(d);e.setDate(d.getDate()+(6-d.getDay()));
+    return{s:s.toISOString().slice(0,10),e:e.toISOString().slice(0,10)};
+  }
+  if(m==="month"){
+    const s=`${d.getFullYear()}-${padHM(d.getMonth()+1)}-01`;
+    const last=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+    return{s,e:`${d.getFullYear()}-${padHM(d.getMonth()+1)}-${last}`};
+  }
+  if(m==="year")return{s:`${d.getFullYear()}-01-01`,e:`${d.getFullYear()}-12-31`};
+  return null;
+}
+
+function detectAnomalies(recs){
+  const out=[];if(!recs||!recs.length)return out;
+  const t=tr();
+  const sk=recs.filter(r=>r.leaveType==="sick"||r.leaveType==="medPaid").length;
+  if(sk>=3)out.push({sev:"warn",msg:`${t.tooManySick}: ${sk} 次`});
+  const ab=recs.filter(r=>r.leaveType==="absent").length;
+  if(ab>0)out.push({sev:"err",msg:`${t.absenceAlert}: ${ab} 次`});
+  const sorted=[...recs].sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  for(let i=0;i<sorted.length-1;i++){
+    if(sorted[i].endDate>=sorted[i+1].startDate){
+      out.push({sev:"warn",msg:`${t.overlapAlert}: ${sorted[i].startDate}`});break;
+    }
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LANGUAGE
+// ═══════════════════════════════════════════════════════════
+function setLang(l){
+  lang=l;
+  document.querySelectorAll(".lang-btn").forEach(b=>b.classList.toggle("active",b.textContent.includes(l==="zh"?"中":l==="en"?"EN":"ខ្មែរ")));
+  applyTranslations();
+  renderAll();
+}
+
+function applyTranslations(){
+  const t=tr();
+  document.getElementById("ui-title").textContent=t.title;
+  document.getElementById("lbl-employees").textContent=t.employees.toUpperCase();
+  document.getElementById("emp-search").placeholder=t.search;
+  document.getElementById("btn-add-emp").textContent=t.addEmp;
+  document.getElementById("btn-sync-pay").textContent=t.syncPay;
+  document.getElementById("btn-import").textContent=t.importEmp;
+  document.getElementById("tab-record").textContent=t.tabRecord;
+  document.getElementById("tab-analytics").textContent=t.tabAnalytics;
+  document.getElementById("btn-add-lv").textContent=t.addLeave;
+  document.getElementById("btn-del-emp").textContent=t.delEmp;
+  document.getElementById("btn-edit-emp").textContent="✏️ "+t.editEmp;
+  document.getElementById("ml-title").textContent=editingLvId?t.editLeave:t.addLeave;
+  document.getElementById("me-title").textContent=editingEmpId?t.editEmp:t.addEmp;
+  document.getElementById("mi-title").textContent=t.importEmp;
+  document.getElementById("mi-note").textContent=t.importNote;
+  document.getElementById("lbl-filter").textContent=t.filterBy;
+  document.getElementById("fm-all").textContent=t.all;
+  document.getElementById("fm-month").textContent=t.month;
+  document.getElementById("fm-week").textContent=t.week;
+  document.getElementById("fm-day").textContent=t.day;
+  document.getElementById("fm-year").textContent=t.year;
+  document.getElementById("no-emp-msg").textContent=t.noEmp+" / "+t.noEmp;
+  // modal labels
+  const lbls={
+    "lbl-startDate":t.startDate,"lbl-endDate":t.endDate,"lbl-sH":"Start Hr / 開始時",
+    "lbl-sM":"Start Min / 開始分","lbl-eH":"End Hr / 結束時","lbl-eM":"End Min / 結束分",
+    "lbl-subH":t.subHours,"lbl-lvType":t.leaveType,"lbl-alApply":t.alApply,
+    "lbl-alAccum":t.alAccum,"lbl-alBal":t.alBal,"lbl-sub":t.substitute,
+    "lbl-sup":t.supervisor,"lbl-fd":t.factoryDir,"lbl-hr":t.hr,"lbl-am":t.adminMgr,
+    "lbl-remark":t.remark,"lbl-fid":t.fid,"lbl-nameEn":t.nameEn,"lbl-nameKh":t.nameKh,
+    "lbl-gender":t.gender,"lbl-dob":t.birthDate,"lbl-joinDate":t.joinDate,
+    "lbl-dept":t.dept,"lbl-sec":t.section,"lbl-pos":t.position,
+    "lbl-phone":t.phone,"lbl-nat":t.nationality,"lbl-addr":t.address,
+    "btn-cancel-lv":t.cancel,"btn-save-lv":t.save,"btn-cancel-emp":t.cancel,"btn-save-emp":t.save,
+  };
+  for(const[id,v]of Object.entries(lbls)){const el=document.getElementById(id);if(el)el.textContent=v;}
+  // fill leave type select
+  const sel=document.getElementById("lv-type");
+  sel.innerHTML="";
+  LT.forEach(lt=>{const o=document.createElement("option");o.value=lt.k;o.textContent=t[lt.k];sel.appendChild(o);});
+}
+
+// ═══════════════════════════════════════════════════════════
+// EMPLOYEE LIST
+// ═══════════════════════════════════════════════════════════
+function renderEmpList(){
+  const t=tr();
+  const q=(document.getElementById("emp-search").value||"").toLowerCase();
+  const list=document.getElementById("emp-list");
+  list.innerHTML="";
+  emps.filter(e=>
+    e.nameEn.toLowerCase().includes(q)||e.nameKh.includes(q)||e.fid.includes(q)||e.dept.toLowerCase().includes(q)
+  ).forEach(e=>{
+    const recs=lvs[e.id]||[];
+    const hasAbs=recs.some(r=>r.leaveType==="absent");
+    const hasSick=recs.filter(r=>r.leaveType==="sick"||r.leaveType==="medPaid").length>=3;
+    const div=document.createElement("div");
+    div.className="emp-item"+(selId===e.id?" active":"");
+    div.innerHTML=`
+      <div class="en">${e.nameEn}</div>
+      <div class="kh">${e.nameKh}</div>
+      <div class="meta">${e.fid} · ${e.dept}</div>
+      ${(hasAbs||hasSick)?`<div class="emp-badges">
+        ${hasAbs?`<span class="badge-abs">⚠ ${t.absent}</span>`:""}
+        ${hasSick?`<span class="badge-sick">⚠ ${t.sick}</span>`:""}
+      </div>`:""}`;
+    div.onclick=()=>selectEmp(e.id);
+    list.appendChild(div);
+  });
+}
+
+function selectEmp(id){
+  selId=id;
+  renderEmpList();
+  renderEmpCard();
+  renderRecord();
+  if(activeTab==="analytics")renderAnalytics();
+  document.getElementById("emp-card").style.display="";
+  document.getElementById("tabs-area").style.display="";
+  document.getElementById("no-emp-msg").style.display="none";
+}
+
+// ═══════════════════════════════════════════════════════════
+// EMP CARD
+// ═══════════════════════════════════════════════════════════
+function renderEmpCard(){
+  const t=tr();
+  const e=emps.find(x=>x.id===selId);
+  if(!e)return;
+  document.getElementById("ec-name-en").textContent=e.nameEn;
+  document.getElementById("ec-name-kh").textContent=e.nameKh;
+  const fields=[
+    [t.id,e.fid],[t.dept,e.dept],[t.section,e.sec],[t.position,e.pos],
+    [t.joinDate,e.joinDate],[t.gender,e.g],[t.phone,e.phone],[t.birthDate,e.dob],[t.nationality,e.nat]
+  ];
+  document.getElementById("ec-fields").innerHTML=fields.map(([l,v])=>
+    `<div class="emp-field"><label>${l}</label><span>${v||"—"}</span></div>`
+  ).join("");
+  const anoms=detectAnomalies(lvs[e.id]||[]);
+  const ac=document.getElementById("ec-anom");
+  if(anoms.length){
+    ac.innerHTML=`<div class="anom-box"><div class="anom-title">${t.anomalies}</div>${anoms.map(a=>`<div class="anom-row ${a.sev}">${a.msg}</div>`).join("")}</div>`;
+  } else {
+    ac.innerHTML=`<div class="anom-ok">${t.noAnomalies}</div>`;
+  }
+  // A4 fields
+  document.getElementById("a4-name").textContent=e.nameEn+(e.nameKh?` / ${e.nameKh}`:"");
+  document.getElementById("a4-id").textContent=e.fid;
+  document.getElementById("a4-dept").textContent=e.dept;
+  document.getElementById("a4-pos").textContent=e.pos;
+  document.getElementById("a4-join").textContent=e.joinDate;
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEAVE RECORD
+// ═══════════════════════════════════════════════════════════
+function setFm(m){
+  fm=m;
+  document.querySelectorAll(".fm-btn").forEach(b=>b.classList.remove("active"));
+  document.getElementById("fm-"+m).classList.add("active");
+  renderRecord();
+}
+
+function renderRecord(){
+  const t=tr();
+  const e=emps.find(x=>x.id===selId);
+  if(!e)return;
+  const allR=lvs[selId]||[];
+  const ds=document.getElementById("filter-date").value;
+  const rng=getRange(fm,ds);
+  const rows=rng?allR.filter(r=>r.startDate>=rng.s&&r.startDate<=rng.e):allR;
+
+  // ── Table head (matching Excel leave record layout) ──
+  document.getElementById("leave-thead").innerHTML=`
+    <tr class="th-group">
+      <th rowspan="3" style="width:28px">#</th>
+      <th colspan="4">開始 / Start / ចាប់ពី</th>
+      <th colspan="4">結束 / End / ដល់</th>
+      <th rowspan="3">小計(時)<br>Sub-total<br>hr<br>ស្នើរ</th>
+      <th colspan="2">病假 / Sick<br>ច្បាប់ឈឺ</th>
+      <th rowspan="3">事假<br>Personal<br>ធុរៈ</th>
+      <th rowspan="3">產假<br>Maternity<br>មាតុភាព</th>
+      <th rowspan="3">工傷假<br>Work Inj.<br>គ្រោះថ្នាក់</th>
+      <th colspan="2">特休 / Special Leave<br>ច្បាប់ពិសេស</th>
+      <th colspan="3">年假 / Annual Leave<br>ច្បាប់បំណាច់ឆ្នាំ</th>
+      <th rowspan="3">公差<br>Business<br>បេសកកម្ម</th>
+      <th rowspan="3">曠職<br>Absent<br>អវត្ត</th>
+      <th rowspan="3">總假天數<br>Total<br>Days<br>សរុប</th>
+      <th rowspan="3">代理人<br>Substitute<br>អ្នកជំនួស</th>
+      <th rowspan="3">主管<br>Supervisor<br>ប្រធាន</th>
+      <th rowspan="3">廠協理<br>Factory Dir.<br>ប្រធានរោងចក្រ</th>
+      <th rowspan="3">人事<br>HR<br>ធនធានមនុស្ស</th>
+      <th rowspan="3">管理部<br>Admin.Mgr<br>ប្រធានរដ្ឋបាល</th>
+      <th rowspan="3" class="no-print">操作</th>
+    </tr>
+    <tr class="th-group">
+      <th rowspan="2">月<br>Month<br>ខែ</th>
+      <th rowspan="2">日<br>Day<br>ថ្ងៃ</th>
+      <th rowspan="2">時<br>Hr<br>ម៉ោង</th>
+      <th rowspan="2">分<br>Min<br>នាទី</th>
+      <th rowspan="2">月<br>Month<br>ខែ</th>
+      <th rowspan="2">日<br>Day<br>ថ្ងៃ</th>
+      <th rowspan="2">時<br>Hr<br>ម៉ោង</th>
+      <th rowspan="2">分<br>Min<br>នាទី</th>
+      <th rowspan="2">有薪<br>Paid<br>ចំណាយ</th>
+      <th rowspan="2">無薪<br>Unpaid<br>ឈី</th>
+      <th rowspan="2">婚假<br>Marriage<br>រៀបការ</th>
+      <th rowspan="2">喪假<br>Funeral<br>មរណ</th>
+      <th rowspan="2">年假使用<br>AL Apply<br>ប្រើ</th>
+      <th rowspan="2">年假累計<br>AL Accum.<br>សរុប</th>
+      <th rowspan="2">年假剩餘<br>AL Balance<br>នៅសល់</th>
+    </tr>
+    <tr></tr>`;
+
+  // ── Table body ──
+  const tbody=document.getElementById("leave-tbody");
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="27" class="no-records">${t.noRecords}</td></tr>`;
+  } else {
+    tbody.innerHTML=rows.map((r,i)=>{
+      const sd=new Date(r.startDate),ed=new Date(r.endDate);
+      const mark=(k)=>r.leaveType===k?"<span style='color:#1A5276;font-weight:700'>✓</span>":"";
+      const days=r.subH?Math.ceil(r.subH/8):Math.round((ed-sd)/86400000)+1;
+      return `<tr class="${r.leaveType==="absent"?"absent-row":""}">
+        <td>${i+1}</td>
+        <td>${padHM(sd.getMonth()+1)}</td>
+        <td>${padHM(sd.getDate())}</td>
+        <td>${padHM(r.sH||8)}</td>
+        <td>${padHM(r.sM||0)}</td>
+        <td>${padHM(ed.getMonth()+1)}</td>
+        <td>${padHM(ed.getDate())}</td>
+        <td>${padHM(r.eH||17)}</td>
+        <td>${padHM(r.eM||0)}</td>
+        <td>${r.subH||""}</td>
+        <td>${mark("medPaid")}</td>
+        <td>${mark("sick")}</td>
+        <td>${mark("personal")}</td>
+        <td>${mark("maternity")}</td>
+        <td>${mark("workInj")}</td>
+        <td>${mark("marriage")}</td>
+        <td>${mark("funeral")}</td>
+        <td>${r.leaveType==="annual"?(r.alApply||1):""}</td>
+        <td>${r.leaveType==="annual"?(r.alAccum||12):""}</td>
+        <td>${r.leaveType==="annual"?(r.alBal||12):""}</td>
+        <td>${mark("business")}</td>
+        <td>${mark("absent")}</td>
+        <td>${days}</td>
+        <td style="font-size:9px">${r.substitute||""}</td>
+        <td style="font-size:9px">${r.supervisor||""}</td>
+        <td style="font-size:9px">${r.factoryDir||""}</td>
+        <td style="font-size:9px">${r.hr||""}</td>
+        <td style="font-size:9px">${r.adminMgr||""}</td>
+        <td class="no-print" style="white-space:nowrap">${(r.evidence||[]).length?'📎'+r.evidence.length+' ':''}<button class="btn-del-lv" onclick="openLeaveModal('${r.id}')" title="Edit / 編輯">✏️</button> <button class="btn-del-lv" onclick="deleteLv('${r.id}')" title="Delete / 刪除">✕</button></td>
+      </tr>`;
+    }).join("");
+  }
+
+  // ── Summary ──
+  const sumDiv=document.getElementById("leave-summary");
+  const summ={};LT.forEach(lt=>summ[lt.k]=allR.filter(r=>r.leaveType===lt.k).length);
+  const totalAll=allR.length;
+  sumDiv.innerHTML=`
+    ${LT.filter(lt=>summ[lt.k]>0).map(lt=>`
+      <div class="sum-item">
+        <div class="sv" style="color:${lt.c}">${summ[lt.k]}</div>
+        <div class="sl">${t[lt.k]}</div>
+      </div>`).join("")}
+    <div class="sum-divider"></div>
+    <div class="sum-item sum-total">
+      <div class="sv">${totalAll}</div>
+      <div class="sl">${t.totalDays}</div>
+    </div>`;
+
+  // ── Signatures ──
+  document.getElementById("sig-row").innerHTML=
+    [t.substitute,t.supervisor,t.factoryDir,t.hr,t.adminMgr].map(r=>`
+      <div class="sig-cell">
+        <div class="sig-line"></div>
+        <div class="sig-lbl">${r}</div>
+      </div>`).join("");
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════════
+function destroyCharts(){Object.values(charts).forEach(c=>{try{c.destroy();}catch(e){}});charts={};}
+
+function renderAnalytics(){
+  const t=tr();
+  const e=emps.find(x=>x.id===selId);
+  if(!e)return;
+  const allR=lvs[selId]||[];
+  destroyCharts();
+
+  document.getElementById("chart-title-type").textContent=`${e.nameEn} — ${t.chartTypeTitle}`;
+  document.getElementById("chart-title-monthly").textContent=`${e.nameEn} — ${t.chartMonthTitle}`;
+  document.getElementById("chart-title-all").textContent=t.chartAllTitle;
+
+  // Type distribution
+  const typeData=LT.map(lt=>({label:t[lt.k],count:allR.filter(r=>r.leaveType===lt.k).length,color:lt.c})).filter(d=>d.count>0);
+  charts.type=new Chart(document.getElementById("chart-type"),{
+    type:"bar",
+    data:{labels:typeData.map(d=>d.label),datasets:[{data:typeData.map(d=>d.count),backgroundColor:typeData.map(d=>d.color),borderRadius:5}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{ticks:{stepSize:1},grid:{color:"#F0EBE0"}}},responsive:true,maintainAspectRatio:false}
+  });
+
+  // Monthly
+  const monthly=Array.from({length:12},(_,i)=>allR.filter(r=>new Date(r.startDate).getMonth()===i).length);
+  charts.monthly=new Chart(document.getElementById("chart-monthly"),{
+    type:"bar",
+    data:{labels:t.months,datasets:[{data:monthly,backgroundColor:"#1A5276",borderRadius:5,label:t.totalDays}]},
+    options:{plugins:{legend:{display:false}},scales:{y:{ticks:{stepSize:1},grid:{color:"#F0EBE0"}}},responsive:true,maintainAspectRatio:false}
+  });
+
+  // All employees
+  const empLabels=emps.map(e=>e.nameEn.split(" ").pop());
+  const empTotal=emps.map(e=>(lvs[e.id]||[]).length);
+  const empAbsent=emps.map(e=>(lvs[e.id]||[]).filter(r=>r.leaveType==="absent").length);
+  charts.all=new Chart(document.getElementById("chart-all"),{
+    type:"bar",
+    data:{
+      labels:empLabels,
+      datasets:[
+        {label:t.totalDays,data:empTotal,backgroundColor:"#2980B9",borderRadius:4},
+        {label:t.absent,data:empAbsent,backgroundColor:"#E74C3C",borderRadius:4}
+      ]
+    },
+    options:{plugins:{legend:{display:true}},scales:{y:{ticks:{stepSize:1},grid:{color:"#F0EBE0"}}},responsive:true,maintainAspectRatio:false}
+  });
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// HRA SHARED GAS · EVIDENCE · TELEGRAM / APPROVAL
+// Reuses Attendance/HRA Portal GAS URL so this page needs no second setup.
+// ═══════════════════════════════════════════════════════════
+function escHtml(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function leaveGasUrl(){return (localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}
+async function leaveGasPost(payload){
+  const url=leaveGasUrl(); if(!url)throw new Error(lang==='en'?'Attendance GAS URL is not configured':'Attendance GAS URL 尚未設定');
+  const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+  const txt=await r.text(); let d; try{d=JSON.parse(txt)}catch(e){throw new Error('GAS returned non-JSON: '+txt.slice(0,120))}
+  if(d&&d.ok===false)throw new Error(d.error||'GAS error'); return (d&&d.data)||d;
+}
+function fileDataUrl(f){return new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(String(rd.result||''));rd.onerror=()=>rej(rd.error||new Error('File read failed'));rd.readAsDataURL(f)})}
+async function uploadLeaveEvidence(files,recordKey,period){
+  const out=[]; for(const f of files){
+    if(f.size>10*1024*1024)throw new Error(f.name+' > 10MB');
+    const data=await fileDataUrl(f),b64=data.split(',')[1]||'';
+    const x=await leaveGasPost({action:'uploadAttachment',module:'attendance_leave',recordKey,period,fileName:f.name,mimeType:f.type||(/\.pdf$/i.test(f.name)?'application/pdf':'image/jpeg'),data:b64,base64:b64});
+    out.push(x);
+  } return out;
+}
+function currentLeaveRows(){
+  if(!selId)return[]; const all=lvs[selId]||[], ds=document.getElementById('filter-date').value, rng=getRange(fm,ds);
+  return rng?all.filter(r=>r.startDate>=rng.s&&r.startDate<=rng.e):all;
+}
+function leaveTypeLabel(k){const t=tr();return t[k]||k}
+function leaveDays(r){const sd=new Date(r.startDate),ed=new Date(r.endDate);return r.subH?Math.max(0,r.subH/8):Math.max(1,Math.round((ed-sd)/86400000)+1)}
+async function sendLeaveTelegram(mode){
+  const e=emps.find(x=>x.id===selId); if(!e){alert(tr().noEmp);return}
+  const rows=currentLeaveRows(); if(!rows.length){alert(tr().noRecords);return}
+  const actor=(document.getElementById('tg-actor').value||localStorage.getItem('ac_hra_leave_actor')||'').trim();
+  if(!actor){alert(lang==='en'?'Enter Applicant / Inspector':'請填寫申請人／檢查人');document.getElementById('tg-actor').focus();return}
+  localStorage.setItem('ac_hra_leave_actor',actor);
+  const title=mode==='approval'?'✅ <b>員工請假核可 / Employee Leave Approval</b>':'📝 <b>員工請假摘要 / Employee Leave Summary</b>';
+  let text=title+'\n'+'👤 '+(mode==='approval'?'申請人 Applicant':'檢查人 Inspector')+': <b>'+escHtml(actor)+'</b>\n';
+  text+='─────────────\n<b>'+escHtml(e.nameEn||e.nameKh||'')+'</b> ('+escHtml(e.fid||'')+')\n';
+  text+='🏢 '+escHtml(e.dept||'—')+(e.sec?' / '+escHtml(e.sec):'')+' · '+escHtml(e.pos||'—')+'\n';
+  rows.forEach((r,i)=>{text+=(i+1)+'. '+escHtml(leaveTypeLabel(r.leaveType))+' · '+escHtml(r.startDate)+' → '+escHtml(r.endDate)+' · '+leaveDays(r).toFixed(1).replace('.0','')+' day(s)'+((r.evidence||[]).length?' · 📎'+r.evidence.length:'')+'\n'});
+  const st=document.getElementById('tg-status'); st.textContent='Sending…';
+  try{
+    if(mode==='approval'){
+      const items=rows.map(r=>({itemId:r.id,key:r.id,empId:e.fid,name:e.nameEn||e.nameKh,dept:e.dept,group:e.sec,position:e.pos,amount:0,status:'pending',note:leaveTypeLabel(r.leaveType)+' '+r.startDate+'~'+r.endDate}));
+      await leaveGasPost({action:'approvalRequest',type:'approvalRequest',module:'attendance_leave',scope:'leave',batch:'LEAVE-'+(e.fid||e.id)+'-'+Date.now(),period:document.getElementById('filter-date').value||'',lang:lang,count:items.length,items,text,applicant:actor,inspector:actor,checker:actor,requestedBy:actor,requestedAt:new Date().toISOString(),idempotencyKey:'leave|'+e.fid+'|'+items.map(x=>x.itemId).join(',')});
+    }else await leaveGasPost({action:'telegram',type:'notify',tool:'attendance_leave',scope:'leave',text,applicant:actor,inspector:actor,checker:actor});
+    st.textContent='✅ Sent';
+  }catch(err){st.textContent='❌ '+err.message;alert(err.message)}
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(t){
+  activeTab=t;
+  document.getElementById("tab-record").classList.toggle("active",t==="record");
+  document.getElementById("tab-analytics").classList.toggle("active",t==="analytics");
+  document.getElementById("panel-record").style.display=t==="record"?"":"none";
+  document.getElementById("panel-analytics").style.display=t==="analytics"?"":"none";
+  if(t==="analytics")renderAnalytics();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD / EDIT / DELETE LEAVE
+// ═══════════════════════════════════════════════════════════
+function openLeaveModal(id){
+  if(!selId){ alert(tr().noEmp); return; }
+  editingLvId=id||null;
+  const r=editingLvId?(lvs[selId]||[]).find(x=>x.id===editingLvId):null;
+  const ds=document.getElementById("filter-date").value||new Date().toISOString().slice(0,10);
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v==null?'':v);};
+  set("lv-sDate",r?r.startDate:ds); set("lv-eDate",r?r.endDate:ds);
+  set("lv-sH",r?r.sH:8); set("lv-sM",r?r.sM:0); set("lv-eH",r?r.eH:17); set("lv-eM",r?r.eM:0);
+  set("lv-subH",r?r.subH:8); set("lv-type",r?r.leaveType:"annual");
+  set("lv-alApply",r?r.alApply:0); set("lv-alAccum",r?r.alAccum:12); set("lv-alBal",r?r.alBal:12);
+  set("lv-sub",r?r.substitute:""); set("lv-sup",r?r.supervisor:""); set("lv-fd",r?r.factoryDir:"");
+  set("lv-hr",r?r.hr:""); set("lv-am",r?r.adminMgr:""); set("lv-remark",r?r.remark:"");
+  const ef=document.getElementById('lv-evidence'),cf=document.getElementById('lv-camera'); if(ef)ef.value=''; if(cf)cf.value='';
+  const ev=(r&&r.evidence)||[]; const evbox=document.getElementById('lv-evidence-list');
+  if(evbox)evbox.innerHTML=ev.length?ev.map(x=>`<a target="_blank" href="${escHtml(x.url||x.previewUrl||'#')}">📎 ${escHtml(x.fileName||x.name||'file')}</a>`).join(' · '):'—';
+  document.getElementById("ml-title").textContent=r?tr().editLeave:tr().addLeave;
+  openModal("modal-leave");
+}
+
+async function saveLeave(){
+  if(!selId)return;
+  const lv={
+    id:editingLvId||("L"+Date.now()),
+    startDate:document.getElementById("lv-sDate").value,
+    endDate:document.getElementById("lv-eDate").value,
+    sH:parseInt(document.getElementById("lv-sH").value)||8,
+    sM:parseInt(document.getElementById("lv-sM").value)||0,
+    eH:parseInt(document.getElementById("lv-eH").value)||17,
+    eM:parseInt(document.getElementById("lv-eM").value)||0,
+    subH:parseFloat(document.getElementById("lv-subH").value)||8,
+    leaveType:document.getElementById("lv-type").value,
+    alApply:parseInt(document.getElementById("lv-alApply").value)||0,
+    alAccum:parseInt(document.getElementById("lv-alAccum").value)||12,
+    alBal:parseInt(document.getElementById("lv-alBal").value)||12,
+    substitute:document.getElementById("lv-sub").value,
+    supervisor:document.getElementById("lv-sup").value,
+    factoryDir:document.getElementById("lv-fd").value,
+    hr:document.getElementById("lv-hr").value,
+    adminMgr:document.getElementById("lv-am").value,
+    remark:document.getElementById("lv-remark").value,
+    updatedAt:new Date().toISOString()
+  };
+  const oldLv=editingLvId?(lvs[selId]||[]).find(r=>r.id===editingLvId):null;
+  lv.evidence=(oldLv&&oldLv.evidence)||[];
+  const files=[...((document.getElementById('lv-evidence')||{}).files||[]),...((document.getElementById('lv-camera')||{}).files||[])];
+  if(files.length){
+    try{ lv.evidence=lv.evidence.concat(await uploadLeaveEvidence(files,lv.id,lv.startDate.slice(0,7))); }
+    catch(e){ alert((lang==='en'?'Evidence upload failed: ':lang==='km'?'ការផ្ទុកឯកសារបរាជ័យ: ':'附件上傳失敗：')+e.message); return; }
+  }
+  if(!lv.startDate||!lv.endDate){alert(lang==='en'?"Please enter dates":lang==='km'?"សូមបញ្ចូលកាលបរិច្ឆេទ":"請填寫日期");return;}
+  if(!lvs[selId])lvs[selId]=[];
+  const i=editingLvId?lvs[selId].findIndex(r=>r.id===editingLvId):-1;
+  if(i>=0)lvs[selId][i]=Object.assign({},lvs[selId][i],lv); else lvs[selId].push(lv);
+  editingLvId=null;
+  saveData();
+  closeModal("modal-leave");
+  renderRecord(); renderEmpCard(); renderEmpList();
+}
+
+function deleteLv(id){
+  if(!selId)return;
+  if(!confirm(lang==='en'?"Delete this leave record?":lang==='km'?"លុបកំណត់ត្រាច្បាប់នេះ?":"確定刪除此請假記錄？"))return;
+  lvs[selId]=(lvs[selId]||[]).filter(r=>r.id!==id);
+  if(editingLvId===id)editingLvId=null;
+  saveData(); renderRecord(); renderEmpCard(); renderEmpList();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD / EDIT / DELETE EMPLOYEE
+// ═══════════════════════════════════════════════════════════
+function openEmpModal(id){
+  editingEmpId=id||null;
+  const e=editingEmpId?emps.find(x=>x.id===editingEmpId):null;
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=(v==null?'':v);};
+  set("ne-fid",e?e.fid:""); set("ne-nameEn",e?e.nameEn:""); set("ne-nameKh",e?e.nameKh:"");
+  set("ne-gender",e?(e.g||"F"):"F"); set("ne-dob",e?e.dob:""); set("ne-joinDate",e?e.joinDate:"");
+  set("ne-dept",e?e.dept:""); set("ne-sec",e?e.sec:""); set("ne-pos",e?e.pos:"");
+  set("ne-phone",e?e.phone:""); set("ne-nat",e?(e.nat||"Khmer"):"Khmer"); set("ne-addr",e?e.addr:"");
+  document.getElementById("me-title").textContent=e?tr().editEmp:tr().addEmp;
+  openModal("modal-emp");
+}
+
+function saveEmp(){
+  const fid=document.getElementById("ne-fid").value.trim();
+  const nameEn=document.getElementById("ne-nameEn").value.trim();
+  if(!fid||!nameEn){alert(lang==='en'?"Factory ID and English name are required":lang==='km'?"ត្រូវការអត្តលេខ និងឈ្មោះឡាតាំង":"請填寫工號及英文名");return;}
+  const dup=emps.find(e=>e.fid===fid&&e.id!==editingEmpId);
+  if(dup){alert(lang==='en'?"Factory ID already exists":lang==='km'?"អត្តលេខមានរួចហើយ":"工號已存在");return;}
+  const id=editingEmpId||("E"+Date.now());
+  const e={
+    id,fid,nameEn,
+    nameKh:document.getElementById("ne-nameKh").value,
+    g:document.getElementById("ne-gender").value,
+    dob:document.getElementById("ne-dob").value,
+    joinDate:document.getElementById("ne-joinDate").value,
+    dept:document.getElementById("ne-dept").value,
+    sec:document.getElementById("ne-sec").value,
+    pos:document.getElementById("ne-pos").value,
+    phone:document.getElementById("ne-phone").value,
+    nat:document.getElementById("ne-nat").value,
+    addr:document.getElementById("ne-addr").value,
+    source:editingEmpId?(emps.find(x=>x.id===editingEmpId)?.source||"online"):"online",
+    updatedAt:new Date().toISOString()
+  };
+  const idx=editingEmpId?emps.findIndex(x=>x.id===editingEmpId):-1;
+  if(idx>=0)emps[idx]=Object.assign({},emps[idx],e); else {emps.push(e); if(!lvs[id])lvs[id]=[];}
+  editingEmpId=null;
+  saveData(); closeModal("modal-emp"); selectEmp(id); renderEmpList();
+}
+
+function deleteEmp(){
+  const e=emps.find(x=>x.id===selId);
+  if(!e)return;
+  if(!confirm((lang==='en'?"Delete employee ":lang==='km'?"លុបបុគ្គលិក ":"確定刪除員工 ")+e.nameEn+"？"))return;
+  emps=emps.filter(x=>x.id!==selId); delete lvs[selId]; saveData();
+  selId=null; editingEmpId=null;
+  document.getElementById("emp-card").style.display="none";
+  document.getElementById("tabs-area").style.display="none";
+  document.getElementById("no-emp-msg").style.display=""; renderEmpList();
+}
+
+// ═══════════════════════════════════════════════════════════
+// HRA PAY EMPLOYEE INFORMATION REUSE
+// Same-origin GitHub Pages can share localStorage. We discover employee-like
+// snapshots instead of hard-coding one HRA PAY storage key; Excel/manual input
+// remains the fallback when the PAY snapshot is not available in this browser.
+// ═══════════════════════════════════════════════════════════
+function _payVal(o,names){
+  if(!o||typeof o!=="object")return "";
+  const ks=Object.keys(o), low={};ks.forEach(k=>low[k.toLowerCase()]=k);
+  for(const n of names){const k=low[String(n).toLowerCase()];if(k!=null&&o[k]!=null&&String(o[k]).trim()!=="")return o[k];}
+  return "";
+}
+function _dateText(v){
+  if(!v)return ""; if(v instanceof Date)return v.toISOString().slice(0,10);
+  if(typeof v==='number'&&v>20000&&v<80000)return xlDate(v);
+  const s=String(v).trim();
+  const m=s.match(/^(20\d\d|19\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/);if(m)return `${m[1]}-${padHM(m[2])}-${padHM(m[3])}`;
+  const d=new Date(s);return isNaN(d)?"":d.toISOString().slice(0,10);
+}
+function _normalizePayEmp(o){
+  if(!o||Array.isArray(o)||typeof o!=="object")return null;
+  let fid=_payVal(o,["employeeId","empId","employee_id","factoryId","factoryID","fid","idNo","id_no","cardNo","card","workerId","staffId"]);
+  if(fid===""){
+    const generic=_payVal(o,["id"]); if(generic!==""&&/^[A-Za-z0-9._-]{1,20}$/.test(String(generic)))fid=generic;
+  }
+  fid=String(fid||"").trim();
+  let nameEn=_payVal(o,["nameEn","englishName","employeeName","fullName","name","latinName"]);
+  if(!nameEn){
+    const sur=_payVal(o,["englishSurname","surnameEn","lastName","familyName"]), giv=_payVal(o,["englishGiven","englishGivenName","givenNameEn","firstName"]);
+    nameEn=(String(sur||"")+" "+String(giv||"")).trim();
+  }
+  let nameKh=_payVal(o,["nameKh","khmerName","nameKm","localName"]);
+  if(!nameKh){
+    const sur=_payVal(o,["khmerSurname","surnameKh"]), giv=_payVal(o,["khmerNameGiven","khmerGiven","givenNameKh"]);
+    nameKh=(String(sur||"")+" "+String(giv||"")).trim();
+  }
+  if(!fid||!String(nameEn||nameKh||"").trim())return null;
+  const g0=String(_payVal(o,["gender","sex","g"])||"F").toUpperCase();
+  return {
+    fid, nameEn:String(nameEn||nameKh||"").trim(), nameKh:String(nameKh||"").trim(),
+    g:/^M|MALE|ប្រុស/.test(g0)?"M":"F",
+    dob:_dateText(_payVal(o,["dob","birthday","birthDate","dateOfBirth"])),
+    joinDate:_dateText(_payVal(o,["joinDate","startDate","hireDate","dateJoin","dateJoined"])),
+    dept:String(_payVal(o,["department","dept","division"])||"").trim(),
+    sec:String(_payVal(o,["section","group","line","team"])||"").trim(),
+    pos:String(_payVal(o,["position","jobTitle","title","job","designation"])||"").trim(),
+    phone:String(_payVal(o,["phone","tel","mobile","phoneNo"])||"").trim(),
+    nat:String(_payVal(o,["nationality","nation"])||"Khmer").trim(),
+    addr:String(_payVal(o,["address","addr","currentAddress"])||"").trim()
+  };
+}
+function _payArrays(root,maxDepth=5){
+  const out=[], seen=new Set();
+  function walk(v,path,depth){
+    if(depth>maxDepth||v==null||typeof v!=="object"||seen.has(v))return;seen.add(v);
+    if(Array.isArray(v)){
+      if(v.length&&typeof v[0]==="object")out.push({path,arr:v});
+      // inspect a few objects only for nested snapshot structures
+      for(let i=0;i<Math.min(v.length,3);i++)walk(v[i],path+"["+i+"]",depth+1);
+    }else Object.keys(v).slice(0,80).forEach(k=>walk(v[k],path?path+"."+k:k,depth+1));
+  }
+  walk(root,"",0);return out;
+}
+function _bestPaySnapshot(){
+  const candidates=[];
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i)||"";
+    if(key==="vrt_emps"||key==="vrt_lvs")continue;
+    if(!/(employee|staff|worker|hrpay|hra.?pay|hr.?pay|employee.?hr)/i.test(key))continue;
+    if(/attendance|leave|warning|meal|payroll|advance|bonus|shutdown|transfer/i.test(key)&&!/employee/i.test(key))continue;
+    let raw;try{raw=localStorage.getItem(key)||"";}catch(e){continue;}
+    if(!raw||raw.length>25*1024*1024)continue;
+    let obj;try{obj=JSON.parse(raw);}catch(e){continue;}
+    _payArrays(obj).forEach(c=>{
+      const sample=c.arr.slice(0,Math.min(c.arr.length,80));
+      const valid=sample.map(_normalizePayEmp).filter(Boolean).length;
+      if(!valid)return;
+      const ratio=valid/Math.max(1,sample.length);
+      if(ratio<0.30||valid<2)return;
+      let bonus=/employee.?hr|employee/i.test(key+" "+c.path)?20:0;
+      candidates.push({key,path:c.path,arr:c.arr,score:valid*5+ratio*100+bonus});
+    });
+  }
+  candidates.sort((a,b)=>b.score-a.score||b.arr.length-a.arr.length);
+  return candidates[0]||null;
+}
+function syncFromHraPay(){
+  const src=_bestPaySnapshot();
+  if(!src){
+    alert(lang==='en'?"No HRA PAY Employee Information snapshot was found in this browser. You can still use Excel import or manual entry.":lang==='km'?"រកមិនឃើញទិន្នន័យ Employee Information របស់ HRA PAY ក្នុង browser នេះទេ។ អាចនាំចូល Excel ឬបញ្ចូលដោយដៃបាន។":"此瀏覽器尚未找到 HRA PAY 的 Employee Information 資料。可繼續使用 Excel 匯入或人工新增。\n\n提示：先在同一瀏覽器開啟 HRA PAY Employee HR 並完成下載/同步，再回本頁按更新。");
+    return;
+  }
+  const incoming=src.arr.map(_normalizePayEmp).filter(Boolean);
+  const uniq=new Map();incoming.forEach(e=>uniq.set(e.fid,e));
+  let added=0,updated=0;
+  uniq.forEach(n=>{
+    const ex=emps.find(e=>String(e.fid)===String(n.fid));
+    if(ex){
+      ["nameEn","nameKh","g","dob","joinDate","dept","sec","pos","phone","nat","addr"].forEach(k=>{if(n[k]!==""&&n[k]!=null)ex[k]=n[k];});
+      ex.source="hra-pay";ex.updatedAt=new Date().toISOString();updated++;
+    }else{
+      let id="PAY-"+String(n.fid).replace(/[^A-Za-z0-9_-]/g,"_");
+      if(emps.some(e=>e.id===id))id+="-"+Date.now();
+      emps.push(Object.assign({id,source:"hra-pay",updatedAt:new Date().toISOString()},n));
+      if(!lvs[id])lvs[id]=[];added++;
+    }
+  });
+  saveData();renderAll();
+  alert((lang==='en'?"HRA PAY Employee Information updated":lang==='km'?"បានធ្វើបច្ចុប្បន្នភាពពី HRA PAY":"已從 HRA PAY Employee Information 更新")+`\n+ ${added}  /  ↻ ${updated}\n${src.key}${src.path?" · "+src.path:""}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXCEL IMPORT
+// ═══════════════════════════════════════════════════════════
+function handleFileInput(inp){if(inp.files[0])importExcel(inp.files[0]);}
+function handleDrop(e){
+  e.preventDefault();
+  document.getElementById("drop-zone").classList.remove("drag");
+  if(e.dataTransfer.files[0])importExcel(e.dataTransfer.files[0]);
+}
+
+function importExcel(file){
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const wb=XLSX.read(e.target.result,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true});
+      // find header row
+      let hi=-1;
+      for(let i=0;i<Math.min(rows.length,6);i++){
+        if(rows[i]&&rows[i].some(c=>String(c).includes("Factory"))){hi=i;break;}
+      }
+      if(hi<0){alert("⚠ 找不到標題行，請確認是 VRT 員工資料格式");return;}
+      let added=0,updated=0,skipped=0;
+      for(let i=hi+1;i<rows.length;i++){
+        const r=rows[i];
+        if(!r||!r[1])continue;
+        const fid=String(r[1]||"").trim();
+        if(!fid||fid==="Factory ID")continue;
+        const existing=emps.find(e=>e.fid===fid);
+        const nameEn=((r[7]||"")+" "+(r[8]||"")).trim();
+        const nameKh=((r[5]||"")+" "+(r[6]||"")).trim();
+        const g=String(r[10]||"F").trim()==="M"?"M":"F";
+        const dob=xlDate(r[11]);
+        const joinDate=xlDate(r[14]);
+        const dept=String(r[15]||"").trim();
+        const sec=String(r[16]||"").trim();
+        const pos=String(r[17]||"").trim();
+        const phone=String(r[22]||"").trim();
+        const addr=String(r[r.length-1]||"").trim();
+        if(existing){
+          Object.assign(existing,{nameEn:nameEn||existing.nameEn,nameKh:nameKh||existing.nameKh,g,dob:dob||existing.dob,joinDate:joinDate||existing.joinDate,dept:dept||existing.dept,sec:sec||existing.sec,pos:pos||existing.pos,phone:phone||existing.phone,addr:addr||existing.addr,source:"excel",updatedAt:new Date().toISOString()});
+          updated++;
+        }else{
+          const id="IMP-"+fid+"-"+Date.now()+"-"+i;
+          emps.push({id,fid,nameEn,nameKh,g,dob,joinDate,dept,sec,pos,phone,nat:"Khmer",addr,source:"excel",updatedAt:new Date().toISOString()});
+          lvs[id]=[]; added++;
+        }
+      }
+      saveData();
+      closeModal("modal-import");
+      renderEmpList();
+      alert(`✓ ${lang==='en'?'Import complete':'匯入完成'}：+${added} / ↻${updated}${skipped?' / skip '+skipped:''}`);
+    }catch(err){alert("❌ 匯入失敗："+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════════════════
+// MODALS
+// ═══════════════════════════════════════════════════════════
+function openModal(id){document.getElementById(id).classList.add("open");}
+function closeModal(id){document.getElementById(id).classList.remove("open");}
+window.addEventListener("click",e=>{
+  if(e.target.classList.contains("modal-overlay"))e.target.classList.remove("open");
+});
+
+// ═══════════════════════════════════════════════════════════
+// RENDER ALL
+// ═══════════════════════════════════════════════════════════
+function renderAll(){
+  renderEmpList();
+  if(selId){
+    renderEmpCard();
+    renderRecord();
+    if(activeTab==="analytics")renderAnalytics();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+loadData();
+applyTranslations();
+renderEmpList();
+// Auto-select first employee
+if(emps.length){selectEmp(emps[0].id);}
+
+window.addEventListener('DOMContentLoaded',function(){const a=document.getElementById('tg-actor');if(a&&!a.value)a.value=localStorage.getItem('ac_hra_leave_actor')||'';});
+</script>
+</body>
+</html>
