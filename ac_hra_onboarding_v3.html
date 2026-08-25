@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js?v=43"></script>
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -754,9 +756,9 @@ function loadData(){
 function ensureJoinKey(r){ if(!r._k) r._k='J|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='j_'+uid(); return r; }
 function ensureResignKey(r){ if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='r_'+uid(); return r; }
 /* ⑦ 寫入仍是 v2 的 key 與欄位名稱 → COMPLETE 模組照常讀得到 */
-function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
-function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} }
-function saveSettles(){ try{localStorage.setItem(K_SETTLES,JSON.stringify(SETTLES));}catch(e){} }
+function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('joins'); }
+function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('resigns'); }
+function saveSettles(){ try{localStorage.setItem(K_SETTLES,JSON.stringify(SETTLES));}catch(e){} scheduleOnboardingSync('settles'); }
 function saveDec(){ try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){} }
 function saveMeta(){ try{localStorage.setItem(K_META,JSON.stringify(META));}catch(e){} }
 function saveSetsRaw(){ try{localStorage.setItem(K_SETS,JSON.stringify(SETS));}catch(e){} }
@@ -1874,100 +1876,23 @@ function gasPost(payload){
     headers:{'Content-Type':'text/plain;charset=utf-8'},          /* ① 避開 CORS preflight */
     body:JSON.stringify(payload)});
 }
-function cloudUpload(){
-  var btn=el('btn-cloud-up'); if(btn){btn.disabled=true;btn.classList.add('opacity-50');}
-  var recs=flatRecords();
-  var summary={joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,
-               decisions:Object.keys(DEC).length,updatedAt:nowStamp()};
-  var total=Math.max(1,Math.ceil(recs.length/CHUNK));
-  var seq=Promise.resolve(), sent=0;
-  for(var i=0;i<total;i++){
-    (function(idx){
-      seq=seq.then(function(){
-        var slice=recs.slice(idx*CHUNK,(idx+1)*CHUNK);
-        var p={action:'push',type:'push',tool:TOOL,records:slice,recordCount:recs.length,
-               summary:summary,updatedAt:lds(new Date()),decisions:DEC,settings:{basis:SETS.basis,baseDate:SETS.baseDate,baseHC:SETS.baseHC,hcOverride:SETS.hcOverride}};
-        if(total>1){ p.chunk=idx; p.totalChunks=total; }
-        return gasPost(p).then(function(){ sent+=slice.length; });
-      });
-    })(i);
-  }
-  seq.then(function(){
-    META.cloudUpdatedAt=summary.updatedAt; META.updatedAt=summary.updatedAt; saveMeta();
-    setTxt('cloud-stat', '☁ '+summary.updatedAt);
-    toast('☁↑ '+L('已上傳','Uploaded')+' '+sent+' '+L('筆','records'),'ok');
-  }).catch(function(e){
-    toast(L('上傳失敗：','Upload failed: ')+e.message,'error');
-  }).then(function(){
-    if(btn){btn.disabled=false;btn.classList.remove('opacity-50');}
-  });
-}
-function digRecords(d){
-  /* ⚠ 必須逐層往下挖 data.data.records */
-  if(!d)return null;
-  if(d.data&&d.data.data&&Array.isArray(d.data.data.records))return d.data.data.records;
-  if(d.data&&Array.isArray(d.data.records))return d.data.records;
-  if(Array.isArray(d.records))return d.records;
-  return null;
+var _onboardSyncTimer=null,_onboardSyncBusy=false,_onboardApplying=false;
+function scheduleOnboardingSync(reason){if(_onboardApplying||!gasUrl())return;clearTimeout(_onboardSyncTimer);_onboardSyncTimer=setTimeout(function(){autoSync(reason||'change')},900)}
+function cloudUpload(options){
+  options=options||{};if(_onboardSyncBusy&&options.auto)return Promise.resolve({queued:true});
+  var btn=el('btn-cloud-up');if(btn&&!options.silent){btn.disabled=true;btn.classList.add('opacity-50')};var recs=flatRecords();setTxt('cloud-stat','☁↑…');
+  return HRASmartSync.push({url:gasUrl(),tool:TOOL,records:recs,recordCount:recs.length,summary:{joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,decisions:Object.keys(DEC).length},meta:{decisions:DEC},allowDeletes:!!META.downloadedAt,autoConfirmConflicts:!!options.auto,onStatus:function(x){setTxt('cloud-stat','☁ '+x)}}).then(function(d){META.uploadedAt=nowStamp();META.count=recs.length;saveMeta();setTxt('cloud-stat','☁ '+(d&&d.uploaded||0));if(!options.silent&&(d&&d.uploaded))toast('☁↑ '+L('已上傳變更','Uploaded changes')+' '+d.uploaded,'ok');return d}).catch(function(e){if(!options.silent)toast(L('上傳失敗：','Upload failed: ')+e.message,'error');else console.warn('[onboarding auto push]',e);return {ok:false,error:e.message}}).then(function(d){if(btn&&!options.silent){btn.disabled=false;btn.classList.remove('opacity-50')}return d});
 }
 function applyCloud(recs,silent){
-  var j=[],r=[],s=[];
-  recs.forEach(function(o){
-    var k=o._kind;
-    if(k==='join'){ ensureJoinKey(o); j.push(o); }
-    else if(k==='resign'){ ensureResignKey(o); r.push(o); }
-    else if(k==='settle'){ s.push(o); }
-    else if(o.resignDate!==undefined){ ensureResignKey(o); r.push(o); }
-    else if(o.joinDate!==undefined){ ensureJoinKey(o); j.push(o); }
-  });
-  var mj=mergeInto(JOINS,j); JOINS=mj.arr;
-  var mr=mergeInto(RESIGNS,r); RESIGNS=mr.arr;
-  var ms=mergeInto(SETTLES,s); SETTLES=ms.arr;
-  saveJoins(); saveResigns(); saveSettles();
-  rebuildFilterOptions(); renderAll();
-  if(!silent)toast('☁↓ '+L('已載入','Loaded')+' '+recs.length+' '+L('筆','records')+
-    ' ('+L('新增','new')+' '+(mj.added+mr.added+ms.added)+' / '+L('更新','upd')+' '+(mj.updated+mr.updated+ms.updated)+')','ok');
+  var j=[],r=[],st=[];recs.forEach(function(o){var k=o._kind;if(k==='join'){ensureJoinKey(o);j.push(o)}else if(k==='resign'){ensureResignKey(o);r.push(o)}else if(k==='settle')st.push(o);else if(o.resignDate!==undefined){ensureResignKey(o);r.push(o)}else if(o.joinDate!==undefined){ensureJoinKey(o);j.push(o)}});
+  _onboardApplying=true;try{var mj=mergeInto(JOINS,j);JOINS=mj.arr;var mr=mergeInto(RESIGNS,r);RESIGNS=mr.arr;var ms=mergeInto(SETTLES,st);SETTLES=ms.arr;saveJoins();saveResigns();saveSettles()}finally{_onboardApplying=false}
+  rebuildFilterOptions();renderAll();if(!silent&&(mj.added+mr.added+ms.added+mj.updated+mr.updated+ms.updated))toast('☁↓ '+L('已合併變更','Merged changes'),'ok');
 }
-function cloudDownload(silent){
-  var btn=el('btn-cloud-down'); if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50');}
-  var base=gasUrl()+'?action=pull&tool='+TOOL;
-  return fetch(base+'&meta=1').then(function(r){return r.json();}).then(function(d){
-    var info=(d&&d.data)||{};
-    if(info.chunked&&info.meta&&info.meta.totalChunks){
-      var n=info.meta.totalChunks, acc=[], seq=Promise.resolve();
-      for(var i=0;i<n;i++){
-        (function(idx){ seq=seq.then(function(){
-          return fetch(base+'&chunk='+idx).then(function(r2){return r2.json();}).then(function(d2){
-            var rec=digRecords(d2)||[]; acc=acc.concat(rec);
-          });
-        }); })(i);
-      }
-      return seq.then(function(){ return acc; });
-    }
-    return digRecords(d)||[];
-  }).then(function(recs){
-    if(!recs||!recs.length){ if(!silent)toast(L('雲端尚無資料','No cloud data'),'warn'); return; }
-    applyCloud(recs,silent);
-    META.cloudUpdatedAt=nowStamp(); saveMeta();
-    setTxt('cloud-stat', '☁ '+META.cloudUpdatedAt);
-  }).catch(function(e){
-    if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');
-  }).then(function(){
-    if(btn&&!silent){btn.disabled=false;btn.classList.remove('opacity-50');}
-  });
+function cloudDownload(options){
+  options=options||{};var silent=!!options.silent;var btn=el('btn-cloud-down');if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50')}setTxt('cloud-stat','☁↓…');
+  return HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL,localRecords:flatRecords(),onStatus:function(x){setTxt('cloud-stat','☁ '+x)}}).then(function(res){if(res&&res.meta&&res.meta.decisions)DEC=Object.assign({},DEC,res.meta.decisions);if(res&&res.records&&res.records.length)applyCloud(res.records,silent);META.downloadedAt=nowStamp();META.count=flatRecords().length;saveMeta();setTxt('cloud-stat','☁ '+(res&&res.downloaded||0));return res}).catch(function(e){if(!silent)toast(L('下載失敗：','Download failed: ')+e.message,'error');else console.warn('[onboarding auto pull]',e);return {ok:false,error:e.message}}).then(function(res){if(btn&&!silent){btn.disabled=false;btn.classList.remove('opacity-50')}return res});
 }
-/* 啟動靜默同步：⚠ 比較一定用 !==，不要用 > */
-function autoSync(){
-  try{
-    var base=gasUrl()+'?action=pull&tool='+TOOL+'&meta=1';
-    fetch(base).then(function(r){return r.json();}).then(function(d){
-      var info=(d&&d.data)||{};
-      var ts=(info.meta&&info.meta.timestamp)||(info.data&&info.data.updatedAt)||d.updatedAt||'';
-      if(ts && ts!==META.cloudUpdatedAt){ cloudDownload(true); }
-      if(ts) setTxt('cloud-stat', '☁ '+ts);
-    }).catch(function(){});
-  }catch(e){}
-}
+function autoSync(reason){if(_onboardSyncBusy||!gasUrl()||!navigator.onLine)return Promise.resolve(false);_onboardSyncBusy=true;return cloudDownload({auto:true,silent:true}).then(function(){return cloudUpload({auto:true,silent:true,reason:reason||'startup'})}).catch(function(e){console.warn('[onboarding auto sync]',e)}).finally(function(){_onboardSyncBusy=false});}
 
 /* ═══════════ TELEGRAM（④ HTML + escapeHtml） ═══════════ */
 /* ═══ 期間工具：日 / 週 / 月 / 年 ═══
@@ -2664,6 +2589,11 @@ function init(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
 else init();
+
+/* Auto-sync retry on network recovery / app resume. */
+
+window.addEventListener('online',()=>setTimeout(()=>autoSync('network-restored'),150));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>autoSync('resume'),180)});
 </script>
 </body>
 </html>

@@ -640,7 +640,7 @@ async function loadFromIDB() {
   } catch(e) { return []; }
 }
 
-// Local-only startup. Cloud upload/download is always initiated by the user.
+// Smart startup: local data opens immediately, then only changed cloud dates are reconciled in background.
 (async function smartStartup() {
   try {
     const recs = await loadFromIDB();
@@ -655,6 +655,7 @@ async function loadFromIDB() {
       updateHeader();
     }
   } catch(e) { console.warn('[STARTUP] IDB load failed:', e); }
+  setTimeout(()=>attAutoSync({source:'startup'}),250);
 })();
 
 
@@ -662,11 +663,13 @@ function saveDB(){
   markDataChanged();
   LS.set('log', IMPORT_LOG);
   updateHeader();
-  return saveToIDB(DB).catch(e=>{
+  const _savePromise=saveToIDB(DB).catch(e=>{
     console.warn('[IDB save error]', e);
     toast(T('瀏覽器資料庫無法寫入，請先下載 JSON 備份','Browser database could not be written. Download a JSON backup now.','មិនអាចរក្សាទុកទិន្នន័យបាន'),'err');
     return 0;
   });
+  _savePromise.then(()=>attScheduleAutoSync('save'));
+  return _savePromise;
 }
 function updateHeader(){
   document.getElementById('hRecs').textContent=DB.length;
@@ -2209,14 +2212,75 @@ let cloudSnap   = null;     // last known cloud snapshot
     document.getElementById('gasUrlInput').value = GAS_URL;
     document.getElementById('btnPush').disabled = false;
     document.getElementById('btnPull').disabled = false;
-    setSyncStatus('idle', T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់ (ធ្វើដោយដៃ)'));
+    setSyncStatus('idle', T('GAS 已設定（自動增量同步）','GAS configured (automatic incremental sync)','GAS បានកំណត់ (សមកាលកម្មស្វ័យប្រវត្តិ)'));
   }
 })();
 
-// Kept only as a compatibility entry point for older bookmarks/scripts.
-// It intentionally performs no network request: all cloud transfers are manual.
-async function attAutoSync() {
-  return false;
+// Attendance date-level smart sync. The GAS v42 backend already exposes attendanceDiff.
+const ATT_AUTO_BASELINE_KEY=CLOUD_CFG_KEY+'_date_baseline_v2';
+const ATT_HASH_FIELDS=['date','dept','sect','line','m','f','join','resign','ti','to','tr','al','pl','sl','np','bus','fl','ml','idle','att','hours','isSubtotal','isGrand'];
+let _attAutoBusy=false,_attApplyingCloud=false,_attAutoTimer=null;
+function attField(v){return v===undefined||v===null?'':String(v)}
+function attRowSig(r){return ATT_HASH_FIELDS.map(k=>attField(r&&r[k])).join('\x1f')}
+function attFnv1a(s){let h=2166136261;s=String(s||'');for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return ('00000000'+(h>>>0).toString(16)).slice(-8)}
+function attDateStats(rows){
+  const b={};(rows||[]).forEach(r=>{const d=attField(r&&r.date).slice(0,10);if(!d)return;(b[d]||(b[d]=[])).push(attRowSig(r))});
+  const out={};Object.keys(b).sort().forEach(d=>{const a=b[d].sort();out[d]={count:a.length,hash:attFnv1a(a.join('\x1e'))}});return out;
+}
+function attSameStat(a,b){return !!a&&!!b&&Number(a.count)===Number(b.count)&&String(a.hash||'')===String(b.hash||'')}
+function attLoadBaseline(){try{return JSON.parse(localStorage.getItem(ATT_AUTO_BASELINE_KEY)||'{}')||{}}catch(e){return{}}}
+function attSaveBaseline(v){try{localStorage.setItem(ATT_AUTO_BASELINE_KEY,JSON.stringify(v||{}))}catch(e){}}
+function attScheduleAutoSync(reason){if(_attApplyingCloud||!GAS_URL)return;clearTimeout(_attAutoTimer);_attAutoTimer=setTimeout(()=>attAutoSync({source:reason||'local-change'}),1000)}
+async function attPost(payload){const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const t=await r.text();let d;try{d=JSON.parse(t)}catch(e){throw new Error('GAS non-JSON: '+t.slice(0,100))}if(d&&d.ok===false)throw new Error(d.error||'GAS error');return d&&d.data!==undefined?d.data:d}
+async function attPullDates(dates,localStats){
+  if(!dates.length)return 0;
+  const d=await attPost({action:'attendanceDiff',dateStats:localStats||{},dates:dates,metaOnly:false});
+  const rows=(d&&d.records)||[];const wanted=new Set(dates.map(x=>String(x).slice(0,10)));
+  _attApplyingCloud=true;
+  try{
+    DB=DB.filter(r=>!wanted.has(String(r.date||'').slice(0,10))).concat(rows);
+    DB.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))||String(a.dept||'').localeCompare(String(b.dept||'')));
+    IMPORT_LOG=[...new Set(DB.map(r=>r.date).filter(Boolean))];markDataChanged();await saveToIDB(DB);try{LS.set('log',IMPORT_LOG)}catch(e){};updateHeader();try{renderAll()}catch(e){}
+  }finally{_attApplyingCloud=false}
+  return rows.length;
+}
+async function attPushDates(dates){
+  if(!dates.length)return 0;const set=new Set(dates),rows=DB.filter(r=>set.has(String(r.date||'').slice(0,10)));if(!rows.length)return 0;
+  const d=await attPost({action:'push',tool:'attendance',records:rows,recordCount:rows.length,replaceDates:dates,dateStats:attDateStats(rows),mergeMode:'merge',updatedAt:new Date().toISOString(),summary:{source:'attendance-auto-sync',dates:dates.length}});
+  return rows.length;
+}
+async function attAutoSync(options={}){
+  if(_attAutoBusy||!GAS_URL||!navigator.onLine)return false;
+  _attAutoBusy=true;setSyncStatus('syncing',T('自動檢查雲端…','Checking cloud changes…','កំពុងពិនិត្យ Cloud…'));
+  try{
+    const local=attDateStats(DB), meta=await attPost({action:'attendanceDiff',dateStats:local,dates:[],metaOnly:true});
+    const cloud=(meta&&meta.dateStats)||{}, baseline=attLoadBaseline();
+    const union=[...new Set([...Object.keys(local),...Object.keys(cloud)])].sort();
+    const pull=[],push=[],conflict=[];
+    union.forEach(date=>{
+      const l=local[date],c=cloud[date],b=baseline[date];
+      if(attSameStat(l,c))return;
+      if(!l&&c){pull.push(date);return} if(l&&!c){push.push(date);return}
+      if(b){if(attSameStat(l,b)&&!attSameStat(c,b)){pull.push(date);return}if(attSameStat(c,b)&&!attSameStat(l,b)){push.push(date);return}}
+      conflict.push(date);
+    });
+    // First-use/true conflict: preserve a local safety backup and prefer cloud only after confirmation.
+    if(conflict.length){
+      try{localStorage.setItem(CLOUD_CFG_KEY+'_conflict_backup_'+Date.now(),JSON.stringify(DB.filter(r=>conflict.includes(String(r.date||'').slice(0,10)))))}catch(e){}
+      const ok=options.silentConflict?false:confirm(T(`有 ${conflict.length} 個日期在本機與雲端都不同。已先保留本機備份。\n按「確定」以雲端版本合併；按「取消」保留本機並暫不覆蓋。`,`There are ${conflict.length} date conflicts. A local safety backup was kept.\nOK = merge cloud version; Cancel = keep local for now.`,`មានទិន្នន័យខុសគ្នា ${conflict.length} ថ្ងៃ។`));
+      if(ok)pull.push(...conflict);else push.push(...conflict);
+    }
+    const p1=[...new Set(pull)],p2=[...new Set(push.filter(x=>!p1.includes(x)))];
+    let downloaded=0,uploaded=0;
+    if(p1.length)downloaded=await attPullDates(p1,local);
+    if(p2.length)uploaded=await attPushDates(p2);
+    // Refresh cloud meta once, then persist exact date hashes as the baseline.
+    const finalLocal=attDateStats(DB), m2=await attPost({action:'attendanceDiff',dateStats:finalLocal,dates:[],metaOnly:true});
+    const finalCloud=(m2&&m2.dateStats)||{};const bl={};Object.keys(finalLocal).forEach(d=>{if(attSameStat(finalLocal[d],finalCloud[d]))bl[d]=finalLocal[d]});attSaveBaseline(bl);
+    const msg=downloaded||uploaded?T(`自動同步完成：下載 ${downloaded} 筆／上傳 ${uploaded} 筆`,`Auto sync: ${downloaded} downloaded / ${uploaded} uploaded`,`សមកាលកម្មរួចរាល់`):T('已同步，沒有新變更','Synced; no new changes','បានធ្វើសមកាលកម្ម គ្មានការផ្លាស់ប្តូរ');
+    setSyncStatus('synced',msg);return true;
+  }catch(e){console.warn('[Attendance auto sync]',e);setSyncStatus('offline',T('離線／稍後再同步','Offline / retry later','ក្រៅបណ្តាញ'));return false}
+  finally{_attAutoBusy=false}
 }
 
 // ── Save GAS URL ──
@@ -2228,8 +2292,9 @@ function saveGasUrl() {
   document.getElementById('btnPush').disabled = false;
   document.getElementById('btnPull').disabled = false;
   document.getElementById('cloudCfgRow').classList.remove('open');
-  setSyncStatus('idle', T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់ (ធ្វើដោយដៃ)'));
-  toast(T('✅ GAS URL 已儲存；不會自動連線','✅ GAS URL saved; no automatic connection','✅ GAS URL បានរក្សាទុក'), 'ok');
+  setSyncStatus('idle', T('GAS 已設定（自動增量同步）','GAS configured (automatic incremental sync)','GAS បានកំណត់ (សមកាលកម្មស្វ័យប្រវត្តិ)'));
+  toast(T('✅ GAS URL 已儲存；將自動同步變更資料','✅ GAS URL saved; changed data will sync automatically','✅ GAS URL បានរក្សាទុក'), 'ok');
+  setTimeout(()=>attAutoSync({source:'gas-url-saved'}),120);
 }
 
 function toggleCloudCfg() {
@@ -2542,7 +2607,7 @@ function setSyncStatus(status, label) {
   if (dot) { dot.className = 'cloud-dot ' + status; }
   if (lbl) {
     const statusLabels = {
-      idle    : GAS_URL ? T('GAS 已設定（手動同步）','GAS configured (manual sync)','GAS បានកំណត់') : T('雲端未設定（手動同步）','Cloud not configured (manual sync)','Cloud មិនទាន់កំណត់'),
+      idle    : GAS_URL ? T('自動同步待命','Auto sync ready','សមកាលកម្មស្វ័យប្រវត្តិ') : T('雲端未設定','Cloud not configured','Cloud មិនទាន់កំណត់'),
       syncing : T('同步中…','Syncing…','កំពុងធ្វើសមកាលកម្ម…'),
       synced  : T('✅ 已同步','✅ Synced','✅ បានធ្វើសមកាលកម្ម'),
       failed  : T('❌ 同步失敗','❌ Sync failed','❌ បរាជ័យ'),
@@ -3008,6 +3073,11 @@ async function renderSewCmp() {
 <script>
 setLang(LANG);
 setSyncStatus('idle','');
+
+/* Auto-sync retry on network recovery / app resume. */
+
+window.addEventListener('online',()=>setTimeout(()=>attAutoSync({source:'network-restored'}),150));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>attAutoSync({source:'resume'}),180)});
 </script>
 </body>
 </html>

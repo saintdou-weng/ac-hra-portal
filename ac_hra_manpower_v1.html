@@ -2943,8 +2943,8 @@ async function selectCloudDelta(url,tool,records){
   }
   return{records:selected,known,confirmed:false};
 }
-async function cloudDownload(){
-  const url=gasUrl(),btn=el('cloudDownBtn');if(!url){toast(L('請先到設定填 GAS URL','Set GAS URL first','កំណត់ GAS URL ជាមុន'),'warn');goTab('settings');return}
+async function cloudDownload(options={}){
+  const url=gasUrl(),btn=el('cloudDownBtn');if(!url){if(!options.silent){toast(L('請先到設定填 GAS URL','Set GAS URL first','កំណត់ GAS URL ជាមុន'),'warn');goTab('settings')}return}
   if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('下載中…','Downloading…','កំពុងទាញយក…'));
   try{
     const mainRes=await HRASmartSync.pullReliable({url,tool:'manpower',localRecords:flatCloudRecords().filter(r=>r._kind!=='join'&&r._kind!=='resign'),onStatus:s=>setCloudState('',s)});
@@ -2959,6 +2959,7 @@ async function cloudDownload(){
       `雲端回傳 ${rawMain.length} 筆 Manpower 資料，但格式無法辨識；已停止空白覆蓋`,
       `Cloud returned ${rawMain.length} Manpower record(s), but their format was not recognized; blank overwrite was stopped`,
       `Cloud បានផ្ញើទិន្នន័យ Manpower ${rawMain.length} កំណត់ត្រា ប៉ុន្តែមិនអាចស្គាល់ទម្រង់បាន; បានបញ្ឈប់ការជំនួសដោយទិន្នន័យទទេ`));
+    if(!records.length&&!movement.length&&!mainRes?.noCloud&&!moveRes?.noCloud){setCloudState('ok',L('已同步，沒有新變更','Synced; no new changes','បានធ្វើសមកាលកម្ម គ្មានការផ្លាស់ប្តូរ'));return {unchanged:true};}
     if((mainRes?.noCloud||!records.length)&&(!movement.length||moveRes?.noCloud))throw new Error(L('雲端尚無 Manpower／入離職資料','No Manpower or movement data in cloud','មិនមានទិន្នន័យ Manpower/ចូលចេញក្នុង Cloud'));
     const parsed=splitCloudRecords(all),stats=mergeParsed(parsed,{interactive:true});
     const saved=await saveDB();populateFilters();renderAll();
@@ -2967,8 +2968,8 @@ async function cloudDownload(){
       `Plans ${parsed.plans.length} | Recruitment ${parsed.candidates.length} | Join ${parsed.joins.length} | Resign ${parsed.resigns.length} | Daily ${parsed.daily.length}`,
       `តម្រូវការ ${parsed.plans.length} | ជ្រើសរើស ${parsed.candidates.length} | ចូល ${parsed.joins.length} | ចាកចេញ ${parsed.resigns.length} | ប្រចាំថ្ងៃ ${parsed.daily.length}`);
     setCloudState(saved.ok?'ok':'err',saved.ok?`${L('已合併','Merged','បានបញ្ចូល')} ${all.length} · ${cloudBreakdown}`:L('已下載但未保存','Downloaded, not saved','បានទាញយក ប៉ុន្តែមិនបានរក្សាទុក'));
-    if(saved.ok){lsSet('ac_hra_manpower_smart_downloaded_v1',new Date().toISOString());markCloudManifest(all);toast(`${L('只下載變更；Manpower 與平台入離職已合併','Only changed data downloaded; Manpower and platform movement merged','ទាញយកតែការកែប្រែ; Manpower និង Join/Resign បានបញ្ចូល')} · ${cloudBreakdown} · ${statText(stats)}`,'ok');}
-  }catch(e){setCloudState('err',L('下載失敗','Download failed','ទាញយកបរាជ័យ'));toast(e.message,'err')}
+    if(saved.ok){lsSet('ac_hra_manpower_smart_downloaded_v1',new Date().toISOString());markCloudManifest(all);if(!options.silent)toast(`${L('只下載變更；Manpower 與平台入離職已合併','Only changed data downloaded; Manpower and platform movement merged','ទាញយកតែការកែប្រែ; Manpower និង Join/Resign បានបញ្ចូល')} · ${cloudBreakdown} · ${statText(stats)}`,'ok');}
+  }catch(e){setCloudState('err',L('下載失敗','Download failed','ទាញយកបរាជ័យ'));if(!options.silent)toast(e.message,'err');else console.warn('[manpower auto pull]',e)}
   finally{if(btn){btn.classList.remove('busy');btn.disabled=false}}
 }
 function tgBi(zh,en,lang){
@@ -3326,6 +3327,7 @@ async function init(){
     notifyStorageMode(warning.error,warning.mode);
   }
   refreshStorageEstimate();
+  if(gasUrl())setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'startup-reconcile'})}catch(e){console.warn('[manpower auto sync]',e)}},400);
 }
 
 /* Same-origin bridge: if Onboarding edits Join/Resign in another tab/page,
@@ -3358,6 +3360,11 @@ init().catch(e=>{
   STORAGE.mode='memory';STORAGE.lastError=String(e?.message||e);STORAGE.lastReason=storageReason(e);
   try{toast(`${storageReason(e)}；${L('資料只保留在目前頁面','Data remains only on this page','ទិន្នន័យនៅតែលើទំព័រនេះ')}`,'err')}catch(_){}
 });
+
+/* Auto-sync retry on network recovery / app resume. */
+
+window.addEventListener('online',()=>setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'network-restored'})}catch(e){console.warn('[manpower network sync]',e)}},150));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'resume'})}catch(e){console.warn('[manpower resume sync]',e)}},180)});
 </script>
 </body>
 </html>

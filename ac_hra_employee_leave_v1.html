@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js?v=43"></script>
 <title>員工請假單 – VANTAGE RIVER TEXTILES CO., LTD</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Sans+Khmer:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -601,8 +603,10 @@ function seedLeaves() {
 // ═══════════════════════════════════════════════════════════
 // STORAGE
 // ═══════════════════════════════════════════════════════════
+let _leaveCloudApplying=false,_leaveCloudTimer=null,_leaveCloudBusy=false;
 function saveData(){
   try{localStorage.setItem("vrt_emps",JSON.stringify(emps));localStorage.setItem("vrt_lvs",JSON.stringify(lvs));}catch(e){}
+  if(!_leaveCloudApplying)scheduleLeaveCloudSync('save');
 }
 function loadData(){
   try{
@@ -966,6 +970,24 @@ function renderAnalytics(){
 // ═══════════════════════════════════════════════════════════
 function escHtml(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 function leaveGasUrl(){return (localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}
+
+function leaveCloudKeyEmp(e){return 'EMP|'+String(e&&e.fid||'').trim().toUpperCase()}
+function leaveCloudKeyLv(fid,r){return ['LEAVE',String(fid||'').trim().toUpperCase(),r.startDate||'',r.endDate||'',r.leaveType||'',r.id||''].join('|')}
+function flatLeaveCloudRecords(){
+  const out=[];emps.forEach(e=>{const x=Object.assign({},e,{_kind:'employee',_k:leaveCloudKeyEmp(e),employeeLocalId:e.id,updatedAt:e.updatedAt||new Date(0).toISOString()});out.push(x);(lvs[e.id]||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'leave',_k:leaveCloudKeyLv(e.fid,r),fid:e.fid,employeeLocalId:e.id,updatedAt:r.updatedAt||r.createdAt||new Date(0).toISOString()}))) });return out
+}
+function leaveMergeRow(a,b){a=a||{};b=b||{};const at=Date.parse(a.updatedAt||0)||0,bt=Date.parse(b.updatedAt||0)||0;const newer=bt>=at?b:a,older=bt>=at?a:b;const out=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((out[k]===undefined||out[k]===null||out[k]==='')&&older[k]!==''&&older[k]!=null)out[k]=older[k]});return out}
+function applyLeaveCloudRecords(records){
+  const remoteEmp=(records||[]).filter(r=>r&&r._kind==='employee'),remoteLv=(records||[]).filter(r=>r&&r._kind==='leave');
+  const byFid=new Map(emps.map(e=>[String(e.fid||'').trim().toUpperCase(),e]));
+  remoteEmp.forEach(r=>{const fid=String(r.fid||'').trim(),key=fid.toUpperCase();if(!fid)return;let e=byFid.get(key);if(e){const keep=e.id;Object.assign(e,leaveMergeRow(e,r));e.id=keep}else{e=Object.assign({},r,{id:'E_CLOUD_'+key.replace(/[^A-Z0-9]/g,'_')});delete e._kind;delete e._k;delete e.employeeLocalId;emps.push(e);lvs[e.id]=lvs[e.id]||[];byFid.set(key,e)}});
+  remoteLv.forEach(r=>{const e=byFid.get(String(r.fid||'').trim().toUpperCase());if(!e)return;const arr=lvs[e.id]||(lvs[e.id]=[]),rk=r._k||leaveCloudKeyLv(e.fid,r);let idx=arr.findIndex(x=>(x._cloudKey||leaveCloudKeyLv(e.fid,x))===rk);const clean=Object.assign({},r,{_cloudKey:rk});delete clean._kind;delete clean._k;delete clean.fid;delete clean.employeeLocalId;if(idx>=0)arr[idx]=leaveMergeRow(arr[idx],clean);else arr.push(clean)});
+}
+function scheduleLeaveCloudSync(reason){if(_leaveCloudApplying||!leaveGasUrl())return;clearTimeout(_leaveCloudTimer);_leaveCloudTimer=setTimeout(()=>leaveAutoSync({reason:reason||'change'}),900)}
+async function leaveCloudUpload(options={}){if(_leaveCloudBusy||!leaveGasUrl()||typeof HRASmartSync==='undefined')return;const recs=flatLeaveCloudRecords();return HRASmartSync.push({url:leaveGasUrl(),tool:'attendance_leave',records:recs,recordCount:recs.length,summary:{employees:emps.length,leaveRecords:Object.values(lvs).reduce((n,a)=>n+(a||[]).length,0)},allowDeletes:false,autoConfirmConflicts:!!options.auto}).catch(e=>{if(!options.silent)console.warn(e)})}
+async function leaveCloudDownload(options={}){if(!leaveGasUrl()||typeof HRASmartSync==='undefined')return;const res=await HRASmartSync.pullReliable({url:leaveGasUrl(),tool:'attendance_leave',localRecords:flatLeaveCloudRecords()});if(res&&res.records&&res.records.length){_leaveCloudApplying=true;try{applyLeaveCloudRecords(res.records);saveData();renderAll()}finally{_leaveCloudApplying=false}}return res}
+async function leaveAutoSync(options={}){if(_leaveCloudBusy||!leaveGasUrl()||!navigator.onLine)return;_leaveCloudBusy=true;try{await leaveCloudDownload({auto:true,silent:true});await leaveCloudUpload({auto:true,silent:true})}catch(e){console.warn('[Leave auto sync]',e)}finally{_leaveCloudBusy=false}}
+
 async function leaveGasPost(payload){
   const url=leaveGasUrl(); if(!url)throw new Error(lang==='en'?'Attendance GAS URL is not configured':'Attendance GAS URL 尚未設定');
   const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
@@ -1342,8 +1364,14 @@ applyTranslations();
 renderEmpList();
 // Auto-select first employee
 if(emps.length){selectEmp(emps[0].id);}
+setTimeout(()=>leaveAutoSync({reason:'startup'}),350);
 
 window.addEventListener('DOMContentLoaded',function(){const a=document.getElementById('tg-actor');if(a&&!a.value)a.value=localStorage.getItem('ac_hra_leave_actor')||'';});
+
+/* Auto-sync retry on network recovery / app resume. */
+
+window.addEventListener('online',()=>setTimeout(()=>leaveAutoSync({reason:'network-restored'}),150));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>leaveAutoSync({reason:'resume'}),180)});
 </script>
 </body>
 </html>

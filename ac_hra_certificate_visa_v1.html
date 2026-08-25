@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<script src="shared/cloud-guard.js"></script>
+<script src="shared/hra-smart-sync.js?v=43"></script>
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -444,7 +446,7 @@ let pendingRequestItems=[];
 const I18N={
 zh:{
  title:'證書、簽證與工作證管理',import:'匯入 Excel',cloudUp:'手動上傳',cloudDown:'手動下載',export:'匯出',telegram:'Telegram 摘要',print:'列印',
- manualOnly:'● 僅在按下按鈕時連線',tabDashboard:'總覽',tabTimeline:'到期行事曆',tabPeriods:'月／年列表',tabCertificates:'公司證書',tabPeople:'外籍人員',tabApprovals:'申請／核可',tabAnalysis:'分類分析',tabSettings:'設定',
+ manualOnly:'● 自動增量同步；按鈕可強制同步',tabDashboard:'總覽',tabTimeline:'到期行事曆',tabPeriods:'月／年列表',tabCertificates:'公司證書',tabPeople:'外籍人員',tabApprovals:'申請／核可',tabAnalysis:'分類分析',tabSettings:'設定',
  day:'日',week:'周',month:'月',year:'年',allFields:'全部日期欄位',certificateExpiry:'證書到期／續期',passportExpiry:'護照到期',visaExpiry:'簽證到期',workPermitExpiry:'工作證到期',residenceExpiry:'居留證到期',
  kpiCert:'公司證書',kpiCertSub:'有效追蹤項目',kpiExpats:'外籍人員',kpiExpatsSub:'最新有效名單',kpiDue:'45 天內到期',kpiDueSub:'尚未提前完成',kpiExpired:'已逾期',kpiExpiredSub:'需處理項目',kpiPending:'待核可',kpiPendingSub:'批次申請',
  upcoming45:'45 天提醒清單',reminderRule:'提前完成／已核可者不提醒',makeReminder:'產生三語提醒',date:'日期',type:'類型',itemPerson:'項目／人員',department:'部門／分類',days:'天數',status:'狀態',
@@ -468,7 +470,7 @@ zh:{
 },
 en:{
  title:'Certificate, Visa & Work Permit',import:'Import Excel',cloudUp:'Manual Upload',cloudDown:'Manual Download',export:'Export',telegram:'Telegram Summary',print:'Print',
- manualOnly:'● Connects only when you press a button',tabDashboard:'Overview',tabTimeline:'Expiry Calendar',tabPeriods:'Month / Year List',tabCertificates:'Company Certificates',tabPeople:'Expats',tabApprovals:'Applications / Approval',tabAnalysis:'Analysis',tabSettings:'Settings',
+ manualOnly:'● Automatic incremental sync; buttons force a sync',tabDashboard:'Overview',tabTimeline:'Expiry Calendar',tabPeriods:'Month / Year List',tabCertificates:'Company Certificates',tabPeople:'Expats',tabApprovals:'Applications / Approval',tabAnalysis:'Analysis',tabSettings:'Settings',
  day:'Day',week:'Week',month:'Month',year:'Year',allFields:'All date fields',certificateExpiry:'Certificate expiry / renewal',passportExpiry:'Passport expiry',visaExpiry:'Visa expiry',workPermitExpiry:'Work permit expiry',residenceExpiry:'Residence permit expiry',
  kpiCert:'Company Certificates',kpiCertSub:'Tracked active items',kpiExpats:'Active Expats',kpiExpatsSub:'Latest confirmed roster',kpiDue:'Due Within 45 Days',kpiDueSub:'Not completed early',kpiExpired:'Overdue',kpiExpiredSub:'Items needing action',kpiPending:'Pending Approval',kpiPendingSub:'Batch applications',
  upcoming45:'45-Day Reminder List',reminderRule:'Completed or approved items are excluded',makeReminder:'Create 3-language reminder',date:'Date',type:'Type',itemPerson:'Item / Person',department:'Department / Category',days:'Days',status:'Status',
@@ -537,6 +539,7 @@ async function persist(){
   const db=await openDb();await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=resolve;q.onerror=()=>reject(q.error)});db.close();
   const meta={count:STATE.certificates.length+STATE.people.length+STATE.requests.length,certCount:STATE.certificates.length,expatCount:STATE.people.length,requestCount:STATE.requests.length,updatedAt:STATE.updatedAt};
   localStorage.setItem(META_KEY,JSON.stringify(meta));
+  if(!_certCloudApplying)scheduleCertSync('persist');
 }
 function showLoading(text){document.getElementById('loadingText').textContent=text||'…';document.getElementById('loading').classList.add('on')}
 function hideLoading(){document.getElementById('loading').classList.remove('on')}
@@ -938,17 +941,16 @@ function gasUrl(){return localStorage.getItem(GAS_KEY)||''}
 async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
-async function cloudPush(){
-  showLoading(LANG==='en'?'Uploading manually…':'手動上傳中…');try{await postGas({action:'push',tool:TOOL_ID,records:[{kind:'snapshot',payload:STATE}],recordCount:STATE.certificates.length+STATE.people.length+STATE.requests.length,updatedAt:new Date().toISOString()});toast(`✅ ${tr('cloudSent')}`)}catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
-}
-async function cloudPull(){
-  const url=gasUrl();if(!url){toast(tr('gasMissing'));return}showLoading(LANG==='en'?'Downloading manually…':'手動下載中…');
-  try{
-    const r=await fetch(`${url}?action=pull&tool=${TOOL_ID}&meta=1`,{redirect:'follow'}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');
-    let records=d.data?.records||d.data?.data?.records||d.records||[];let snap=Array.isArray(records)?records.find(x=>x?.kind==='snapshot')?.payload:null;if(!snap&&d.data?.data?.certificates)snap=d.data.data;if(!snap?.certificates)throw new Error('No Certificate & Visa snapshot');
-    STATE=Object.assign(defaultState(),snap);await persist();renderAll();toast(`✅ ${tr('cloudReceived')}`)
-  }catch(e){toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000)}finally{hideLoading()}
-}
+let _certCloudApplying=false,_certCloudBusy=false,_certCloudTimer=null;
+function certKey(kind,r){const n=v=>String(v==null?'':v).trim().toUpperCase().replace(/[\s_\-–—\/]+/g,'');if(kind==='certificate')return 'C|'+n(r.category)+'|'+n(r.name);if(kind==='person')return 'P|'+(n(r.employeeId)||n(r.passport)||(n(r.nameEn||r.nameKh||r.nickname)+'|'+n(r.dob)));if(kind==='request')return 'R|'+(n(r.number)||n(r.id));if(kind==='import')return 'I|'+n(r.file||r.sourceFile||r.id);return 'SET|main'}
+function certFlat(){const out=[];(STATE.certificates||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'certificate',_k:certKey('certificate',r)})));(STATE.people||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'person',_k:certKey('person',r)})));(STATE.requests||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'request',_k:certKey('request',r)})));(STATE.imports||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'import',_k:certKey('import',r)})));out.push({_kind:'settings',_k:'SET|main',settings:STATE.settings||{},updatedAt:STATE.updatedAt||new Date(0).toISOString()});return out}
+function certMergeRow(a,b){a=a||{};b=b||{};const at=Date.parse(a.updatedAt||0)||0,bt=Date.parse(b.updatedAt||0)||0;const newer=bt>=at?b:a,older=bt>=at?a:b;const o=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((o[k]===undefined||o[k]===null||o[k]==='')&&older[k]!==''&&older[k]!=null)o[k]=older[k]});if(Array.isArray(a.versions)||Array.isArray(b.versions)){const map=new Map();[...(a.versions||[]),...(b.versions||[])].forEach(v=>{const k=String(v.effectiveFrom||v.startDate||v.expiryDate||v.updatedAt||JSON.stringify(v));const old=map.get(k);map.set(k,old?certMergeRow(old,v):v)});o.versions=[...map.values()].sort((x,y)=>String(x.effectiveFrom||x.startDate||'').localeCompare(String(y.effectiveFrom||y.startDate||'')))}return o}
+function certMergeArray(kind,local,remote){const map=new Map();(local||[]).forEach(r=>map.set(certKey(kind,r),r));(remote||[]).forEach(r=>{const k=r._k||certKey(kind,r),old=map.get(k);const c=Object.assign({},r);delete c._kind;delete c._k;map.set(k,old?certMergeRow(old,c):c)});return [...map.values()]}
+function certApply(records){const g={certificate:[],person:[],request:[],import:[],settings:[]};(records||[]).forEach(r=>{if(g[r._kind])g[r._kind].push(r)});_certCloudApplying=true;try{STATE.certificates=certMergeArray('certificate',STATE.certificates,g.certificate);STATE.people=certMergeArray('person',STATE.people,g.person);STATE.requests=certMergeArray('request',STATE.requests,g.request);STATE.imports=certMergeArray('import',STATE.imports,g.import);if(g.settings[0]&&g.settings[0].settings)STATE.settings=Object.assign({},g.settings[0].settings,STATE.settings||{})}finally{_certCloudApplying=false}}
+function scheduleCertSync(reason){if(_certCloudApplying||!gasUrl())return;clearTimeout(_certCloudTimer);_certCloudTimer=setTimeout(()=>certAutoSync(reason||'change'),900)}
+async function cloudPush(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return}const recs=certFlat();try{const d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:recs,recordCount:recs.length,summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto push]',e)}}
+async function cloudPull(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return}try{const res=await HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL_ID,localRecords:certFlat()});if(res&&res.records&&res.records.length){certApply(res.records);_certCloudApplying=true;try{await persist()}finally{_certCloudApplying=false}renderAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto pull]',e)}}
+async function certAutoSync(reason){if(_certCloudBusy||!gasUrl()||!navigator.onLine)return;_certCloudBusy=true;try{await cloudPull({auto:true,silent:true});await cloudPush({auto:true,silent:true,reason})}catch(e){console.warn('[certificate auto sync]',e)}finally{_certCloudBusy=false}}
 
 /* ── Telegram summaries (manual only; no bot token in the HTML) ─────── */
 function eventsForMode(mode){
@@ -993,10 +995,15 @@ async function init(){
   showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();
   STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});
   setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId',STATE.settings.approverTelegramId||'5026942575');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
-  applyLang();renderAll();hideLoading()
+  applyLang();renderAll();hideLoading();setTimeout(()=>certAutoSync('startup'),350)
 }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
 init();
+
+/* Auto-sync retry on network recovery / app resume. */
+
+window.addEventListener('online',()=>setTimeout(()=>certAutoSync('network-restored'),150));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>certAutoSync('resume'),180)});
 </script>
 </body>
 </html>

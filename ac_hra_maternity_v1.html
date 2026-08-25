@@ -2343,38 +2343,28 @@ function normalizeMaternityCloudRows(records){
   });
   return out;
 }
-function cloudDownload(){
-  var btn=el('btn-cloud-down'); if(btn)btn.disabled=true;
+function cloudDownload(options){
+  options=options||{};var silent=!!options.silent,auto=!!options.auto;
+  var btn=el('btn-cloud-down'); if(btn&&!silent)btn.disabled=true;
   setTxt('cloud-stat', '☁↓…');
-  HRASmartSync.pullReliable({url:gasUrl(),tool:'maternity',localRecords:flatRecords(),onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(res){
-    if(res&&res.cancelled){setTxt('cloud-stat','☁↩');return;}
-    if(!res||res.noCloud){toast(L('雲端沒有資料','No cloud data'),'warn');setTxt('cloud-stat','☁∅');return;}
+  return HRASmartSync.pullReliable({url:gasUrl(),tool:'maternity',localRecords:flatRecords(),onStatus:function(x){setTxt('cloud-stat','☁ '+x);}}).then(function(res){
+    if(res&&res.cancelled){setTxt('cloud-stat','☁↩');return res;}
+    if(!res||res.noCloud){if(!silent)toast(L('雲端沒有資料','No cloud data'),'warn');setTxt('cloud-stat','☁∅');return res;}
     var recs=normalizeMaternityCloudRows(res.records||[]),remote=res.remoteRecords||[];
     var localCount=EMP.length+NUR.length+HF.length+MED.length+CLINIC.length+SAL.length;
     var remoteCount=Number(res.remoteRecordCount)||remote.length;
     if(remoteCount>0&&!recs.length&&!localCount)throw new Error(L('雲端回報有資料，但手機實際讀入 0 筆，請勿重新上傳空資料','Cloud reports data, but this phone received 0 rows. Do not upload the empty data'));
-    if(remote.length&&(EMP.length||NUR.length||HF.length||MED.length||CLINIC.length||SAL.length) && !confirm(L('雲端有新增或變更資料，合併載入本機？','Cloud has new or changed data. Merge it into this device?'))){setTxt('cloud-stat','☁↩');return;}
+    if(!auto&&remote.length&&localCount&&!confirm(L('雲端有新增或變更資料，合併載入本機？','Cloud has new or changed data. Merge it into this device?'))){setTxt('cloud-stat','☁↩');return {cancelled:true};}
     var emp=[],nur=[],hf=[],med=[],clinic=[],sal=[];
-    recs.forEach(function(r){
-      var t=(r.type||'').toLowerCase();
-      if(t.indexOf('clinic_')===0||t==='clinic'||r.clinicPassNo!==undefined||r.visitDate!==undefined||r.departmentCounts!==undefined){ clinic.push(r); }
-      else if(t==='medical_purchase'||t==='medical'||r.medicalPurchase!==undefined||r.quantity!==undefined&&r.unitPrice!==undefined&&r.item!==undefined){ med.push(r); }
-      else if(t==='health_fee'||t==='health'||r.healthFee!==undefined||r.healthCheckPay!==undefined||r.health_check_pay!==undefined){ hf.push(normalizeHealthRow(r)); }
-      else if(t==='nursing'||r.cardId||r.nursingFee!==undefined||r.nursing_fee!==undefined){ nur.push(normalizeNursingRow(r)); }
-      else if(t==='salary'){ sal.push(r); }
-      else { emp.push(r); }
-    });
-    EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey); NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey); HF=maternityMergeList('health_fee',HF,hf).map(ensureHealthKey); MED=maternityMergeList('medical_purchase',MED,med).map(ensureMedicalKey); CLINIC=maternityMergeList('clinic',CLINIC,clinic).map(ensureClinicKey); if(sal.length)SAL=maternityMergeList('salary',SAL,sal);
+    recs.forEach(function(r){var t=(r.type||'').toLowerCase();if(t.indexOf('clinic_')===0||t==='clinic'||r.clinicPassNo!==undefined||r.visitDate!==undefined||r.departmentCounts!==undefined)clinic.push(r);else if(t==='medical_purchase'||t==='medical'||r.medicalPurchase!==undefined||r.quantity!==undefined&&r.unitPrice!==undefined&&r.item!==undefined)med.push(r);else if(t==='health_fee'||t==='health'||r.healthFee!==undefined||r.healthCheckPay!==undefined||r.health_check_pay!==undefined)hf.push(normalizeHealthRow(r));else if(t==='nursing'||r.cardId||r.nursingFee!==undefined||r.nursing_fee!==undefined)nur.push(normalizeNursingRow(r));else if(t==='salary')sal.push(r);else emp.push(r)});
+    EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey);NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey);HF=maternityMergeList('health_fee',HF,hf).map(ensureHealthKey);MED=maternityMergeList('medical_purchase',MED,med).map(ensureMedicalKey);CLINIC=maternityMergeList('clinic',CLINIC,clinic).map(ensureClinicKey);if(sal.length)SAL=maternityMergeList('salary',SAL,sal);
     if(res.meta&&res.meta.decisions)DEC=Object.assign({},DEC,res.meta.decisions);
-    saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); META.downloadedAt=nowStamp(); saveMeta();
-    HRACloudGuard.markRecords('maternity_records',flatRecords());
-    rebuildFilterOptions(); renderAll();
-    setTxt('cloud-stat', '☁ '+(res.downloaded||0));
-    toast(L('只下載變更並保留本機資料','Only changed data downloaded; local data kept')+'：🤰 '+EMP.length+' · 💊 '+NUR.length+' · 🏥 '+HF.length+' · 💊 '+MED.length+' · 🩺 '+CLINIC.length,'ok');
-  }).catch(function(e){ toast(L('下載失敗','Download failed')+'：'+e.message,'error'); setTxt('cloud-stat', '☁✖'); })
-    .then(function(){ if(btn)btn.disabled=false; });
+    saveEmp2();saveNur();saveHealth();saveMedical();saveClinic();META.downloadedAt=nowStamp();saveMeta();HRACloudGuard.markRecords('maternity_records',flatRecords());rebuildFilterOptions();renderAll();setTxt('cloud-stat','☁ '+(res.downloaded||0));
+    if(!silent&&(res.downloaded||0))toast(L('只下載變更並保留本機資料','Only changed data downloaded; local data kept')+'：🤰 '+EMP.length+' · 💊 '+NUR.length+' · 🏥 '+HF.length+' · 💊 '+MED.length+' · 🩺 '+CLINIC.length,'ok');return res;
+  }).catch(function(e){if(!silent)toast(L('下載失敗','Download failed')+'：'+e.message,'error');else console.warn('[maternity auto pull]',e);setTxt('cloud-stat','☁✖');return {ok:false,error:e.message}}).then(function(res){if(btn&&!silent)btn.disabled=false;return res});
 }
-function autoSync(){ /* 僅在有 GAS 且有雲端資料時提示，不自動覆蓋 */ }
+function autoSync(){if(!gasUrl()||!navigator.onLine)return;cloudDownload({auto:true,silent:true}).then(function(){return cloudUpload({auto:true,silent:true,reason:'startup-reconcile'})}).catch(function(e){console.warn('[maternity auto sync]',e)});}
+
 
 /* ═══════════ ④ Telegram（HTML + escapeHtml，scope 可選、雙語） ═══════════ */
 var HR='— — — — — — — — — —\n';
@@ -3266,10 +3256,16 @@ function init(){
   rebuildFilterOptions();
   renderSets();
   if(META.uploadedAt||META.downloadedAt)setTxt('cloud-stat', '☁ '+(META.count||EMP.length+NUR.length));
+  setTimeout(autoSync,300);
   setTab('ov');
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
 else init();
+
+/* Auto-sync retry on network recovery / app resume. */
+
+window.addEventListener('online',()=>setTimeout(autoSync,150));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(autoSync,180)});
 </script>
 </body>
 </html>
