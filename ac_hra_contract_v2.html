@@ -7,6 +7,7 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
+<!-- v50 Contract Sync Fix: shared GAS precedence + full contract stores + legacy migration -->
 <title>AC HRA 合約管理 / Contract Tracker v2</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -769,15 +770,15 @@ function dbAll(store){return new Promise((res,rej)=>{
 })}
 function dbPut(store,obj){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readwrite").objectStore(store).put(obj);
-  tx.onsuccess=()=>{res();if((store==='dashProbs'||store==='dashConts')&&!_contractCloudApplying)scheduleContractSync('db-put')};tx.onerror=()=>rej(tx.error);
+  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('db-put')};tx.onerror=()=>rej(tx.error);
 })}
 function dbDel(store,id){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readwrite").objectStore(store).delete(id);
-  tx.onsuccess=()=>{res();if((store==='dashProbs'||store==='dashConts')&&!_contractCloudApplying)scheduleContractSync('db-del')};tx.onerror=()=>rej(tx.error);
+  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('db-del')};tx.onerror=()=>rej(tx.error);
 })}
 function dbClear(store){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readwrite").objectStore(store).clear();
-  tx.onsuccess=()=>{res();if((store==='dashProbs'||store==='dashConts')&&!_contractCloudApplying)scheduleContractSync('db-clear')};tx.onerror=()=>rej(tx.error);
+  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('db-clear')};tx.onerror=()=>rej(tx.error);
 })}
 function dbGet(store,id){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readonly").objectStore(store).get(id);
@@ -2311,8 +2312,12 @@ async function saveSettings(){
   SETTINGS.telegramToken=document.getElementById("setTelegramToken").value.trim();
   SETTINGS.telegramChatId=document.getElementById("setTelegramChat").value.trim();
   SETTINGS.gasUrl=document.getElementById("setGasUrl").value.trim();
+  if(SETTINGS.gasUrl){
+    try{localStorage.setItem('vrt_att_cloud_v1_url',SETTINGS.gasUrl);localStorage.setItem('ac_hra_gas_url',SETTINGS.gasUrl);}catch(_){}
+  }
   await dbPut("settings",SETTINGS);
   toast("設定已儲存","success");refreshAll();
+  if(window.HRAAutoSync)HRAAutoSync.schedule('contract','settings',{},60);else scheduleContractSync('settings');
 }
 
 /* ========== Telegram ========== */
@@ -2343,12 +2348,19 @@ async function testTelegram(){
   if(ok)toast("Telegram 測試訊息已發送","success");
 }
 async function sendTelegramSummary(){
-  const remDays=SETTINGS.reminderDays||15;const today=todayISO();const up=[];
-  PROBATIONS.forEach(p=>{if(p.status==='pending'&&p.endDate){const d=daysFromToday(p.endDate);if(d!==null&&d>=0&&d<=remDays){const emp=EMPLOYEES.find(e=>e.id===p.employeeId);if(emp)up.push({kind:'試用',emp,date:p.endDate,days:d});}}});
-  CONTRACTS.forEach(c=>{if(c.status==='active'&&c.contractType!=='UDC'&&c.endDate){const d=daysFromToday(c.endDate);if(d!==null&&d>=0&&d<=remDays){const emp=EMPLOYEES.find(e=>e.id===c.employeeId);if(emp)up.push({kind:'合約 '+c.contractType,emp,date:c.endDate,days:d});}}});
+  const remDays=SETTINGS.reminderDays||15,today=todayISO(),up=[];
+  /* Current dashboard data is the primary UI source. */
+  DASH_PROBS.forEach(p=>{if((p.result||'pending')==='pending'&&p.probEnd){const d=daysFromToday(p.probEnd);if(d!==null&&d>=0&&d<=remDays)up.push({kind:'試用',name:[p.khmerSurname,p.khmerName].filter(Boolean).join(' ')||p.name||'—',id:p.factoryId||'—',dept:p.dept||'—',date:p.probEnd,days:d});}});
+  DASH_CONTS.forEach(c=>{if((c.status||'active')==='active'&&c.contractType!=='UDC'&&c.endDate){const d=daysFromToday(c.endDate);if(d!==null&&d>=0&&d<=remDays)up.push({kind:'合約 '+(c.contractType||''),name:c.name||'—',id:c.factoryId||'—',dept:c.dept||'—',date:c.endDate,days:d});}});
+  /* If this is an older database that has not yet produced dashboard rows, keep
+     the legacy reminder source as a safety fallback. */
+  if(!up.length&&(!DASH_PROBS.length&&!DASH_CONTS.length)){
+    PROBATIONS.forEach(p=>{if(p.status==='pending'&&p.endDate){const d=daysFromToday(p.endDate);if(d!==null&&d>=0&&d<=remDays){const emp=EMPLOYEES.find(e=>e.id===p.employeeId);if(emp)up.push({kind:'試用',name:emp.englishName||emp.khmerName||'—',id:emp.vrtCode||emp.factoryId||'—',dept:emp.department||'—',date:p.endDate,days:d});}}});
+    CONTRACTS.forEach(c=>{if(c.status==='active'&&c.contractType!=='UDC'&&c.endDate){const d=daysFromToday(c.endDate);if(d!==null&&d>=0&&d<=remDays){const emp=EMPLOYEES.find(e=>e.id===c.employeeId);if(emp)up.push({kind:'合約 '+c.contractType,name:emp.englishName||emp.khmerName||'—',id:emp.vrtCode||emp.factoryId||'—',dept:emp.department||'—',date:c.endDate,days:d});}}});
+  }
   up.sort((a,b)=>a.days-b.days);if(up.length===0){toast('沒有即將到期項目可推送','info');return}
   let msg=`🏭 <b>VRT HR 到期提醒 / Expiry Reminder</b>\n━━━━━━━━━━━━━━━━\n📌 <b>總覽 / Overview</b>\n├ 📅 日期 / Date │ ${today}\n├ ⏳ 提醒天數 / Window │ ${remDays} days\n└ 📋 到期項目 / Items │ <b>${up.length}</b>\n━━━━━━━━━━━━━━━━\n📄 <b>明細 / Details</b>\n`;
-  up.slice(0,30).forEach((u,i)=>{msg+=`┌ <b>#${i+1} ${u.emp.englishName||u.emp.khmerName||'—'}</b>\n├ 工號 / ID │ <code>${u.emp.vrtCode||'—'}</code>\n├ 類型 / Type │ ${u.kind}\n├ 部門 / Department │ ${u.emp.department||'—'}\n├ 到期日 / Expiry │ ${u.date}\n└ 剩餘 / Days left │ ${u.days}\n`;});
+  up.slice(0,30).forEach((u,i)=>{msg+=`┌ <b>#${i+1} ${escapeHtml(u.name||'—')}</b>\n├ 工號 / ID │ <code>${escapeHtml(u.id||'—')}</code>\n├ 類型 / Type │ ${escapeHtml(u.kind)}\n├ 部門 / Department │ ${escapeHtml(u.dept||'—')}\n├ 到期日 / Expiry │ ${u.date}\n└ 剩餘 / Days left │ ${u.days}\n`;});
   if(up.length>30)msg+=`· … +${up.length-30}\n`;const ok=await sendTelegramMessage(msg,{period:today.slice(0,7),periodType:'month',messageType:'summary'});if(ok)toast('到期提醒已推送 Telegram','success');
 }
 async function sendTelegramReminders(){await sendTelegramSummary()}
@@ -2360,16 +2372,166 @@ async function sendTelegramAnomalies(){
   const ok=await sendTelegramMessage(msg,{period:todayISO().slice(0,7),periodType:'month',messageType:'summary'});if(ok)toast('異常已推送 Telegram','success');
 }
 
-/* ========== GAS 智慧增量同步 ========== */
+/* ========== GAS 智慧增量同步（v50 Contract Sync Fix） ========== */
 let _contractSyncTimer=null,_contractSyncBusy=false,_contractCloudApplying=false;
-function contractGasUrl(){return String(SETTINGS.gasUrl||localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}
-function contractFlat(){const out=[];DASH_PROBS.forEach(r=>out.push(Object.assign({},r,{_kind:'probation',_k:'P|'+String(r.factoryId||r.empId||r.employeeId||r.id||'')})));DASH_CONTS.forEach(r=>out.push(Object.assign({},r,{_kind:'contract',_k:'C|'+String(r.factoryId||r.empId||r.employeeId||r.id||'')})));return out}
-function contractRowNewer(a,b){const at=Date.parse(a&&a.updatedAt||a&&a.createdAt||0)||0,bt=Date.parse(b&&b.updatedAt||b&&b.createdAt||0)||0;return bt>=at?Object.assign({},a||{},b||{}):Object.assign({},b||{},a||{})}
-function contractApply(records){const rp=(records||[]).filter(r=>r&&String(r._kind||'').startsWith('prob')),rc=(records||[]).filter(r=>r&&String(r._kind||'').startsWith('contract'));const merge=(old,inc,kind)=>{const m=new Map();old.forEach(r=>m.set((kind==='P'?'P|':'C|')+String(r.factoryId||r.empId||r.employeeId||r.id||''),r));inc.forEach(r=>{const k=r._k||(kind==='P'?'P|':'C|')+String(r.factoryId||r.empId||r.employeeId||r.id||'');const c=Object.assign({},r);delete c._kind;delete c._k;m.set(k,m.has(k)?contractRowNewer(m.get(k),c):c)});return [...m.values()]};DASH_PROBS=merge(DASH_PROBS,rp,'P');DASH_CONTS=merge(DASH_CONTS,rc,'C')}
-function scheduleContractSync(reason){if(_contractCloudApplying||!contractGasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('contract',reason||'change',{},900);return;}clearTimeout(_contractSyncTimer);_contractSyncTimer=setTimeout(()=>contractAutoSync(reason||'change'),900)}
-async function syncToGas(options={}){const url=contractGasUrl();if(!url){if(!options.silent)toast(t('errNoGasUrl')||'請先設定 GAS URL','danger');return}const recs=contractFlat();try{const d=await HRASmartSync.push({url,tool:'contract',records:recs,recordCount:recs.length,summary:{probation:DASH_PROBS.length,contracts:DASH_CONTS.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast('☁️ '+(t('syncSuccess')||'已同步變更')+' '+d.uploaded,'success');return d}catch(e){if(!options.silent)toast('GAS 同步失敗：'+e.message,'danger');else console.warn('[contract push]',e)}}
-async function pullFromGas(options={}){const url=contractGasUrl();if(!url){if(!options.silent)toast(t('errNoGasUrl')||'請先設定 GAS URL','danger');return}try{const res=await HRASmartSync.pullReliable({url,tool:'contract',localRecords:contractFlat()});if(res&&res.records&&res.records.length){contractApply(res.records);_contractCloudApplying=true;try{await dbClear('dashProbs');for(const r of DASH_PROBS)await dbPut('dashProbs',r);await dbClear('dashConts');for(const r of DASH_CONTS)await dbPut('dashConts',r)}finally{_contractCloudApplying=false}refreshAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ Pull ${res.downloaded}`,'success');return res}catch(e){if(!options.silent)toast('❌ 拉取失敗：'+e.message,'danger');else console.warn('[contract pull]',e)}}
-async function contractAutoSync(reason){if(_contractSyncBusy||!contractGasUrl()||!navigator.onLine)return;_contractSyncBusy=true;try{await pullFromGas({auto:true,silent:true});await syncToGas({auto:true,silent:true,reason})}finally{_contractSyncBusy=false}}
+
+/* Always follow the Portal's shared GAS URL first.  Older contract builds stored
+ * a private default URL in IndexedDB; letting that win can silently sync this
+ * module to an obsolete deployment while the other HRA modules use the current
+ * Portal deployment. */
+function contractGasUrl(){
+  let shared='';
+  try{shared=String(localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}catch(_){}
+  return String(shared||(SETTINGS&&SETTINGS.gasUrl)||'').trim();
+}
+function contractSyncKey(prefix,r){
+  if(r&&r._cloudKey)return String(r._cloudKey);
+  if(r&&r.id)return prefix+'|'+String(r.id);
+  return prefix+'|'+String(r&&(
+    r.factoryId||r.vrtCode||r.employeeId||r.empId||r.idNumber||r.name||''
+  )||'')+'|'+String(r&&(r.startDate||r.entryDate||r.joinDate||r.endDate||r.probEnd||'')||'');
+}
+function contractCloudRow(r,kind,prefix){
+  const c=Object.assign({},r||{});
+  c._kind=kind;c._k=contractSyncKey(prefix,r||{});
+  return c;
+}
+/* Sync BOTH data generations.  v49 only uploaded DASH_PROBS/DASH_CONTS, while
+ * older employee/probation/contract records remained local-only. */
+function contractFlat(){
+  const out=[];
+  EMPLOYEES.forEach(r=>out.push(contractCloudRow(r,'employee','E')));
+  PROBATIONS.forEach(r=>out.push(contractCloudRow(r,'legacy_probation','LP')));
+  CONTRACTS.forEach(r=>out.push(contractCloudRow(r,'legacy_contract','LC')));
+  DASH_PROBS.forEach(r=>out.push(contractCloudRow(r,'dash_probation','DP')));
+  DASH_CONTS.forEach(r=>out.push(contractCloudRow(r,'dash_contract','DC')));
+  return out;
+}
+function contractRowNewer(a,b){
+  const at=Date.parse(a&&a.updatedAt||a&&a.createdAt||0)||0,bt=Date.parse(b&&b.updatedAt||b&&b.createdAt||0)||0;
+  return bt>=at?Object.assign({},a||{},b||{}):Object.assign({},b||{},a||{});
+}
+function contractStripCloud(r){
+  const c=Object.assign({},r||{});
+  if(r&&r._k&&!c._cloudKey)c._cloudKey=String(r._k);
+  delete c._kind;delete c._k;return c;
+}
+function contractIdentity(r,type){
+  if(!r)return type+'|';
+  if(r.id)return type+'|id|'+String(r.id);
+  if(type==='employee')return type+'|'+String(r.factoryId||r.vrtCode||r.idNumber||r.employeeId||'');
+  if(type==='dash_probation')return type+'|'+String(r.factoryId||r.employeeId||'')+'|'+String(r.joinDate||'')+'|'+String(r.probEnd||'');
+  if(type==='dash_contract')return type+'|'+String(r.factoryId||r.employeeId||'')+'|'+String(r.entryDate||r.startDate||'')+'|'+String(r.contractType||'')+'|'+String(r.endDate||'');
+  if(type==='legacy_probation')return type+'|'+String(r.employeeId||r.factoryId||'')+'|'+String(r.startDate||'')+'|'+String(r.endDate||'');
+  if(type==='legacy_contract')return type+'|'+String(r.employeeId||r.factoryId||'')+'|'+String(r.startDate||'')+'|'+String(r.contractType||'')+'|'+String(r.endDate||'');
+  return type+'|'+String(r._cloudKey||r.id||'');
+}
+function contractMergeRows(old,inc,type){
+  const m=new Map();
+  (old||[]).forEach(r=>m.set(contractIdentity(r,type),r));
+  (inc||[]).forEach(raw=>{
+    const c=contractStripCloud(raw),k=contractIdentity(c,type);
+    m.set(k,m.has(k)?contractRowNewer(m.get(k),c):c);
+  });
+  return [...m.values()];
+}
+function contractApply(records){
+  const rows=(records||[]).filter(Boolean), groups={employee:[],legacy_probation:[],legacy_contract:[],dash_probation:[],dash_contract:[]};
+  rows.forEach(r=>{
+    const k=String(r._kind||'').toLowerCase();
+    if(k==='employee'||k==='employees')groups.employee.push(r);
+    else if(k==='legacy_probation')groups.legacy_probation.push(r);
+    else if(k==='legacy_contract')groups.legacy_contract.push(r);
+    /* Backward compatibility with v43-v49 cloud records. */
+    else if(k==='probation'||k==='dash_probation'||k==='prob')groups.dash_probation.push(r);
+    else if(k==='contract'||k==='dash_contract'||k==='cont')groups.dash_contract.push(r);
+  });
+  EMPLOYEES=contractMergeRows(EMPLOYEES,groups.employee,'employee');
+  PROBATIONS=contractMergeRows(PROBATIONS,groups.legacy_probation,'legacy_probation');
+  CONTRACTS=contractMergeRows(CONTRACTS,groups.legacy_contract,'legacy_contract');
+  DASH_PROBS=contractMergeRows(DASH_PROBS,groups.dash_probation,'dash_probation');
+  DASH_CONTS=contractMergeRows(DASH_CONTS,groups.dash_contract,'dash_contract');
+}
+function contractFindEmp(employeeId){return EMPLOYEES.find(e=>String(e.id||'')===String(employeeId||''));}
+function contractEmpFactory(emp){return String(emp&&(emp.factoryId||emp.vrtCode||emp.idNumber)||'').trim();}
+function contractEmpName(emp){return String(emp&&(emp.englishName||[emp.englishSurname,emp.englishName].filter(Boolean).join(' ')||emp.khmerName||[emp.khmerSurname,emp.khmerName].filter(Boolean).join(' '))||'').trim();}
+
+/* One-way compatibility migration into the CURRENT dashboard stores.  This is
+ * what prevents an older local/cloud contract database from opening as 0/0/0
+ * after an upgrade.  Existing dashboard rows are never overwritten just for
+ * migration. */
+function contractReconcileLegacyToDash(){
+  let changed=false;
+  PROBATIONS.forEach(p=>{
+    const emp=contractFindEmp(p.employeeId),fid=contractEmpFactory(emp);if(!fid)return;
+    const start=p.startDate||emp&&emp.joinDate||'',end=p.endDate||'';
+    const exists=DASH_PROBS.some(r=>String(r.sourceLegacyId||'')===String(p.id||'') || (String(r.factoryId||'')===fid&&String(r.joinDate||'')===String(start)&&String(r.probEnd||'')===String(end)));
+    if(exists)return;
+    DASH_PROBS.push({id:'dp_legacy_'+String(p.id||uid('prob')),sourceLegacyId:p.id||'',factoryId:fid,dept:emp&&emp.department||'',khmerSurname:emp&&emp.khmerSurname||'',khmerName:emp&&(emp.khmerName||emp.englishName)||'',joinDate:start,probEnd:end,evalDate:p.evaluationDate||'',score:null,result:p.status||'pending',remarks:p.notes||'',updatedAt:p.updatedAt||new Date().toISOString(),createdAt:p.createdAt||new Date().toISOString()});changed=true;
+  });
+  CONTRACTS.forEach(c=>{
+    const emp=contractFindEmp(c.employeeId),fid=contractEmpFactory(emp);if(!fid)return;
+    const start=c.startDate||emp&&emp.joinDate||'',end=c.endDate||'',ctype=c.contractType||'FDC-6M';
+    const exists=DASH_CONTS.some(r=>String(r.sourceLegacyId||'')===String(c.id||'') || (String(r.factoryId||'')===fid&&String(r.entryDate||'')===String(start)&&String(r.contractType||'')===String(ctype)&&String(r.endDate||'')===String(end)));
+    if(exists)return;
+    DASH_CONTS.push({id:'dc_legacy_'+String(c.id||uid('cont')),sourceLegacyId:c.id||'',factoryId:fid,dept:emp&&emp.department||'',name:contractEmpName(emp),section:emp&&emp.section||'',position:emp&&emp.position||'',entryDate:start,contractType:ctype,endDate:end,status:c.status||'active',notes:c.notes||'',updatedAt:c.updatedAt||new Date().toISOString(),createdAt:c.createdAt||new Date().toISOString()});changed=true;
+  });
+  return changed;
+}
+async function contractPersistAll(){
+  _contractCloudApplying=true;
+  try{
+    await dbClear('employees');for(const r of EMPLOYEES)await dbPut('employees',r);
+    await dbClear('probations');for(const r of PROBATIONS)await dbPut('probations',r);
+    await dbClear('contracts');for(const r of CONTRACTS)await dbPut('contracts',r);
+    await dbClear('dashProbs');for(const r of DASH_PROBS)await dbPut('dashProbs',r);
+    await dbClear('dashConts');for(const r of DASH_CONTS)await dbPut('dashConts',r);
+  }finally{_contractCloudApplying=false;}
+}
+async function contractHealGasUrl(){
+  let shared='';try{shared=String(localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}catch(_){}
+  if(shared&&String(SETTINGS.gasUrl||'').trim()!==shared){SETTINGS.gasUrl=shared;_contractCloudApplying=true;try{await dbPut('settings',SETTINGS)}finally{_contractCloudApplying=false;}}
+}
+function scheduleContractSync(reason){
+  if(_contractCloudApplying||!contractGasUrl())return;
+  if(window.HRAAutoSync){HRAAutoSync.schedule('contract',reason||'change',{},900);return;}
+  clearTimeout(_contractSyncTimer);_contractSyncTimer=setTimeout(()=>contractAutoSync(reason||'change'),900);
+}
+async function syncToGas(options={}){
+  const url=contractGasUrl();
+  if(!url){if(!options.silent)toast(t('errNoGasUrl')||'請先設定 GAS URL','danger');return false;}
+  if(typeof HRASmartSync==='undefined'){if(!options.silent)toast('❌ Smart Sync 未載入，請確認 shared/hra-smart-sync.js','danger');return false;}
+  const recs=contractFlat();
+  try{
+    const d=await HRASmartSync.push({url,tool:'contract',records:recs,recordCount:recs.length,summary:{employees:EMPLOYEES.length,probation:DASH_PROBS.length,contracts:DASH_CONTS.length,legacyProbation:PROBATIONS.length,legacyContracts:CONTRACTS.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});
+    if(!options.silent)toast('✅ 雲端已同步：'+recs.length+' 筆','success');
+    return (d===false)?false:(d||{ok:true,uploaded:0});
+  }catch(e){if(!options.silent)toast('GAS 同步失敗：'+e.message,'danger');else console.warn('[contract push]',e);return false;}
+}
+async function pullFromGas(options={}){
+  const url=contractGasUrl();
+  if(!url){if(!options.silent)toast(t('errNoGasUrl')||'請先設定 GAS URL','danger');return false;}
+  if(typeof HRASmartSync==='undefined'){if(!options.silent)toast('❌ Smart Sync 未載入，請確認 shared/hra-smart-sync.js','danger');return false;}
+  try{
+    const res=await HRASmartSync.pullReliable({url,tool:'contract',localRecords:contractFlat()});
+    if(res&&Array.isArray(res.records)){
+      contractApply(res.records);
+      contractReconcileLegacyToDash();
+      await contractPersistAll();
+      refreshAll();
+    }
+    if(!options.silent)toast(`✅ 雲端下載完成${res&&res.downloaded!=null?'：'+res.downloaded+' 筆變更':''}`,'success');
+    return res||{ok:true,records:[]};
+  }catch(e){if(!options.silent)toast('❌ 拉取失敗：'+e.message,'danger');else console.warn('[contract pull]',e);return false;}
+}
+async function contractAutoSync(reason){
+  if(_contractSyncBusy||!contractGasUrl()||!navigator.onLine)return false;
+  _contractSyncBusy=true;
+  try{
+    const p=await pullFromGas({auto:true,silent:true});if(p===false)return false;
+    return await syncToGas({auto:true,silent:true,reason});
+  }finally{_contractSyncBusy=false;}
+}
 
 /* ========== 整體刷新 ========== */
 function refreshAll(){
@@ -2386,6 +2548,8 @@ function refreshAll(){
 /* ========== 初始化 ========== */
 async function init(){
   await openDB();await loadAll();
+  await contractHealGasUrl();
+  if(contractReconcileLegacyToDash())await contractPersistAll();
   document.querySelector(`.lang-switch button[data-lang="${LANG}"]`)?.classList.add("active");
   document.querySelectorAll(".lang-switch button").forEach(b=>{
     if(b.dataset.lang!==LANG)b.classList.remove("active");
@@ -2405,7 +2569,7 @@ if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>contractAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>contractAutoSync('resume'),180)});
 }
-if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',pull:pullFromGas,push:syncToGas,canSync:function(){return !!contractGasUrl()},startDelay:450});
+if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',pull:pullFromGas,push:syncToGas,canSync:function(){return !!contractGasUrl()&&typeof HRASmartSync!=='undefined'},startDelay:650});
 </script>
 
 <script>
