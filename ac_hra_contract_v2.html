@@ -7,7 +7,7 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
-<!-- v50 Contract Sync Fix: shared GAS precedence + full contract stores + legacy migration -->
+<!-- v51 Contract Sync UI Fix: v50 sync logic + visible cloud bar/status/counters -->
 <title>AC HRA 合約管理 / Contract Tracker v2</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -136,6 +136,18 @@ table tbody tr:hover{background:#fbf9f0}
 .khmer{font-family:"Noto Sans Khmer","Khmer OS",Arial,sans-serif}
 .actions-cell{white-space:nowrap}
 .actions-cell button{margin-right:2px}
+
+/* v51 Contract cloud action bar — visible on every tab */
+.contract-cloud-bar{background:#fff;border-bottom:1px solid var(--border);padding:7px 16px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:40px}
+.contract-cloud-dot{width:9px;height:9px;border-radius:50%;background:#94a3b8;flex:0 0 auto;transition:.2s}
+.contract-cloud-dot.dirty{background:#f59e0b}.contract-cloud-dot.syncing{background:#3b82f6;animation:cloudPulse .8s infinite}.contract-cloud-dot.synced,.contract-cloud-dot.checked{background:#10b981;box-shadow:0 0 6px rgba(16,185,129,.5)}.contract-cloud-dot.offline,.contract-cloud-dot.retry{background:#f97316}
+@keyframes cloudPulse{50%{opacity:.35}}
+#hra-auto-sync-state-contract{display:inline-flex;align-items:center;white-space:nowrap;font-size:11px;line-height:1;padding:5px 8px;border-radius:999px;background:#f1f5f9;color:#64748b;border:1px solid #e2e8f0;font-weight:700}
+.contract-cloud-meta{font-size:10px;color:#64748b;font-family:monospace;white-space:nowrap}
+.contract-cloud-actions{margin-left:auto;display:flex;gap:5px;align-items:center}
+.contract-cloud-btn{border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;border-radius:5px;padding:4px 9px;font-size:15px;font-weight:700;cursor:pointer;line-height:1.2}
+.contract-cloud-btn:hover{background:#dbeafe}.contract-cloud-btn.cfg{font-size:13px;border-color:#e2e8f0;background:#f8fafc;color:#475569}
+@media(max-width:600px){.contract-cloud-bar{padding:6px 10px}.contract-cloud-meta{width:100%;order:3}.contract-cloud-actions{margin-left:auto}}
 @media print{
   header,nav,.toolbar,.modal-bg,.actions-cell,.no-print{display:none !important}
   .panel{box-shadow:none;border:1px solid #999;page-break-inside:avoid}
@@ -191,6 +203,17 @@ table tbody tr:hover{background:#fbf9f0}
   <button data-page="anomalies">⚠️ <span data-i18n="navAnomalies">異常</span></button>
   <button data-page="settings">⚙️ <span data-i18n="navSettings">設定</span></button>
 </nav>
+
+<div class="contract-cloud-bar no-print" id="contractCloudBar">
+  <span class="contract-cloud-dot" id="contractCloudDot"></span>
+  <span id="hra-auto-sync-state-contract" role="status" aria-live="polite">☁ 自動同步</span>
+  <span class="contract-cloud-meta" id="contractCloudMeta">↑ --:-- · —　↓ --:-- · —</span>
+  <div class="contract-cloud-actions">
+    <button id="btn-cloud-up" class="contract-cloud-btn" onclick="contractManualPush()" title="上傳至雲端 / Push to cloud">☁↑</button>
+    <button id="btn-cloud-down" class="contract-cloud-btn" onclick="contractManualPull()" title="從雲端下載 / Pull from cloud">☁↓</button>
+    <button class="contract-cloud-btn cfg" onclick="openContractCloudSettings()" title="雲端設定 / Cloud settings">⚙</button>
+  </div>
+</div>
 
 <main>
 
@@ -2492,6 +2515,29 @@ async function contractHealGasUrl(){
   let shared='';try{shared=String(localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}catch(_){}
   if(shared&&String(SETTINGS.gasUrl||'').trim()!==shared){SETTINGS.gasUrl=shared;_contractCloudApplying=true;try{await dbPut('settings',SETTINGS)}finally{_contractCloudApplying=false;}}
 }
+
+/* v51 visible cloud status + last successful transfer counters */
+const CONTRACT_SYNC_META_KEY='ac_hra_contract_sync_meta_v51';
+function contractSyncMetaRead(){try{return JSON.parse(localStorage.getItem(CONTRACT_SYNC_META_KEY)||'{}')||{};}catch(_){return {};}}
+function contractSyncMetaWrite(kind,count){
+  const m=contractSyncMetaRead(), now=new Date();
+  m[kind+'At']=now.toISOString(); m[kind+'Count']=Number(count||0);
+  try{localStorage.setItem(CONTRACT_SYNC_META_KEY,JSON.stringify(m));}catch(_){}
+  contractRenderCloudMeta();
+}
+function contractHHMM(v){if(!v)return'--:--';try{return new Date(v).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false});}catch(_){return'--:--';}}
+function contractRenderCloudMeta(){
+  const el=document.getElementById('contractCloudMeta');if(!el)return;const m=contractSyncMetaRead();
+  const uc=(m.pushCount==null?'—':m.pushCount),dc=(m.pullCount==null?'—':m.pullCount);
+  el.textContent='↑ '+contractHHMM(m.pushAt)+' · '+uc+'　↓ '+contractHHMM(m.pullAt)+' · '+dc;
+  el.title='↑ last successful upload / 最後成功上傳　↓ last successful download / 最後成功下載';
+}
+function contractSetCloudDot(state){const d=document.getElementById('contractCloudDot');if(!d)return;d.className='contract-cloud-dot '+String(state||'');}
+window.addEventListener('hra-autosync-state',function(e){if(!e.detail||e.detail.key!=='contract')return;contractSetCloudDot(e.detail.state);contractRenderCloudMeta();});
+async function contractManualPush(){contractSetCloudDot('syncing');const r=await syncToGas({silent:false,manual:true});if(r===false)contractSetCloudDot(navigator.onLine?'retry':'offline');else contractSetCloudDot('synced');return r;}
+async function contractManualPull(){contractSetCloudDot('syncing');const r=await pullFromGas({silent:false,manual:true});if(r===false)contractSetCloudDot(navigator.onLine?'retry':'offline');else contractSetCloudDot('synced');return r;}
+function openContractCloudSettings(){const b=document.querySelector('nav button[data-page="settings"]');if(b)b.click();}
+
 function scheduleContractSync(reason){
   if(_contractCloudApplying||!contractGasUrl())return;
   if(window.HRAAutoSync){HRAAutoSync.schedule('contract',reason||'change',{},900);return;}
@@ -2504,6 +2550,7 @@ async function syncToGas(options={}){
   const recs=contractFlat();
   try{
     const d=await HRASmartSync.push({url,tool:'contract',records:recs,recordCount:recs.length,summary:{employees:EMPLOYEES.length,probation:DASH_PROBS.length,contracts:DASH_CONTS.length,legacyProbation:PROBATIONS.length,legacyContracts:CONTRACTS.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});
+    if(d!==false)contractSyncMetaWrite('push',(d&&d.uploaded!=null)?d.uploaded:recs.length);
     if(!options.silent)toast('✅ 雲端已同步：'+recs.length+' 筆','success');
     return (d===false)?false:(d||{ok:true,uploaded:0});
   }catch(e){if(!options.silent)toast('GAS 同步失敗：'+e.message,'danger');else console.warn('[contract push]',e);return false;}
@@ -2520,6 +2567,7 @@ async function pullFromGas(options={}){
       await contractPersistAll();
       refreshAll();
     }
+    contractSyncMetaWrite('pull',(res&&res.downloaded!=null)?res.downloaded:0);
     if(!options.silent)toast(`✅ 雲端下載完成${res&&res.downloaded!=null?'：'+res.downloaded+' 筆變更':''}`,'success');
     return res||{ok:true,records:[]};
   }catch(e){if(!options.silent)toast('❌ 拉取失敗：'+e.message,'danger');else console.warn('[contract pull]',e);return false;}
@@ -2555,6 +2603,7 @@ async function init(){
     if(b.dataset.lang!==LANG)b.classList.remove("active");
   });
   applyLang();
+  contractRenderCloudMeta();
   renderDashboard();
   if(!window.HRAAutoSync)setTimeout(()=>contractAutoSync('startup'),350);
 }
