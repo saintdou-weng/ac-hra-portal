@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <title>員工請假單 – VANTAGE RIVER TEXTILES CO., LTD</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Sans+Khmer:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1016,16 +1017,29 @@ async function sendLeaveTelegram(mode){
   if(!actor){alert(lang==='en'?'Enter Applicant / Inspector':'請填寫申請人／檢查人');document.getElementById('tg-actor').focus();return}
   localStorage.setItem('ac_hra_leave_actor',actor);
   const title=mode==='approval'?'✅ <b>員工請假核可 / Employee Leave Approval</b>':'📝 <b>員工請假摘要 / Employee Leave Summary</b>';
-  let text=title+'\n'+'👤 '+(mode==='approval'?'申請人 Applicant':'檢查人 Inspector')+': <b>'+escHtml(actor)+'</b>\n';
-  text+='─────────────\n<b>'+escHtml(e.nameEn||e.nameKh||'')+'</b> ('+escHtml(e.fid||'')+')\n';
-  text+='🏢 '+escHtml(e.dept||'—')+(e.sec?' / '+escHtml(e.sec):'')+' · '+escHtml(e.pos||'—')+'\n';
-  rows.forEach((r,i)=>{text+=(i+1)+'. '+escHtml(leaveTypeLabel(r.leaveType))+' · '+escHtml(r.startDate)+' → '+escHtml(r.endDate)+' · '+leaveDays(r).toFixed(1).replace('.0','')+' day(s)'+((r.evidence||[]).length?' · 📎'+r.evidence.length:'')+'\n'});
+  let text=title+'\n━━━━━━━━━━━━━━━━\n';
+  text+='📌 <b>基本資料 / Employee</b>\n';
+  text+='├ 👤 姓名 / Name │ <b>'+escHtml(e.nameEn||e.nameKh||'—')+'</b>\n';
+  text+='├ 🪪 工號 / ID │ '+escHtml(e.fid||'—')+'\n';
+  text+='├ 🏢 部門 / Department │ '+escHtml(e.dept||'—')+'\n';
+  text+='├ 🧩 組別 / Section │ '+escHtml(e.sec||'—')+'\n';
+  text+='├ 💼 職位 / Position │ '+escHtml(e.pos||'—')+'\n';
+  text+='└ 🔎 '+(mode==='approval'?'申請人 / Applicant':'檢查人 / Inspector')+' │ <b>'+escHtml(actor)+'</b>\n';
+  text+='━━━━━━━━━━━━━━━━\n📋 <b>請假明細 / Leave Details</b>\n';
+  rows.forEach((r,i)=>{
+    text+='┌ <b>#'+(i+1)+' '+escHtml(leaveTypeLabel(r.leaveType))+'</b>\n';
+    text+='├ 📅 開始 / From │ '+escHtml(r.startDate||'—')+'\n';
+    text+='├ 📅 結束 / To │ '+escHtml(r.endDate||'—')+'\n';
+    text+='├ ⏱ 天數 / Days │ '+leaveDays(r).toFixed(1).replace('.0','')+'\n';
+    text+='└ 📎 附件 / Evidence │ '+((r.evidence||[]).length||0)+'\n';
+  });
+  const attachments=window.HRATelegramEvidence?HRATelegramEvidence.collect(rows,{labelFn:r=>(e.nameEn||e.nameKh||e.fid||'Employee')+' · '+leaveTypeLabel(r.leaveType)+' · '+(r.startDate||'')}):[];
   const st=document.getElementById('tg-status'); st.textContent='Sending…';
   try{
     if(mode==='approval'){
       const items=rows.map(r=>({itemId:r.id,key:r.id,empId:e.fid,name:e.nameEn||e.nameKh,dept:e.dept,group:e.sec,position:e.pos,amount:0,status:'pending',note:leaveTypeLabel(r.leaveType)+' '+r.startDate+'~'+r.endDate}));
-      await leaveGasPost({action:'approvalRequest',type:'approvalRequest',module:'attendance_leave',scope:'leave',batch:'LEAVE-'+(e.fid||e.id)+'-'+Date.now(),period:document.getElementById('filter-date').value||'',lang:lang,count:items.length,items,text,applicant:actor,inspector:actor,checker:actor,requestedBy:actor,requestedAt:new Date().toISOString(),idempotencyKey:'leave|'+e.fid+'|'+items.map(x=>x.itemId).join(',')});
-    }else await leaveGasPost({action:'telegram',type:'notify',tool:'attendance_leave',scope:'leave',text,applicant:actor,inspector:actor,checker:actor});
+      await leaveGasPost({action:'approvalRequest',type:'approvalRequest',module:'attendance_leave',scope:'leave',batch:'LEAVE-'+(e.fid||e.id)+'-'+Date.now(),period:document.getElementById('filter-date').value||'',lang:lang,count:items.length,items,text,attachments,applicant:actor,inspector:actor,checker:actor,requestedBy:actor,requestedAt:new Date().toISOString(),idempotencyKey:'leave|'+e.fid+'|'+items.map(x=>x.itemId).join(',')});
+    }else await leaveGasPost({action:'telegram',type:'notify',tool:'attendance_leave',scope:'leave',text,attachments,applicant:actor,inspector:actor,checker:actor});
     st.textContent='✅ Sent';
   }catch(err){st.textContent='❌ '+err.message;alert(err.message)}
 }

@@ -6,6 +6,7 @@
 <title>🇰🇭 柬埔寨假日行事曆管理系統</title>
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -2310,37 +2311,25 @@ function listPeriodHolidays(s,code){
   return s.records.filter(h=>!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date)).map(h=>`${typeCfg(h.type).icon} ${h.date}${h.enddate?` → ${h.enddate}`:''} · ${code==='zh'?(h.zh||h.en):(h.en||h.zh)}`)
 }
 function buildPeriodSummary(code,mode=analysisMode,anchor=analysisAnchor,titleKind='period'){
-  const s=periodStats(mode,anchor),name=mode==='month'?(code==='zh'?`${s.start.getFullYear()}年${s.start.getMonth()+1}月`:`${MON_EN[s.start.getMonth()]} ${s.start.getFullYear()}`):mode==='year'?String(s.start.getFullYear()):`${s.keyStart} — ${s.keyEnd}`,lines=listPeriodHolidays(s,code);
-  if(code==='zh')return[
-    `🇰🇭 VRT 日曆${titleKind==='next'?'下月':'期間'}摘要｜${name}`,
-    `📅 日曆 ${s.dates.length} 天｜周日 ${s.sundays.size} 天｜周六 ${s.saturdays.size} 天`,
-    `🏖 假日 ${s.holiday.size} 天｜法定假日 ${s.legal.size} 天｜預估工作 ${s.workdays} 天`,
-    `🔄 換／延後 ${s.moved.size} 天｜取消 ${s.cancelled.size} 天｜加／補假 ${s.added.size} 天｜新增上班 ${s.extraWork.size} 天`,
-    lines.length?'── 假日明細 ──':'── 本期無假日明細 ──',...lines,'🏭 Vantage River Textiles · HRA'
-  ].join('\n');
-  return[
-    `🇰🇭 VRT Calendar ${titleKind==='next'?'Next-Month':'Period'} Summary | ${name}`,
-    `📅 ${s.dates.length} calendar days | ${s.sundays.size} Sundays | ${s.saturdays.size} Saturdays`,
-    `🏖 ${s.holiday.size} holiday days | ${s.legal.size} legal holidays | ${s.workdays} estimated workdays`,
-    `🔄 ${s.moved.size} moved/postponed | ${s.cancelled.size} cancelled | ${s.added.size} added/makeup | ${s.extraWork.size} extra workdays`,
-    lines.length?'── Holiday Details ──':'── No holiday details ──',...lines,'🏭 Vantage River Textiles · HRA'
-  ].join('\n')
+  const s=periodStats(mode,anchor),name=mode==='month'?(code==='zh'?`${s.start.getFullYear()}年${s.start.getMonth()+1}月`:`${MON_EN[s.start.getMonth()]} ${s.start.getFullYear()}`):mode==='year'?String(s.start.getFullYear()):`${s.keyStart} — ${s.keyEnd}`,rows=s.records.filter(h=>!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date));
+  const z=code==='zh';const out=[z?`🇰🇭 <b>VRT 日曆${titleKind==='next'?'下月':'期間'}摘要</b>`:`🇰🇭 <b>VRT Calendar ${titleKind==='next'?'Next-Month':'Period'} Summary</b>`,`━━━━━━━━━━━━━━━━`,z?'📌 <b>日曆總覽 / Overview</b>':'📌 <b>Calendar Overview</b>',`├ ${z?'期間 / Period':'Period'} │ ${name}`,`├ ${z?'日曆天數':'Calendar days'} │ ${s.dates.length}`,`├ ${z?'周日':'Sundays'} │ ${s.sundays.size}`,`├ ${z?'周六':'Saturdays'} │ ${s.saturdays.size}`,`├ ${z?'假日':'Holiday days'} │ ${s.holiday.size}`,`├ ${z?'法定假日':'Legal holidays'} │ ${s.legal.size}`,`├ ${z?'預估工作日':'Estimated workdays'} │ ${s.workdays}`,`├ ${z?'換／延後':'Moved / postponed'} │ ${s.moved.size}`,`├ ${z?'取消':'Cancelled'} │ ${s.cancelled.size}`,`├ ${z?'加／補假':'Added / makeup'} │ ${s.added.size}`,`└ ${z?'新增上班':'Extra workdays'} │ ${s.extraWork.size}`,`━━━━━━━━━━━━━━━━`,z?'🏖 <b>假日明細 / Holiday Details</b>':'🏖 <b>Holiday Details</b>'];
+  if(!rows.length)out.push(z?'└ 本期無假日明細':'└ No holiday details');
+  rows.forEach((h,i)=>{out.push(`┌ <b>#${i+1} ${code==='zh'?(h.zh||h.en):(h.en||h.zh)}</b>`,`├ ${z?'日期 / Date':'Date'} │ ${h.date}${h.enddate?` → ${h.enddate}`:''}`,`└ ${z?'類型 / Type':'Type'} │ ${typeCfg(h.type).icon} ${typeCfg(h.type)[code==='zh'?'zh':'en']||h.type}`)});
+  out.push('🏭 Vantage River Textiles · HRA');return out.join('\n');
 }
 function buildChangeSummary(code){
-  const changes=CHANGE_LOG.slice().reverse().slice(0,20),actionZh={add:'新增',update:'修改',delete:'刪除'},actionEn={add:'Added',update:'Updated',delete:'Deleted'};
-  const swapIds=[...new Set(changes.map(x=>(x.after||x.before||{}).swapId).filter(Boolean))],all=flatDB(),swapLines=swapIds.map(id=>{
-    const rows=all.filter(r=>r.swapId===id),from=rows.find(r=>r.swapRole==='original_to_workday'||r.type==='workday'),to=rows.find(r=>r.swapRole==='normal_to_holiday'||r.type==='substitute');
-    const reason=(to||from||{}).note||'—',name=(to||from||{});if(!from&&!to)return '';
-    return code==='zh'
-      ?`🔄 原假日 ${from?.date||to?.refdate||'—'}（${name.zh||name.en||'—'}）→ 正常上班；原正常日 ${to?.date||from?.refdate||'—'} → 調換假日；原因：${reason}`
-      :`🔄 Original holiday ${from?.date||to?.refdate||'—'} (${name.en||name.zh||'—'}) → normal workday; original workday ${to?.date||from?.refdate||'—'} → substitute holiday; reason: ${reason}`;
-  }).filter(Boolean),ordinary=changes.filter(x=>!(x.after||x.before||{}).swapId);
-  if(code==='zh')return[`📝 VRT 日曆變更摘要`,`共 ${changes.length} 筆最近變更`,...swapLines,...(ordinary.length?ordinary.map(x=>`• ${String(x.at).slice(0,10)}｜${actionZh[x.action]||x.action}｜${x.date||'—'}｜${x.zh||x.en||'—'}${(x.after||x.before||{}).note?'｜原因：'+(x.after||x.before||{}).note:''}`):(!swapLines.length?['目前沒有變更紀錄。']:[])),'🏭 Vantage River Textiles · HRA'].join('\n');
-  return[`📝 VRT Calendar Change Summary`,`${changes.length} recent changes`,...swapLines,...(ordinary.length?ordinary.map(x=>`• ${String(x.at).slice(0,10)} | ${actionEn[x.action]||x.action} | ${x.date||'—'} | ${x.en||x.zh||'—'}${(x.after||x.before||{}).note?' | reason: '+(x.after||x.before||{}).note:''}`):(!swapLines.length?['No change records yet.']:[])),'🏭 Vantage River Textiles · HRA'].join('\n')
+  const changes=CHANGE_LOG.slice().reverse().slice(0,20),actionZh={add:'新增',update:'修改',delete:'刪除'},actionEn={add:'Added',update:'Updated',delete:'Deleted'},z=code==='zh';
+  const out=[z?'📝 <b>VRT 日曆變更摘要</b>':'📝 <b>VRT Calendar Change Summary</b>','━━━━━━━━━━━━━━━━',`📌 ${z?'最近變更 / Recent changes':'Recent changes'} │ ${changes.length}`];
+  const swapIds=[...new Set(changes.map(x=>(x.after||x.before||{}).swapId).filter(Boolean))],all=flatDB();
+  swapIds.forEach((id,i)=>{const rows=all.filter(r=>r.swapId===id),from=rows.find(r=>r.swapRole==='original_to_workday'||r.type==='workday'),to=rows.find(r=>r.swapRole==='normal_to_holiday'||r.type==='substitute'),n=to||from,reason=n?.note||'—';if(!from&&!to)return;out.push(`┌ 🔄 <b>${n?.[z?'zh':'en']||n?.zh||n?.en||'Holiday swap'}</b>`,`├ ${z?'原假日 / Original holiday':'Original holiday'} │ ${from?.date||to?.refdate||'—'} → ${z?'正常上班':'workday'}`,`├ ${z?'原正常日 / Original workday':'Original workday'} │ ${to?.date||from?.refdate||'—'} → ${z?'調換假日':'substitute holiday'}`,`└ ${z?'原因 / Reason':'Reason'} │ ${reason}`)});
+  changes.filter(x=>!(x.after||x.before||{}).swapId).forEach((x,i)=>{const r=x.after||x.before||{};out.push(`┌ <b>${z?(actionZh[x.action]||x.action):(actionEn[x.action]||x.action)} · ${r.zh||r.en||x.zh||x.en||'—'}</b>`,`├ ${z?'日期 / Date':'Date'} │ ${r.date||x.date||'—'}`,`├ ${z?'變更日 / Changed':'Changed'} │ ${String(x.at||'').slice(0,10)||'—'}`,`└ ${z?'原因 / Reason':'Reason'} │ ${r.note||'—'}`)});
+  if(changes.length===0)out.push(z?'└ 目前沒有變更紀錄。':'└ No change records yet.');out.push('🏭 Vantage River Textiles · HRA');return out.join('\n');
 }
 function buildUpcomingSummary(code){
-  const today=ymd(new Date()),year=+today.slice(0,4),list=[...getHols(year),...getHols(year+1)].filter(h=>h.date>=today&&!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,8);
-  return code==='zh'?[`⏰ VRT 即將到來假日`,...(list.length?list.map(h=>`${typeCfg(h.type).icon} ${h.date}${h.enddate?` → ${h.enddate}`:''}｜${h.zh||h.en}`):['目前沒有即將到來的假日。']),'🏭 Vantage River Textiles · HRA'].join('\n'):[`⏰ VRT Upcoming Holidays`,...(list.length?list.map(h=>`${typeCfg(h.type).icon} ${h.date}${h.enddate?` → ${h.enddate}`:''} | ${h.en||h.zh}`):['No upcoming holidays.']),'🏭 Vantage River Textiles · HRA'].join('\n')
+  const today=ymd(new Date()),year=+today.slice(0,4),list=[...getHols(year),...getHols(year+1)].filter(h=>h.date>=today&&!['workday','cancelled','postponed'].includes(h.type)).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,8),z=code==='zh';
+  const out=[z?'⏰ <b>VRT 即將到來假日</b>':'⏰ <b>VRT Upcoming Holidays</b>','━━━━━━━━━━━━━━━━',`📌 ${z?'項目 / Items':'Items'} │ ${list.length}`];
+  if(!list.length)out.push(z?'└ 目前沒有即將到來的假日。':'└ No upcoming holidays.');
+  list.forEach((h,i)=>{out.push(`┌ <b>#${i+1} ${z?(h.zh||h.en):(h.en||h.zh)}</b>`,`├ ${z?'日期 / Date':'Date'} │ ${h.date}${h.enddate?` → ${h.enddate}`:''}`,`└ ${z?'類型 / Type':'Type'} │ ${typeCfg(h.type).icon} ${typeCfg(h.type)[z?'zh':'en']||h.type}`)});out.push('🏭 Vantage River Textiles · HRA');return out.join('\n');
 }
 function buildTgMsg(){
   const mt=document.getElementById('tg-msgtype')?.value||'nextmonth',choice=document.getElementById('tg-lang')?.value||'both',yr=+(document.getElementById('tg-year')?.value||curYear),custom=document.getElementById('tg-msg')?.value.trim()||'';

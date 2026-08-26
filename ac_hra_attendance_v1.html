@@ -126,6 +126,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 @media(max-width:760px){.att-edit-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.leave-frame{height:calc(100vh - 170px);min-height:700px}}
 
 </style>
+<script src="shared/telegram-evidence.js?v=45"></script>
 </head>
 <body>
 
@@ -1321,31 +1322,44 @@ function buildTelegramSummary(mode,key,lang){
     const end=new Date(key+'T00:00:00Z');end.setUTCDate(end.getUTCDate()+6);
     periodLabel=key+' ~ '+end.toISOString().slice(0,10);
   }
-  const sep='─'.repeat(28);
-  let text=`📊 ${title}\n${periodLabel}\n${sep}\n`;
-  text+=`📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)}: ${rateText} ${telegramRateIcon(x.rate)}\n`;
-  text+=`👥 ${tgLabel('平均在職','Average Headcount',lang)}: ${Math.round(x.avgHC)}  ✅ ${tgLabel('平均出勤','Average Attendance',lang)}: ${Math.round(x.avgAttendance)}\n`;
-  text+=`📅 ${tgLabel('資料天數','Days',lang)}: ${x.days}  ⚠️ ${tgLabel('缺勤','Absence',lang)}: ${x.absence}\n`;
-  text+=`🟢 ${tgLabel('新進','Join',lang)}: ${x.join}  🔴 ${tgLabel('離職','Resign',lang)}: ${x.resign}  📉 ${tgLabel('流失率','Turnover',lang)}: ${x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%'}\n`;
+  const sep='━━━━━━━━━━━━━━━━';
+  let text=`📊 <b>${title}</b>\n${sep}\n`;
+  text+=`📌 <b>${tgLabel('總覽','Overview',lang)}</b>\n`;
+  text+=`├ 📅 ${tgLabel('期間','Period',lang)} │ ${periodLabel}\n`;
+  text+=`├ 📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)} │ ${rateText} ${telegramRateIcon(x.rate)}\n`;
+  text+=`├ 👥 ${tgLabel('平均在職','Average Headcount',lang)} │ ${Math.round(x.avgHC)}\n`;
+  text+=`├ ✅ ${tgLabel('平均出勤','Average Attendance',lang)} │ ${Math.round(x.avgAttendance)}\n`;
+  text+=`├ 📅 ${tgLabel('資料天數','Days',lang)} │ ${x.days}\n`;
+  text+=`├ ⚠️ ${tgLabel('缺勤','Absence',lang)} │ ${x.absence}\n`;
+  text+=`├ 🟢 ${tgLabel('新進','Join',lang)} │ ${x.join}\n`;
+  text+=`├ 🔴 ${tgLabel('離職','Resign',lang)} │ ${x.resign}\n`;
+  text+=`└ 📉 ${tgLabel('流失率','Turnover',lang)} │ ${x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%'}\n`;
 
   if(mode==='daily'&&grands[0]){
     const g=grands[0];
-    text+=`${sep}\n📋 ${tgLabel('假別明細','Leave Breakdown',lang)}\n`;
-    text+=`AL:${g.al||0}  PL:${g.pl||0}  SL:${g.sl||0}  NP:${g.np||0}\nBus:${g.bus||0}  FL:${g.fl||0}  ML:${g.ml||0}  ${tgLabel('停工','Idle',lang)}:${g.idle||0}\n`;
+    text+=`${sep}\n📋 <b>${tgLabel('假別明細','Leave Breakdown',lang)}</b>\n`;
+    text+=`├ AL ${tgLabel('特休','Annual Leave',lang)} │ ${g.al||0}\n`;
+    text+=`├ PL ${tgLabel('事假','Personal Leave',lang)} │ ${g.pl||0}\n`;
+    text+=`├ SL ${tgLabel('病假','Sick Leave',lang)} │ ${g.sl||0}\n`;
+    text+=`├ NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)} │ ${g.np||0}\n`;
+    text+=`├ Bus ${tgLabel('公假／出差','Business Leave',lang)} │ ${g.bus||0}\n`;
+    text+=`├ FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} │ ${g.fl||0}\n`;
+    text+=`├ ML ${tgLabel('產假','Maternity Leave',lang)} │ ${g.ml||0}\n`;
+    text+=`└ ${tgLabel('停工','Idle',lang)} │ ${g.idle||0}\n`;
   }
   if(mode==='weekly'){
-    text+=`${sep}\n📅 ${tgLabel('每日明細','Daily Detail',lang)}\n`;
-    dates.forEach(d=>{
+    text+=`${sep}\n📅 <b>${tgLabel('每日明細','Daily Detail',lang)}</b>\n`;
+    dates.forEach((d,i)=>{
       const g=grandForDate(d);if(!g)return;
       const c=calc(g),rp=c.rate==null?'—':(c.rate*100).toFixed(1)+'%';
-      text+=`${d.slice(5)}  ${telegramRateIcon(c.rate)} ${rp}  ${tgLabel('出勤','Att',lang)}:${g.att||0}\n`;
+      text+=`┌ ${d}\n├ ${tgLabel('出勤率','Attendance Rate',lang)} │ ${telegramRateIcon(c.rate)} ${rp}\n└ ${tgLabel('出勤','Attendance',lang)} │ ${g.att||0}\n`;
     });
   }
   if(mode==='yearly'){
-    text+=`${sep}\n📆 ${tgLabel('月度明細','Monthly Detail',lang)}\n`;
+    text+=`${sep}\n📆 <b>${tgLabel('月度明細','Monthly Detail',lang)}</b>\n`;
     ensureDataIndex().months.filter(m=>m.startsWith(key)).forEach(m=>{
       const mx=attendancePeriodMetrics('month',m);
-      text+=`${m}  ${telegramRateIcon(mx.rate)} ${mx.rate==null?'—':(mx.rate*100).toFixed(1)+'%'}  J:+${mx.join} R:-${mx.resign}\n`;
+      text+=`┌ ${m}\n├ ${tgLabel('出勤率','Attendance Rate',lang)} │ ${telegramRateIcon(mx.rate)} ${mx.rate==null?'—':(mx.rate*100).toFixed(1)+'%'}\n├ ${tgLabel('新進','Join',lang)} │ +${mx.join}\n└ ${tgLabel('離職','Resign',lang)} │ -${mx.resign}\n`;
     });
   }
 
@@ -1354,18 +1368,20 @@ function buildTelegramSummary(mode,key,lang){
     return ar-br;
   });
   if(sections.length){
-    text+=`${sep}\n🏢 ${tgLabel('各部門／組別出勤與請假','Attendance & Leave by Department / Section',lang)}\n`;
+    text+=`${sep}\n🏢 <b>${tgLabel('各部門／組別出勤與請假','Attendance & Leave by Department / Section',lang)}</b>\n`;
     sections.forEach(s=>{
       const rate=s.report?s.att/s.report:null;
       const dn=tgName(s.dept,lang),sn=tgName(s.name,lang);
       const label=s.dept&&s.dept!==s.name?(dn+' / '+sn):(sn||dn);
-      text+=`${telegramRateIcon(rate)} ${label}: ${rate==null?'—':(rate*100).toFixed(1)+'%'}\n`;
-      text+=`   AL:${s.al||0}  PL:${s.pl||0}  SL:${s.sl||0}  NP:${s.np||0}  Bus:${s.bus||0}  FL:${s.fl||0}  ML:${s.ml||0}`;
-      if(s.idle)text+=`  ${tgLabel('停工','Idle',lang)}:${s.idle}`;
-      text+='\n';
+      text+=`┌ ${telegramRateIcon(rate)} <b>${label}</b>\n`;
+      text+=`├ ${tgLabel('出勤率','Attendance Rate',lang)} │ ${rate==null?'—':(rate*100).toFixed(1)+'%'}\n`;
+      text+=`├ AL ${tgLabel('特休','Annual Leave',lang)} │ ${s.al||0}   PL ${tgLabel('事假','Personal Leave',lang)} │ ${s.pl||0}\n`;
+      text+=`├ SL ${tgLabel('病假','Sick Leave',lang)} │ ${s.sl||0}   NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)} │ ${s.np||0}\n`;
+      text+=`├ Bus ${tgLabel('公假／出差','Business Leave',lang)} │ ${s.bus||0}   FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} │ ${s.fl||0}\n`;
+      text+=`└ ML ${tgLabel('產假','Maternity Leave',lang)} │ ${s.ml||0}`+(s.idle?`   ${tgLabel('停工','Idle',lang)} │ ${s.idle}`:'')+'\n';
     });
     if(lang!=='zh'){
-      text+=`${sep}\n📖 ${tgLabel('假別代碼','Leave Codes',lang)}\n`;
+      text+=`${sep}\n📖 <b>${tgLabel('假別代碼','Leave Codes',lang)}</b>\n`;
       text+=`AL ${tgLabel('特休','Annual Leave',lang)} · PL ${tgLabel('事假','Personal Leave',lang)} · SL ${tgLabel('病假','Sick Leave',lang)} · NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)}\n`;
       text+=`Bus ${tgLabel('公假／出差','Business Leave',lang)} · FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} · ML ${tgLabel('產假','Maternity Leave',lang)}\n`;
     }

@@ -6,6 +6,7 @@
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/hra-attachments.js?v=43"></script>
@@ -2426,123 +2427,73 @@ function periodData(p){
           M:E.filter(function(r){return r.status==='maternity'||r.status==='returned';}),
           E:E, Nr:Nr, H:H, D:D, C:C, isYear:isYear};
 }
+function maternityTgAttachments(p,scope){
+  if(!window.HRATelegramEvidence)return [];
+  var d=periodData(p), rows=[]; scope=scope||'all';
+  if(scope==='all'||scope==='preg')rows=rows.concat(d.P||[]);
+  if(scope==='all'||scope==='mat')rows=rows.concat(d.M||[]);
+  if(scope==='all'||scope==='nur')rows=rows.concat(d.Nr||[]);
+  if(scope==='all'||scope==='health')rows=rows.concat(d.H||[]);
+  if(scope==='all'||scope==='med')rows=rows.concat((d.D||[]).map(function(r){var x=Object.assign({},r);x.evidence=medicineEvidenceFor(r);return x;}));
+  if(scope==='all'||scope==='clinic')rows=rows.concat(d.C||[]);
+  return HRATelegramEvidence.collect(rows,{labelFn:function(r){
+    var nm=r.name||r.item||r.productName||r.diagnosis||r.idNo||r.cardId||'';
+    var dt=r.leaveStart||r.edd||r.payMonth||r.period||r.date||r.visitDate||'';
+    return tgScopeLabel(scope,false)+' · '+nm+(dt?(' · '+dt):'');
+  }});
+}
 function pregBlock(P,bi){
   var dm={}; P.forEach(function(r){var k=groupLabel(r.group||r.dept||r.section);dm[k]=(dm[k]||0)+1;});
-  var t='🤰 <b>'+esc(BL('孕婦','Pregnant',bi))+'：'+P.length+'</b>\n';
+  var t='🤰 <b>'+esc(BL('孕婦','Pregnant',bi))+'</b>\n├ '+esc(BL('總人數','Total','សរុប',bi))+' │ <b>'+P.length+'</b>\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
-  if(dl.length){ t+='<b>'+esc(BL('部門 Top','Top depts',bi))+'</b>\n'; dl.forEach(function(k){t+='· '+esc(k)+'：'+dm[k]+'\n';}); }
-  /* Telegram 摘要不能只有部門數；列出工號、姓名、部門、職務、登記日、預產期與孕期。 */
+  if(dl.length){t+='<b>'+esc(BL('部門 Top','Top depts',bi))+'</b>\n';dl.forEach(function(k,i){t+=(i===dl.length-1?'└ ':'├ ')+esc(k)+' │ '+dm[k]+'\n';});}
   t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
   var show=P.slice(0,30);
-  show.forEach(function(r){
-    var d=groupLabel(r.group||r.dept||r.section);
-    t+='· <code>'+esc(r.idNo||'—')+'</code> '+esc(r.name||'—')+' · '+esc(d);
-    if(r.position)t+=' · '+esc(r.position);
-    if(r.registerTime||r.applyDate)t+=' · '+esc(BL('登記','Reg.','ចុះឈ្មោះ',bi))+' '+esc(r.registerTime||r.applyDate);
-    if(r.edd)t+=' · '+esc(BL('預產','EDD','ថ្ងៃសម្រាល',bi))+' '+esc(r.edd);
-    if(r.pregnantPeriod)t+=' · '+esc(BL('孕期','Month#','ខែមានផ្ទៃពោះ',bi))+' '+esc(r.pregnantPeriod);
-    if(r.age)t+=' · '+esc(BL('年齡','Age','អាយុ',bi))+' '+esc(r.age);
-    var rs=linkedResign(r,evDateEmp(r)); if(rs)t+=' · ⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||'');
-    t+='\n';
+  show.forEach(function(r,i){
+    var d=groupLabel(r.group||r.dept||r.section),rs=linkedResign(r,evDateEmp(r));
+    t+='┌ <b>#'+(i+1)+' '+esc(r.name||'—')+'</b>\n';
+    t+='├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.idNo||'—')+'</code>\n';
+    t+='├ '+esc(BL('部門／組別','Dept / Section','ផ្នែក / ក្រុម',bi))+' │ '+esc(d)+'\n';
+    t+='├ '+esc(BL('職位','Position','តំណែង',bi))+' │ '+esc(r.position||'—')+'\n';
+    t+='├ '+esc(BL('登記','Registered','ចុះឈ្មោះ',bi))+' │ '+esc(r.registerTime||r.applyDate||'—')+'\n';
+    t+='├ '+esc(BL('預產期','EDD','ថ្ងៃសម្រាល',bi))+' │ '+esc(r.edd||'—')+'\n';
+    t+='├ '+esc(BL('孕期','Pregnancy Month','ខែមានផ្ទៃពោះ',bi))+' │ '+esc(r.pregnantPeriod||'—')+'\n';
+    t+='├ '+esc(BL('年齡','Age','អាយុ',bi))+' │ '+esc(r.age||'—')+'\n';
+    t+='└ '+esc(BL('離職狀態','Resign status','ស្ថានភាពចាកចេញ',bi))+' │ '+(rs?'⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||''):'—')+'\n';
   });
   if(P.length>show.length)t+='· … '+(P.length-show.length)+' '+esc(BL('人未列出','more not shown','មិនបានបង្ហាញ',bi))+'\n';
   return t;
 }
 function matBlock(M,bi){
-  var today=lds(new Date());
-  var onLeave=M.filter(function(r){return r.status==='maternity';}).length;
-  var ret30=M.filter(function(r){var u=dayDiff(today,r.returnDate);return u!=null&&u>=0&&u<=30;}).length;
-  var days=M.map(function(r){return +r.totalDays;}).filter(function(x){return isFinite(x)&&x>0;});
-  var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):90;
-  var payTot=M.reduce(function(s,r){return s+(+r.matAmount||0);},0);
-  var t='🍼 <b>'+esc(BL('產假','Maternity',bi))+'：'+M.length+'</b>（'+esc(BL('產假中','on leave',bi))+' '+onLeave+'）\n';
-  if(payTot>0)t+='💵 '+esc(BL('產假給付合計','Payment total',bi))+'：$'+fmt(payTot)+'\n';
-  t+='📅 '+esc(BL('30天內回歸','Return ≤30d',bi))+'：'+ret30+'\n';
-  t+='⏱ '+esc(BL('平均產假天數','Avg days',bi))+'：'+avgD+'\n';
+  var today=lds(new Date()),onLeave=M.filter(function(r){return r.status==='maternity';}).length,ret30=M.filter(function(r){var u=dayDiff(today,r.returnDate);return u!=null&&u>=0&&u<=30;}).length;
+  var days=M.map(function(r){return +r.totalDays;}).filter(function(x){return isFinite(x)&&x>0;}),avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):90,payTot=M.reduce(function(s,r){return s+(+r.matAmount||0);},0);
+  var t='🍼 <b>'+esc(BL('產假','Maternity',bi))+'</b>\n';
+  t+='├ '+esc(BL('總人數','Total','សរុប',bi))+' │ <b>'+M.length+'</b>\n├ '+esc(BL('產假中','On leave','កំពុងសម្រាក',bi))+' │ '+onLeave+'\n';
+  t+='├ 💵 '+esc(BL('產假給付合計','Payment total','សរុបប្រាក់',bi))+' │ $'+fmt(payTot)+'\n├ 📅 '+esc(BL('30天內回歸','Return ≤30d','ត្រឡប់ ≤30ថ្ងៃ',bi))+' │ '+ret30+'\n└ ⏱ '+esc(BL('平均產假天數','Avg days','ថ្ងៃមធ្យម',bi))+' │ '+avgD+'\n';
   t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
-  var show=M.slice(0,30);
-  show.forEach(function(r){
-    var d=groupLabel(r.group||r.dept||r.section);
-    t+='· <code>'+esc(r.idNo||'—')+'</code> '+esc(r.name||'—')+' · '+esc(d);
-    if(r.position)t+=' · '+esc(r.position);
-    if(r.leaveStart||r.applyDate)t+=' · '+esc(BL('開始','Start','ចាប់ផ្តើម',bi))+' '+esc(r.leaveStart||r.applyDate);
-    if(r.returnDate)t+=' · '+esc(BL('回歸','Return','ត្រឡប់',bi))+' '+esc(r.returnDate);
-    t+=' · '+esc(BL('天數','Days','ថ្ងៃ',bi))+' '+fmt0(r.totalDays||90);
-    if(+r.matAmount)t+=' · $'+fmt(r.matAmount);
-    var rs=linkedResign(r,r.leaveStart||r.applyDate); if(rs)t+=' · ⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||'');
-    t+='\n';
-  });
-  if(M.length>show.length)t+='· … '+(M.length-show.length)+' '+esc(BL('人未列出','more not shown','មិនបានបង្ហាញ',bi))+'\n';
-  return t;
+  var show=M.slice(0,30);show.forEach(function(r,i){var d=groupLabel(r.group||r.dept||r.section),rs=linkedResign(r,r.leaveStart||r.applyDate);t+='┌ <b>#'+(i+1)+' '+esc(r.name||'—')+'</b>\n';t+='├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.idNo||'—')+'</code>\n';t+='├ '+esc(BL('部門／組別','Dept / Section','ផ្នែក / ក្រុម',bi))+' │ '+esc(d)+'\n';t+='├ '+esc(BL('職位','Position','តំណែង',bi))+' │ '+esc(r.position||'—')+'\n';t+='├ '+esc(BL('開始','Start','ចាប់ផ្តើម',bi))+' │ '+esc(r.leaveStart||r.applyDate||'—')+'\n';t+='├ '+esc(BL('回歸','Return','ត្រឡប់',bi))+' │ '+esc(r.returnDate||'—')+'\n';t+='├ '+esc(BL('天數','Days','ថ្ងៃ',bi))+' │ '+fmt0(r.totalDays||90)+'\n';t+='├ '+esc(BL('給付','Payment','ប្រាក់',bi))+' │ $'+fmt(r.matAmount||0)+'\n';t+='└ '+esc(BL('離職狀態','Resign status','ស្ថានភាពចាកចេញ',bi))+' │ '+(rs?'⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||''):'—')+'\n';});
+  if(M.length>show.length)t+='· … '+(M.length-show.length)+' '+esc(BL('人未列出','more not shown','មិនបានបង្ហាញ',bi))+'\n';return t;
 }
 function nurBlock(Nr,bi){
-  var ppl=new Set(Nr.map(function(r){return r.cardId;})).size;
-  var amt=Nr.reduce(function(s,r){return s+(+r.amount||0);},0);
-  var t='💊 <b>'+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+'：'+Nr.length+' '+esc(BL('筆','records','កំណត់ត្រា',bi))+'</b>\n';
-  t+='👥 '+esc(BL('人數','People',bi))+'：'+ppl+'　💵 '+esc(BL('金額','Amount',bi))+'：$'+fmt(amt)+'\n';
-  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
-  var show=Nr.slice(0,30);
-  show.forEach(function(r){
-    var emp=EMP.filter(function(e){return e.idNo===r.cardId;})[0]||{};
-    var d=r.dept||emp.dept||emp.group||lineOf(emp)||'—';
-    t+='· <code>'+esc(r.cardId||'—')+'</code> '+esc(r.name||emp.name||'—')+' · '+esc(d);
-    if(r.payMonth)t+=' · '+esc(BL('付款月','Pay month','ខែបង់',bi))+' '+esc(r.payMonth);
-    if(r.monthNo)t+=' · '+esc(BL('第','Month ','ខែទី',bi))+esc(r.monthNo);
-    if(+r.amount)t+=' · $'+fmt(r.amount);
-    if(r.babyDob)t+=' · '+esc(BL('寶寶生日','Baby DOB','ថ្ងៃកំណើតទារក',bi))+' '+esc(r.babyDob);
-    var rs=linkedResign(r,r.payMonth); if(rs)t+=' · ⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||'');
-    t+='\n';
-  });
-  if(Nr.length>show.length)t+='· … '+(Nr.length-show.length)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';
-  return t;
+  var ppl=new Set(Nr.map(function(r){return r.cardId;})).size,amt=Nr.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var t='💊 <b>'+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+'</b>\n├ '+esc(BL('記錄','Records','កំណត់ត្រា',bi))+' │ <b>'+Nr.length+'</b>\n├ 👥 '+esc(BL('人數','People','មនុស្ស',bi))+' │ '+ppl+'\n└ 💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(amt)+'\n';
+  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';var show=Nr.slice(0,30);show.forEach(function(r,i){var emp=EMP.filter(function(e){return e.idNo===r.cardId;})[0]||{},d=r.dept||emp.dept||emp.group||lineOf(emp)||'—',rs=linkedResign(r,r.payMonth);t+='┌ <b>#'+(i+1)+' '+esc(r.name||emp.name||'—')+'</b>\n';t+='├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.cardId||'—')+'</code>\n';t+='├ '+esc(BL('部門','Department','ផ្នែក',bi))+' │ '+esc(d)+'\n';t+='├ '+esc(BL('付款月','Pay month','ខែបង់',bi))+' │ '+esc(r.payMonth||'—')+'\n';t+='├ '+esc(BL('第幾月','Month No.','ខែទី',bi))+' │ '+esc(r.monthNo||'—')+'\n';t+='├ '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(r.amount||0)+'\n';t+='├ '+esc(BL('寶寶生日','Baby DOB','ថ្ងៃកំណើតទារក',bi))+' │ '+esc(r.babyDob||'—')+'\n';t+='└ '+esc(BL('離職狀態','Resign status','ស្ថានភាពចាកចេញ',bi))+' │ '+(rs?'⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||''):'—')+'\n';});if(Nr.length>show.length)t+='· … '+(Nr.length-show.length)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';return t;
 }
 function healthBlock(H,bi){
-  var ppl=new Set(H.map(function(r){return r.idNo||r.empId;})).size;
-  var amt=H.reduce(function(s,r){return s+(+r.amount||0);},0), dm={};
-  H.forEach(function(r){var d=r.dept||L('未填','Unassigned','មិនបានបំពេញ');dm[d]=(dm[d]||0)+1;});
-  var t='🏥 <b>'+esc(BL('健檢費','Health Check Fee','ថ្លៃពិនិត្យសុខភាព',bi))+'：'+H.length+' '+esc(BL('筆','records','កំណត់ត្រា',bi))+'</b>\n';
-  t+='👥 '+esc(BL('人數','People','មនុស្ស',bi))+'：'+ppl+'　💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+'：$'+fmt(amt)+'\n';
-  var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});
-  if(dl.length){t+='<b>'+esc(BL('部門','By department','តាមផ្នែក',bi))+'</b>\n';dl.forEach(function(d){t+='· '+esc(d)+'：'+dm[d]+'\n';});}
-  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';
-  H.slice(0,30).forEach(function(r){
-    var pr=probationRows().filter(function(x){return probationId(x)===(r.idNo||r.empId);})[0]||{};
-    t+='· <code>'+esc(r.idNo||r.empId||'—')+'</code> '+esc(r.name||'—')+' · '+esc(r.dept||'—')+' · $'+fmt(r.amount);
-    if(pr.result||pr.probEnd)t+=' · '+esc(BL('試用','Probation','សាកល្បង',bi))+' '+esc(pr.result||'—')+(pr.probEnd?' / '+esc(pr.probEnd):'');
-    var rs=linkedResign(r,r.period); if(rs)t+=' · ⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||'');
-    t+='\n';
-  });
-  if(H.length>30)t+='· … '+(H.length-30)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';
-  return t;
+  var ppl=new Set(H.map(function(r){return r.idNo||r.empId;})).size,amt=H.reduce(function(s,r){return s+(+r.amount||0);},0),dm={};H.forEach(function(r){var d=r.dept||L('未填','Unassigned','មិនបានបំពេញ');dm[d]=(dm[d]||0)+1;});
+  var t='🏥 <b>'+esc(BL('健檢費','Health Check Fee','ថ្លៃពិនិត្យសុខភាព',bi))+'</b>\n├ '+esc(BL('記錄','Records','កំណត់ត្រា',bi))+' │ <b>'+H.length+'</b>\n├ 👥 '+esc(BL('人數','People','មនុស្ស',bi))+' │ '+ppl+'\n└ 💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(amt)+'\n';var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});if(dl.length){t+='<b>'+esc(BL('部門','By department','តាមផ្នែក',bi))+'</b>\n';dl.forEach(function(d,i){t+=(i===dl.length-1?'└ ':'├ ')+esc(d)+' │ '+dm[d]+'\n';});}
+  t+='<b>'+esc(BL('人員明細','People details','ព័ត៌មានបុគ្គលិក',bi))+'</b>\n';H.slice(0,30).forEach(function(r,i){var pr=probationRows().filter(function(x){return probationId(x)===(r.idNo||r.empId);})[0]||{},rs=linkedResign(r,r.period);t+='┌ <b>#'+(i+1)+' '+esc(r.name||'—')+'</b>\n';t+='├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.idNo||r.empId||'—')+'</code>\n';t+='├ '+esc(BL('部門','Department','ផ្នែក',bi))+' │ '+esc(r.dept||'—')+'\n';t+='├ '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(r.amount||0)+'\n';t+='├ '+esc(BL('試用','Probation','សាកល្បង',bi))+' │ '+esc((pr.result||'—')+(pr.probEnd?' / '+pr.probEnd:''))+'\n';t+='└ '+esc(BL('離職狀態','Resign status','ស្ថានភាពចាកចេញ',bi))+' │ '+(rs?'⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||''):'—')+'\n';});if(H.length>30)t+='· … '+(H.length-30)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';return t;
 }
 function medicalBlock(D,bi){
-  var qty=D.reduce(function(s,r){return s+(+r.quantity||0);},0),amt=D.reduce(function(s,r){return s+(+r.amount||0);},0),dm={};
-  D.forEach(function(r){var d=r.department||r.dept||L('未填','Unassigned','មិនបានបំពេញ');dm[d]=(dm[d]||0)+1;});
-  var t='💊 <b>'+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+'：'+D.length+' '+esc(BL('筆','records','កំណត់ត្រា',bi))+'</b>\n';
-  t+='📦 '+esc(BL('訂購數量','Ordered quantity','បរិមាណបញ្ជាទិញ',bi))+'：'+fmt0(qty)+'　💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+'：$'+fmt(amt)+'\n';
-  var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});
-  if(dl.length){t+='<b>'+esc(BL('部門','By department','តាមផ្នែក',bi))+'</b>\n';dl.forEach(function(d){t+='· '+esc(d)+'：'+dm[d]+' '+esc(BL('筆','rows','ជួរ',bi))+'\n';});}
-  t+='<b>'+esc(BL('藥品明細','Medicine details','ព័ត៌មានលម្អិតអំពីថ្នាំ',bi))+'</b>\n';
-  D.slice(0,30).forEach(function(r){
-    t+='· '+esc(r.item||r.name||'—');
-    if(r.productName)t+=' · '+esc(r.productName);
-    if(r.quantity)t+=' · '+esc(BL('數量','Qty','ចំនួន',bi))+' '+fmt(r.quantity)+(r.unit?' '+esc(r.unit):'');
-    t+=' · $'+fmt(r.amount||0)+'\n';
-  });
-  if(D.length>30)t+='· … '+(D.length-30)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';
-  return t;
+  var qty=D.reduce(function(s,r){return s+(+r.quantity||0);},0),amt=D.reduce(function(s,r){return s+(+r.amount||0);},0),dm={};D.forEach(function(r){var d=r.department||r.dept||L('未填','Unassigned','មិនបានបំពេញ');dm[d]=(dm[d]||0)+1;});
+  var t='💊 <b>'+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+'</b>\n├ '+esc(BL('記錄','Records','កំណត់ត្រា',bi))+' │ <b>'+D.length+'</b>\n├ 📦 '+esc(BL('訂購數量','Ordered quantity','បរិមាណបញ្ជាទិញ',bi))+' │ '+fmt0(qty)+'\n└ 💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(amt)+'\n';var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});if(dl.length){t+='<b>'+esc(BL('部門','By department','តាមផ្នែក',bi))+'</b>\n';dl.forEach(function(d,i){t+=(i===dl.length-1?'└ ':'├ ')+esc(d)+' │ '+dm[d]+' '+esc(BL('筆','rows','ជួរ',bi))+'\n';});}
+  t+='<b>'+esc(BL('藥品明細','Medicine details','ព័ត៌មានលម្អិតអំពីថ្នាំ',bi))+'</b>\n';D.slice(0,30).forEach(function(r,i){t+='┌ <b>#'+(i+1)+' '+esc(r.item||r.name||'—')+'</b>\n';t+='├ '+esc(BL('產品／規格','Product / Spec','ផលិតផល',bi))+' │ '+esc(r.productName||'—')+'\n';t+='├ '+esc(BL('數量','Qty','ចំនួន',bi))+' │ '+fmt(r.quantity||0)+(r.unit?' '+esc(r.unit):'')+'\n';t+='└ '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(r.amount||0)+'\n';});if(D.length>30)t+='· … '+(D.length-30)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';return t;
 }
 function clinicBlock(C,bi){
   var V=C.filter(function(r){return r.type==='clinic_visit';}),S=C.filter(function(r){return r.type==='clinic_summary';}),ppl=new Set(V.map(function(r){return r.idNo||r.employeeId||r.name;}).filter(Boolean)).size;
-  var total=S.reduce(function(n,r){return n+(+r.visitCount||+r.total||0);},0)||V.length,fee=S.reduce(function(n,r){return n+(+r.medicalFee||0);},0),feeKnown=S.some(function(r){return r.medicalFeeProvided!==false;}),dm={};
-  S.forEach(function(r){Object.keys(r.departmentCounts||{}).forEach(function(k){dm[k]=(dm[k]||0)+N(r.departmentCounts[k]);});});
-  var t='🩺 <b>'+esc(BL('診所','Clinic','គ្លីនិក',bi))+'：'+total+' '+esc(BL('人次','visits','ដង',bi))+'</b>\n';
-  t+='👥 '+esc(BL('不重複人數','Distinct people','មនុស្សមិនស្ទួន',bi))+'：'+ppl+'　💵 '+esc(BL('醫療費','Medical fee','ថ្លៃពេទ្យ',bi))+'：'+(feeKnown?'$'+fmt(fee):esc(BL('來源未提供','Not provided in source','មិនបានផ្តល់ក្នុងប្រភព',bi)))+'\n';
-  var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});if(dl.length){t+='<b>'+esc(BL('部門／組別','By department / group','តាមផ្នែក / ក្រុម',bi))+'</b>\n';dl.forEach(function(k){t+='· '+esc(groupLabel(k))+'：'+fmt0(dm[k])+'\n';});}
-  t+='<b>'+esc(BL('看診明細','Visit details','ព័ត៌មានពិនិត្យ',bi))+'</b>\n';
-  V.slice(0,30).forEach(function(r){t+='· <code>'+esc(r.idNo||r.employeeId||'—')+'</code> '+esc(r.name||'—')+' · '+esc(r.dept||r.department||'—')+' · '+esc(r.group||r.position||'—')+' · '+esc(r.diagnosis||'—')+' · '+esc(r.date||'—')+(r.medications?' · '+esc(r.medications):'')+'\n';});
-  if(V.length>30)t+='· … '+(V.length-30)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';
-  return t;
+  var total=S.reduce(function(n,r){return n+(+r.visitCount||+r.total||0);},0)||V.length,fee=S.reduce(function(n,r){return n+(+r.medicalFee||0);},0),feeKnown=S.some(function(r){return r.medicalFeeProvided!==false;}),dm={};S.forEach(function(r){Object.keys(r.departmentCounts||{}).forEach(function(k){dm[k]=(dm[k]||0)+N(r.departmentCounts[k]);});});
+  var t='🩺 <b>'+esc(BL('診所','Clinic','គ្លីនិក',bi))+'</b>\n├ '+esc(BL('人次','Visits','ដង',bi))+' │ <b>'+total+'</b>\n├ 👥 '+esc(BL('不重複人數','Distinct people','មនុស្សមិនស្ទួន',bi))+' │ '+ppl+'\n└ 💵 '+esc(BL('醫療費','Medical fee','ថ្លៃពេទ្យ',bi))+' │ '+(feeKnown?'$'+fmt(fee):esc(BL('來源未提供','Not provided in source','មិនបានផ្តល់ក្នុងប្រភព',bi)))+'\n';var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];});if(dl.length){t+='<b>'+esc(BL('部門／組別','By department / group','តាមផ្នែក / ក្រុម',bi))+'</b>\n';dl.forEach(function(k,i){t+=(i===dl.length-1?'└ ':'├ ')+esc(groupLabel(k))+' │ '+fmt0(dm[k])+'\n';});}
+  t+='<b>'+esc(BL('看診明細','Visit details','ព័ត៌មានពិនិត្យ',bi))+'</b>\n';V.slice(0,30).forEach(function(r,i){t+='┌ <b>#'+(i+1)+' '+esc(r.name||'—')+'</b>\n';t+='├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.idNo||r.employeeId||'—')+'</code>\n';t+='├ '+esc(BL('部門','Department','ផ្នែក',bi))+' │ '+esc(r.dept||r.department||'—')+'\n';t+='├ '+esc(BL('組別／職位','Group / Position','ក្រុម / តំណែង',bi))+' │ '+esc(r.group||r.position||'—')+'\n';t+='├ '+esc(BL('診斷','Diagnosis','រោគវិនិច្ឆ័យ',bi))+' │ '+esc(r.diagnosis||'—')+'\n';t+='├ '+esc(BL('日期','Date','កាលបរិច្ឆេទ',bi))+' │ '+esc(r.date||'—')+'\n';t+='└ '+esc(BL('用藥','Medication','ថ្នាំ',bi))+' │ '+esc(r.medications||'—')+'\n';});if(V.length>30)t+='· … '+(V.length-30)+' '+esc(BL('筆未列出','more records not shown','កំណត់ត្រាមិនបានបង្ហាញ',bi))+'\n';return t;
 }
 function apprStats(p,scope){
   scope=scope||'all';
@@ -2598,49 +2549,18 @@ function summaryAmountAudit(d,scope){
   return {checked:checked,total:total,issues:issues};
 }
 function summaryAmountAuditBlock(d,scope){
-  var a=summaryAmountAudit(d,scope);
-  if(!a.checked)return '';
-  var t=HR;
-  if(a.issues.length){
-    t+='⚠️ <b>金額異常 / Amount anomaly（'+a.issues.length+'）</b>\n';
-    a.issues.slice(0,8).forEach(function(x){t+='· '+esc(x)+'\n';});
-    if(a.issues.length>8)t+='· … +'+(a.issues.length-8)+'\n';
-  }else{
-    t+='✅ <b>金額已核算正確 / Amount verified</b> · $'+fmt(a.total)+'\n';
-  }
-  return t;
+  var a=summaryAmountAudit(d,scope);if(!a.checked)return '';var t=HR+'🔎 <b>金額核對 / Amount Verification</b>\n';
+  if(a.issues.length){t+='└ ⚠️ 金額異常 / Amount anomaly │ '+a.issues.length+'\n';a.issues.slice(0,8).forEach(function(x){t+='   · '+esc(x)+'\n';});if(a.issues.length>8)t+='   · … +'+(a.issues.length-8)+'\n';}
+  else t+='└ ✅ 金額 / Amount │ $'+fmt(a.total)+' · '+esc('金額已核算正確 / Amount verified')+'\n';return t;
 }
 function buildSummaryText(p,bi,scope){
-  scope=scope||_tgScope||'all';
-  var d=periodData(p);
+  scope=scope||_tgScope||'all';var d=periodData(p);
   var need = scope==='preg'?d.P.length : scope==='mat'?d.M.length : scope==='nur'?d.Nr.length : scope==='health'?d.H.length : scope==='med'?d.D.length : scope==='clinic'?d.C.length : (d.P.length+d.M.length+d.Nr.length+d.H.length+d.D.length+d.C.length);
   if(!need)return {err:L('此期間'+(scope==='preg'?'沒有孕婦':scope==='mat'?'沒有產假':scope==='nur'?'沒有護理費':scope==='health'?'沒有健檢費':scope==='med'?'沒有醫療採購':scope==='clinic'?'沒有診所':'')+'資料','No '+(scope==='preg'?'pregnant ':scope==='mat'?'maternity ':scope==='nur'?'nursing ':scope==='health'?'health-fee ':scope==='med'?'medical-purchase ':scope==='clinic'?'clinic ':'')+'data for this period')};
-  var head=scope==='preg'?'🤰 <b>'+esc(BL('孕婦月報','Pregnant Report',bi))+'</b>'
-          :scope==='mat'?'🍼 <b>'+esc(BL('產假月報','Maternity Report',bi))+'</b>'
-          :scope==='nur'?'💊 <b>'+esc(BL('護理費月報','Nursing Fee Report','របាយការណ៍ថ្លៃថែទាំ',bi))+'</b>'
-          :scope==='health'?'🏥 <b>'+esc(BL('健檢費月報','Health Fee Report',bi))+'</b>'
-          :scope==='med'?'💊 <b>'+esc(BL('藥品費月報','Medicine Fee Report','របាយការណ៍ថ្លៃថ្នាំ',bi))+'</b>'
-          :scope==='clinic'?'🩺 <b>'+esc(BL('診所月報','Clinic Report','របាយការណ៍គ្លីនិក',bi))+'</b>'
-          :'👶 <b>'+esc(BL('孕婦／產假／員工健康月報','Maternity & Employee Health','របាយការណ៍មាតុភាព និងសុខភាពបុគ្គលិក',bi))+'</b>';
-  var t=head+'\n📅 '+esc(BL('期間','Period',bi))+'：'+esc(p)+'\n🏭 VRT Sihanoukville\n'+HR;
-  if(scope==='all'){
-    t+='🤰 '+esc(BL('孕婦','Pregnant',bi))+'：<b>'+d.P.length+'</b>　🍼 '+esc(BL('產假','Maternity',bi))+'：<b>'+d.M.length+'</b>\n';
-    t+='💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+'：<b>'+d.Nr.length+'</b> '+esc(BL('筆','recs','កំណត់ត្រា',bi))+'　💵 $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
-    t+='🏥 '+esc(BL('健檢費','Health Fee',bi))+'：<b>'+d.H.length+'</b> '+esc(BL('筆','recs',bi))+'　💵 $'+fmt(d.H.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
-    t+='💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+'：<b>'+d.D.length+'</b> '+esc(BL('筆','recs','កំណត់ត្រា',bi))+'　💵 $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n'+HR;
-    t+='🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+'：<b>'+d.C.length+'</b> '+esc(BL('筆','records','កំណត់ត្រា',bi))+'\n'+HR;
-    t+=pregBlock(d.P,bi)+HR+matBlock(d.M,bi)+HR+nurBlock(d.Nr,bi)+HR+healthBlock(d.H,bi)+HR+medicalBlock(d.D,bi)+HR+clinicBlock(d.C,bi);
-  }else if(scope==='preg'){ t+=pregBlock(d.P,bi); }
-  else if(scope==='mat'){ t+=matBlock(d.M,bi); }
-  else if(scope==='nur'){ t+=nurBlock(d.Nr,bi); }
-  else if(scope==='health'){ t+=healthBlock(d.H,bi); }
-  else if(scope==='med'){ t+=medicalBlock(d.D,bi); }
-  else { t+=clinicBlock(d.C,bi); }
-  t+=summaryAmountAuditBlock(d,scope);
-  var st=apprStats(p,scope);
-  t+=HR+'✔ '+esc(BL('已核可','Approved',bi))+' '+st.ok+' · ✖ '+esc(BL('已退回','Rejected',bi))+' '+st.no+' · ⏳ '+esc(BL('待核可','Pending',bi))+' '+st.pend+'\n';
-  t+='<i>'+esc(nowStamp())+' · AC HRA '+esc(tgScopeLabel(scope,bi))+'</i>';
-  return {text:t};
+  var head=scope==='preg'?'🤰 <b>'+esc(BL('孕婦月報','Pregnant Report',bi))+'</b>':scope==='mat'?'🍼 <b>'+esc(BL('產假月報','Maternity Report',bi))+'</b>':scope==='nur'?'💊 <b>'+esc(BL('護理費月報','Nursing Fee Report','របាយការណ៍ថ្លៃថែទាំ',bi))+'</b>':scope==='health'?'🏥 <b>'+esc(BL('健檢費月報','Health Fee Report',bi))+'</b>':scope==='med'?'💊 <b>'+esc(BL('藥品費月報','Medicine Fee Report','របាយការណ៍ថ្លៃថ្នាំ',bi))+'</b>':scope==='clinic'?'🩺 <b>'+esc(BL('診所月報','Clinic Report','របាយការណ៍គ្លីនិក',bi))+'</b>':'👶 <b>'+esc(BL('孕婦／產假／員工健康月報','Maternity & Employee Health','របាយការណ៍មាតុភាព និងសុខភាពបុគ្គលិក',bi))+'</b>';
+  var t=head+'\n━━━━━━━━━━━━━━━━\n📌 <b>'+esc(BL('總覽','Overview','ទិដ្ឋភាព',bi))+'</b>\n├ 📅 '+esc(BL('期間','Period','រយៈពេល',bi))+' │ '+esc(p)+'\n';
+  if(scope==='all'){t+='├ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ <b>'+d.P.length+'</b>\n';t+='├ 🍼 '+esc(BL('產假','Maternity',bi))+' │ <b>'+d.M.length+'</b>\n';t+='├ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+' · $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+' · $'+fmt(d.H.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+' · $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR;t+=pregBlock(d.P,bi)+HR+matBlock(d.M,bi)+HR+nurBlock(d.Nr,bi)+HR+healthBlock(d.H,bi)+HR+medicalBlock(d.D,bi)+HR+clinicBlock(d.C,bi);}else if(scope==='preg'){t+='└ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ '+d.P.length+'\n'+HR+pregBlock(d.P,bi);}else if(scope==='mat'){t+='└ 🍼 '+esc(BL('產假','Maternity',bi))+' │ '+d.M.length+'\n'+HR+matBlock(d.M,bi);}else if(scope==='nur'){t+='└ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+'\n'+HR+nurBlock(d.Nr,bi);}else if(scope==='health'){t+='└ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+'\n'+HR+healthBlock(d.H,bi);}else if(scope==='med'){t+='└ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+'\n'+HR+medicalBlock(d.D,bi);}else{t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR+clinicBlock(d.C,bi);}
+  t+=summaryAmountAuditBlock(d,scope);var st=apprStats(p,scope);t+=HR+'✅ <b>'+esc(BL('核可狀態','Approval Status','ស្ថានភាពអនុម័ត',bi))+'</b>\n├ ✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' │ '+st.ok+'\n├ ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' │ '+st.no+'\n└ ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' │ '+st.pend+'\n';t+='<i>'+esc(nowStamp())+' · AC HRA '+esc(tgScopeLabel(scope,bi))+'</i>';return {text:t};
 }
 function buildApprovalItems(p,scope){
   scope=scope||_tgScope||'all';
@@ -2695,6 +2615,16 @@ function buildApprovalItems(p,scope){
     var x=DEC[r._k]||{};
     items.push({key:r._k,kind:'medical_purchase',id:r.item||r.productName||r.id,name:r.item||r.productName||'',dept:r.department||r.dept||'',group:'',position:r.productName||'',gender:'',age:'',days:0,region:'',period:r.period,amount:+r.amount||0,
       info:'藥品費 / Medicine Fee · '+(r.productName||r.item||'')+' · '+L('數量','Qty','ចំនួន')+' '+fmt(r.quantity||0),decision:x.d||'',note:x.note||''});
+  });
+  if(scope==='all'||scope==='clinic')d.C.forEach(function(r){
+    var x=DEC[r._k]||{}, dt=clinicDateOf(r)||r.period||'';
+    var nm=r.name||r.diagnosis||L('診所記錄','Clinic Record','កំណត់ត្រាគ្លីនិក');
+    var inf=r.type==='clinic_visit'
+      ? (L('診斷','Diagnosis','រោគវិនិច្ឆ័យ')+' '+(r.diagnosis||'—')+(r.medications?(' · '+L('用藥','Medication','ថ្នាំ')+' '+r.medications):''))
+      : r.type==='clinic_diagnosis'
+        ? (L('診斷統計','Diagnosis Summary','សរុបរោគវិនិច្ឆ័យ')+' · '+(r.diagnosis||'—')+' · '+fmt0(r.visitCount||0))
+        : (L('診所月結','Clinic Summary','សរុបគ្លីនិក')+' · '+L('看診','Visits','ពិនិត្យ')+' '+fmt0(r.visitCount||r.total||0));
+    items.push({key:r._k,kind:'clinic',id:r.idNo||r.employeeId||r.id,name:nm,dept:r.dept||r.department||'',group:r.group||'',position:r.position||'',gender:r.gender||'',age:'',days:0,region:'',period:dt,amount:+r.medicalFee||0,info:inf,decision:x.d||'',note:x.note||''});
   });
   return items;
 }
@@ -2790,6 +2720,7 @@ function confirmTg(){
   try{
     var r=buildSummaryText(p,bi,scope);
     if(r.err){ toast(r.err,'error'); return; }
+    var attachments=maternityTgAttachments(p,scope);
     var sTag=scope==='preg'?'P':scope==='mat'?'M':scope==='nur'?'N':scope==='health'?'H':scope==='med'?'D':scope==='clinic'?'C':'A';
     if(_tgMode==='approval'){
       var items=buildApprovalItems(p,scope);
@@ -2799,9 +2730,9 @@ function confirmTg(){
         period:p, lang:LANG, route:_tgRoute, count:items.length, items:items, text:r.text,
         idempotencyKey:['maternity',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
-        requestedBy:'maternity_v2', requestedAt:nowStamp()};
+        attachments:attachments, requestedBy:'maternity_v2', requestedAt:nowStamp()};
     }else{
-      payload={action:'telegram',type:'notify',tool:TOOL,scope:scope,text:r.text};
+      payload={action:'telegram',type:'notify',tool:TOOL,scope:scope,text:r.text,attachments:attachments};
     }
   }catch(e){
     console.error('[confirmTg build]', e);

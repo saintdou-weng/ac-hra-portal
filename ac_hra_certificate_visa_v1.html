@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -958,22 +959,35 @@ function eventsForMode(mode){
 }
 function tgSummaryText(lang,mode){
   const actor=(document.getElementById('tgActor')?.value||localStorage.getItem('ac_hra_cert_tg_actor')||'').trim();
-  const old=LANG;const label=periodLabel(mode,PERIOD_ANCHOR),ev=eventsForMode(mode),due=ev.filter(e=>eventState(e)==='due').length,expired=ev.filter(e=>eventState(e)==='expired').length,pending=STATE.requests.filter(r=>r.status==='pending').length;
-  if(lang==='en')return [`📊 AC HRA Certificate & Visa — ${label}`,`• Company certificates: ${STATE.certificates.length}`,`• Active expats: ${STATE.people.filter(p=>p.status==='active').length}`,`• Expiry / renewal events: ${ev.length}`,`• Due soon: ${due} · Overdue: ${expired}`,`• Pending approval: ${pending}`,actor?`👤 Inspector: ${actor}`:'',`🏭 Vantage River Textiles`].filter(Boolean).join('\n');
-  return [`📊 AC HRA 證書／簽證摘要 — ${label}`,`• 公司證書：${STATE.certificates.length} 項`,`• 最新有效外籍人員：${STATE.people.filter(p=>p.status==='active').length} 人`,`• 到期／續期事件：${ev.length} 項`,`• 即將到期：${due} · 已逾期：${expired}`,`• 待核可：${pending} 件`,actor?`👤 檢查人 / Inspector：${actor}`:'',`🏭 Vantage River Textiles`].filter(Boolean).join('\n')
+  const label=periodLabel(mode,PERIOD_ANCHOR),ev=eventsForMode(mode),due=ev.filter(e=>eventState(e)==='due').length,expired=ev.filter(e=>eventState(e)==='expired').length,pending=STATE.requests.filter(r=>r.status==='pending').length,active=STATE.people.filter(p=>p.status==='active').length;
+  if(lang==='en')return [`📊 <b>AC HRA Certificate & Visa</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>Overview</b>`,`├ Period │ ${label}`,`├ Company certificates │ ${STATE.certificates.length}`,`├ Active expats │ ${active}`,`├ Expiry / renewal events │ ${ev.length}`,`├ Due soon │ ${due}`,`├ Overdue │ ${expired}`,`├ Pending approval │ ${pending}`,`└ Inspector │ ${actor||'—'}`,`🏭 Vantage River Textiles`].join('\n');
+  return [`📊 <b>AC HRA 證書／簽證摘要</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>總覽 / Overview</b>`,`├ 期間 / Period │ ${label}`,`├ 公司證書 │ ${STATE.certificates.length} 項`,`├ 最新有效外籍人員 │ ${active} 人`,`├ 到期／續期事件 │ ${ev.length} 項`,`├ 即將到期 │ ${due}`,`├ 已逾期 │ ${expired}`,`├ 待核可 │ ${pending}`,`└ 檢查人 / Inspector │ ${actor||'—'}`,`🏭 Vantage River Textiles`].join('\n')
 }
 function tgApprovalText(lang){
   const actor=(document.getElementById('tgActor')?.value||localStorage.getItem('ac_hra_cert_tg_actor')||'').trim();
   const rows=STATE.requests.filter(r=>r.status==='pending').slice(0,20),id=document.getElementById('tgRecipient').value.trim();
-  if(lang==='en')return [`✅ APPROVAL REQUEST · AC HRA`,`Approver Telegram ID: ${id||'—'}`,`Applicant: ${actor||'—'}`,`Pending: ${rows.length}`,...rows.map(r=>`• ${r.number} · ${r.title} · ${r.items?.length||0} item(s) · Due ${r.dueDate||'—'}`),`Reply with approval or rejection comments after the shared workflow is enabled.`].join('\n');
-  return [`✅ AC HRA 核可申請`,`核可者 Telegram ID：${id||'—'}`,`申請人 / Applicant：${actor||'—'}`,`待核可：${rows.length} 件`,...rows.map(r=>`• ${r.number} · ${r.title} · ${r.items?.length||0} 項 · 期限 ${r.dueDate||'—'}`),`共用流程啟用後可直接核可或退件並留意見。`].join('\n')
+  const out=lang==='en'?[`✅ <b>APPROVAL REQUEST · AC HRA</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>Approval Overview</b>`,`├ Approver Telegram ID │ ${id||'—'}`,`├ Applicant │ ${actor||'—'}`,`└ Pending │ ${rows.length}`,`━━━━━━━━━━━━━━━━`,`📋 <b>Request Details</b>`]:[`✅ <b>AC HRA 核可申請</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>核可總覽 / Approval Overview</b>`,`├ 核可者 Telegram ID │ ${id||'—'}`,`├ 申請人 / Applicant │ ${actor||'—'}`,`└ 待核可 │ ${rows.length} 件`,`━━━━━━━━━━━━━━━━`,`📋 <b>申請明細 / Request Details</b>`];
+  rows.forEach((r,i)=>{out.push(`┌ <b>#${i+1} ${r.number||'—'}</b>`,`├ ${lang==='en'?'Title':'項目 / Title'} │ ${r.title||'—'}`,`├ ${lang==='en'?'Items':'數量 / Items'} │ ${r.items?.length||0}`,`└ ${lang==='en'?'Due':'期限 / Due'} │ ${r.dueDate||'—'}`)});
+  out.push(lang==='en'?'Reply with approval or rejection comments after the shared workflow is enabled.':'共用流程啟用後可直接核可或退件並留意見。');return out.join('\n');
 }
 function reminderRows(){const n=Number(STATE.settings.reminderDays||45);return allEvents().filter(e=>!e.completed&&e.days<=n).slice(0,30)}
 function tgReminderText(lang){
-  const rows=reminderRows();
-  if(lang==='en')return [`🔔 ${STATE.settings.reminderDays}-DAY DOCUMENT EXPIRY REMINDER`,`Items not completed or approved early: ${rows.length}`,...rows.map(e=>`• ${e.date} · ${typeLabel(e.type)} · ${e.name} · ${e.days<0?Math.abs(e.days)+' days overdue':e.days+' days left'}`),`Please apply, renew or submit for approval before the due date.`].join('\n');
-  if(lang==='km')return [`🔔 សេចក្តីរំលឹកឯកសារជិតផុតកំណត់ ${STATE.settings.reminderDays} ថ្ងៃ`,`ឯកសារដែលមិនទាន់បញ្ចប់ ឬអនុម័ត៖ ${rows.length}`,...rows.map(e=>`• ${e.date} · ${e.name} · នៅសល់ ${Math.max(0,e.days)} ថ្ងៃ`),`សូមដាក់ពាក្យ បន្តសុពលភាព ឬស្នើសុំការអនុម័តមុនថ្ងៃកំណត់។`].join('\n');
-  return [`🔔 文件到期前 ${STATE.settings.reminderDays} 天提醒`,`尚未提前完成或核可：${rows.length} 項`,...rows.map(e=>`• ${e.date} · ${typeLabel(e.type)} · ${e.name} · ${e.days<0?'逾期 '+Math.abs(e.days)+' 天':'剩 '+e.days+' 天'}`),`請在期限前辦理申請、續期或送核。`].join('\n')
+  const rows=reminderRows(),n=STATE.settings.reminderDays;
+  const out=lang==='en'?[`🔔 <b>${n}-DAY DOCUMENT EXPIRY REMINDER</b>`,`━━━━━━━━━━━━━━━━`,`📌 Items not completed or approved early │ ${rows.length}`]:lang==='km'?[`🔔 <b>សេចក្តីរំលឹកឯកសារជិតផុតកំណត់ ${n} ថ្ងៃ</b>`,`━━━━━━━━━━━━━━━━`,`📌 ឯកសារដែលមិនទាន់បញ្ចប់ ឬអនុម័ត │ ${rows.length}`]:[`🔔 <b>文件到期前 ${n} 天提醒</b>`,`━━━━━━━━━━━━━━━━`,`📌 尚未提前完成或核可 │ ${rows.length} 項`];
+  rows.forEach((e,i)=>{out.push(`┌ <b>#${i+1} ${e.name||'—'}</b>`,`├ ${lang==='en'?'Date':'日期 / Date'} │ ${e.date||'—'}`,`├ ${lang==='en'?'Type':'類型 / Type'} │ ${typeLabel(e.type)}`,`└ ${lang==='en'?'Status':'狀態 / Status'} │ ${e.days<0?(lang==='en'?Math.abs(e.days)+' days overdue':'逾期 '+Math.abs(e.days)+' 天'):(lang==='en'?e.days+' days left':'剩 '+e.days+' 天')}`)});
+  out.push(lang==='en'?'Please apply, renew or submit for approval before the due date.':lang==='km'?'សូមដាក់ពាក្យ បន្តសុពលភាព ឬស្នើសុំការអនុម័តមុនថ្ងៃកំណត់។':'請在期限前辦理申請、續期或送核。');return out.join('\n');
+}
+function certificateTgAttachments(type,mode){
+  if(!window.HRATelegramEvidence)return [];
+  const rows=[],seen=new Set();
+  function addCert(c,ym,label){if(!c||seen.has(c.id+'|'+ym))return;seen.add(c.id+'|'+ym);const v=certCurrentVersion(c,ym);rows.push({id:c.id,evidence:(v&&v.evidence)||c.evidence||[],name:label||c.name||c.category||c.id});}
+  if(type==='approval'){
+    STATE.requests.filter(r=>r.status==='pending').forEach(r=>(r.items||[]).forEach(it=>{const c=STATE.certificates.find(x=>x.id===it.id);if(c)addCert(c,String(r.dueDate||new Date().toISOString()).slice(0,7),(r.number||'Approval')+' · '+(c.name||c.category||''));}));
+  }else{
+    const ev=type==='reminder'?reminderRows():eventsForMode(mode);
+    ev.forEach(e=>{if(e.kind!=='certificate')return;const c=STATE.certificates.find(x=>x.id===e.recordId);if(c)addCert(c,String(e.date||'').slice(0,7),(c.name||c.category||'Certificate')+' · '+(e.date||''));});
+  }
+  return HRATelegramEvidence.collect(rows,{labelFn:r=>r.name||'Certificate'});
 }
 function buildTgText(){
   const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?tgReminderText(l):tgSummaryText(l,mode);
@@ -987,7 +1001,7 @@ function openTelegram(type='summary'){
 }
 async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
 async function sendTelegram(){
-  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,messageType:val('tgType')});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal')}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
+  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{const type=val('tgType'),mode=val('tgPeriod'),attachments=certificateTgAttachments(type,mode),actor=(document.getElementById('tgActor')?.value||'').trim();await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,messageType:type,attachments,applicant:actor,inspector:actor,checker:actor});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal')}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
 }
 
 /* ── Startup: local IndexedDB only. No automatic upload or download. ─── */

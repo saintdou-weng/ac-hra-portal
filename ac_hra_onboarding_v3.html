@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -2078,16 +2079,29 @@ function settleDatesWithData(){
   RESIGNS.forEach(function(r){ if(r.settleDate)s[String(r.settleDate).slice(0,10)]=1; });
   return Object.keys(s).sort();
 }
+function onboardingTgAttachments(p,scope){
+  if(!window.HRATelegramEvidence)return [];
+  var d=periodData(p), rows=[]; scope=scope||'both';
+  if(scope!=='resign')rows=rows.concat(d.J||[]);
+  if(scope!=='join')rows=rows.concat(d.R||[]);
+  return HRATelegramEvidence.collect(rows,{labelFn:function(r){
+    var isR=(d.R||[]).indexOf(r)>=0;
+    return (isR?L('離職','Resign'):L('入職','Join'))+' · '+(r.name||r.empId||'')+' · '+(isR?(r.resignDate||r.settleDate||''):(r.joinDate||''));
+  }});
+}
 var HR='— — — — — — — — — —\n';
 function joinBlock(J,bi){
   var sew=J.filter(function(r){return isSewLine(normalizeGroup(r.section||r.dept));}).length;
   var m=J.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=J.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
   var dm={}; J.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
-  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+'：'+J.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing',bi))+' '+sew+'）'):'')+'\n';
-  t+='· '+esc(BL('男','Male','ប្រុស',bi))+' '+m+' · '+esc(BL('女','Female','ស្រី',bi))+' '+f+'\n';
+  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+'</b>\n';
+  t+='├ '+esc(BL('總人數','Total','សរុប',bi))+' │ <b>'+J.length+'</b>\n';
+  t+='├ '+esc(BL('車縫','Sewing','ដេរ',bi))+' │ '+sew+'\n';
+  t+='├ '+esc(BL('男','Male','ប្រុស',bi))+' │ '+m+'\n';
+  t+='└ '+esc(BL('女','Female','ស្រី',bi))+' │ '+f+'\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
-  if(dl.length){ t+='<b>'+esc(BL('入職部門','By department','តាមផ្នែក',bi))+'</b>\n'; dl.forEach(function(k){ t+='· '+esc(k)+'：'+dm[k]+'\n'; }); }
+  if(dl.length){ t+='<b>'+esc(BL('入職部門','By department','តាមផ្នែក',bi))+'</b>\n'; dl.forEach(function(k,i){ t+=(i===dl.length-1?'└ ':'├ ')+esc(k)+' │ '+dm[k]+'\n'; }); }
   return t;
 }
 function resignBlock(R,p,bi){
@@ -2095,48 +2109,28 @@ function resignBlock(R,p,bi){
   var m=R.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length;
   var f=R.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
   var tc={}; R.forEach(function(r){var k=r.resignType||'resign';tc[k]=(tc[k]||0)+1;});
-  /* ★ 部門明細：人數 + 結算金額 */
-  var dm={}; R.forEach(function(r){
-    var k=r.dept||'—'; if(!dm[k])dm[k]={n:0,amt:0};
-    dm[k].n++; dm[k].amt+=(+r.amount||0);
-  });
+  var dm={}; R.forEach(function(r){var k=r.dept||'—';if(!dm[k])dm[k]={n:0,amt:0};dm[k].n++;dm[k].amt+=(+r.amount||0);});
   var rc={}; R.forEach(function(r){var k=r.reasonCat||'Other';rc[k]=(rc[k]||0)+1;});
   var to=(p.length===7)?turnoverOf(p):null;
   var days=R.map(function(r){return +r.workingDays||0;}).filter(function(x){return x>0;});
   var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):0;
-  /* ★ 結算金額合計 */
   var amtRows=R.filter(function(r){return (+r.amount||0)>0;});
   var totAmt=amtRows.reduce(function(s,r){return s+(+r.amount||0);},0);
-
-  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+'：'+R.length+'</b>'+(sew?('（'+esc(BL('車縫','Sewing','ដេរ',bi))+' '+sew+'）'):'')+'\n';
-  if(m||f) t+='· '+esc(BL('男','Male','ប្រុស',bi))+' '+m+' · '+esc(BL('女','Female','ស្រី',bi))+' '+f+'\n';
-  /* ★ 結算金額 */
-  if(totAmt>0){
-    t+='💵 '+esc(BL('結算金額','Settlement','ប្រាក់សរុប',bi))+'：<b>$'+fmt(totAmt)+'</b>';
-    t+='（'+amtRows.length+'/'+R.length+' '+esc(BL('筆','recs','ធាតុ',bi))+'）\n';
-    t+='· '+esc(BL('平均','Avg','មធ្យម',bi))+' $'+fmt(totAmt/amtRows.length)+'\n';
-  }
-  if(to&&isFinite(to.rate)) t+='📉 '+esc(BL('流動率','Turnover','អត្រាចេញ',bi))+'：<b>'+pct(to.rate)+'</b>'+(to.est?'（'+esc(BL('推估','est.','ប៉ាន់',bi))+'）':'')+'\n';
-  if(avgD) t+='⏱ '+esc(BL('平均在職天數','Avg tenure','រយៈពេលមធ្យម',bi))+'：'+avgD+'\n';
+  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+'</b>\n';
+  t+='├ '+esc(BL('總人數','Total','សរុប',bi))+' │ <b>'+R.length+'</b>\n';
+  t+='├ '+esc(BL('車縫','Sewing','ដេរ',bi))+' │ '+sew+'\n';
+  t+='├ '+esc(BL('男','Male','ប្រុស',bi))+' │ '+m+'\n';
+  t+='├ '+esc(BL('女','Female','ស្រី',bi))+' │ '+f+'\n';
+  if(totAmt>0){t+='├ 💵 '+esc(BL('結算金額','Settlement','ប្រាក់សរុប',bi))+' │ <b>$'+fmt(totAmt)+'</b> ('+amtRows.length+'/'+R.length+')\n';t+='├ '+esc(BL('平均結算','Avg settlement','មធ្យម',bi))+' │ $'+fmt(totAmt/amtRows.length)+'\n';}
+  if(to&&isFinite(to.rate))t+='├ 📉 '+esc(BL('流動率','Turnover','អត្រាចេញ',bi))+' │ <b>'+pct(to.rate)+'</b>'+(to.est?' '+esc(BL('推估','est.','ប៉ាន់',bi)):'')+'\n';
+  t+='└ ⏱ '+esc(BL('平均在職天數','Avg tenure','រយៈពេលមធ្យម',bi))+' │ '+(avgD||0)+'\n';
   t+='<b>'+esc(BL('離職類型','By type','តាមប្រភេទ',bi))+'</b>\n';
-  Object.keys(RESIGN_TYPES).forEach(function(k){ if(tc[k]) t+='· '+esc(BL(RESIGN_TYPES[k][0],RESIGN_TYPES[k][1],'',bi))+'：'+tc[k]+'\n'; });
-  /* ★ 部門明細帶金額 */
+  var tks=Object.keys(RESIGN_TYPES).filter(function(k){return tc[k];});
+  tks.forEach(function(k,i){t+=(i===tks.length-1?'└ ':'├ ')+esc(BL(RESIGN_TYPES[k][0],RESIGN_TYPES[k][1],'',bi))+' │ '+tc[k]+'\n';});
   var dl=Object.keys(dm).sort(function(a,b){return dm[b].n-dm[a].n;}).slice(0,10);
-  if(dl.length){
-    t+='<b>'+esc(BL('離職部門','By department','តាមផ្នែក',bi))+'</b>\n';
-    dl.forEach(function(k){
-      t+='· '+esc(k)+'：'+dm[k].n+' '+esc(BL('人','staff','នាក់',bi));
-      if(dm[k].amt>0) t+=' · <b>$'+fmt(dm[k].amt)+'</b>';
-      t+='\n';
-    });
-  }
+  if(dl.length){t+='<b>'+esc(BL('離職部門','By department','តាមផ្នែក',bi))+'</b>\n';dl.forEach(function(k,i){t+=(i===dl.length-1?'└ ':'├ ')+esc(k)+' │ '+dm[k].n+' '+esc(BL('人','staff','នាក់',bi))+(dm[k].amt>0?' · <b>$'+fmt(dm[k].amt)+'</b>':'')+'\n';});}
   var rl=Object.keys(rc).sort(function(a,b){return rc[b]-rc[a];}).slice(0,8);
-  if(rl.length){
-    t+='<b>'+esc(BL('離職原因','By reason','តាមមូលហេតុ',bi))+'</b>\n';
-    rl.forEach(function(k){
-      t+='· '+esc(BL(REASON_ZH[k]||k,k,REASON_KM[k]||'',bi))+'：'+rc[k]+'\n';
-    });
-  }
+  if(rl.length){t+='<b>'+esc(BL('離職原因','By reason','តាមមូលហេតុ',bi))+'</b>\n';rl.forEach(function(k,i){t+=(i===rl.length-1?'└ ':'├ ')+esc(BL(REASON_ZH[k]||k,k,REASON_KM[k]||'',bi))+' │ '+rc[k]+'\n';});}
   return t;
 }
 /* scope: 'join' | 'resign' | 'both' */
@@ -2144,31 +2138,31 @@ function buildSummaryText(p,bi,scope){
   scope=scope||_tgScope||'both';
   var d=periodData(p), J=d.J, R=d.R;
   var need = scope==='join'?J.length : scope==='resign'?R.length : (J.length+R.length);
-  if(!need) return {err:L('此期間'+(scope==='join'?'沒有入職':scope==='resign'?'沒有離職':'')+'資料',
-                          'No '+(scope==='join'?'join ':scope==='resign'?'resign ':'')+'data for this period')};
-  var head = scope==='join'?'🟢 <b>'+esc(BL('入職月報','Join Report','របាយការណ៍ចូលធ្វើការ',bi))+'</b>'
-           : scope==='resign'?'🔴 <b>'+esc(BL('離職月報','Resign Report','របាយការណ៍ចេញពីការងារ',bi))+'</b>'
-           : '👥 <b>'+esc(BL('入離職月報','Onboarding & Turnover','ចូល/ចេញពីការងារ',bi))+'</b>';
-  /* ★ 'S:' 是內部基準前綴，不能直接印給人看 */
-  var pLabel = isSettleKey(p)
-    ? (String(p).slice(2)+'（'+BL('結算日','settle date','ថ្ងៃទូទាត់',bi)+'）')
-    : String(p);
-  var t=head+'\n📅 '+esc(BL('期間','Period','ដំណាក់កាល',bi))+'：'+esc(pLabel)+'\n🏭 VRT Sihanoukville\n'+HR;
+  if(!need) return {err:L('此期間'+(scope==='join'?'沒有入職':scope==='resign'?'沒有離職':'')+'資料','No '+(scope==='join'?'join ':scope==='resign'?'resign ':'')+'data for this period')};
+  var head = scope==='join'?'🟢 <b>'+esc(BL('入職月報','Join Report','របាយការណ៍ចូលធ្វើការ',bi))+'</b>' : scope==='resign'?'🔴 <b>'+esc(BL('離職月報','Resign Report','របាយការណ៍ចេញពីការងារ',bi))+'</b>' : '👥 <b>'+esc(BL('入離職月報','Onboarding & Turnover','ចូល/ចេញពីការងារ',bi))+'</b>';
+  var pLabel = isSettleKey(p)?(String(p).slice(2)+'（'+BL('結算日','settle date','ថ្ងៃទូទាត់',bi)+'）'):String(p);
+  var t=head+'\n━━━━━━━━━━━━━━━━\n📌 <b>'+esc(BL('總覽','Overview','ទិដ្ឋភាព',bi))+'</b>\n';
+  t+='├ 📅 '+esc(BL('期間','Period','ដំណាក់កាល',bi))+' │ '+esc(pLabel)+'\n';
   if(scope==='both'){
-    t+='🟢 '+esc(BL('入職','Joins','ចូល',bi))+'：<b>'+J.length+'</b>　🔴 '+esc(BL('離職','Resigns','ចេញ',bi))+'：<b>'+R.length+'</b>\n';
-    t+='⚖️ '+esc(BL('淨增減','Net','សុទ្ធ',bi))+'：<b>'+((J.length-R.length)>0?'+':'')+(J.length-R.length)+'</b>\n'+HR;
+    t+='├ 🟢 '+esc(BL('入職','Joins','ចូល',bi))+' │ <b>'+J.length+'</b>\n';
+    t+='├ 🔴 '+esc(BL('離職','Resigns','ចេញ',bi))+' │ <b>'+R.length+'</b>\n';
+    t+='└ ⚖️ '+esc(BL('淨增減','Net','សុទ្ធ',bi))+' │ <b>'+((J.length-R.length)>0?'+':'')+(J.length-R.length)+'</b>\n'+HR;
     t+=joinBlock(J,bi)+HR+resignBlock(R,p,bi);
   }else if(scope==='join'){
+    t+='└ 🟢 '+esc(BL('入職','Joins','ចូល',bi))+' │ <b>'+J.length+'</b>\n'+HR;
     t+=joinBlock(J,bi);
   }else{
+    t+='└ 🔴 '+esc(BL('離職','Resigns','ចេញ',bi))+' │ <b>'+R.length+'</b>\n'+HR;
     t+=resignBlock(R,p,bi);
   }
   var st=apprStats(p,scope);
-  t+=HR+'✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' '+st.ok+' · ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' '+st.no+' · ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' '+st.pend+'\n';
-  /* ★ 核算聲明（三語） */
+  t+=HR+'✅ <b>'+esc(BL('核可狀態','Approval Status','ស្ថានភាពអនុម័ត',bi))+'</b>\n';
+  t+='├ ✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' │ '+st.ok+'\n';
+  t+='├ ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' │ '+st.no+'\n';
+  t+='└ ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' │ '+st.pend+'\n';
   t+='<i>'+esc(BL('以上人數與金額已經系統核算','Headcount and amounts verified by system','ចំនួន និងទឹកប្រាក់ត្រូវបានផ្ទៀងផ្ទាត់',bi))+'</i>\n';
   var actor=tgActor();
-  if(actor)t+='👤 '+esc(BL('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកពិនិត្យ',bi))+'：<b>'+esc(actor)+'</b>\n';
+  if(actor)t+='👤 '+esc(BL('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកពិនិត្យ',bi))+' │ <b>'+esc(actor)+'</b>\n';
   t+='<i>'+esc(nowStamp())+' · AC HRA Onboarding v3</i>';
   return {text:t};
 }
@@ -2269,6 +2263,7 @@ function confirmTg(){
     saveTgActor();
     var r=buildSummaryText(p,bi,scope);
     if(r.err){ toast(r.err,'error'); return; }
+    var attachments=onboardingTgAttachments(p,scope);
     var sTag=scope==='join'?'J':scope==='resign'?'R':'B';
     if(_tgMode==='approval'){
       var items=buildApprovalItems(p,scope);
@@ -2281,9 +2276,9 @@ function confirmTg(){
         /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
         idempotencyKey:['onboarding',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
-        applicant:actor, inspector:actor, checker:actor, requestedBy:actor, requestedAt:nowStamp() };
+        attachments:attachments, applicant:actor, inspector:actor, checker:actor, requestedBy:actor, requestedAt:nowStamp() };
     }else{
-      payload={ action:'telegram', type:'notify', tool:TOOL, scope:scope, text:r.text, applicant:actor, inspector:actor, checker:actor };
+      payload={ action:'telegram', type:'notify', tool:TOOL, scope:scope, text:r.text, attachments:attachments, applicant:actor, inspector:actor, checker:actor };
     }
   }catch(e){
     console.error('[confirmTg build]', e);

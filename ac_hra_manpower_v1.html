@@ -6,6 +6,7 @@
 <title>AC HRA Manpower v3.1</title>
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3005,43 +3006,11 @@ function recruitmentStatsForState(state){
     female:rows.filter(r=>String(r.gender||'').toUpperCase()==='F').length};
 }
 function buildRecruitmentSummaryHtml(state,lang,includeDept,maxPeople){
-  const s=recruitmentStatsForState(state),rows=s.rows,limit=Math.max(1,n(maxPeople)||12);
-  let t=`\n🎯 <b>${tgBi('招募','Recruitment',lang)}</b>\n`;
-  t+=`${tgBi('應徵','Applicants',lang)}：<b>${fmt(s.applicants)}</b>　${tgBi('錄取','Passed',lang)}：${fmt(s.passed)}　${tgBi('未錄取／未到','Failed / no-show',lang)}：${fmt(s.failed)}\n`;
-  t+=`${tgBi('待確認','Pending',lang)}：${fmt(s.pending)}　${tgBi('已報到','Joined',lang)}：${fmt(s.joined)}　${tgBi('報到率','Join rate',lang)}：${s.applicants?pct(s.joined/s.applicants*100):'0.0%'}\n`;
-  if(rows.length){
-    t+=`${tgBi('性別','Gender',lang)}：${tgBi('男','Male',lang)} ${fmt(s.male)} · ${tgBi('女','Female',lang)} ${fmt(s.female)} · ${tgBi('未填','Unknown',lang)} ${fmt(Math.max(0,rows.length-s.male-s.female))}\n`;
-    t+=`${tgBi('應徵人員明細','Applicant details',lang)}：\n`;
-    rows.slice(0,limit).forEach((r,i)=>{
-      const id=r.empId||r.phone||'—',profile=[r.gender?`${tgBi('性別','Gender',lang)} ${r.gender}`:'',n(r.age)?`${tgBi('年齡','Age',lang)} ${fmt(r.age)}`:''].filter(Boolean).join(' · ');
-      const extra=[`${tgBi('結果','Result',lang)} ${recruitmentResultText(r,lang)}`,r.joinDate?`${tgBi('報到','Joined',lang)} ${r.joinDate}`:'',r.referral?`${tgBi('來源','Source',lang)} ${r.referral}`:''].filter(Boolean).join(' · ');
-      t+=`· ${i+1}. ${esc(r.registerDate||'—')} · <b>${esc(r.name||'—')}</b> · ${esc(id)}\n`;
-      t+=`  ${esc(recruitmentWhere(r))}${profile?` · ${esc(profile)}`:''}\n`;
-      t+=`  ${esc(extra)}${r.noShowReason||r.remark?` · ${tgBi('備註','Remark',lang)} ${esc(r.noShowReason||r.remark)}`:''}\n`;
-    });
-    if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;
-  }else if(s.applicants){
-    t+=`ℹ️ ${tgBi('本期只有每日招募合計，來源檔沒有逐人名單。','Only daily recruitment totals are available; the source has no person-level list.',lang)}\n`;
-  }
-  if(includeDept&&rows.length){
-    const groups={};
-    rows.forEach(r=>{
-      const dept=r.dept||'—',section=r.section||'—',position=r.position||'—',key=[dept,section,position].join('¦');
-      if(!groups[key])groups[key]={dept,section,position,total:0,passed:0,failed:0,pending:0,joined:0};
-      const g=groups[key];g.total++;
-      if(r.joined||r.joinDate)g.joined++;
-      else if(r.interviewResult==='pass')g.passed++;
-      else if(['fail','no_show'].includes(r.interviewResult))g.failed++;
-      else g.pending++;
-    });
-    const detail=Object.values(groups).sort((a,b)=>b.total-a.total||[a.dept,a.section,a.position].join('/').localeCompare([b.dept,b.section,b.position].join('/'))).slice(0,12);
-    t+=`📋 <b>${tgBi('招募部門／組別／職位','Recruitment by Department / Section / Position',lang)}</b>\n`;
-    detail.forEach(g=>{
-      const label=[g.dept,g.section,g.position].filter((v,i,a)=>v&&v!=='—'&&a.indexOf(v)===i).join(' / ')||'—';
-      t+=`· ${esc(label)}：${tgBi('應徵','Applicants',lang)} ${fmt(g.total)} · ${tgBi('錄取','Passed',lang)} ${fmt(g.passed)} · ${tgBi('未錄取','Failed',lang)} ${fmt(g.failed)} · ${tgBi('待確認','Pending',lang)} ${fmt(g.pending)} · ${tgBi('已報到','Joined',lang)} ${fmt(g.joined)}\n`;
-    });
-    if(Object.keys(groups).length>detail.length)t+=`· … +${Object.keys(groups).length-detail.length} ${tgBi('組','groups',lang)}\n`;
-  }
+  const s=recruitmentStatsForState(state),rows=s.rows,limit=Math.max(1,n(maxPeople)||12);let t=`\n🎯 <b>${tgBi('招募','Recruitment',lang)}</b>\n`;
+  t+=`├ ${tgBi('應徵','Applicants',lang)} │ <b>${fmt(s.applicants)}</b>\n├ ${tgBi('錄取','Passed',lang)} │ ${fmt(s.passed)}\n├ ${tgBi('未錄取／未到','Failed / no-show',lang)} │ ${fmt(s.failed)}\n├ ${tgBi('待確認','Pending',lang)} │ ${fmt(s.pending)}\n├ ${tgBi('已報到','Joined',lang)} │ ${fmt(s.joined)}\n├ ${tgBi('報到率','Join rate',lang)} │ ${s.applicants?pct(s.joined/s.applicants*100):'0.0%'}\n├ ${tgBi('男','Male',lang)} │ ${fmt(s.male)}\n├ ${tgBi('女','Female',lang)} │ ${fmt(s.female)}\n└ ${tgBi('未填','Unknown',lang)} │ ${fmt(Math.max(0,rows.length-s.male-s.female))}\n`;
+  if(rows.length){t+=`<b>${tgBi('應徵人員明細','Applicant details',lang)}</b>\n`;rows.slice(0,limit).forEach((r,i)=>{const id=r.empId||r.phone||'—';t+=`┌ <b>#${i+1} ${esc(r.name||'—')}</b>\n├ ${tgBi('應徵日期','Register date',lang)} │ ${esc(r.registerDate||'—')}\n├ ${tgBi('工號／電話','ID / Phone',lang)} │ ${esc(id)}\n├ ${tgBi('部門／組別／職位','Dept / Section / Position',lang)} │ ${esc(recruitmentWhere(r))}\n├ ${tgBi('性別','Gender',lang)} │ ${esc(r.gender||'—')}\n├ ${tgBi('年齡','Age',lang)} │ ${n(r.age)?fmt(r.age):'—'}\n├ ${tgBi('結果','Result',lang)} │ ${esc(recruitmentResultText(r,lang))}\n├ ${tgBi('報到','Joined',lang)} │ ${esc(r.joinDate||'—')}\n├ ${tgBi('來源','Source',lang)} │ ${esc(r.referral||'—')}\n└ ${tgBi('備註','Remark',lang)} │ ${esc(r.noShowReason||r.remark||'—')}\n`;});if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;}
+  else if(s.applicants)t+=`ℹ️ ${tgBi('本期只有每日招募合計，來源檔沒有逐人名單。','Only daily recruitment totals are available; the source has no person-level list.',lang)}\n`;
+  if(includeDept&&rows.length){const groups={};rows.forEach(r=>{const dept=r.dept||'—',section=r.section||'—',position=r.position||'—',key=[dept,section,position].join('¦');if(!groups[key])groups[key]={dept,section,position,total:0,passed:0,failed:0,pending:0,joined:0};const g=groups[key];g.total++;if(r.joined||r.joinDate)g.joined++;else if(r.interviewResult==='pass')g.passed++;else if(['fail','no_show'].includes(r.interviewResult))g.failed++;else g.pending++;});const detail=Object.values(groups).sort((a,b)=>b.total-a.total||[a.dept,a.section,a.position].join('/').localeCompare([b.dept,b.section,b.position].join('/'))).slice(0,12);t+=`📋 <b>${tgBi('招募部門／組別／職位','Recruitment by Department / Section / Position',lang)}</b>\n`;detail.forEach((g,i)=>{const label=[g.dept,g.section,g.position].filter((v,i,a)=>v&&v!=='—'&&a.indexOf(v)===i).join(' / ')||'—';t+=`┌ <b>${esc(label)}</b>\n├ ${tgBi('應徵','Applicants',lang)} │ ${fmt(g.total)}\n├ ${tgBi('錄取','Passed',lang)} │ ${fmt(g.passed)}\n├ ${tgBi('未錄取','Failed',lang)} │ ${fmt(g.failed)}\n├ ${tgBi('待確認','Pending',lang)} │ ${fmt(g.pending)}\n└ ${tgBi('已報到','Joined',lang)} │ ${fmt(g.joined)}\n`;});if(Object.keys(groups).length>detail.length)t+=`· … +${Object.keys(groups).length-detail.length} ${tgBi('組','groups',lang)}\n`;}
   return t;
 }
 function recruitApprovalKey(r){return `RC|${r._k||[r.registerDate,normName(r.name),r.phone||r.dob||''].join('|')}`}
@@ -3062,67 +3031,11 @@ function movementApprovalItems(rows){
     info:`${isJoin?tgBi('入職','Join','both'):tgBi('離職','Resign','both')} ${x.date||'—'}${!isJoin&&r.reason?` · ${tgBi('原因','Reason','both')} ${r.reason}`:''}${r.remark?` · ${tgBi('備註','Remark','both')} ${r.remark}`:''}`,amount:0};});
 }
 function buildTelegramHtml(){
-  const state=tgPeriodState(),lang=el('tgLanguage').value,m=metricsForState(state),label=el('tgPeriod').value||pLabel(state);
-  let t=`👥 <b>${tgBi('VRT 人力摘要','VRT Manpower Summary',lang)}</b>\n📅 ${tgBi('期間','Period',lang)}：${esc(label)}\n`;
-  if(el('tgPlan').checked){
-    t+=`\n🏭 <b>${tgBi('人力狀況','Manpower',lang)}</b>\n`;
-    t+=`${tgBi('需求','Required',lang)}：<b>${fmt(m.required)}</b>\n`;
-    t+=`${tgBi('已入職／完成','Joined / filled',lang)}：<b>${fmt(m.actual)}</b>\n`;
-    t+=`${tgBi('尚缺','Gap',lang)}：<b>${fmt(m.gap)}</b>　${tgBi('完成度','Completion',lang)}：${pct(m.fillRate)}\n`;
-  }
-  if(el('tgRecruit').checked){
-    const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;
-    t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?18:8);
-  }
-  if(el('tgMovement').checked){
-    t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n`;
-    t+=`${tgBi('入職','Joined',lang)}：${fmt(m.joined)}　${tgBi('離職','Resigned',lang)}：${fmt(m.resigned)}　${tgBi('淨增減','Net',lang)}：${m.net>0?'+':''}${fmt(m.net)}\n`;
-    t+=`${tgBi('流動率','Turnover',lang)}：${pct(m.turnover)}\n`;
-    const joins=DB.joins.filter(r=>inState(r.joinDate,state)).sort((a,b)=>String(a.joinDate).localeCompare(String(b.joinDate)));
-    const resigns=DB.resigns.filter(r=>inState(r.resignDate,state)).sort((a,b)=>String(a.resignDate).localeCompare(String(b.resignDate)));
-    const movementRows=[...joins.map(r=>({type:tgBi('入職','Join',lang),date:r.joinDate,r})),...resigns.map(r=>({type:tgBi('離職','Resign',lang),date:r.resignDate,r}))].slice(0,16);
-    if(movementRows.length){
-      t+=`${tgBi('人員明細','People details',lang)}：\n`;
-      movementRows.forEach(x=>{
-        const r=x.r,where=[r.dept||r.section,r.section&&r.section!==r.dept?r.section:'',r.position].filter(Boolean).join(' / ')||'—';
-        t+=`· ${x.type} ${r.empId||'—'} ${r.name||'—'} · ${where} · ${x.date||'—'}\n`;
-      });
-      if(joins.length+resigns.length>movementRows.length)t+=`· … +${joins.length+resigns.length-movementRows.length}\n`;
-    }
-  }
-  if(el('tgDept').checked&&el('tgPlan').checked){
-    const latest=latestPlanRows(plansForState(state,true)),dm={};
-    latest.forEach(r=>{
-      const d=r.dept||r.section||'—';
-      const p=planProgress(r);
-      if(!dm[d])dm[d]={required:0,filled:0,rows:0};
-      dm[d].required+=n(r.required);dm[d].filled+=p.filled;dm[d].rows++;
-    });
-    const rows=Object.entries(dm).map(([d,v])=>({d,...v,gap:v.required-v.filled,rate:v.required?v.filled/v.required*100:0})).sort((a,b)=>b.gap-a.gap).slice(0,8);
-    if(rows.length){
-      t+=`\n📋 <b>${tgBi('部門摘要','By Department',lang)}</b>\n`;
-      rows.forEach(r=>{t+=`${esc(r.d)}：${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('已入職／完成','Joined / filled',lang)} ${fmt(r.filled)} · ${tgBi('缺口','Gap',lang)} ${fmt(r.gap)} · ${tgBi('完成度','Completion',lang)} ${pct(r.rate)}\n`});
-    }
-    const detail=latestPlanRows(plansForState(state,true)).reduce((acc,r)=>{
-      const dept=r.dept||'—',section=r.section||r.group||'—',position=r.position||'—';
-      const key=[dept,section,position].join('¦');
-      const p=planProgress(r);
-      if(!acc[key])acc[key]={dept,section,position,required:0,filled:0,resigned:0,conditions:planConditions(r,lang),reason:planReason(r,lang),people:[]};
-      acc[key].required+=n(r.required);acc[key].filled+=p.filled;acc[key].resigned+=p.resigned;
-      if(p.rows.length)acc[key].people.push(...p.rows);
-      return acc;
-    },{});
-    const detailRows=Object.values(detail).map(r=>({...r,gap:r.required-r.filled,rate:r.required?r.filled/r.required*100:0})).sort((a,b)=>b.gap-a.gap).slice(0,16);
-    if(detailRows.length){
-      t+=`${tgBi('部門／組別／職位','Department / Section / Position',lang)}：\n`;
-      detailRows.forEach(r=>{
-        const label=[r.dept,r.section,r.position].filter(Boolean).join(' / ');
-        const people=r.people.slice(0,5).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');
-        t+=`· ${esc(label)} · ${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('已入職／完成','Joined / filled',lang)} ${fmt(r.filled)} · ${tgBi('已離職','Resigned',lang)} ${fmt(r.resigned)} · ${tgBi('缺口','Gap',lang)} ${fmt(r.gap)} · ${tgBi('完成度','Completion',lang)} ${pct(r.rate)}\n`;
-        t+=`  ${tgBi('條件','Conditions',lang)} ${esc(r.conditions)} · ${tgBi('原因','Reason',lang)} ${esc(r.reason)}${people?` · ${tgBi('人員','People',lang)} ${esc(people)}`:''}\n`;
-      });
-    }
-  }
+  const state=tgPeriodState(),lang=el('tgLanguage').value,m=metricsForState(state),label=el('tgPeriod').value||pLabel(state);let t=`👥 <b>${tgBi('VRT 人力摘要','VRT Manpower Summary',lang)}</b>\n━━━━━━━━━━━━━━━━\n📌 <b>${tgBi('總覽','Overview',lang)}</b>\n├ ${tgBi('期間','Period',lang)} │ ${esc(label)}\n`;
+  if(el('tgPlan').checked){t+=`├ ${tgBi('需求','Required',lang)} │ <b>${fmt(m.required)}</b>\n├ ${tgBi('已入職／完成','Joined / filled',lang)} │ <b>${fmt(m.actual)}</b>\n├ ${tgBi('尚缺','Gap',lang)} │ <b>${fmt(m.gap)}</b>\n└ ${tgBi('完成度','Completion',lang)} │ ${pct(m.fillRate)}\n`;}
+  if(el('tgRecruit').checked){const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?18:8);}
+  if(el('tgMovement').checked){t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n├ ${tgBi('入職','Joined',lang)} │ ${fmt(m.joined)}\n├ ${tgBi('離職','Resigned',lang)} │ ${fmt(m.resigned)}\n├ ${tgBi('淨增減','Net',lang)} │ ${m.net>0?'+':''}${fmt(m.net)}\n└ ${tgBi('流動率','Turnover',lang)} │ ${pct(m.turnover)}\n`;const joins=DB.joins.filter(r=>inState(r.joinDate,state)).sort((a,b)=>String(a.joinDate).localeCompare(String(b.joinDate))),resigns=DB.resigns.filter(r=>inState(r.resignDate,state)).sort((a,b)=>String(a.resignDate).localeCompare(String(b.resignDate))),movementRows=[...joins.map(r=>({type:tgBi('入職','Join',lang),date:r.joinDate,r})),...resigns.map(r=>({type:tgBi('離職','Resign',lang),date:r.resignDate,r}))].slice(0,16);if(movementRows.length){t+=`<b>${tgBi('人員明細','People details',lang)}</b>\n`;movementRows.forEach((x,i)=>{const r=x.r,where=[r.dept||r.section,r.section&&r.section!==r.dept?r.section:'',r.position].filter(Boolean).join(' / ')||'—';t+=`┌ <b>#${i+1} ${esc(r.name||'—')}</b>\n├ ${tgBi('類型','Type',lang)} │ ${x.type}\n├ ${tgBi('工號','ID',lang)} │ ${esc(r.empId||'—')}\n├ ${tgBi('部門／組別／職位','Dept / Section / Position',lang)} │ ${esc(where)}\n└ ${tgBi('日期','Date',lang)} │ ${esc(x.date||'—')}\n`;});if(joins.length+resigns.length>movementRows.length)t+=`· … +${joins.length+resigns.length-movementRows.length}\n`;}}
+  if(el('tgDept').checked&&el('tgPlan').checked){const latest=latestPlanRows(plansForState(state,true)),dm={};latest.forEach(r=>{const d=r.dept||r.section||'—',p=planProgress(r);if(!dm[d])dm[d]={required:0,filled:0,rows:0};dm[d].required+=n(r.required);dm[d].filled+=p.filled;dm[d].rows++;});const rows=Object.entries(dm).map(([d,v])=>({d,...v,gap:v.required-v.filled,rate:v.required?v.filled/v.required*100:0})).sort((a,b)=>b.gap-a.gap).slice(0,8);if(rows.length){t+=`\n📋 <b>${tgBi('部門摘要','By Department',lang)}</b>\n`;rows.forEach(r=>{t+=`┌ <b>${esc(r.d)}</b>\n├ ${tgBi('需求','Required',lang)} │ ${fmt(r.required)}\n├ ${tgBi('已入職／完成','Joined / filled',lang)} │ ${fmt(r.filled)}\n├ ${tgBi('缺口','Gap',lang)} │ ${fmt(r.gap)}\n└ ${tgBi('完成度','Completion',lang)} │ ${pct(r.rate)}\n`;});}const detail=latest.reduce((acc,r)=>{const dept=r.dept||'—',section=r.section||r.group||'—',position=r.position||'—',key=[dept,section,position].join('¦'),p=planProgress(r);if(!acc[key])acc[key]={dept,section,position,required:0,filled:0,resigned:0,conditions:planConditions(r,lang),reason:planReason(r,lang),people:[]};acc[key].required+=n(r.required);acc[key].filled+=p.filled;acc[key].resigned+=p.resigned;if(p.rows.length)acc[key].people.push(...p.rows);return acc;},{}),detailRows=Object.values(detail).map(r=>({...r,gap:r.required-r.filled,rate:r.required?r.filled/r.required*100:0})).sort((a,b)=>b.gap-a.gap).slice(0,16);if(detailRows.length){t+=`<b>${tgBi('部門／組別／職位','Department / Section / Position',lang)}</b>\n`;detailRows.forEach(r=>{const label2=[r.dept,r.section,r.position].filter(Boolean).join(' / '),people=r.people.slice(0,5).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');t+=`┌ <b>${esc(label2)}</b>\n├ ${tgBi('需求','Required',lang)} │ ${fmt(r.required)}\n├ ${tgBi('已入職／完成','Joined / filled',lang)} │ ${fmt(r.filled)}\n├ ${tgBi('已離職','Resigned',lang)} │ ${fmt(r.resigned)}\n├ ${tgBi('缺口','Gap',lang)} │ ${fmt(r.gap)}\n├ ${tgBi('完成度','Completion',lang)} │ ${pct(r.rate)}\n├ ${tgBi('條件','Conditions',lang)} │ ${esc(r.conditions)}\n├ ${tgBi('原因','Reason',lang)} │ ${esc(r.reason)}\n└ ${tgBi('人員','People',lang)} │ ${people?esc(people):'—'}\n`;});}}
   return t.trim();
 }
 function openTelegram(){
@@ -3146,44 +3059,11 @@ function telegramApprovalItems(){
   return items;
 }
 function buildManpowerApprovalHtml(){
-  const state=tgPeriodState(),lang=el('tgLanguage').value,label=el('tgPeriod').value||pLabel(state);
-  let t=`📋 <b>${tgBi('人力／招募審查','Manpower / Recruitment review',lang)}</b>\n📅 ${tgBi('期間','Period',lang)}：${esc(label)}\n─────────────\n`;
-  let sectionCount=0;
-  if(el('tgPlan').checked){
-    const rows=telegramApprovalRows();sectionCount++;
-    t+=`\n🏭 <b>${tgBi('人力需求','Manpower requisitions',lang)}</b>\n`;
-    if(!rows.length)t+=`✅ ${tgBi('本期沒有新的待核需求','No new pending manpower requests',lang)}\n`;
-    else{
-      t+=`${tgBi('需求筆數','Requests',lang)}：<b>${rows.length}</b>\n`;
-      rows.slice(0,16).forEach((r,i)=>{
-        const p=planProgress(r),label2=planFullLabel(r);
-        t+=`⏳ <b>${i+1}.</b> ${esc(label2)}\n`;
-        t+=`   ${tgBi('需求','Required',lang)} ${fmt(r.required)} · ${tgBi('已入職／完成','Joined / filled',lang)} ${fmt(p.filled)} · ${tgBi('缺口','Gap',lang)} ${fmt(p.gap)} · ${tgBi('完成度','Completion',lang)} ${pct(p.rate)}\n`;
-        t+=`   ${tgBi('條件','Conditions',lang)} ${esc(planConditions(r,lang))} · ${tgBi('原因','Reason',lang)} ${esc(planReason(r,lang))}\n`;
-      });
-      if(rows.length>16)t+=`· … +${rows.length-16}\n`;
-    }
-  }
-  if(el('tgRecruit').checked){
-    sectionCount++;
-    const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;
-    t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?18:8);
-  }
-  if(el('tgMovement').checked){
-    sectionCount++;
-    const rows=movementRowsForState(state),joins=rows.filter(x=>x.kind==='join').length,resigns=rows.length-joins,limit=!el('tgPlan').checked&&!el('tgRecruit').checked?18:8;
-    t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n${tgBi('入職','Joined',lang)}：<b>${fmt(joins)}</b>　${tgBi('離職','Resigned',lang)}：<b>${fmt(resigns)}</b>　${tgBi('淨增減','Net',lang)}：${joins-resigns>0?'+':''}${fmt(joins-resigns)}\n`;
-    if(rows.length){
-      t+=`${tgBi('人員明細','People details',lang)}：\n`;
-      rows.slice(0,limit).forEach((x,i)=>{const r=x.r;t+=`· ${i+1}. ${x.kind==='join'?tgBi('入職','Join',lang):tgBi('離職','Resign',lang)} ${esc(r.empId||'—')} <b>${esc(r.name||'—')}</b> · ${esc(recruitmentWhere(r))} · ${esc(x.date||'—')}${x.kind==='resign'&&r.reason?` · ${tgBi('原因','Reason',lang)} ${esc(r.reason)}`:''}\n`});
-      if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;
-    }
-  }
-  if(!sectionCount)t+=`⚠️ ${tgBi('請至少勾選一個摘要項目','Select at least one summary section',lang)}\n`;
-  const itemCount=telegramApprovalItems().length;
-  t+=`\n📌 ${tgBi('本次可送審明細','Reviewable records',lang)}：<b>${fmt(itemCount)}</b>\n`;
-  t+=`${tgBi('每筆都可核可或退件；已在待核或已完成的同一筆資料不會重發。','Each record can be approved or rejected; identical pending or completed records are not resent.',lang)}`;
-  return t;
+  const state=tgPeriodState(),lang=el('tgLanguage').value,label=el('tgPeriod').value||pLabel(state);let t=`📋 <b>${tgBi('人力／招募審查','Manpower / Recruitment review',lang)}</b>\n━━━━━━━━━━━━━━━━\n📌 <b>${tgBi('核可總覽','Approval Overview',lang)}</b>\n└ ${tgBi('期間','Period',lang)} │ ${esc(label)}\n`;let sectionCount=0;
+  if(el('tgPlan').checked){const rows=telegramApprovalRows();sectionCount++;t+=`\n🏭 <b>${tgBi('人力需求','Manpower requisitions',lang)}</b>\n`;if(!rows.length)t+=`└ ✅ ${tgBi('本期沒有新的待核需求','No new pending manpower requests',lang)}\n`;else{t+=`└ ${tgBi('需求筆數','Requests',lang)} │ <b>${rows.length}</b>\n`;rows.slice(0,16).forEach((r,i)=>{const p=planProgress(r),label2=planFullLabel(r);t+=`┌ ⏳ <b>#${i+1} ${esc(label2)}</b>\n├ ${tgBi('需求','Required',lang)} │ ${fmt(r.required)}\n├ ${tgBi('已入職／完成','Joined / filled',lang)} │ ${fmt(p.filled)}\n├ ${tgBi('缺口','Gap',lang)} │ ${fmt(p.gap)}\n├ ${tgBi('完成度','Completion',lang)} │ ${pct(p.rate)}\n├ ${tgBi('條件','Conditions',lang)} │ ${esc(planConditions(r,lang))}\n└ ${tgBi('原因','Reason',lang)} │ ${esc(planReason(r,lang))}\n`;});if(rows.length>16)t+=`· … +${rows.length-16}\n`;}}
+  if(el('tgRecruit').checked){sectionCount++;const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?18:8);}
+  if(el('tgMovement').checked){sectionCount++;const rows=movementRowsForState(state),joins=rows.filter(x=>x.kind==='join').length,resigns=rows.length-joins,limit=!el('tgPlan').checked&&!el('tgRecruit').checked?18:8;t+=`\n⇄ <b>${tgBi('入離職','Join / Resign',lang)}</b>\n├ ${tgBi('入職','Joined',lang)} │ <b>${fmt(joins)}</b>\n├ ${tgBi('離職','Resigned',lang)} │ <b>${fmt(resigns)}</b>\n└ ${tgBi('淨增減','Net',lang)} │ ${joins-resigns>0?'+':''}${fmt(joins-resigns)}\n`;if(rows.length){t+=`<b>${tgBi('人員明細','People details',lang)}</b>\n`;rows.slice(0,limit).forEach((x,i)=>{const r=x.r;t+=`┌ <b>#${i+1} ${esc(r.name||'—')}</b>\n├ ${tgBi('類型','Type',lang)} │ ${x.kind==='join'?tgBi('入職','Join',lang):tgBi('離職','Resign',lang)}\n├ ${tgBi('工號','ID',lang)} │ ${esc(r.empId||'—')}\n├ ${tgBi('部門／組別／職位','Dept / Section / Position',lang)} │ ${esc(recruitmentWhere(r))}\n├ ${tgBi('日期','Date',lang)} │ ${esc(x.date||'—')}\n└ ${tgBi('原因','Reason',lang)} │ ${x.kind==='resign'?esc(r.reason||'—'):'—'}\n`;});if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;}}
+  if(!sectionCount)t+=`⚠️ ${tgBi('請至少勾選一個摘要項目','Select at least one summary section',lang)}\n`;const itemCount=telegramApprovalItems().length;t+=`\n📌 ${tgBi('本次可送審明細','Reviewable records',lang)} │ <b>${fmt(itemCount)}</b>\n`;t+=`${tgBi('每筆都可核可或退件；已在待核或已完成的同一筆資料不會重發。','Each record can be approved or rejected; identical pending or completed records are not resent.',lang)}`;return t;
 }
 function previewTelegram(){
   if(!el('tgPeriod')?.value){LAST_TG_HTML='';el('tgPreview').textContent=L('尚無可用期間','No available period','គ្មានរយៈពេល');return}

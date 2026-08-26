@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <title>AC HRA Welfare &amp; Suggestion</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -466,16 +467,23 @@ async function welfareAutoSync(reason){if(_welfareBusy||!gasUrlValue()||!navigat
 
 /* ── Telegram text summaries — always manual ───────────────────────── */
 function summaryText(lang,type,mode){
-  const old=LANG,key=mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`,s=statsFor(key,mode,''),label=mode==='year'?key:monthLabel(key);
-  const zh=[],en=[];if(type==='all'||type==='transport'){zh.push(`🚌 交通：${s.transport} 人（新增 ${s.apply}／停止 ${s.stop}）`,`🏠 住宿：本地 ${s.local}／外籍 ${s.expat}`);en.push(`🚌 Transport: ${s.transport} people (Added ${s.apply} / Stopped ${s.stop})`,`🏠 Accommodation: Local ${s.local} / Expat ${s.expat}`)}
-  if(type==='all'||type==='union'){zh.push(`🤝 工會費：${s.unionMembers} 人／${money(s.unionAmount)}`);en.push(`🤝 Union dues: ${s.unionMembers} people / ${money(s.unionAmount)}`)}
-  if(type==='all'||type==='suggestion'){zh.push(`💬 意見箱：${s.suggestions} 件／照片 ${s.photos} 張／結案 ${s.closed}`);en.push(`💬 Suggestion box: ${s.suggestions} cases / ${s.photos} photos / ${s.closed} closed`)}
-  return lang==='en'?[`📊 AC HRA Welfare & Suggestion — ${label}`,...en,'🏭 Vantage River Textiles'].join('\n'):[`📊 AC HRA 福利／意見箱摘要 — ${label}`,...zh,'🏭 Vantage River Textiles'].join('\n')
+  const key=mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`,s=statsFor(key,mode,''),label=mode==='year'?key:monthLabel(key),en=lang==='en';
+  const out=[en?'📊 <b>AC HRA Welfare & Suggestion</b>':'📊 <b>AC HRA 福利／意見箱摘要</b>','━━━━━━━━━━━━━━━━',en?'📌 <b>Overview</b>':'📌 <b>總覽 / Overview</b>',`├ ${en?'Period':'期間 / Period'} │ ${label}`];
+  if(type==='all'||type==='transport'){out.push(`├ 🚌 ${en?'Transport':'交通'} │ ${s.transport} ${en?'people':'人'}`,`├ ${en?'Added':'新增'} │ ${s.apply}`,`├ ${en?'Stopped':'停止'} │ ${s.stop}`,`├ 🏠 ${en?'Local accommodation':'本地住宿'} │ ${s.local}`,`├ 🏠 ${en?'Expat accommodation':'外籍住宿'} │ ${s.expat}`)}
+  if(type==='all'||type==='union'){out.push(`├ 🤝 ${en?'Union members':'工會費人數'} │ ${s.unionMembers}`,`├ 💵 ${en?'Union dues':'工會費金額'} │ ${money(s.unionAmount)}`)}
+  if(type==='all'||type==='suggestion'){out.push(`├ 💬 ${en?'Suggestion cases':'意見箱案件'} │ ${s.suggestions}`,`├ 📷 ${en?'Photos':'照片'} │ ${s.photos}`,`├ ✅ ${en?'Closed':'結案'} │ ${s.closed}`)}
+  if(out.length)out[out.length-1]=out[out.length-1].replace(/^├ /,'└ ');out.push('🏭 Vantage River Textiles');return out.join('\n');
+}
+function welfareTgAttachments(type,mode){
+  if(!window.HRATelegramEvidence||!(type==='all'||type==='suggestion'))return [];
+  const key=mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`;
+  const rows=(STATE.suggestions||[]).filter(x=>mode==='year'?String(x.period||x.date||'').startsWith(key):String(x.period||'')===key);
+  return HRATelegramEvidence.collect(rows,{labelFn:x=>(x.department||'Suggestion')+' · '+(x.grievance||'')+' · '+(x.date||x.period||'')});
 }
 function refreshTg(){const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>summaryText(l,type,mode);document.getElementById('tgPreview').textContent=lang==='both'?one('zh')+'\n\n────────────────\n\n'+one('en'):one(lang)}
 function openTelegram(){setVal('tgPeriod',PERIOD_MODE);setVal('tgLang','both');refreshTg();openModal('telegramModal')}
 async function copyTg(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
-async function sendTelegram(){showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{await postGas({action:'telegram',tool:TOOL_ID,text:document.getElementById('tgPreview').textContent,messageType:val('tgType')});closeModal('telegramModal');toast(`✅ ${tr('telegramSent')}`)}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}}
+async function sendTelegram(){showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{const type=val('tgType'),mode=val('tgPeriod'),attachments=welfareTgAttachments(type,mode);await postGas({action:'telegram',tool:TOOL_ID,text:document.getElementById('tgPreview').textContent,messageType:type,attachments});closeModal('telegramModal');toast(`✅ ${tr('telegramSent')}`)}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}}
 
 /* ── Local-only startup: no network request ────────────────────────── */
 async function init(){showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();for(const k of ['members','movements','unionDues','suggestions','summaries','imports'])STATE[k]=STATE[k]||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});setVal('imageSize',STATE.settings.imageSize);setVal('imageQuality',STATE.settings.imageQuality);setVal('gasUrl',gasUrlValue());applyLang();renderAll();hideLoading();setTimeout(()=>welfareAutoSync('startup'),350)}

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
+<script src="shared/telegram-evidence.js?v=45"></script>
 <title>AC HRA 合約管理 / Contract Tracker v2</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -2342,56 +2343,21 @@ async function testTelegram(){
   if(ok)toast("Telegram 測試訊息已發送","success");
 }
 async function sendTelegramSummary(){
-  const remDays=SETTINGS.reminderDays||15;const today=todayISO();
-  const up=[];
-  PROBATIONS.forEach(p=>{
-    if(p.status==="pending"&&p.endDate){
-      const d=daysFromToday(p.endDate);
-      if(d!==null&&d>=0&&d<=remDays){
-        const emp=EMPLOYEES.find(e=>e.id===p.employeeId);
-        if(emp)up.push({kind:"試用",emp,date:p.endDate,days:d});
-      }
-    }
-  });
-  CONTRACTS.forEach(c=>{
-    if(c.status==="active"&&c.contractType!=="UDC"&&c.endDate){
-      const d=daysFromToday(c.endDate);
-      if(d!==null&&d>=0&&d<=remDays){
-        const emp=EMPLOYEES.find(e=>e.id===c.employeeId);
-        if(emp)up.push({kind:"合約 "+c.contractType,emp,date:c.endDate,days:d});
-      }
-    }
-  });
-  up.sort((a,b)=>a.days-b.days);
-  if(up.length===0){toast("沒有即將到期項目可推送","info");return}
-  let msg=`🏭 <b>VRT HR 到期提醒</b>\n📅 ${today}\n共 <b>${up.length}</b> 項 15 天內到期\n\n`;
-  up.slice(0,30).forEach((u,i)=>{
-    msg+=`${i+1}. <b>[${u.emp.vrtCode}]</b> ${u.emp.englishName||u.emp.khmerName||""}\n`;
-    msg+=`   ${u.kind} | ${u.emp.department||""} | ⏰ ${u.date} (${u.days}天)\n`;
-  });
-  if(up.length>30)msg+=`\n...還有 ${up.length-30} 項`;
-  const ok=await sendTelegramMessage(msg);
-  if(ok)toast("到期提醒已推送 Telegram","success");
+  const remDays=SETTINGS.reminderDays||15;const today=todayISO();const up=[];
+  PROBATIONS.forEach(p=>{if(p.status==='pending'&&p.endDate){const d=daysFromToday(p.endDate);if(d!==null&&d>=0&&d<=remDays){const emp=EMPLOYEES.find(e=>e.id===p.employeeId);if(emp)up.push({kind:'試用',emp,date:p.endDate,days:d});}}});
+  CONTRACTS.forEach(c=>{if(c.status==='active'&&c.contractType!=='UDC'&&c.endDate){const d=daysFromToday(c.endDate);if(d!==null&&d>=0&&d<=remDays){const emp=EMPLOYEES.find(e=>e.id===c.employeeId);if(emp)up.push({kind:'合約 '+c.contractType,emp,date:c.endDate,days:d});}}});
+  up.sort((a,b)=>a.days-b.days);if(up.length===0){toast('沒有即將到期項目可推送','info');return}
+  let msg=`🏭 <b>VRT HR 到期提醒 / Expiry Reminder</b>\n━━━━━━━━━━━━━━━━\n📌 <b>總覽 / Overview</b>\n├ 📅 日期 / Date │ ${today}\n├ ⏳ 提醒天數 / Window │ ${remDays} days\n└ 📋 到期項目 / Items │ <b>${up.length}</b>\n━━━━━━━━━━━━━━━━\n📄 <b>明細 / Details</b>\n`;
+  up.slice(0,30).forEach((u,i)=>{msg+=`┌ <b>#${i+1} ${u.emp.englishName||u.emp.khmerName||'—'}</b>\n├ 工號 / ID │ <code>${u.emp.vrtCode||'—'}</code>\n├ 類型 / Type │ ${u.kind}\n├ 部門 / Department │ ${u.emp.department||'—'}\n├ 到期日 / Expiry │ ${u.date}\n└ 剩餘 / Days left │ ${u.days}\n`;});
+  if(up.length>30)msg+=`· … +${up.length-30}\n`;const ok=await sendTelegramMessage(msg);if(ok)toast('到期提醒已推送 Telegram','success');
 }
 async function sendTelegramReminders(){await sendTelegramSummary()}
 async function sendTelegramAnomalies(){
-  const list=detectAnomalies();
-  if(list.length===0){toast("目前沒有異常","info");return}
-  const danger=list.filter(a=>a.severity==="danger");
-  const warning=list.filter(a=>a.severity==="warning");
-  let msg=`🚨 <b>VRT HR 異常警示</b>\n📅 ${todayISO()}\n`;
-  msg+=`🔴 嚴重 ${danger.length} / 🟠 警告 ${warning.length}\n\n`;
-  if(danger.length){msg+="<b>🚨 嚴重異常：</b>\n";
-    danger.slice(0,15).forEach((a,i)=>{msg+=`${i+1}. [${a.empCode}] ${a.title}\n`});
-    if(danger.length>15)msg+=`...+${danger.length-15}\n`;
-    msg+="\n";
-  }
-  if(warning.length){msg+="<b>⚠️ 警告：</b>\n";
-    warning.slice(0,15).forEach((a,i)=>{msg+=`${i+1}. [${a.empCode}] ${a.title}\n`});
-    if(warning.length>15)msg+=`...+${warning.length-15}`;
-  }
-  const ok=await sendTelegramMessage(msg);
-  if(ok)toast("異常已推送 Telegram","success");
+  const list=detectAnomalies();if(list.length===0){toast('目前沒有異常','info');return}
+  const danger=list.filter(a=>a.severity==='danger'),warning=list.filter(a=>a.severity==='warning');let msg=`🚨 <b>VRT HR 異常警示 / Anomaly Alert</b>\n━━━━━━━━━━━━━━━━\n📌 <b>總覽 / Overview</b>\n├ 📅 日期 / Date │ ${todayISO()}\n├ 🔴 嚴重 / Critical │ ${danger.length}\n└ 🟠 警告 / Warning │ ${warning.length}\n`;
+  if(danger.length){msg+='━━━━━━━━━━━━━━━━\n🚨 <b>嚴重異常 / Critical</b>\n';danger.slice(0,15).forEach((a,i)=>{msg+=`┌ <b>#${i+1} ${a.title}</b>\n└ 工號 / ID │ ${a.empCode||'—'}\n`;});if(danger.length>15)msg+=`· … +${danger.length-15}\n`;}
+  if(warning.length){msg+='━━━━━━━━━━━━━━━━\n⚠️ <b>警告 / Warning</b>\n';warning.slice(0,15).forEach((a,i)=>{msg+=`┌ <b>#${i+1} ${a.title}</b>\n└ 工號 / ID │ ${a.empCode||'—'}\n`;});if(warning.length>15)msg+=`· … +${warning.length-15}\n`;}
+  const ok=await sendTelegramMessage(msg);if(ok)toast('異常已推送 Telegram','success');
 }
 
 /* ========== GAS 智慧增量同步 ========== */
