@@ -1038,8 +1038,11 @@ async function sendLeaveTelegram(mode){
   try{
     if(mode==='approval'){
       const items=rows.map(r=>({itemId:r.id,key:r.id,empId:e.fid,name:e.nameEn||e.nameKh,dept:e.dept,group:e.sec,position:e.pos,amount:0,status:'pending',note:leaveTypeLabel(r.leaveType)+' '+r.startDate+'~'+r.endDate}));
-      await leaveGasPost({action:'approvalRequest',type:'approvalRequest',module:'attendance_leave',scope:'leave',batch:'LEAVE-'+(e.fid||e.id)+'-'+Date.now(),period:document.getElementById('filter-date').value||'',lang:lang,count:items.length,items,text,attachments,applicant:actor,inspector:actor,checker:actor,requestedBy:actor,requestedAt:new Date().toISOString(),idempotencyKey:'leave|'+e.fid+'|'+items.map(x=>x.itemId).join(',')});
-    }else await leaveGasPost({action:'telegram',type:'notify',tool:'attendance_leave',scope:'leave',text,attachments,applicant:actor,inspector:actor,checker:actor});
+      await leaveGasPost({action:'approvalRequest',type:'approvalRequest',module:'attendance_leave',scope:'leave',batch:'LEAVE-'+(e.fid||e.id)+'-'+Date.now(),period:(document.getElementById('filter-date').value||(rows[0]&&rows[0].startDate)||'').slice(0,10),lang:lang,count:items.length,items,text,attachments,applicant:actor,inspector:actor,checker:actor,requestedBy:actor,requestedAt:new Date().toISOString(),idempotencyKey:'leave|'+e.fid+'|'+items.map(x=>x.itemId).join(',')});
+    }else {
+      const leavePeriod=(document.getElementById('filter-date').value||(rows[0]&&rows[0].startDate)||'').slice(0,10);
+      await leaveGasPost({action:'telegram',type:'notify',tool:'attendance_leave',module:'attendance_leave',scope:'leave',period:leavePeriod,messageType:'summary',text,attachments,applicant:actor,inspector:actor,checker:actor});
+    }
     st.textContent='✅ Sent';
   }catch(err){st.textContent='❌ '+err.message;alert(err.message)}
 }

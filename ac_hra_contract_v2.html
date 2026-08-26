@@ -2315,28 +2315,27 @@ async function saveSettings(){
 }
 
 /* ========== Telegram ========== */
-async function sendTelegramMessage(text){
-  const token=SETTINGS.telegramToken;const chat=SETTINGS.telegramChatId;
-  if(!token||!chat){
-    // 改用 GAS 轉發（如果 GAS 設定了 Telegram）
-    if(SETTINGS.gasUrl){
-      try{
-        const r=await fetch(SETTINGS.gasUrl,{method:"POST",redirect:"follow",
-          headers:{"Content-Type":"application/x-www-form-urlencoded"},
-          body:`action=telegram&chatId=${encodeURIComponent(chat||"")}&text=${encodeURIComponent(text)}`});
-        return r.ok;
-      }catch(e){console.error(e);return false}
-    }
-    toast("請先在設定填入 Telegram Bot Token 或 GAS URL","danger");return false;
+async function sendTelegramMessage(text,meta={}){
+  text=hraSecTelegramFormat(text);
+  const token=SETTINGS.telegramToken,chat=SETTINGS.telegramChatId,gas=contractGasUrl();
+  /* v46: prefer HRA GAS so successful Telegram delivery is written into the
+     reminder audit. v45 could send directly to Telegram and bypass this
+     receipt, causing a just-sent Contract summary to be reminded again. */
+  if(gas){
+    try{
+      const payload=Object.assign({action:'telegram',tool:'contract',module:'contract',text:text,chatId:chat||''},meta||{});
+      const r=await fetch(gas,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+      const j=await r.json(),x=(j&&j.data)||j||{};
+      if(j&&j.ok!==false&&(x.sentToGroup||x.messageId))return true;
+      throw new Error((j&&j.error)||x.error||'Telegram delivery not confirmed');
+    }catch(e){console.error('[Contract GAS Telegram]',e);if(!token||!chat){toast('Telegram 失敗：'+e.message,'danger');return false}}
   }
+  if(!token||!chat){toast('請先在設定填入 Telegram Bot Token 或 GAS URL','danger');return false}
   try{
     const url=`https://api.telegram.org/bot${token}/sendMessage`;
-    const r=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({chat_id:chat,text,parse_mode:"HTML"})});
-    const j=await r.json();
-    if(!j.ok){toast("Telegram 錯誤："+j.description,"danger");return false}
-    return true;
-  }catch(e){toast("Telegram 失敗："+e.message,"danger");return false}
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text,parse_mode:'HTML'})});
+    const j=await r.json();if(!j.ok){toast('Telegram 錯誤：'+j.description,'danger');return false}return true;
+  }catch(e){toast('Telegram 失敗：'+e.message,'danger');return false}
 }
 async function testTelegram(){
   const ok=await sendTelegramMessage(`🏭 <b>VRT HR 系統測試</b>\n時間：${new Date().toLocaleString()}\n連線正常 ✅`);
@@ -2349,7 +2348,7 @@ async function sendTelegramSummary(){
   up.sort((a,b)=>a.days-b.days);if(up.length===0){toast('沒有即將到期項目可推送','info');return}
   let msg=`🏭 <b>VRT HR 到期提醒 / Expiry Reminder</b>\n━━━━━━━━━━━━━━━━\n📌 <b>總覽 / Overview</b>\n├ 📅 日期 / Date │ ${today}\n├ ⏳ 提醒天數 / Window │ ${remDays} days\n└ 📋 到期項目 / Items │ <b>${up.length}</b>\n━━━━━━━━━━━━━━━━\n📄 <b>明細 / Details</b>\n`;
   up.slice(0,30).forEach((u,i)=>{msg+=`┌ <b>#${i+1} ${u.emp.englishName||u.emp.khmerName||'—'}</b>\n├ 工號 / ID │ <code>${u.emp.vrtCode||'—'}</code>\n├ 類型 / Type │ ${u.kind}\n├ 部門 / Department │ ${u.emp.department||'—'}\n├ 到期日 / Expiry │ ${u.date}\n└ 剩餘 / Days left │ ${u.days}\n`;});
-  if(up.length>30)msg+=`· … +${up.length-30}\n`;const ok=await sendTelegramMessage(msg);if(ok)toast('到期提醒已推送 Telegram','success');
+  if(up.length>30)msg+=`· … +${up.length-30}\n`;const ok=await sendTelegramMessage(msg,{period:today.slice(0,7),periodType:'month',messageType:'summary'});if(ok)toast('到期提醒已推送 Telegram','success');
 }
 async function sendTelegramReminders(){await sendTelegramSummary()}
 async function sendTelegramAnomalies(){
@@ -2357,7 +2356,7 @@ async function sendTelegramAnomalies(){
   const danger=list.filter(a=>a.severity==='danger'),warning=list.filter(a=>a.severity==='warning');let msg=`🚨 <b>VRT HR 異常警示 / Anomaly Alert</b>\n━━━━━━━━━━━━━━━━\n📌 <b>總覽 / Overview</b>\n├ 📅 日期 / Date │ ${todayISO()}\n├ 🔴 嚴重 / Critical │ ${danger.length}\n└ 🟠 警告 / Warning │ ${warning.length}\n`;
   if(danger.length){msg+='━━━━━━━━━━━━━━━━\n🚨 <b>嚴重異常 / Critical</b>\n';danger.slice(0,15).forEach((a,i)=>{msg+=`┌ <b>#${i+1} ${a.title}</b>\n└ 工號 / ID │ ${a.empCode||'—'}\n`;});if(danger.length>15)msg+=`· … +${danger.length-15}\n`;}
   if(warning.length){msg+='━━━━━━━━━━━━━━━━\n⚠️ <b>警告 / Warning</b>\n';warning.slice(0,15).forEach((a,i)=>{msg+=`┌ <b>#${i+1} ${a.title}</b>\n└ 工號 / ID │ ${a.empCode||'—'}\n`;});if(warning.length>15)msg+=`· … +${warning.length-15}\n`;}
-  const ok=await sendTelegramMessage(msg);if(ok)toast('異常已推送 Telegram','success');
+  const ok=await sendTelegramMessage(msg,{period:todayISO().slice(0,7),periodType:'month',messageType:'summary'});if(ok)toast('異常已推送 Telegram','success');
 }
 
 /* ========== GAS 智慧增量同步 ========== */
@@ -2404,5 +2403,23 @@ init().catch(e=>{console.error(e);toast("初始化錯誤："+e.message,"danger")
 window.addEventListener('online',()=>setTimeout(()=>contractAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>contractAutoSync('resume'),180)});
 </script>
+
+<script>
+/* v48 SEC-style compact Telegram fallback formatter. Presentation only. */
+function hraSecTelegramFormat(text){
+  text=String(text==null?'':text).replace(/\r/g,''); if(!text||/<pre[\s>]/i.test(text))return text;
+  function plain(s){var d=document.createElement('div');d.innerHTML=String(s||'').replace(/<br\s*\/?\s*>/gi,'\n');return (d.textContent||d.innerText||'').trim();}
+  function escH(s){return String(s||'').replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c]});}
+  function lab(s){s=plain(s);var c=s.match(/^(AL|PL|SL|NP|BUS|FL|ML)\b/i);if(c)return c[1].toUpperCase()==='BUS'?'Bus':c[1].toUpperCase();var m=s.match(/([A-Za-z][A-Za-z0-9 /&()+%.,#_-]{1,40})$/);if(m)s=m[1];s=s.replace(/Department/gi,'Dept').replace(/Section/gi,'Sect').replace(/Position/gi,'Pos');var mp={'Register date':'Date','ID / Phone':'ID / Tel','Dept / Sect / Pos':'Dept/Sect/Pos','Failed / no-show':'Failed/No-show','Headcount':'HC','Amount':'Amt'};s=mp[s]||s;return s.length>20?s.slice(0,19)+'…':(s||'Item');}
+  function pairs(p){var a=[],re=/(?:^|\s{2,})([^│]+?)\s*│\s*([\s\S]*?)(?=(?:\s{2,}[^│]+?\s*│)|$)/g,m;while((m=re.exec(p))!==null)a.push([lab(m[1]),String(m[2]||'').trim()||'—']);if(!a.length&&p.indexOf('│')>=0){var i=p.indexOf('│');a.push([lab(p.slice(0,i)),p.slice(i+1).trim()||'—']);}return a;}
+  function wid(s){s=String(s||'');var w=0;for(var i=0;i<s.length;i++){var cc=s.charCodeAt(i);if(cc>=0xD800&&cc<=0xDBFF&&i+1<s.length){i++;w+=2;}else w+=cc>255?2:1;}return w;}
+  function expand(rows){var o=[];rows.forEach(function(r){var l=r[0],v=r[1],a;if(l==='Dept/Sect/Pos'){a=String(v).split(/\s*\/\s*/);if(a.length>=3){o.push(['Dept',a[0]||'—'],['Sect',a[1]||'—'],['Pos',a.slice(2).join(' / ')||'—']);return;}}if(l==='ID / Tel'){a=String(v).split(/\s*\/\s*/);if(a.length>=2){o.push(['ID',a[0]||'—'],['Tel',a.slice(1).join(' / ')||'—']);return;}}o.push(r);});return o;}
+  function block(title,rows){var MAX=44,SEP=' | ',ls=[],cur='';if(title)ls.push(title);rows=expand(rows);function pc(){if(cur){ls.push(cur);cur='';}}rows.forEach(function(r){var cell=r[0]+' '+r[1],cand=cur?cur+SEP+cell:cell;if(wid(cell)>MAX){pc();ls.push(cell);return;}if(cur&&wid(cand)>MAX){pc();cur=cell;}else cur=cand;});pc();return '<pre>'+escH(ls.join('\n'))+'</pre>';}
+  var out=[],blk=[];
+  function flush(){if(!blk.length)return;var title='',rows=[];function emit(){if(title||rows.length)out.push(block(title,rows));title='';rows=[];}blk.forEach(function(raw){var p=plain(raw).replace(/^[┌├└]\s*/,'').trim(),ps=pairs(p);if(ps.length)rows=rows.concat(ps);else{emit();title=p;}});emit();blk=[];}
+  text.split('\n').forEach(function(line){var p=plain(line);if(/^[┌├└]\s*/.test(p)){blk.push(line);return;}flush();if(!p){out.push('');return;}if(/^━{3,}|^─{3,}/.test(p)){out.push('━━━━━━━━━━━━━━━━');return;}if(/<(?:b|i|code|a)\b/i.test(line))out.push(line);else out.push(escH(p));});flush();return out.join('\n').replace(/\n{3,}/g,'\n\n');
+}
+</script>
+
 </body>
 </html>
