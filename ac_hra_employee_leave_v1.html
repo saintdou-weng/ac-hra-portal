@@ -6,6 +6,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <title>員工請假單 – VANTAGE RIVER TEXTILES CO., LTD</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Sans+Khmer:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -984,7 +985,7 @@ function applyLeaveCloudRecords(records){
   remoteEmp.forEach(r=>{const fid=String(r.fid||'').trim(),key=fid.toUpperCase();if(!fid)return;let e=byFid.get(key);if(e){const keep=e.id;Object.assign(e,leaveMergeRow(e,r));e.id=keep}else{e=Object.assign({},r,{id:'E_CLOUD_'+key.replace(/[^A-Z0-9]/g,'_')});delete e._kind;delete e._k;delete e.employeeLocalId;emps.push(e);lvs[e.id]=lvs[e.id]||[];byFid.set(key,e)}});
   remoteLv.forEach(r=>{const e=byFid.get(String(r.fid||'').trim().toUpperCase());if(!e)return;const arr=lvs[e.id]||(lvs[e.id]=[]),rk=r._k||leaveCloudKeyLv(e.fid,r);let idx=arr.findIndex(x=>(x._cloudKey||leaveCloudKeyLv(e.fid,x))===rk);const clean=Object.assign({},r,{_cloudKey:rk});delete clean._kind;delete clean._k;delete clean.fid;delete clean.employeeLocalId;if(idx>=0)arr[idx]=leaveMergeRow(arr[idx],clean);else arr.push(clean)});
 }
-function scheduleLeaveCloudSync(reason){if(_leaveCloudApplying||!leaveGasUrl())return;clearTimeout(_leaveCloudTimer);_leaveCloudTimer=setTimeout(()=>leaveAutoSync({reason:reason||'change'}),900)}
+function scheduleLeaveCloudSync(reason){if(_leaveCloudApplying||!leaveGasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('attendance_leave',reason||'change',{},900);return;}clearTimeout(_leaveCloudTimer);_leaveCloudTimer=setTimeout(()=>leaveAutoSync({reason:reason||'change'}),900)}
 async function leaveCloudUpload(options={}){if(_leaveCloudBusy||!leaveGasUrl()||typeof HRASmartSync==='undefined')return;const recs=flatLeaveCloudRecords();return HRASmartSync.push({url:leaveGasUrl(),tool:'attendance_leave',records:recs,recordCount:recs.length,summary:{employees:emps.length,leaveRecords:Object.values(lvs).reduce((n,a)=>n+(a||[]).length,0)},allowDeletes:false,autoConfirmConflicts:!!options.auto}).catch(e=>{if(!options.silent)console.warn(e)})}
 async function leaveCloudDownload(options={}){if(!leaveGasUrl()||typeof HRASmartSync==='undefined')return;const res=await HRASmartSync.pullReliable({url:leaveGasUrl(),tool:'attendance_leave',localRecords:flatLeaveCloudRecords()});if(res&&res.records&&res.records.length){_leaveCloudApplying=true;try{applyLeaveCloudRecords(res.records);saveData();renderAll()}finally{_leaveCloudApplying=false}}return res}
 async function leaveAutoSync(options={}){if(_leaveCloudBusy||!leaveGasUrl()||!navigator.onLine)return;_leaveCloudBusy=true;try{await leaveCloudDownload({auto:true,silent:true});await leaveCloudUpload({auto:true,silent:true})}catch(e){console.warn('[Leave auto sync]',e)}finally{_leaveCloudBusy=false}}
@@ -1043,7 +1044,7 @@ async function sendLeaveTelegram(mode){
       const leavePeriod=(document.getElementById('filter-date').value||(rows[0]&&rows[0].startDate)||'').slice(0,10);
       await leaveGasPost({action:'telegram',type:'notify',tool:'attendance_leave',module:'attendance_leave',scope:'leave',period:leavePeriod,messageType:'summary',text,attachments,applicant:actor,inspector:actor,checker:actor});
     }
-    st.textContent='✅ Sent';
+    st.textContent='✅ Sent';if(window.HRAAutoSync)HRAAutoSync.schedule('attendance_leave',mode==='approval'?'approval':'telegram',{},60);else scheduleLeaveCloudSync('telegram');
   }catch(err){st.textContent='❌ '+err.message;alert(err.message)}
 }
 
@@ -1346,7 +1347,7 @@ function importExcel(file){
       saveData();
       closeModal("modal-import");
       renderEmpList();
-      alert(`✓ ${lang==='en'?'Import complete':'匯入完成'}：+${added} / ↻${updated}${skipped?' / skip '+skipped:''}`);
+      alert(`✓ ${lang==='en'?'Import complete':'匯入完成'}：+${added} / ↻${updated}${skipped?' / skip '+skipped:''}`);if(window.HRAAutoSync)HRAAutoSync.schedule('attendance_leave','import',{},60);
     }catch(err){alert("❌ 匯入失敗："+err.message);}
   };
   reader.readAsArrayBuffer(file);
@@ -1381,14 +1382,17 @@ applyTranslations();
 renderEmpList();
 // Auto-select first employee
 if(emps.length){selectEmp(emps[0].id);}
-setTimeout(()=>leaveAutoSync({reason:'startup'}),350);
+if(!window.HRAAutoSync)setTimeout(()=>leaveAutoSync({reason:'startup'}),350);
 
 window.addEventListener('DOMContentLoaded',function(){const a=document.getElementById('tg-actor');if(a&&!a.value)a.value=localStorage.getItem('ac_hra_leave_actor')||'';});
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>leaveAutoSync({reason:'network-restored'}),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>leaveAutoSync({reason:'resume'}),180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'attendance_leave',pull:leaveCloudDownload,push:leaveCloudUpload,canSync:function(){return !!leaveGasUrl()},startDelay:450});
 </script>
 </body>
 </html>

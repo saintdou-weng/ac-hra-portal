@@ -6,6 +6,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1238,7 +1239,7 @@ function onFiles(files){
     resetFilters('join'); resetFilters('resign');   /* ⚠ 匯入後必須 reset 篩選器 */
     rebuildFilterOptions();
     renderAll();
-    toast(L('匯入完成','Import complete')+'：+'+totJ+' / +'+totR,'ok');
+    toast(L('匯入完成','Import complete')+'：+'+totJ+' / +'+totR,'ok');if(window.HRAAutoSync)HRAAutoSync.schedule('onboarding','import',{},60);
   });
   el('file-input').value='';
 }
@@ -1878,7 +1879,7 @@ function gasPost(payload){
     body:JSON.stringify(payload)});
 }
 var _onboardSyncTimer=null,_onboardSyncBusy=false,_onboardApplying=false;
-function scheduleOnboardingSync(reason){if(_onboardApplying||!gasUrl())return;clearTimeout(_onboardSyncTimer);_onboardSyncTimer=setTimeout(function(){autoSync(reason||'change')},900)}
+function scheduleOnboardingSync(reason){if(_onboardApplying||!gasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('onboarding',reason||'change',{},900);return;}clearTimeout(_onboardSyncTimer);_onboardSyncTimer=setTimeout(function(){autoSync(reason||'change')},900)}
 function cloudUpload(options){
   options=options||{};if(_onboardSyncBusy&&options.auto)return Promise.resolve({queued:true});
   var btn=el('btn-cloud-up');if(btn&&!options.silent){btn.disabled=true;btn.classList.add('opacity-50')};var recs=flatRecords();setTxt('cloud-stat','☁↑…');
@@ -2314,6 +2315,7 @@ function confirmTg(){
       toast(msg,'ok');
     }
     closeTg();
+    if(window.HRAAutoSync)HRAAutoSync.schedule('onboarding',_tgMode==='approval'?'approval':'telegram',{},60); else scheduleOnboardingSync('telegram');
   }).catch(function(e){
     console.error('[confirmTg send]', e);
     toast(L('傳送失敗：','Send failed: ')+e.message,'error');
@@ -2393,7 +2395,7 @@ function importJSON(input){
       if(d.settings&&typeof d.settings==='object'){ Object.keys(d.settings).forEach(function(k){ if(SETS[k]===undefined)SETS[k]=d.settings[k]; }); }
       saveJoins(); saveResigns(); saveSettles(); saveDec(); saveSetsRaw();
       rebuildFilterOptions(); renderAll();
-      toast(L('已還原 JSON','Restored'),'ok');
+      toast(L('已還原 JSON','Restored'),'ok');if(window.HRAAutoSync)HRAAutoSync.schedule('onboarding','restore',{},60);
     }catch(e){ toast(L('還原失敗：','Restore failed: ')+e.message,'error'); }
   };
   fr.readAsText(f); input.value='';
@@ -2579,7 +2581,7 @@ function init(){
     rebuildFilterOptions();
     setTab('ov');
     if(META.updatedAt) setTxt('cloud-stat', '☁ '+(META.cloudUpdatedAt||META.updatedAt));
-    autoSync();
+    if(!window.HRAAutoSync)autoSync();
   }catch(e){ console.error(e); toast('初始化錯誤：'+e.message,'error'); }
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
@@ -2587,8 +2589,11 @@ else init();
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>autoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>autoSync('resume'),180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'onboarding',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!gasUrl()},startDelay:450,upId:'btn-cloud-up',downId:'btn-cloud-down'});
 </script>
 </body>
 </html>

@@ -7,6 +7,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
@@ -1281,7 +1282,8 @@ function logDbDiff(before,after){
 }
 let CAL_AUTO_PUSH_TIMER=null,CAL_SYNC_APPLY=false;
 function scheduleCalendarCloudUpload(reason){
-  if(CAL_SYNC_APPLY||!localStorage.getItem('ac_hra_gas_url'))return;
+  if(CAL_SYNC_APPLY||!gasUrl())return;
+  if(window.HRAAutoSync){HRAAutoSync.schedule('calendar',reason||'change',{},900);return;}
   clearTimeout(CAL_AUTO_PUSH_TIMER);
   CAL_AUTO_PUSH_TIMER=setTimeout(()=>{CAL_AUTO_PUSH_TIMER=null;if(window.calPush)window.calPush({auto:true,reason})},900);
 }
@@ -2337,11 +2339,11 @@ function buildTgMsg(){
   return choice==='both'?`${one('zh')}\n\n──────────────────\n\n${one('en')}`:one(choice)
 }
 function previewTgMsg(){const el=document.getElementById('tg-preview');if(el)el.textContent=buildTgMsg()}
-function gasUrl(){return localStorage.getItem('ac_hra_gas_url')||''}
+function gasUrl(){return localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||''}
 async function postCalendarGas(payload){const url=gasUrl();if(!url)throw new Error(lang==='en'?'Please configure the GAS URL in Cloud Sync first.':'請先在雲端同步設定 GAS URL。');const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)}),d=await r.json();if(d.ok===false)throw new Error(d.error||'GAS error');return d}
 async function sendTelegram(){
   const stEl=document.getElementById('tg-status'),msg=buildTgMsg();stEl.innerHTML=`<div class="warn-box">${lang==='en'?'Sending manually…':'手動發送中…'} ✈️</div>`;
-  try{const d=await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value}),x=d.data||d;if(!x.sent&&!x.messageId)throw new Error(x.error||(lang==='en'?'Telegram delivery was not confirmed.':'Telegram 未確認送達。'));stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已直接通知 Telegram 群組。'}</div>`;if(window.calPush)await window.calPush({auto:true})}
+  try{const d=await postCalendarGas({action:'telegram',tool:'calendar',text:msg,messageType:document.getElementById('tg-msgtype').value,language:document.getElementById('tg-lang').value}),x=d.data||d;if(!x.sent&&!x.messageId)throw new Error(x.error||(lang==='en'?'Telegram delivery was not confirmed.':'Telegram 未確認送達。'));stEl.innerHTML=`<div class="success-msg">✅ ${lang==='en'?'Sent to the Telegram group.':'已直接通知 Telegram 群組。'}</div>`;if(window.HRAAutoSync)HRAAutoSync.schedule('calendar','telegram',{},60);else if(window.HRAAutoSync)HRAAutoSync.schedule('calendar','approval',{},60);else if(window.calPush)await window.calPush({auto:true})}
   catch(e){stEl.innerHTML=`<div class="error-msg">❌ ${esc(e.message)}</div>`}setTimeout(()=>stEl.innerHTML='',8000)
 }
 function calendarApprovalItems(){
@@ -2758,8 +2760,9 @@ init();
 <script>
 (function(){
   var GAS_KEY  = 'ac_hra_gas_url';
+  var GAS_SHARED_KEY = 'vrt_att_cloud_v1_url';
   var META_KEY = 'ac_hra_calendar_meta';
-  var gasUrl   = localStorage.getItem(GAS_KEY) || '';
+  var gasUrl   = localStorage.getItem(GAS_SHARED_KEY) || localStorage.getItem(GAS_KEY) || '';
   var panelOpen= false;
 
   function pad(n){ return String(n).padStart(2,'0'); }
@@ -2802,7 +2805,9 @@ init();
     gasUrl = (document.getElementById('calGasInput').value||'').trim();
     if(!gasUrl) return;
     localStorage.setItem(GAS_KEY, gasUrl);
-    calLog(lang==='en'?'GAS URL saved; no connection started':'GAS URL 已儲存，未開始連線','i');
+    localStorage.setItem(GAS_SHARED_KEY, gasUrl);
+    calLog(lang==='en'?'GAS URL saved; automatic sync enabled':'GAS URL 已儲存；自動同步已啟用','i');
+    if(window.HRAAutoSync)HRAAutoSync.run('calendar','gas-url-saved',{});
     calShowStatus();
   };
 
@@ -2877,6 +2882,7 @@ init();
   // Init
   document.addEventListener('DOMContentLoaded', calShowStatus);
 })();
+if(window.HRAAutoSync)HRAAutoSync.install({key:'calendar',pull:function(o){return window.calPull?window.calPull(o):false},push:function(o){return window.calPush?window.calPush(o):false},canSync:function(){return !!gasUrl()},startDelay:450,upId:'calPushBtn',downId:'calPullBtn'});
 </script>
 </body>
 </html>

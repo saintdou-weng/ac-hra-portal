@@ -6,6 +6,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -430,7 +431,7 @@ const DB_NAME='ac_hra_certificate_visa_v1';
 const DB_STORE='snapshots';
 const DB_KEY='main';
 const META_KEY='ac_hra_certvisa_meta';
-const GAS_KEY='ac_hra_gas_url';
+const GAS_KEY='ac_hra_gas_url',GAS_SHARED_KEY='vrt_att_cloud_v1_url';
 const LANG_KEY='ac_hra_lang';
 const TOOL_ID='certificate_visa';
 let LANG=localStorage.getItem(LANG_KEY)||'zh';
@@ -826,7 +827,7 @@ async function importFiles(files){
       await new Promise(r=>setTimeout(r,0))
     }
     if(!recognized)throw new Error(tr('importFailed'));finalizeLatestRoster();
-    await persist();selectedCerts.clear();selectedPeople.clear();renderAll();const _ta=document.getElementById('tgActor');if(_ta&&!_ta.value)_ta.value=localStorage.getItem('ac_hra_cert_tg_actor')||'';toast(`✅ ${tr('importDone')}`);
+    await persist();if(window.HRAAutoSync)HRAAutoSync.schedule('certificate_visa','import',{},60);selectedCerts.clear();selectedPeople.clear();renderAll();const _ta=document.getElementById('tgActor');if(_ta&&!_ta.value)_ta.value=localStorage.getItem('ac_hra_cert_tg_actor')||'';toast(`✅ ${tr('importDone')}`);
     document.getElementById('importPreview').innerHTML=logs.map(x=>`<li>${esc(x)}</li>`).join('');setTab('dashboard')
   }catch(e){console.error(e);toast(`❌ ${e.message}`,5000)}
   finally{hideLoading();document.getElementById('fileInput').value='';document.getElementById('modalFileInput').value=''}
@@ -935,10 +936,10 @@ async function clearAllData(){
 }
 function saveSettings(){
   STATE.settings.reminderDays=Math.max(1,Number(val('setReminderDays'))||45);STATE.settings.approverTelegramId=val('setApproverId')||'5026942575';STATE.settings.defaultDepartment=val('setDefaultDept');
-  const gas=val('setGasUrl');if(gas)localStorage.setItem(GAS_KEY,gas);else localStorage.removeItem(GAS_KEY);
+  const gas=val('setGasUrl');if(gas){localStorage.setItem(GAS_KEY,gas);localStorage.setItem(GAS_SHARED_KEY,gas)}else{localStorage.removeItem(GAS_KEY);localStorage.removeItem(GAS_SHARED_KEY)};
   persist().then(()=>{renderAll();toast(`✅ ${tr('settingsSaved')}`)})
 }
-function gasUrl(){return localStorage.getItem(GAS_KEY)||''}
+function gasUrl(){return localStorage.getItem(GAS_SHARED_KEY)||localStorage.getItem(GAS_KEY)||''}
 async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
@@ -948,7 +949,7 @@ function certFlat(){const out=[];(STATE.certificates||[]).forEach(r=>out.push(Ob
 function certMergeRow(a,b){a=a||{};b=b||{};const at=Date.parse(a.updatedAt||0)||0,bt=Date.parse(b.updatedAt||0)||0;const newer=bt>=at?b:a,older=bt>=at?a:b;const o=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((o[k]===undefined||o[k]===null||o[k]==='')&&older[k]!==''&&older[k]!=null)o[k]=older[k]});if(Array.isArray(a.versions)||Array.isArray(b.versions)){const map=new Map();[...(a.versions||[]),...(b.versions||[])].forEach(v=>{const k=String(v.effectiveFrom||v.startDate||v.expiryDate||v.updatedAt||JSON.stringify(v));const old=map.get(k);map.set(k,old?certMergeRow(old,v):v)});o.versions=[...map.values()].sort((x,y)=>String(x.effectiveFrom||x.startDate||'').localeCompare(String(y.effectiveFrom||y.startDate||'')))}return o}
 function certMergeArray(kind,local,remote){const map=new Map();(local||[]).forEach(r=>map.set(certKey(kind,r),r));(remote||[]).forEach(r=>{const k=r._k||certKey(kind,r),old=map.get(k);const c=Object.assign({},r);delete c._kind;delete c._k;map.set(k,old?certMergeRow(old,c):c)});return [...map.values()]}
 function certApply(records){const g={certificate:[],person:[],request:[],import:[],settings:[]};(records||[]).forEach(r=>{if(g[r._kind])g[r._kind].push(r)});_certCloudApplying=true;try{STATE.certificates=certMergeArray('certificate',STATE.certificates,g.certificate);STATE.people=certMergeArray('person',STATE.people,g.person);STATE.requests=certMergeArray('request',STATE.requests,g.request);STATE.imports=certMergeArray('import',STATE.imports,g.import);if(g.settings[0]&&g.settings[0].settings)STATE.settings=Object.assign({},g.settings[0].settings,STATE.settings||{})}finally{_certCloudApplying=false}}
-function scheduleCertSync(reason){if(_certCloudApplying||!gasUrl())return;clearTimeout(_certCloudTimer);_certCloudTimer=setTimeout(()=>certAutoSync(reason||'change'),900)}
+function scheduleCertSync(reason){if(_certCloudApplying||!gasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('certificate_visa',reason||'change',{},900);return;}clearTimeout(_certCloudTimer);_certCloudTimer=setTimeout(()=>certAutoSync(reason||'change'),900)}
 async function cloudPush(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return}const recs=certFlat();try{const d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:recs,recordCount:recs.length,summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto push]',e)}}
 async function cloudPull(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return}try{const res=await HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL_ID,localRecords:certFlat()});if(res&&res.records&&res.records.length){certApply(res.records);_certCloudApplying=true;try{await persist()}finally{_certCloudApplying=false}renderAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto pull]',e)}}
 async function certAutoSync(reason){if(_certCloudBusy||!gasUrl()||!navigator.onLine)return;_certCloudBusy=true;try{await cloudPull({auto:true,silent:true});await cloudPush({auto:true,silent:true,reason})}catch(e){console.warn('[certificate auto sync]',e)}finally{_certCloudBusy=false}}
@@ -1001,7 +1002,7 @@ function openTelegram(type='summary'){
 }
 async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
 async function sendTelegram(){
-  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{const type=val('tgType'),mode=val('tgPeriod'),attachments=certificateTgAttachments(type,mode),actor=(document.getElementById('tgActor')?.value||'').trim(),period=(mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`);await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,module:'certificate_visa',period:period,periodType:mode,messageType:type,attachments,applicant:actor,inspector:actor,checker:actor});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal')}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
+  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{const type=val('tgType'),mode=val('tgPeriod'),attachments=certificateTgAttachments(type,mode),actor=(document.getElementById('tgActor')?.value||'').trim(),period=(mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`);await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,module:'certificate_visa',period:period,periodType:mode,messageType:type,attachments,applicant:actor,inspector:actor,checker:actor});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal');if(window.HRAAutoSync)HRAAutoSync.schedule('certificate_visa',type==='approval'?'approval':'telegram',{},60);else scheduleCertSync('telegram')}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
 }
 
 /* ── Startup: local IndexedDB only. No automatic upload or download. ─── */
@@ -1009,15 +1010,18 @@ async function init(){
   showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();
   STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});
   setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId',STATE.settings.approverTelegramId||'5026942575');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
-  applyLang();renderAll();hideLoading();setTimeout(()=>certAutoSync('startup'),350)
+  applyLang();renderAll();hideLoading();if(!window.HRAAutoSync)setTimeout(()=>certAutoSync('startup'),350)
 }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
 init();
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>certAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>certAutoSync('resume'),180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'certificate_visa',pull:cloudPull,push:cloudPush,canSync:function(){return !!gasUrl()},startDelay:450});
 </script>
 </body>
 </html>

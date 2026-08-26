@@ -127,6 +127,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 
 </style>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 </head>
 <body>
 
@@ -656,7 +657,7 @@ async function loadFromIDB() {
       updateHeader();
     }
   } catch(e) { console.warn('[STARTUP] IDB load failed:', e); }
-  setTimeout(()=>attAutoSync({source:'startup'}),250);
+  if(!window.HRAAutoSync)setTimeout(()=>attAutoSync({source:'startup'}),250);
 })();
 
 
@@ -1786,7 +1787,7 @@ async function doImport(){
 
   pFill.style.width='100%';
   if(allR.length){DB=DB.concat(allR);await saveDB();
-    msg.innerHTML=`✅ ${T('成功匯入','Imported','បាននាំចូល')} <b>${allR.length}</b> ${T('筆記錄','records','កំណត់ត្រា')}`;msg.style.color='#059669';toast(`✅ ${T('匯入','Imported','បាននាំចូល')} ${allR.length} ${T('筆','records','កំណត់ត្រា')}`,'ok');
+    msg.innerHTML=`✅ ${T('成功匯入','Imported','បាននាំចូល')} <b>${allR.length}</b> ${T('筆記錄','records','កំណត់ត្រា')}`;msg.style.color='#059669';toast(`✅ ${T('匯入','Imported','បាននាំចូល')} ${allR.length} ${T('筆','records','កំណត់ត្រា')}`,'ok');if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','import',{},60);
     const ds=[...new Set(allR.map(r=>r.date))].sort();
     const importedByDate=new Map();
     allR.forEach(r=>{if(!importedByDate.has(r.date))importedByDate.set(r.date,[]);importedByDate.get(r.date).push(r);});
@@ -2178,7 +2179,7 @@ function renderGroupAnalysis(){
 
 // ═══════ BACKUP / RESTORE ═══════
 function backupJSON(){const data={db:DB,log:IMPORT_LOG,ts:new Date().toISOString()};const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vrt_att_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('📦 已備份','ok');}
-function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','restore',{},60);}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
 function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB();toast('🗑 已清除','ok');}
 function exportAllCSV(){if(!DB.length){toast('無資料','err');return;}
   const h=['date','dept','sect','line','m','f','ttl','join','resign','report','al','pl','sl','np','bus','fl','ml','idle','absent','att','rate','isSubtotal','isGrand'];
@@ -2223,7 +2224,7 @@ let cloudSnap   = null;     // last known cloud snapshot
 
 // ── Init cloud on load ──
 (function initCloud() {
-  GAS_URL = localStorage.getItem(CLOUD_CFG_KEY + '_url') || '';
+  GAS_URL = localStorage.getItem(CLOUD_CFG_KEY + '_url') || localStorage.getItem('vrt_att_cloud_v1_url') || localStorage.getItem('ac_hra_gas_url') || '';
   if (GAS_URL) {
     document.getElementById('gasUrlInput').value = GAS_URL;
     document.getElementById('btnPush').disabled = false;
@@ -2246,7 +2247,7 @@ function attDateStats(rows){
 function attSameStat(a,b){return !!a&&!!b&&Number(a.count)===Number(b.count)&&String(a.hash||'')===String(b.hash||'')}
 function attLoadBaseline(){try{return JSON.parse(localStorage.getItem(ATT_AUTO_BASELINE_KEY)||'{}')||{}}catch(e){return{}}}
 function attSaveBaseline(v){try{localStorage.setItem(ATT_AUTO_BASELINE_KEY,JSON.stringify(v||{}))}catch(e){}}
-function attScheduleAutoSync(reason){if(_attApplyingCloud||!GAS_URL)return;clearTimeout(_attAutoTimer);_attAutoTimer=setTimeout(()=>attAutoSync({source:reason||'local-change'}),1000)}
+function attScheduleAutoSync(reason){if(_attApplyingCloud||!GAS_URL)return;if(window.HRAAutoSync){HRAAutoSync.schedule('attendance',reason||'change',{},900);return;}clearTimeout(_attAutoTimer);_attAutoTimer=setTimeout(()=>attAutoSync({source:reason||'local-change'}),1000)}
 async function attPost(payload){const r=await fetch(GAS_URL,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const t=await r.text();let d;try{d=JSON.parse(t)}catch(e){throw new Error('GAS non-JSON: '+t.slice(0,100))}if(d&&d.ok===false)throw new Error(d.error||'GAS error');return d&&d.data!==undefined?d.data:d}
 async function attPullDates(dates,localStats){
   if(!dates.length)return 0;
@@ -2305,6 +2306,8 @@ function saveGasUrl() {
   if (!url.startsWith('https://')) { toast(T('❌ 請輸入有效的 GAS URL','❌ Enter a valid GAS URL','❌ សូមបញ្ចូល GAS URL ត្រឹមត្រូវ'), 'err'); return; }
   GAS_URL = url;
   localStorage.setItem(CLOUD_CFG_KEY + '_url', url);
+  localStorage.setItem('vrt_att_cloud_v1_url', url);
+  localStorage.setItem('ac_hra_gas_url', url);
   document.getElementById('btnPush').disabled = false;
   document.getElementById('btnPull').disabled = false;
   document.getElementById('cloudCfgRow').classList.remove('open');
@@ -2588,7 +2591,7 @@ async function sendViaTg() {
       }),
     });
     const d = await r.json();
-    if (d.ok) { toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok'); }
+    if (d.ok) { toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok'); if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','telegram',{},60); else attScheduleAutoSync('telegram'); }
     else       { toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + (d.error || ''), 'err'); }
   } catch(e) {
     toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
@@ -3097,8 +3100,11 @@ setSyncStatus('idle','');
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>attAutoSync({source:'network-restored'}),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>attAutoSync({source:'resume'}),180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'attendance',push:function(o){return attAutoSync({source:(o&&o.reason)||'auto',silentConflict:true})},canSync:function(){return !!GAS_URL},startDelay:450,upId:'btnPush',downId:'btnPull'});
 </script>
 </body>
 </html>

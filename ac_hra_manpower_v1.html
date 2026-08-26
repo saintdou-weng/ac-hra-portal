@@ -7,6 +7,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2710,7 +2711,7 @@ async function deleteRecord(kind,encodedKey){
 // ─────────────────────────────────────────────────────────────
 function gasUrl(){return norm(lsGet(GAS_KEY)||lsGet('vrt_att_cloud_v1_url')||lsGet('ac_hra_gas_url')||'')}
 let manpowerAutoCloudTimer=null;
-function scheduleManpowerCloudUpload(reason){if(!gasUrl())return;clearTimeout(manpowerAutoCloudTimer);manpowerAutoCloudTimer=setTimeout(()=>{manpowerAutoCloudTimer=null;cloudUpload({auto:true,reason})},900)}
+function scheduleManpowerCloudUpload(reason){if(!gasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('manpower',reason||'change',{},900);return;}clearTimeout(manpowerAutoCloudTimer);manpowerAutoCloudTimer=setTimeout(()=>{manpowerAutoCloudTimer=null;cloudUpload({auto:true,reason})},900)}
 function setCloudState(state,text){
   el('cloudDot').className=`dot ${state||''}`;el('cloudState').textContent=text||'Cloud —';
 }
@@ -3100,7 +3101,7 @@ async function submitManpowerApprovalItems(items,periodOverride,scopeOverride){
     if(!x.closed&&(!x.messageId&&!x.sentToGroup))throw new Error(L('Telegram 未確認送達，請勿當作已送出','Telegram delivery was not confirmed','មិនទាន់បញ្ជាក់ការផ្ញើ Telegram'));
     MP_APPROVAL_SEL={};if(el('mpApprovalBody'))renderManpowerApproval();
     /* Telegram 送達確認與雲端同步分開；同步失敗不能讓按鈕一直停在 Sending。 */
-    Promise.resolve(cloudUpload({auto:true})).catch(e=>console.warn('Background cloud upload:',e));
+    if(window.HRAAutoSync)HRAAutoSync.schedule('manpower','approval',{},60);else if(window.HRAAutoSync)HRAAutoSync.schedule('manpower','telegram',{},60);else Promise.resolve(cloudUpload({auto:true})).catch(e=>console.warn('Background cloud upload:',e));
     toast(L('人力／招募明細已送群組審查','Manpower / recruitment details sent for group review','បានផ្ញើព័ត៌មានកម្លាំងពលកម្ម / ជ្រើសរើសទៅក្រុមពិនិត្យ'),'ok');return true;
   }catch(e){toast(e.message,'err');return false}
 }
@@ -3207,7 +3208,7 @@ async function init(){
     notifyStorageMode(warning.error,warning.mode);
   }
   refreshStorageEstimate();
-  if(gasUrl())setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'startup-reconcile'})}catch(e){console.warn('[manpower auto sync]',e)}},400);
+  if(gasUrl()&&!window.HRAAutoSync)setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'startup-reconcile'})}catch(e){console.warn('[manpower auto sync]',e)}},400);
 }
 
 /* Same-origin bridge: if Onboarding edits Join/Resign in another tab/page,
@@ -3243,8 +3244,11 @@ init().catch(e=>{
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'network-restored'})}catch(e){console.warn('[manpower network sync]',e)}},150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'resume'})}catch(e){console.warn('[manpower resume sync]',e)}},180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'manpower',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!gasUrl()},startDelay:450,upId:'cloudUpBtn',downId:'cloudDownBtn'});
 </script>
 </body>
 </html>

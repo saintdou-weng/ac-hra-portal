@@ -6,6 +6,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <title>AC HRA 合約管理 / Contract Tracker v2</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
@@ -1437,7 +1438,7 @@ async function importProbDash(evt){
     }
   }
   renderDashProb();evt.target.value="";
-  toast(`試用期匯入：新增 ${added} / 更新 ${updated}`,"success");
+  toast(`試用期匯入：新增 ${added} / 更新 ${updated}`,"success");if(window.HRAAutoSync)HRAAutoSync.schedule('contract','import',{},60);
 }
 
 // ── Excel Import: Contract（Contract 2026 Excel 格式）────
@@ -1479,7 +1480,7 @@ async function importContDash(evt){
     else{DASH_CONTS.push(rec);added++;}
   }
   renderDashCont();evt.target.value="";
-  toast(`合約匯入：新增 ${added} / 更新 ${updated}`,"success");
+  toast(`合約匯入：新增 ${added} / 更新 ${updated}`,"success");if(window.HRAAutoSync)HRAAutoSync.schedule('contract','import',{},60);
 }
 
 /* ── end dashboard helpers ── */
@@ -2246,7 +2247,7 @@ async function importExcel(evt){
   const added=incoming.filter(r=>!existingKeys.has(getEmpKey(r))).length;
   const updated=incoming.length-added;
   await loadAll();refreshAll();
-  toast(`匯入完成：新增 ${added} / 更新 ${updated} / 跳過 ${skipped}`,"success");
+  toast(`匯入完成：新增 ${added} / 更新 ${updated} / 跳過 ${skipped}`,"success");if(window.HRAAutoSync)HRAAutoSync.schedule('contract','import',{},60);
   evt.target.value="";
 }
 // parseExcelDate 已由 normalizeDate 統一取代（向下相容保留）
@@ -2326,7 +2327,7 @@ async function sendTelegramMessage(text,meta={}){
       const payload=Object.assign({action:'telegram',tool:'contract',module:'contract',text:text,chatId:chat||''},meta||{});
       const r=await fetch(gas,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
       const j=await r.json(),x=(j&&j.data)||j||{};
-      if(j&&j.ok!==false&&(x.sentToGroup||x.messageId))return true;
+      if(j&&j.ok!==false&&(x.sentToGroup||x.messageId)){if(window.HRAAutoSync)HRAAutoSync.schedule('contract',(meta&&meta.messageType)==='approval'?'approval':'telegram',{},60);else scheduleContractSync('telegram');return true;}
       throw new Error((j&&j.error)||x.error||'Telegram delivery not confirmed');
     }catch(e){console.error('[Contract GAS Telegram]',e);if(!token||!chat){toast('Telegram 失敗：'+e.message,'danger');return false}}
   }
@@ -2334,7 +2335,7 @@ async function sendTelegramMessage(text,meta={}){
   try{
     const url=`https://api.telegram.org/bot${token}/sendMessage`;
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text,parse_mode:'HTML'})});
-    const j=await r.json();if(!j.ok){toast('Telegram 錯誤：'+j.description,'danger');return false}return true;
+    const j=await r.json();if(!j.ok){toast('Telegram 錯誤：'+j.description,'danger');return false}if(window.HRAAutoSync)HRAAutoSync.schedule('contract','telegram',{},60);else scheduleContractSync('telegram');return true;
   }catch(e){toast('Telegram 失敗：'+e.message,'danger');return false}
 }
 async function testTelegram(){
@@ -2365,7 +2366,7 @@ function contractGasUrl(){return String(SETTINGS.gasUrl||localStorage.getItem('v
 function contractFlat(){const out=[];DASH_PROBS.forEach(r=>out.push(Object.assign({},r,{_kind:'probation',_k:'P|'+String(r.factoryId||r.empId||r.employeeId||r.id||'')})));DASH_CONTS.forEach(r=>out.push(Object.assign({},r,{_kind:'contract',_k:'C|'+String(r.factoryId||r.empId||r.employeeId||r.id||'')})));return out}
 function contractRowNewer(a,b){const at=Date.parse(a&&a.updatedAt||a&&a.createdAt||0)||0,bt=Date.parse(b&&b.updatedAt||b&&b.createdAt||0)||0;return bt>=at?Object.assign({},a||{},b||{}):Object.assign({},b||{},a||{})}
 function contractApply(records){const rp=(records||[]).filter(r=>r&&String(r._kind||'').startsWith('prob')),rc=(records||[]).filter(r=>r&&String(r._kind||'').startsWith('contract'));const merge=(old,inc,kind)=>{const m=new Map();old.forEach(r=>m.set((kind==='P'?'P|':'C|')+String(r.factoryId||r.empId||r.employeeId||r.id||''),r));inc.forEach(r=>{const k=r._k||(kind==='P'?'P|':'C|')+String(r.factoryId||r.empId||r.employeeId||r.id||'');const c=Object.assign({},r);delete c._kind;delete c._k;m.set(k,m.has(k)?contractRowNewer(m.get(k),c):c)});return [...m.values()]};DASH_PROBS=merge(DASH_PROBS,rp,'P');DASH_CONTS=merge(DASH_CONTS,rc,'C')}
-function scheduleContractSync(reason){if(_contractCloudApplying||!contractGasUrl())return;clearTimeout(_contractSyncTimer);_contractSyncTimer=setTimeout(()=>contractAutoSync(reason||'change'),900)}
+function scheduleContractSync(reason){if(_contractCloudApplying||!contractGasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('contract',reason||'change',{},900);return;}clearTimeout(_contractSyncTimer);_contractSyncTimer=setTimeout(()=>contractAutoSync(reason||'change'),900)}
 async function syncToGas(options={}){const url=contractGasUrl();if(!url){if(!options.silent)toast(t('errNoGasUrl')||'請先設定 GAS URL','danger');return}const recs=contractFlat();try{const d=await HRASmartSync.push({url,tool:'contract',records:recs,recordCount:recs.length,summary:{probation:DASH_PROBS.length,contracts:DASH_CONTS.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast('☁️ '+(t('syncSuccess')||'已同步變更')+' '+d.uploaded,'success');return d}catch(e){if(!options.silent)toast('GAS 同步失敗：'+e.message,'danger');else console.warn('[contract push]',e)}}
 async function pullFromGas(options={}){const url=contractGasUrl();if(!url){if(!options.silent)toast(t('errNoGasUrl')||'請先設定 GAS URL','danger');return}try{const res=await HRASmartSync.pullReliable({url,tool:'contract',localRecords:contractFlat()});if(res&&res.records&&res.records.length){contractApply(res.records);_contractCloudApplying=true;try{await dbClear('dashProbs');for(const r of DASH_PROBS)await dbPut('dashProbs',r);await dbClear('dashConts');for(const r of DASH_CONTS)await dbPut('dashConts',r)}finally{_contractCloudApplying=false}refreshAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ Pull ${res.downloaded}`,'success');return res}catch(e){if(!options.silent)toast('❌ 拉取失敗：'+e.message,'danger');else console.warn('[contract pull]',e)}}
 async function contractAutoSync(reason){if(_contractSyncBusy||!contractGasUrl()||!navigator.onLine)return;_contractSyncBusy=true;try{await pullFromGas({auto:true,silent:true});await syncToGas({auto:true,silent:true,reason})}finally{_contractSyncBusy=false}}
@@ -2391,7 +2392,7 @@ async function init(){
   });
   applyLang();
   renderDashboard();
-  setTimeout(()=>contractAutoSync('startup'),350);
+  if(!window.HRAAutoSync)setTimeout(()=>contractAutoSync('startup'),350);
 }
 
 /* ── end GAS sync ── */
@@ -2400,8 +2401,11 @@ init().catch(e=>{console.error(e);toast("初始化錯誤："+e.message,"danger")
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>contractAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>contractAutoSync('resume'),180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',pull:pullFromGas,push:syncToGas,canSync:function(){return !!contractGasUrl()},startDelay:450});
 </script>
 
 <script>

@@ -7,6 +7,7 @@
 <script src="shared/cloud-guard.js"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
+<script src="shared/hra-auto-sync.js?v=49"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/status-link.js"></script>
 <script src="shared/hra-attachments.js?v=43"></script>
@@ -2195,7 +2196,7 @@ function apprMark(dec){
   var ks=Object.keys(_apprSel); if(!ks.length){ toast(L('請先勾選項目','Select items first'),'warn'); return; }
   ks.forEach(function(k){ if(dec)DEC[k]={d:dec,at:nowStamp()}; else delete DEC[k]; });
   saveDec(); _apprSel={}; renderAppr(); renderAll();
-  cloudUpload({auto:true});
+  if(window.HRAAutoSync)HRAAutoSync.schedule('maternity','approval',{},60); else cloudUpload({auto:true});
   toast(L('已更新','Updated')+' '+ks.length+' '+L('筆','rows'),'ok');
 }
 function openReject(){
@@ -2242,6 +2243,7 @@ function maternityMergeList(kind,a,b){var m={},o=[];[].concat(a||[],b||[]).forEa
 var _autoCloudTimer=null,_cloudBusy=false,_autoCloudPending=false;
 function scheduleCloudUpload(reason){
   if(!gasUrl())return;
+  if(window.HRAAutoSync){HRAAutoSync.schedule('maternity',reason||'change',{},900);return;}
   if(_autoCloudTimer)clearTimeout(_autoCloudTimer);
   _autoCloudTimer=setTimeout(function(){
     _autoCloudTimer=null;
@@ -2771,7 +2773,7 @@ function confirmTg(){
     }
     closeTg();
     /* 摘要／核可送出後同步本機新增或變更資料。 */
-    cloudUpload({auto:true});
+    if(window.HRAAutoSync)HRAAutoSync.schedule('maternity',_tgMode==='approval'?'approval':'telegram',{},60); else cloudUpload({auto:true});
   }).catch(function(e){
     console.error('[confirmTg send]', e);
     toast(L('傳送失敗：','Send failed: ')+e.message,'error');
@@ -3187,7 +3189,7 @@ function init(){
   rebuildFilterOptions();
   renderSets();
   if(META.uploadedAt||META.downloadedAt)setTxt('cloud-stat', '☁ '+(META.count||EMP.length+NUR.length));
-  setTimeout(autoSync,300);
+  if(!window.HRAAutoSync)setTimeout(autoSync,300);
   setTab('ov');
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);
@@ -3195,8 +3197,11 @@ else init();
 
 /* Auto-sync retry on network recovery / app resume. */
 
+if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(autoSync,150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(autoSync,180)});
+}
+if(window.HRAAutoSync)HRAAutoSync.install({key:'maternity',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!gasUrl()},startDelay:450,upId:'btn-cloud-up',downId:'btn-cloud-down'});
 </script>
 </body>
 </html>
