@@ -674,6 +674,7 @@ const GAS_KEY='ac_hra_gas_url';
 const LANG_KEY='ac_hra_lang';
 const ONBOARD_JOIN_KEY='ac_hra_joins';
 const ONBOARD_RESIGN_KEY='ac_hra_resigns';
+const MOVEMENT_STATE_KEY='ac_hra_movement_state_v1';
 const IDB_NAME='ac_hra_manpower_v2_store';
 const IDB_VERSION=1;
 const IDB_STORE='app_data';
@@ -786,10 +787,11 @@ function arrayValue(raw){
   return[];
 }
 
-/* Join / Resign are shared business records, not two independent copies.
-   One employee may have at most one Join and one Resign event per month.
-   The month key also lets an Excel correction update the date/details instead
-   of creating a second movement row. */
+/* Join / Resign use one canonical shared ledger across Manpower + Onboarding.
+   Safety rule:
+   - add/update = UNION, so the side with more valid records wins instead of shrinking the other side;
+   - explicit delete = a synced movement-state marker, so a real deletion still propagates;
+   - cloud movement uploads never infer deletion merely because one page currently has fewer rows. */
 function movementKindPrefix(kind){return kind==='resign'?'R':'J'}
 function movementDate(kind,r){return parseDate(r&&(kind==='resign'?r.resignDate:r.joinDate))||''}
 function movementKey(kind,r){
@@ -803,15 +805,70 @@ function ensureMovementKey(r,kind){
   r._k=movementKey(kind,r)||r._k||`${movementKindPrefix(kind)}|x${Date.now()}`;
   return r;
 }
+function movementStateId(kind,targetKey){return `MS|${movementKindPrefix(kind)}|${targetKey}`}
+function movementStateTime(r){const t=Date.parse(r?.updatedAt||r?.deletedAt||r?.revivedAt||0);return Number.isFinite(t)?t:0}
+function readMovementStates(){
+  try{
+    const raw=JSON.parse(lsGet(MOVEMENT_STATE_KEY)||'[]');
+    return arrayValue(raw).filter(x=>x&&x._kind==='movement_state'&&x.targetKey);
+  }catch(e){return[]}
+}
+function saveMovementStates(rows){
+  const map=new Map();
+  arrayValue(rows).forEach(r=>{
+    if(!r||!r.targetKey)return;
+    const k=r._k||movementStateId(r.movementKind||'join',r.targetKey),old=map.get(k);
+    if(!old||movementStateTime(r)>=movementStateTime(old))map.set(k,{...r,_kind:'movement_state',_k:k});
+  });
+  const out=[...map.values()];
+  lsSet(MOVEMENT_STATE_KEY,JSON.stringify(out));
+  return out;
+}
+function mergeMovementStates(incoming){
+  const all=[...readMovementStates(),...arrayValue(incoming).filter(x=>x&&x._kind==='movement_state')];
+  return saveMovementStates(all);
+}
+function movementStateFor(kind,key){
+  const id=movementStateId(kind,key);
+  return readMovementStates().find(x=>x._k===id)||null;
+}
+function setMovementDeleted(kind,recordOrKey,deleted){
+  let key=typeof recordOrKey==='string'?recordOrKey:movementKey(kind,recordOrKey);
+  if(!key&&recordOrKey&&recordOrKey._k)key=recordOrKey._k;
+  if(!key)return;
+  const now=new Date().toISOString(),state={
+    _kind:'movement_state',_k:movementStateId(kind,key),movementKind:kind,targetKey:key,
+    empId:digits(recordOrKey?.empId||recordOrKey?.employeeId||''),deleted:!!deleted,
+    updatedAt:now
+  };
+  if(deleted)state.deletedAt=now;else state.revivedAt=now;
+  mergeMovementStates([state]);
+}
+function movementIsDeleted(kind,r){
+  ensureMovementKey(r,kind);
+  const st=movementStateFor(kind,r._k);
+  return !!(st&&st.deleted===true);
+}
+function mergeMovementCanonical(a,b,kind){
+  const aa={...(a||{})},bb={...(b||{})};ensureMovementKey(aa,kind);ensureMovementKey(bb,kind);
+  const at=Date.parse(aa.updatedAt||aa.modifiedAt||aa.createdAt||0)||0,bt=Date.parse(bb.updatedAt||bb.modifiedAt||bb.createdAt||0)||0;
+  const newer=bt>=at?bb:aa,older=bt>=at?aa:bb,out={...older,...newer};
+  Object.keys(older).forEach(k=>{if((out[k]===undefined||out[k]===null||out[k]==='')&&older[k]!==undefined&&older[k]!==null&&older[k]!=='')out[k]=older[k]});
+  out._kind=kind;out._k=movementKey(kind,out)||newer._k||older._k;
+  return out;
+}
 function normalizeMovementArray(rows,kind){
   const map=new Map();
   arrayValue(rows).forEach(raw=>{
+    if(!raw||raw._kind==='movement_state')return;
     const r={...raw};ensureMovementKey(r,kind);
     const key=r._k,old=map.get(key);
-    if(!old)map.set(key,r);
-    else map.set(key,mergeRecord(old,r));
+    map.set(key,old?mergeMovementCanonical(old,r,kind):r);
   });
-  return [...map.values()];
+  return [...map.values()].filter(r=>!movementIsDeleted(kind,r));
+}
+function movementUnion(kind,...sets){
+  return normalizeMovementArray(sets.flatMap(x=>arrayValue(x)),kind);
 }
 function normalizeMovementCollections(){
   DB.joins=normalizeMovementArray(DB.joins,'join');
@@ -821,33 +878,32 @@ function readSharedMovement(key){
   try{return arrayValue(JSON.parse(lsGet(key)||'[]'))}catch(e){return[]}
 }
 function syncSharedMovement(){
-  const joins=DB.joins.map(r=>({...r,_kind:'join'}));
-  const resigns=DB.resigns.map(r=>({...r,_kind:'resign'}));
-  lsSet(ONBOARD_JOIN_KEY,JSON.stringify(joins));
-  lsSet(ONBOARD_RESIGN_KEY,JSON.stringify(resigns));
+  DB.joins=movementUnion('join',DB.joins,readSharedMovement(ONBOARD_JOIN_KEY));
+  DB.resigns=movementUnion('resign',DB.resigns,readSharedMovement(ONBOARD_RESIGN_KEY));
+  lsSet(ONBOARD_JOIN_KEY,JSON.stringify(DB.joins.map(r=>({...r,_kind:'join'}))));
+  lsSet(ONBOARD_RESIGN_KEY,JSON.stringify(DB.resigns.map(r=>({...r,_kind:'resign'}))));
 }
 function mergeSharedMovement(){
-  const joins=normalizeMovementArray(readSharedMovement(ONBOARD_JOIN_KEY),'join');
-  const resigns=normalizeMovementArray(readSharedMovement(ONBOARD_RESIGN_KEY),'resign');
-  const stats={join:upsertArray(DB.joins,joins,'join'),resign:upsertArray(DB.resigns,resigns,'resign')};
+  const beforeJ=DB.joins.length,beforeR=DB.resigns.length;
+  DB.joins=movementUnion('join',DB.joins,readSharedMovement(ONBOARD_JOIN_KEY));
+  DB.resigns=movementUnion('resign',DB.resigns,readSharedMovement(ONBOARD_RESIGN_KEY));
+  syncSharedMovement();
+  return{
+    join:{added:Math.max(0,DB.joins.length-beforeJ),updated:0},
+    resign:{added:Math.max(0,DB.resigns.length-beforeR),updated:0}
+  };
+}
+function replaceSharedMovement(kind,rows){
+  const key=kind==='join'?'joins':'resigns',before=DB[key].length;
+  DB[key]=movementUnion(kind,DB[key],rows);
+  return{added:Math.max(0,DB[key].length-before),updated:0,removed:Math.max(0,before-DB[key].length)};
+}
+function movementStateCloudRecords(){return readMovementStates().map(x=>({...x,_kind:'movement_state'}))}
+function applyMovementStatesToDB(){
   normalizeMovementCollections();
-  return stats;
+  syncSharedMovement();
 }
-/* A storage event carries the complete shared collection.  When another
-   page deleted a movement, an upsert-only merge would keep the stale row in
-   Manpower forever.  Reconcile on the event path so add/update/delete all
-   have the same meaning across the two pages; initial loading remains
-   conservative and keeps legacy local-only rows through mergeSharedMovement. */
-function replaceSharedMovement(kind, rows){
-  const next=normalizeMovementArray(rows,kind), key=kind==='join'?'joins':'resigns';
-  const before=Array.isArray(DB[key])?DB[key]:[], oldMap=new Map(before.map(r=>[r._k,stableRecord(r)]));
-  const nextMap=new Map(next.map(r=>[r._k,stableRecord(r)]));
-  let added=0,updated=0,removed=0;
-  next.forEach(r=>{if(!oldMap.has(r._k))added++;else if(oldMap.get(r._k)!==nextMap.get(r._k))updated++;});
-  before.forEach(r=>{if(!nextMap.has(r._k))removed++;});
-  DB[key]=next;
-  return{added,updated,removed};
-}
+
 function prepareMovementRows(target,incoming,kind,interactive){
   const map=new Map(),skip=new Set(),conflicts=[];
   arrayValue(incoming).forEach(raw=>{
@@ -2679,6 +2735,7 @@ async function saveOnlineRecord(){
   if(kind==='candidate'){r.phone=digits(r.phone);r.joined=false}
   if(['join','resign'].includes(kind))r.empId=digits(r.empId);
   r._kind=kind;r._k=onlineKey(kind,r);Object.assign(r,sourceMeta('online','online'));
+  if(kind==='join'||kind==='resign')setMovementDeleted(kind,r,false);
   const arr=collection(kind);
   if(kind==='join'||kind==='resign'){
     const prepared=prepareMovementRows(arr,[r],kind,true);
@@ -2705,7 +2762,9 @@ async function saveOnlineRecord(){
 async function deleteRecord(kind,encodedKey){
   const key=decodeURIComponent(encodedKey);
   if(!confirm(L('確認刪除此筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
-  const arr=collection(kind),i=arr.findIndex(r=>r._k===key);if(i>=0)arr.splice(i,1);
+  const arr=collection(kind),i=arr.findIndex(r=>r._k===key),victim=i>=0?arr[i]:null;
+  if((kind==='join'||kind==='resign')&&(victim||key))setMovementDeleted(kind,victim||key,true);
+  if(i>=0)arr.splice(i,1);
   relinkCandidates();const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-deleted');renderAll();
   toast(saved.ok?L('已刪除並保存','Deleted and saved','បានលុប និងរក្សាទុក'):L('已從畫面刪除但尚未保存','Removed from the page but not saved','បានលុបពីទំព័រ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
 }
@@ -2782,9 +2841,10 @@ async function cloudAction(url,action,params){
   return d;
 }
 async function cloudUpload(options={}){
+  mergeSharedMovement();applyMovementStatesToDB();
   const url=gasUrl(),btn=el('cloudUpBtn'),allRecords=flatCloudRecords();
-  const records=allRecords.filter(r=>r._kind!=='join'&&r._kind!=='resign');
-  const movement=allRecords.filter(r=>r._kind==='join'||r._kind==='resign');
+  const records=allRecords.filter(r=>r._kind!=='join'&&r._kind!=='resign'&&r._kind!=='movement_state');
+  const movement=[...allRecords.filter(r=>r._kind==='join'||r._kind==='resign'),...movementStateCloudRecords()];
   if(!url){toast(L('請先到設定填 GAS URL','Set GAS URL first','កំណត់ GAS URL ជាមុន'),'warn');goTab('settings');return}
   /* incremental comparison is handled by HRASmartSync */
   /* Join/Resign 另外以 onboarding ledger 同步；即使 Manpower 本身已是最新，
@@ -2804,7 +2864,7 @@ async function cloudUpload(options={}){
       if(md?.cancelled){toast(L('已取消入離職覆蓋，雲端資料已保留','Movement overwrite cancelled; cloud data was kept','បានបោះបង់ការជំនួស movement; Cloud ត្រូវបានរក្សាទុក'),'warn');return}
       if(md?.ok===false)throw new Error(md.error||'Onboarding movement sync failed');
     }
-    const md=await HRASmartSync.push({url,tool:'onboarding',records:movement,recordCount:movement.length,summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},meta:{coverage:HRACloudGuard.coverage(movement,'onboarding')},allowDeletes:canDelete,autoConfirmConflicts:!!options.auto});
+    const md=await HRASmartSync.push({url,tool:'onboarding',records:movement,recordCount:movement.length,summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},meta:{coverage:HRACloudGuard.coverage(movement,'onboarding')},allowDeletes:false,autoConfirmConflicts:!!options.auto});
     if(md?.cancelled){toast(L('已取消入離職上傳，雲端資料已保留','Join/resign upload cancelled; cloud data was kept','បានបោះបង់ការផ្ទុក ចូល/ចេញ; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
     if(md?.needsPull)throw new Error(L('入離職雲端有新資料，已保留；請先下載合併','Cloud movement data is newer and was kept','ទិន្នន័យ movement ថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     markCloudManifest(allRecords);
@@ -2954,12 +3014,14 @@ async function cloudDownload(options={}){
   if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('下載中…','Downloading…','កំពុងទាញយក…'));
   try{
     const mainRes=await HRASmartSync.pullReliable({url,tool:'manpower',localRecords:flatCloudRecords().filter(r=>r._kind!=='join'&&r._kind!=='resign'),onStatus:s=>setCloudState('',s)});
-    let moveRes={records:[]};try{moveRes=await HRASmartSync.pullReliable({url,tool:'onboarding',localRecords:flatCloudRecords().filter(r=>r._kind==='join'||r._kind==='resign'),onStatus:s=>setCloudState('',s)})}catch(e){console.warn('Onboarding movement pull:',e)}
+    let moveRes={records:[]};try{moveRes=await HRASmartSync.pullReliable({url,tool:'onboarding',localRecords:[...flatCloudRecords().filter(r=>r._kind==='join'||r._kind==='resign'),...movementStateCloudRecords()],onStatus:s=>setCloudState('',s)})}catch(e){console.warn('Onboarding movement pull:',e)}
     if(mainRes?.meta?.decisions&&typeof mainRes.meta.decisions==='object'){
       MP_DEC={...mainRes.meta.decisions,...MP_DEC};saveMpDec();
     }
     const rawMain=arrayValue(mainRes?.records),rawMovement=arrayValue(moveRes?.records);
-    const records=normalizeManpowerCloudRows(rawMain),movement=normalizeManpowerCloudRows(rawMovement).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
+    const movementStates=rawMovement.filter(r=>r&&r._kind==='movement_state');
+    if(movementStates.length)mergeMovementStates(movementStates);
+    const records=normalizeManpowerCloudRows(rawMain),movement=normalizeManpowerCloudRows(rawMovement.filter(r=>!r||r._kind!=='movement_state')).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));
     const all=[...records,...movement];
     if(rawMain.length&&!records.length)throw new Error(L(
       `雲端回傳 ${rawMain.length} 筆 Manpower 資料，但格式無法辨識；已停止空白覆蓋`,
@@ -2968,6 +3030,7 @@ async function cloudDownload(options={}){
     if(!records.length&&!movement.length&&!mainRes?.noCloud&&!moveRes?.noCloud){setCloudState('ok',L('已同步，沒有新變更','Synced; no new changes','បានធ្វើសមកាលកម្ម គ្មានការផ្លាស់ប្តូរ'));return {unchanged:true};}
     if((mainRes?.noCloud||!records.length)&&(!movement.length||moveRes?.noCloud))throw new Error(L('雲端尚無 Manpower／入離職資料','No Manpower or movement data in cloud','មិនមានទិន្នន័យ Manpower/ចូលចេញក្នុង Cloud'));
     const parsed=splitCloudRecords(all),stats=mergeParsed(parsed,{interactive:true});
+    applyMovementStatesToDB();
     const saved=await saveDB();populateFilters();renderAll();
     const cloudBreakdown=L(
       `需求 ${parsed.plans.length}｜招募 ${parsed.candidates.length}｜入職 ${parsed.joins.length}｜離職 ${parsed.resigns.length}｜每日 ${parsed.daily.length}`,
@@ -3218,10 +3281,14 @@ async function init(){
 /* Same-origin bridge: if Onboarding edits Join/Resign in another tab/page,
    Manpower refreshes its movement tables without waiting for a manual export. */
 window.addEventListener('storage',async function(e){
+  if(e.key===MOVEMENT_STATE_KEY){
+    applyMovementStatesToDB();await saveDB();scheduleManpowerCloudUpload('movement-delete-state');populateFilters();renderAll();return;
+  }
   if(e.key!==ONBOARD_JOIN_KEY&&e.key!==ONBOARD_RESIGN_KEY)return;
   const kind=e.key===ONBOARD_JOIN_KEY?'join':'resign';
   const rows=readSharedMovement(e.key);
   const stats=replaceSharedMovement(kind,rows);
+  applyMovementStatesToDB();
   if(stats.added||stats.updated||stats.removed){
     await saveDB();scheduleManpowerCloudUpload('onboarding-linked-update');populateFilters();renderAll();
     const detail=L(
@@ -3253,6 +3320,7 @@ document.addEventListener('visibilitychange',async function(){
   try{
     const js=replaceSharedMovement('join',readSharedMovement(ONBOARD_JOIN_KEY));
     const rs=replaceSharedMovement('resign',readSharedMovement(ONBOARD_RESIGN_KEY));
+    applyMovementStatesToDB();
     if(js.added||js.updated||js.removed||rs.added||rs.updated||rs.removed){await saveDB();scheduleManpowerCloudUpload('shared-ledger-resume');populateFilters();renderAll();}
   }catch(e){console.warn('[manpower shared ledger resume]',e)}
 });

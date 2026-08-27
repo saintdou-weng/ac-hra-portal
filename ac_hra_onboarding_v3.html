@@ -477,7 +477,7 @@ function toast(msg,kind){
 }
 
 /* ── CONSTANTS ───────────────────────────────────────────── */
-var K_JOINS='ac_hra_joins', K_RESIGNS='ac_hra_resigns',
+var K_JOINS='ac_hra_joins', K_RESIGNS='ac_hra_resigns', K_MOVEMENT_STATE='ac_hra_movement_state_v1',
     K_SETTLES='ac_hra_ob_settles', K_SETS='ac_hra_ob_settings',
     K_DEC='ac_hra_ob_decisions', K_META='ac_hra_ob_meta',
     K_GAS_SHARED='vrt_att_cloud_v1_url', K_GAS_OLD='ac_hra_gas_url';
@@ -754,10 +754,11 @@ function loadData(){
   if(!SETS.basis)SETS.basis='avg';
   if(!SETS.hcOverride)SETS.hcOverride={};
   normalizeOnboardingCollections();
+  reconcileOnboardingShared();
   try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){}
 }
 function movementBizKey(kind,r){
-  var p=kind==='resign'?'R':'J', id=String((r&&(r.empId||r.employeeId||r.idNo))||'').trim();
+  var p=kind==='resign'?'R':'J', id=String((r&&(r.empId||r.employeeId||r.idNo))||'').replace(/\D/g,'');
   var dt=String((r&&(kind==='resign'?r.resignDate:r.joinDate))||'').slice(0,10), ym=/^\d{4}-\d{2}/.test(dt)?dt.slice(0,7):'';
   if(id) return p+'|'+id+(ym?'|'+ym:'');
   return p+'|x'+String((r&&(r.id||r._k))||uid());
@@ -773,25 +774,81 @@ function ensureMovementKey(r,kind){
 }
 function ensureJoinKey(r){ return ensureMovementKey(r,'join'); }
 function ensureResignKey(r){ return ensureMovementKey(r,'resign'); }
-function normalizeOnboardingMovement(rows,kind){
-  var map={}, order=[];
-  (Array.isArray(rows)?rows:[]).forEach(function(raw){
-    var r=Object.assign({},raw||{}), old=String(r._k||''); ensureMovementKey(r,kind); var k=r._k;
-    if(old&&old!==k&&DEC&&DEC[old]&&!DEC[k])DEC[k]=DEC[old];
-    if(!map[k]){map[k]=r;order.push(k);return;}
-    var a=map[k], newer=movementUpdatedMs(r)>=movementUpdatedMs(a)?r:a, older=newer===r?a:r;
-    var keepId=a.id||r.id, merged=Object.assign({},older,newer);
-    Object.keys(older).forEach(function(x){if((merged[x]===undefined||merged[x]===null||merged[x]==='')&&older[x]!==undefined&&older[x]!==null&&older[x]!=='')merged[x]=older[x];});
-    merged.id=keepId||merged.id; merged._kind=kind; merged._k=k; map[k]=merged;
-  });
-  return order.map(function(k){return map[k];});
+function movementStateId(kind,key){return 'MS|'+(kind==='resign'?'R':'J')+'|'+key}
+function movementStateTime(r){var t=Date.parse((r&&(r.updatedAt||r.deletedAt||r.revivedAt))||'');return isFinite(t)?t:0}
+function readMovementStates(){
+  try{
+    var a=JSON.parse(localStorage.getItem(K_MOVEMENT_STATE)||'[]');
+    return (Array.isArray(a)?a:[]).filter(function(x){return x&&x._kind==='movement_state'&&x.targetKey});
+  }catch(e){return[]}
 }
+function saveMovementStates(rows){
+  var map={};
+  (Array.isArray(rows)?rows:[]).forEach(function(r){
+    if(!r||!r.targetKey)return;
+    var k=r._k||movementStateId(r.movementKind||'join',r.targetKey),old=map[k];
+    if(!old||movementStateTime(r)>=movementStateTime(old))map[k]=Object.assign({},r,{_kind:'movement_state',_k:k});
+  });
+  var out=Object.keys(map).map(function(k){return map[k]});
+  try{localStorage.setItem(K_MOVEMENT_STATE,JSON.stringify(out));}catch(e){}
+  return out;
+}
+function mergeMovementStates(incoming){return saveMovementStates(readMovementStates().concat((Array.isArray(incoming)?incoming:[]).filter(function(x){return x&&x._kind==='movement_state'})))}
+function movementStateFor(kind,key){
+  var id=movementStateId(kind,key),a=readMovementStates();
+  for(var i=0;i<a.length;i++)if(a[i]._k===id)return a[i];
+  return null;
+}
+function setMovementDeleted(kind,recordOrKey,deleted){
+  var key=typeof recordOrKey==='string'?recordOrKey:movementBizKey(kind,recordOrKey);
+  if(!key&&recordOrKey&&recordOrKey._k)key=recordOrKey._k;
+  if(!key)return;
+  var now=nowStamp(),st={_kind:'movement_state',_k:movementStateId(kind,key),movementKind:kind,targetKey:key,
+    empId:String((recordOrKey&&recordOrKey.empId)||'').replace(/\D/g,''),deleted:!!deleted,updatedAt:now};
+  if(deleted)st.deletedAt=now;else st.revivedAt=now;
+  mergeMovementStates([st]);
+}
+function movementDeleted(kind,r){ensureMovementKey(r,kind);var st=movementStateFor(kind,r._k);return !!(st&&st.deleted===true)}
+function mergeMovementCanonical(a,b,kind){
+  a=Object.assign({},a||{});b=Object.assign({},b||{});ensureMovementKey(a,kind);ensureMovementKey(b,kind);
+  var newer=movementUpdatedMs(b)>=movementUpdatedMs(a)?b:a,older=newer===b?a:b,merged=Object.assign({},older,newer);
+  Object.keys(older).forEach(function(x){if((merged[x]===undefined||merged[x]===null||merged[x]==='')&&older[x]!==undefined&&older[x]!==null&&older[x]!=='')merged[x]=older[x];});
+  merged._kind=kind;merged._k=movementBizKey(kind,merged)||newer._k||older._k;return merged;
+}
+function normalizeOnboardingMovement(rows,kind){
+  var map={},order=[];
+  (Array.isArray(rows)?rows:[]).forEach(function(raw){
+    if(!raw||raw._kind==='movement_state')return;
+    var r=Object.assign({},raw||{});ensureMovementKey(r,kind);var k=r._k;
+    if(!map[k]){map[k]=r;order.push(k);}else map[k]=mergeMovementCanonical(map[k],r,kind);
+  });
+  return order.map(function(k){return map[k]}).filter(function(r){return !movementDeleted(kind,r)});
+}
+function movementUnion(kind){
+  var all=[];for(var i=1;i<arguments.length;i++)if(Array.isArray(arguments[i]))all=all.concat(arguments[i]);
+  return normalizeOnboardingMovement(all,kind);
+}
+function readMovementStorage(key){try{var a=JSON.parse(localStorage.getItem(key)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
 function normalizeOnboardingCollections(){
   JOINS=normalizeOnboardingMovement(JOINS,'join'); RESIGNS=normalizeOnboardingMovement(RESIGNS,'resign');
 }
-/* ⑦ 寫入仍是 v2 的 key 與欄位名稱 → COMPLETE 模組照常讀得到 */
-function saveJoins(){ JOINS=normalizeOnboardingMovement(JOINS,'join'); try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('joins'); }
-function saveResigns(){ RESIGNS=normalizeOnboardingMovement(RESIGNS,'resign'); try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('resigns'); }
+function reconcileOnboardingShared(){
+  JOINS=movementUnion('join',JOINS,readMovementStorage(K_JOINS));
+  RESIGNS=movementUnion('resign',RESIGNS,readMovementStorage(K_RESIGNS));
+}
+function movementStateCloudRecords(){return readMovementStates().map(function(x){return Object.assign({},x,{_kind:'movement_state'})})}
+/* Shared union: a page with fewer rows never deletes the richer side by omission.
+   Only an explicit movement_state delete marker can remove a Join/Resign. */
+function saveJoins(){
+  JOINS=movementUnion('join',JOINS,readMovementStorage(K_JOINS));
+  try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');}
+  scheduleOnboardingSync('joins');
+}
+function saveResigns(){
+  RESIGNS=movementUnion('resign',RESIGNS,readMovementStorage(K_RESIGNS));
+  try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');}
+  scheduleOnboardingSync('resigns');
+}
 function saveSettles(){ try{localStorage.setItem(K_SETTLES,JSON.stringify(SETTLES));}catch(e){} scheduleOnboardingSync('settles'); }
 function saveDec(){ try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){} }
 function saveMeta(){ try{localStorage.setItem(K_META,JSON.stringify(META));}catch(e){} }
@@ -1900,10 +1957,12 @@ function confirmReject(){
 
 /* ═══════════ 雲端同步（tool='onboarding'） ═══════════ */
 function flatRecords(){
+  reconcileOnboardingShared();
   var out=[];
   JOINS.forEach(function(r){ var o=JSON.parse(JSON.stringify(r)); o._kind='join'; out.push(o); });
   RESIGNS.forEach(function(r){ var o=JSON.parse(JSON.stringify(r)); o._kind='resign'; out.push(o); });
   SETTLES.forEach(function(r){ var o=JSON.parse(JSON.stringify(r)); o._kind='settle'; out.push(o); });
+  movementStateCloudRecords().forEach(function(r){out.push(r)});
   return out;
 }
 function gasPost(payload){
@@ -1916,12 +1975,18 @@ function scheduleOnboardingSync(reason){if(_onboardApplying||!gasUrl())return;if
 function cloudUpload(options){
   options=options||{};if(_onboardSyncBusy&&options.auto)return Promise.resolve({queued:true});
   var btn=el('btn-cloud-up');if(btn&&!options.silent){btn.disabled=true;btn.classList.add('opacity-50')};var recs=flatRecords();setTxt('cloud-stat','☁↑…');
-  return HRASmartSync.push({url:gasUrl(),tool:TOOL,records:recs,recordCount:recs.length,summary:{joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,decisions:Object.keys(DEC).length},meta:{decisions:DEC},allowDeletes:!!META.downloadedAt,autoConfirmConflicts:!!options.auto,onStatus:function(x){setTxt('cloud-stat','☁ '+x)}}).then(function(d){META.uploadedAt=nowStamp();META.count=recs.length;saveMeta();setTxt('cloud-stat','☁ '+(d&&d.uploaded||0));if(!options.silent&&(d&&d.uploaded))toast('☁↑ '+L('已上傳變更','Uploaded changes')+' '+d.uploaded,'ok');return d}).catch(function(e){if(!options.silent)toast(L('上傳失敗：','Upload failed: ')+e.message,'error');else console.warn('[onboarding auto push]',e);return {ok:false,error:e.message}}).then(function(d){if(btn&&!options.silent){btn.disabled=false;btn.classList.remove('opacity-50')}return d});
+  return HRASmartSync.push({url:gasUrl(),tool:TOOL,records:recs,recordCount:recs.length,summary:{joins:JOINS.length,resigns:RESIGNS.length,settles:SETTLES.length,decisions:Object.keys(DEC).length},meta:{decisions:DEC},allowDeletes:false,autoConfirmConflicts:!!options.auto,onStatus:function(x){setTxt('cloud-stat','☁ '+x)}}).then(function(d){META.uploadedAt=nowStamp();META.count=recs.length;saveMeta();setTxt('cloud-stat','☁ '+(d&&d.uploaded||0));if(!options.silent&&(d&&d.uploaded))toast('☁↑ '+L('已上傳變更','Uploaded changes')+' '+d.uploaded,'ok');return d}).catch(function(e){if(!options.silent)toast(L('上傳失敗：','Upload failed: ')+e.message,'error');else console.warn('[onboarding auto push]',e);return {ok:false,error:e.message}}).then(function(d){if(btn&&!options.silent){btn.disabled=false;btn.classList.remove('opacity-50')}return d});
 }
 function applyCloud(recs,silent){
-  var j=[],r=[],st=[];recs.forEach(function(o){var k=o._kind;if(k==='join'){ensureJoinKey(o);j.push(o)}else if(k==='resign'){ensureResignKey(o);r.push(o)}else if(k==='settle')st.push(o);else if(o.resignDate!==undefined){ensureResignKey(o);r.push(o)}else if(o.joinDate!==undefined){ensureJoinKey(o);j.push(o)}});
-  _onboardApplying=true;try{var mj=mergeInto(JOINS,j);JOINS=normalizeOnboardingMovement(mj.arr,'join');var mr=mergeInto(RESIGNS,r);RESIGNS=normalizeOnboardingMovement(mr.arr,'resign');var ms=mergeInto(SETTLES,st);SETTLES=ms.arr;saveJoins();saveResigns();saveSettles();saveDec()}finally{_onboardApplying=false}
-  rebuildFilterOptions();renderAll();if(!silent&&(mj.added+mr.added+ms.added+mj.updated+mr.updated+ms.updated))toast('☁↓ '+L('已合併變更','Merged changes'),'ok');
+  var j=[],r=[],st=[],states=[];
+  recs.forEach(function(o){var k=o._kind;if(k==='movement_state')states.push(o);else if(k==='join'){ensureJoinKey(o);j.push(o)}else if(k==='resign'){ensureResignKey(o);r.push(o)}else if(k==='settle')st.push(o);else if(o.resignDate!==undefined){ensureResignKey(o);r.push(o)}else if(o.joinDate!==undefined){ensureJoinKey(o);j.push(o)}});
+  if(states.length)mergeMovementStates(states);
+  _onboardApplying=true;try{
+    var mj=mergeInto(JOINS,j);JOINS=movementUnion('join',mj.arr,readMovementStorage(K_JOINS));
+    var mr=mergeInto(RESIGNS,r);RESIGNS=movementUnion('resign',mr.arr,readMovementStorage(K_RESIGNS));
+    var ms=mergeInto(SETTLES,st);SETTLES=ms.arr;saveJoins();saveResigns();saveSettles();saveDec()
+  }finally{_onboardApplying=false}
+  rebuildFilterOptions();renderAll();if(!silent&&(mj.added+mr.added+ms.added+mj.updated+mr.updated+ms.updated+states.length))toast('☁↓ '+L('已合併變更','Merged changes'),'ok');
 }
 function cloudDownload(options){
   options=options||{};var silent=!!options.silent;var btn=el('btn-cloud-down');if(btn&&!silent){btn.disabled=true;btn.classList.add('opacity-50')}setTxt('cloud-stat','☁↓…');
@@ -2535,7 +2600,7 @@ async function saveRec(){
   if(isJoin){
     var jr=Object.assign({},base,{ _k:'J|'+empId+'|'+g('joinDate'), id:_recId||('j_'+uid()),
       joinDate:g('joinDate'), introducer:g('introducer') });
-    ensureJoinKey(jr);
+    ensureJoinKey(jr); setMovementDeleted('join',jr,false);
     JOINS=mergeInto(_recId?JOINS.filter(function(x){return x.id!==_recId;}):JOINS,[jr]).arr;
   }else{
     var rr=Object.assign({},base,{ _k:'R|'+empId+'|'+g('resignDate'), id:_recId||('r_'+uid()),
@@ -2545,7 +2610,7 @@ async function saveRec(){
       workingDays:(isFinite(days)&&days>0)?days:0,
       amount:parseFloat(g('amount'))||0,
       hasSettlement:(parseFloat(g('amount'))||0)>0 });
-    ensureResignKey(rr);
+    ensureResignKey(rr); setMovementDeleted('resign',rr,false);
     RESIGNS=mergeInto(_recId?RESIGNS.filter(function(x){return x.id!==_recId;}):RESIGNS,[rr]).arr;
   }
   saveJoins(); saveResigns();
@@ -2558,10 +2623,13 @@ async function saveRec(){
 function deleteRec(){
   if(!_recId)return;
   if(!confirm(L('確定刪除這筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
+  var j=JOINS.filter(function(x){return x.id===_recId})[0],r=RESIGNS.filter(function(x){return x.id===_recId})[0];
+  if(j)setMovementDeleted('join',j,true);
+  if(r)setMovementDeleted('resign',r,true);
   JOINS=JOINS.filter(function(x){return x.id!==_recId;});
   RESIGNS=RESIGNS.filter(function(x){return x.id!==_recId;});
   saveJoins(); saveResigns(); rebuildFilterOptions(); closeRec(); renderAll();
-  toast(L('已刪除','Deleted','បានលុប'),'ok');
+  toast(L('已刪除並同步刪除狀態','Deleted and deletion state will sync','បានលុប និងស្ថានភាពលុបនឹងធ្វើសមកាលកម្ម'),'ok');
 }
 
 /* ═══════════ ⑤ inline onclick 必須掛 window ═══════════ */
@@ -2579,6 +2647,37 @@ Object.assign(window,{
   setHcOv:setHcOv, saveSets:saveSets, clearAllData:clearAllData,
   exportJSON:exportJSON, importJSON:importJSON
 });
+
+
+/* One-time cross-module recovery: Manpower keeps its main database in
+   IndexedDB. If an older Onboarding page previously shrank the shared
+   localStorage/cloud copy, recover the richer Join/Resign set directly from
+   Manpower's IndexedDB, UNION it, then publish the canonical ledger. */
+function recoverMovementFromManpowerIDB(){
+  if(!window.indexedDB)return Promise.resolve({added:0});
+  return new Promise(function(resolve){
+    var req;
+    try{req=indexedDB.open('ac_hra_manpower_v2_store');}catch(e){resolve({added:0});return}
+    req.onerror=function(){resolve({added:0})};
+    req.onupgradeneeded=function(){try{req.transaction.abort()}catch(e){} resolve({added:0})};
+    req.onsuccess=function(){
+      var db=req.result;
+      try{
+        if(!db.objectStoreNames.contains('app_data')){db.close();resolve({added:0});return}
+        var tx=db.transaction('app_data','readonly'),g=tx.objectStore('app_data').get('database');
+        g.onerror=function(){db.close();resolve({added:0})};
+        g.onsuccess=function(){
+          var d=g.result||{},bj=Array.isArray(d.joins)?d.joins:[],br=Array.isArray(d.resigns)?d.resigns:[],before=JOINS.length+RESIGNS.length;
+          JOINS=movementUnion('join',JOINS,bj);RESIGNS=movementUnion('resign',RESIGNS,br);
+          saveJoins();saveResigns();rebuildFilterOptions();renderAll();
+          var added=Math.max(0,JOINS.length+RESIGNS.length-before);
+          if(added){toast(L('已從 Manpower 補回共用入離職資料','Recovered shared movement data from Manpower','បានស្តារទិន្នន័យចូល/ចេញពី Manpower')+' +'+added,'ok');scheduleOnboardingSync('manpower-idb-recovery')}
+          db.close();resolve({added:added});
+        };
+      }catch(e){try{db.close()}catch(_){} resolve({added:0})}
+    };
+  });
+}
 
 /* ═══════════ INIT ═══════════ */
 /* ★ CDN 健康檢查：網路不穩時仍能用，並明確告知哪個功能受限 */
@@ -2611,6 +2710,7 @@ function init(){
   try{ checkCDN(); }catch(e){ console.warn('[checkCDN]',e); }
   try{
     loadData();
+    setTimeout(function(){recoverMovementFromManpowerIDB().catch(function(e){console.warn('[movement idb recovery]',e)})},80);
     applyLang();
     setupDrop();
     rebuildFilterOptions();
@@ -2626,13 +2726,14 @@ else init();
    localStorage collections and canonical employee+month business key. */
 function reconcileMovementFromSharedStorage(kind){
   try{
-    var key=kind==='resign'?K_RESIGNS:K_JOINS, raw=JSON.parse(localStorage.getItem(key)||'[]');
-    if(kind==='resign')RESIGNS=normalizeOnboardingMovement(raw,'resign'); else JOINS=normalizeOnboardingMovement(raw,'join');
+    var key=kind==='resign'?K_RESIGNS:K_JOINS, raw=readMovementStorage(key);
+    if(kind==='resign')RESIGNS=movementUnion('resign',RESIGNS,raw); else JOINS=movementUnion('join',JOINS,raw);
     rebuildFilterOptions();renderAll();
   }catch(e){console.warn('[onboarding shared movement]',e);}
 }
 window.addEventListener('storage',function(e){
-  if(e.key===K_JOINS){reconcileMovementFromSharedStorage('join');scheduleOnboardingSync('manpower-linked-join');}
+  if(e.key===K_MOVEMENT_STATE){reconcileMovementFromSharedStorage('join');reconcileMovementFromSharedStorage('resign');scheduleOnboardingSync('movement-delete-state');}
+  else if(e.key===K_JOINS){reconcileMovementFromSharedStorage('join');scheduleOnboardingSync('manpower-linked-join');}
   else if(e.key===K_RESIGNS){reconcileMovementFromSharedStorage('resign');scheduleOnboardingSync('manpower-linked-resign');}
 });
 document.addEventListener('visibilitychange',function(){if(!document.hidden){reconcileMovementFromSharedStorage('join');reconcileMovementFromSharedStorage('resign');}});
