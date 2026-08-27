@@ -1211,6 +1211,9 @@ async function loadDB(){
   normalizeMovementCollections();
   const shared=mergeSharedMovement();
   relinkCandidates();
+  /* Canonical shared ledger: after merging IndexedDB + Onboarding local copy,
+     write one deduplicated employee+month collection back for both pages. */
+  syncSharedMovement();
   if(shared.join.added||shared.join.updated||shared.resign.added||shared.resign.updated){
     try{await persistSnapshot(cloneData(DB));}catch(e){console.warn('Shared movement mirror:',e)}
   }
@@ -1349,14 +1352,15 @@ function mergeParsed(parsed,options={}){
   return stats;
 }
 function relinkCandidates(){
-  const byPhone=new Map(),byName=new Map();
+  const byId=new Map(),byPhone=new Map(),byName=new Map();
   DB.joins.forEach(j=>{
-    const p=digits(j.phone),name=normName(j.name);
+    const id=digits(j.empId),p=digits(j.phone),name=normName(j.name);
+    if(id)byId.set(id,j);
     if(p)byPhone.set(p,j);
     if(name&&!byName.has(name))byName.set(name,j);
   });
   DB.candidates.forEach(c=>{
-    const j=(digits(c.phone)&&byPhone.get(digits(c.phone)))||byName.get(normName(c.name));
+    const j=(digits(c.empId)&&byId.get(digits(c.empId)))||(digits(c.phone)&&byPhone.get(digits(c.phone)))||byName.get(normName(c.name));
     if(j){
       c.joined=true;c.joinDate=j.joinDate;c.empId=j.empId;
       if(!c.section&&j.section)c.section=j.section;
@@ -2253,7 +2257,7 @@ function renderRecruit(){
     kpiCard(L('錄取','Passed','ជាប់'),fmt(m.passed),m.applicants?pct(m.passed/m.applicants*100):'0.0%','ok'),
     kpiCard(L('未錄取','Failed','ធ្លាក់'),fmt(m.failed),'',m.failed?'danger':''),
     kpiCard(L('待確認','Pending','រង់ចាំ'),fmt(m.pending),'',m.pending?'warn':''),
-    kpiCard(L('實際報到','Joined','បានចូល'),fmt(m.recruitJoined),m.applicants?pct(m.recruitJoined/m.applicants*100):'0.0%','ok')
+    kpiCard(L('實際入職（共用）','Joined (shared)','បានចូល (រួម)'),fmt(m.joined),`${L('招募名單連動','Recruit linked','ភ្ជាប់បញ្ជីជ្រើស')} ${fmt(m.recruitJoined)} · ${m.applicants?pct(m.recruitJoined/m.applicants*100):'0.0%'}`,'ok')
   ].join('');
   const q=norm(el('rcSearch').value).toLowerCase(),dept=el('rcDept').value,res=el('rcResult').value,gender=el('rcGender').value;
   const rows=DB.candidates.filter(r=>inState(r.registerDate,st))
@@ -3002,13 +3006,13 @@ function recruitmentWhere(r){
 }
 function recruitmentStatsForState(state){
   const rows=recruitmentRowsForState(state),m=metricsForState(state);
-  return{rows,applicants:m.applicants,passed:m.passed,failed:m.failed,pending:m.pending,joined:m.recruitJoined,
+  return{rows,applicants:m.applicants,passed:m.passed,failed:m.failed,pending:m.pending,joined:m.joined,linkedJoined:m.recruitJoined,
     male:rows.filter(r=>String(r.gender||'').toUpperCase()==='M').length,
     female:rows.filter(r=>String(r.gender||'').toUpperCase()==='F').length};
 }
 function buildRecruitmentSummaryHtml(state,lang,includeDept,maxPeople){
   const s=recruitmentStatsForState(state),rows=s.rows,limit=Math.max(1,n(maxPeople)||12);let t=`\n🎯 <b>${tgBi('招募','Recruitment',lang)}</b>\n`;
-  t+=`├ ${tgBi('應徵','Applicants',lang)} │ <b>${fmt(s.applicants)}</b>\n├ ${tgBi('錄取','Passed',lang)} │ ${fmt(s.passed)}\n├ ${tgBi('未錄取／未到','Failed / no-show',lang)} │ ${fmt(s.failed)}\n├ ${tgBi('待確認','Pending',lang)} │ ${fmt(s.pending)}\n├ ${tgBi('已報到','Joined',lang)} │ ${fmt(s.joined)}\n├ ${tgBi('報到率','Join rate',lang)} │ ${s.applicants?pct(s.joined/s.applicants*100):'0.0%'}\n├ ${tgBi('男','Male',lang)} │ ${fmt(s.male)}\n├ ${tgBi('女','Female',lang)} │ ${fmt(s.female)}\n└ ${tgBi('未填','Unknown',lang)} │ ${fmt(Math.max(0,rows.length-s.male-s.female))}\n`;
+  t+=`├ ${tgBi('應徵','Applicants',lang)} │ <b>${fmt(s.applicants)}</b>\n├ ${tgBi('錄取','Passed',lang)} │ ${fmt(s.passed)}\n├ ${tgBi('未錄取／未到','Failed / no-show',lang)} │ ${fmt(s.failed)}\n├ ${tgBi('待確認','Pending',lang)} │ ${fmt(s.pending)}\n├ ${tgBi('實際入職（共用）','Joined (shared)',lang)} │ ${fmt(s.joined)}\n├ ${tgBi('招募名單連動','Recruit linked',lang)} │ ${fmt(s.linkedJoined)}\n├ ${tgBi('報到率','Join rate',lang)} │ ${s.applicants?pct(s.linkedJoined/s.applicants*100):'0.0%'}\n├ ${tgBi('男','Male',lang)} │ ${fmt(s.male)}\n├ ${tgBi('女','Female',lang)} │ ${fmt(s.female)}\n└ ${tgBi('未填','Unknown',lang)} │ ${fmt(Math.max(0,rows.length-s.male-s.female))}\n`;
   if(rows.length){t+=`<b>${tgBi('應徵人員明細','Applicant details',lang)}</b>\n`;rows.slice(0,limit).forEach((r,i)=>{const id=r.empId||r.phone||'—';t+=`┌ <b>#${i+1} ${esc(r.name||'—')}</b>\n├ ${tgBi('應徵日期','Register date',lang)} │ ${esc(r.registerDate||'—')}\n├ ${tgBi('工號／電話','ID / Phone',lang)} │ ${esc(id)}\n├ ${tgBi('部門／組別／職位','Dept / Section / Position',lang)} │ ${esc(recruitmentWhere(r))}\n├ ${tgBi('性別','Gender',lang)} │ ${esc(r.gender||'—')}\n├ ${tgBi('年齡','Age',lang)} │ ${n(r.age)?fmt(r.age):'—'}\n├ ${tgBi('結果','Result',lang)} │ ${esc(recruitmentResultText(r,lang))}\n├ ${tgBi('報到','Joined',lang)} │ ${esc(r.joinDate||'—')}\n├ ${tgBi('來源','Source',lang)} │ ${esc(r.referral||'—')}\n└ ${tgBi('備註','Remark',lang)} │ ${esc(r.noShowReason||r.remark||'—')}\n`;});if(rows.length>limit)t+=`· … +${rows.length-limit}\n`;}
   else if(s.applicants)t+=`ℹ️ ${tgBi('本期只有每日招募合計，來源檔沒有逐人名單。','Only daily recruitment totals are available; the source has no person-level list.',lang)}\n`;
   if(includeDept&&rows.length){const groups={};rows.forEach(r=>{const dept=r.dept||'—',section=r.section||'—',position=r.position||'—',key=[dept,section,position].join('¦');if(!groups[key])groups[key]={dept,section,position,total:0,passed:0,failed:0,pending:0,joined:0};const g=groups[key];g.total++;if(r.joined||r.joinDate)g.joined++;else if(r.interviewResult==='pass')g.passed++;else if(['fail','no_show'].includes(r.interviewResult))g.failed++;else g.pending++;});const detail=Object.values(groups).sort((a,b)=>b.total-a.total||[a.dept,a.section,a.position].join('/').localeCompare([b.dept,b.section,b.position].join('/'))).slice(0,12);t+=`📋 <b>${tgBi('招募部門／組別／職位','Recruitment by Department / Section / Position',lang)}</b>\n`;detail.forEach((g,i)=>{const label=[g.dept,g.section,g.position].filter((v,i,a)=>v&&v!=='—'&&a.indexOf(v)===i).join(' / ')||'—';t+=`┌ <b>${esc(label)}</b>\n├ ${tgBi('應徵','Applicants',lang)} │ ${fmt(g.total)}\n├ ${tgBi('錄取','Passed',lang)} │ ${fmt(g.passed)}\n├ ${tgBi('未錄取','Failed',lang)} │ ${fmt(g.failed)}\n├ ${tgBi('待確認','Pending',lang)} │ ${fmt(g.pending)}\n└ ${tgBi('已報到','Joined',lang)} │ ${fmt(g.joined)}\n`;});if(Object.keys(groups).length>detail.length)t+=`· … +${Object.keys(groups).length-detail.length} ${tgBi('組','groups',lang)}\n`;}
@@ -3243,6 +3247,15 @@ init().catch(e=>{
 });
 
 /* Auto-sync retry on network recovery / app resume. */
+
+document.addEventListener('visibilitychange',async function(){
+  if(document.hidden)return;
+  try{
+    const js=replaceSharedMovement('join',readSharedMovement(ONBOARD_JOIN_KEY));
+    const rs=replaceSharedMovement('resign',readSharedMovement(ONBOARD_RESIGN_KEY));
+    if(js.added||js.updated||js.removed||rs.added||rs.updated||rs.removed){await saveDB();scheduleManpowerCloudUpload('shared-ledger-resume');populateFilters();renderAll();}
+  }catch(e){console.warn('[manpower shared ledger resume]',e)}
+});
 
 if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'network-restored'})}catch(e){console.warn('[manpower network sync]',e)}},150));

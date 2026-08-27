@@ -150,6 +150,32 @@ canvas.mini-chart{width:100% !important;height:200px !important}
 .drop-note{font-size:10px;color:#AAA;margin-top:10px}
 
 /* ─── Print ────────────────────────────────── */
+
+/* ─── Mobile leave view ─────────────────────── */
+.leave-mobile-list{display:none}
+.leave-mobile-card{background:#fff;border:1px solid #dfe5eb;border-left:4px solid #1A5276;border-radius:9px;padding:9px 10px;margin:7px 0;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.leave-mobile-head{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:6px}
+.leave-mobile-type{font-size:12px;font-weight:700;color:#0D2B45}.leave-mobile-days{font-size:11px;font-weight:700;color:#1A5276;white-space:nowrap}
+.leave-mobile-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;font-size:10px;color:#4b5563}
+.leave-mobile-grid b{color:#111827;font-weight:600}.leave-mobile-wide{grid-column:1/-1}
+.leave-mobile-actions{display:flex;justify-content:flex-end;gap:6px;margin-top:7px}
+@media(max-width:760px){
+  html,body{height:auto;min-height:100%;overflow-x:hidden}#app{height:auto;min-height:100vh}
+  #topbar{padding:7px 9px;flex-wrap:wrap;align-items:flex-start}.lang-btn{padding:3px 9px}
+  #body{display:block;overflow:visible}#sidebar{width:100%;height:auto;border-right:none;border-bottom:1px solid #E0D9CE}
+  #sb-top{padding:7px 8px}#emp-list{display:flex;gap:6px;overflow-x:auto;overflow-y:hidden;padding:5px 7px;max-height:none;scroll-snap-type:x proximity}
+  .emp-item{min-width:150px;max-width:190px;border:1px solid #ece8df;border-left:3px solid transparent;border-radius:7px;padding:7px 8px;scroll-snap-align:start}
+  .emp-item.active{border-left-color:#1A5276}.emp-item .kh{display:none}
+  #sb-btns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;padding:6px 7px}#sb-btns button{font-size:9px;padding:6px 4px}
+  #main{padding:8px;overflow:visible}.emp-card{padding:9px 10px;margin-bottom:8px}.emp-card-top{display:block}.emp-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 8px}
+  .emp-card-top>div:last-child{margin-top:7px;justify-content:flex-start!important}.tab-bar{width:100%;margin-bottom:8px}.tab-btn{flex:1;padding:6px 8px}
+  .leave-sendbar{padding:7px;gap:5px}.leave-sendbar label{width:100%}.leave-sendbar input{width:100%;min-width:0;flex-basis:100%}.leave-sendbar button{flex:1;padding:6px 7px;font-size:10px}
+  .a4-card{padding:10px 8px;margin:0 0 10px;max-width:none}.a4-header{padding-bottom:8px;margin-bottom:8px}.a4-title{font-size:12px}
+  .emp-header-grid{grid-template-columns:1fr 1fr}.emp-hcell{border-bottom:1px solid #BBBBBB!important}.emp-hcell:nth-child(2n){border-right:none}.emp-hcell:last-child{grid-column:1/-1}
+  .filter-bar{gap:4px;margin-top:7px!important}.filter-bar>span{width:100%}.fm-btn{padding:4px 9px}.filter-date{flex:1;min-width:135px}.filter-actions{margin-left:0;width:100%}.filter-actions button{flex:1}
+  .leave-table-wrap{display:none}.leave-mobile-list{display:block}.summary-row{border-top:1px solid #BBBBBB;border-radius:7px;padding:8px;gap:7px}.sum-item .sv{font-size:16px}.sig-row{display:none}
+  .modal-box{width:96%;padding:14px 12px}.modal-grid{grid-template-columns:1fr}.chart-card{padding:10px}
+}
 @media print{
   #topbar,#sidebar,.tab-bar,.filter-bar,.no-print,#sb-btns{display:none!important}
   #body{display:block}
@@ -279,7 +305,7 @@ canvas.mini-chart{width:100% !important;height:200px !important}
           <button class="fm-btn" id="fm-week" onclick="setFm('week')"></button>
           <button class="fm-btn" id="fm-day" onclick="setFm('day')"></button>
           <button class="fm-btn" id="fm-year" onclick="setFm('year')"></button>
-          <input type="date" class="filter-date" id="filter-date" value="2026-04-18" oninput="renderRecord()">
+          <input type="date" class="filter-date" id="filter-date" oninput="renderRecord()">
           <div class="filter-actions">
             <button class="btn-print" onclick="window.print()">🖨 列印</button>
             <button class="btn-primary no-print" id="btn-add-lv" onclick="openLeaveModal()"></button>
@@ -293,6 +319,7 @@ canvas.mini-chart{width:100% !important;height:200px !important}
             <tbody id="leave-tbody"></tbody>
           </table>
         </div>
+        <div id="leave-mobile-list" class="leave-mobile-list"></div>
 
         <!-- Summary -->
         <div class="summary-row" id="leave-summary"></div>
@@ -891,6 +918,27 @@ function renderRecord(){
     }).join("");
   }
 
+  // ── Mobile cards: same data as the A4 table, readable without horizontal scrolling ──
+  const mobile=document.getElementById("leave-mobile-list");
+  if(mobile){
+    if(!rows.length) mobile.innerHTML=`<div class="no-records">${t.noRecords}</div>`;
+    else mobile.innerHTML=rows.map((r,i)=>{
+      const sd=new Date(r.startDate),ed=new Date(r.endDate),days=r.subH?Math.max(0,r.subH/8):Math.max(1,Math.round((ed-sd)/86400000)+1);
+      const ev=(r.evidence||[]).length, period=`${r.startDate||'—'} → ${r.endDate||'—'}`;
+      const long=[r.substitute?`${t.substitute}: ${r.substitute}`:'',r.supervisor?`${t.supervisor}: ${r.supervisor}`:'',r.remark?`${t.remark}: ${r.remark}`:''].filter(Boolean).join(' · ');
+      return `<div class="leave-mobile-card ${r.leaveType==='absent'?'absent-row':''}">
+        <div class="leave-mobile-head"><div class="leave-mobile-type">#${i+1} ${escHtml(leaveTypeLabel(r.leaveType))}</div><div class="leave-mobile-days">${days.toFixed(1).replace('.0','')} d</div></div>
+        <div class="leave-mobile-grid">
+          <div class="leave-mobile-wide"><b>📅</b> ${escHtml(period)}</div>
+          <div><b>⏱</b> ${(r.subH||0)} hr</div><div><b>📎</b> ${ev}</div>
+          ${r.leaveType==='annual'?`<div>AL Apply <b>${escHtml(r.alApply||1)}</b></div><div>AL Balance <b>${escHtml(r.alBal||12)}</b></div>`:''}
+          ${long?`<div class="leave-mobile-wide">${escHtml(long)}</div>`:''}
+        </div>
+        <div class="leave-mobile-actions no-print"><button class="btn-secondary" onclick="openLeaveModal('${r.id}')">✏️ Edit</button><button class="btn-danger" onclick="deleteLv('${r.id}')">🗑 Delete</button></div>
+      </div>`;
+    }).join('');
+  }
+
   // ── Summary ──
   const sumDiv=document.getElementById("leave-summary");
   const summ={};LT.forEach(lt=>summ[lt.k]=allR.filter(r=>r.leaveType===lt.k).length);
@@ -1011,9 +1059,26 @@ function currentLeaveRows(){
 }
 function leaveTypeLabel(k){const t=tr();return t[k]||k}
 function leaveDays(r){const sd=new Date(r.startDate),ed=new Date(r.endDate);return r.subH?Math.max(0,r.subH/8):Math.max(1,Math.round((ed-sd)/86400000)+1)}
+function leaveLocalToday(){const d=new Date();return `${d.getFullYear()}-${padHM(d.getMonth()+1)}-${padHM(d.getDate())}`}
+function latestLeaveDataDate(){
+  if(!selId)return'';const a=(lvs[selId]||[]).map(r=>String(r.startDate||'').slice(0,10)).filter(Boolean).sort();return a.length?a[a.length-1]:'';
+}
+function confirmDailyLeavePeriod(mode){
+  if(fm!=='day')return true;
+  const selected=String(document.getElementById('filter-date').value||'').slice(0,10), latest=latestLeaveDataDate(), today=leaveLocalToday();
+  if(!selected)return true;
+  if(latest&&selected===latest)return true;
+  if(!latest&&selected===today)return true;
+  const act=mode==='approval'?'核可 / Approval':'摘要 / Summary';
+  const msg=lang==='en'
+    ?`⚠ Daily ${act}: selected date ${selected} is not the latest leave date${latest?' '+latest:''}${selected!==today?' and is not today '+today:''}.\n\nSend anyway?`
+    :`⚠ 日 / Day ${act}：目前選擇 ${selected}，不是最新請假日期${latest?' '+latest:''}${selected!==today?'，也不是今天 '+today:''}。\n\n仍要發送這一天嗎？`;
+  return window.confirm(msg);
+}
 async function sendLeaveTelegram(mode){
   const e=emps.find(x=>x.id===selId); if(!e){alert(tr().noEmp);return}
   const rows=currentLeaveRows(); if(!rows.length){alert(tr().noRecords);return}
+  if(!confirmDailyLeavePeriod(mode))return;
   const actor=(document.getElementById('tg-actor').value||localStorage.getItem('ac_hra_leave_actor')||'').trim();
   if(!actor){alert(lang==='en'?'Enter Applicant / Inspector':'請填寫申請人／檢查人');document.getElementById('tg-actor').focus();return}
   localStorage.setItem('ac_hra_leave_actor',actor);
@@ -1378,6 +1443,7 @@ function renderAll(){
 // INIT
 // ═══════════════════════════════════════════════════════════
 loadData();
+const _leaveFilterDate=document.getElementById('filter-date');if(_leaveFilterDate&&!_leaveFilterDate.value)_leaveFilterDate.value=leaveLocalToday();
 applyTranslations();
 renderEmpList();
 // Auto-select first employee

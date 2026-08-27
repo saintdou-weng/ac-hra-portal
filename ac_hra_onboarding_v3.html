@@ -753,13 +753,45 @@ function loadData(){
   
   if(!SETS.basis)SETS.basis='avg';
   if(!SETS.hcOverride)SETS.hcOverride={};
-  JOINS.forEach(ensureJoinKey); RESIGNS.forEach(ensureResignKey);
+  normalizeOnboardingCollections();
+  try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){}
 }
-function ensureJoinKey(r){ if(!r._k) r._k='J|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='j_'+uid(); return r; }
-function ensureResignKey(r){ if(!r._k) r._k='R|'+(r.empId||('x'+(r.id||uid()))); if(!r.id)r.id='r_'+uid(); return r; }
+function movementBizKey(kind,r){
+  var p=kind==='resign'?'R':'J', id=String((r&&(r.empId||r.employeeId||r.idNo))||'').trim();
+  var dt=String((r&&(kind==='resign'?r.resignDate:r.joinDate))||'').slice(0,10), ym=/^\d{4}-\d{2}/.test(dt)?dt.slice(0,7):'';
+  if(id) return p+'|'+id+(ym?'|'+ym:'');
+  return p+'|x'+String((r&&(r.id||r._k))||uid());
+}
+function movementUpdatedMs(r){ var t=Date.parse((r&&(r.updatedAt||r.modifiedAt||r.createdAt))||''); return isFinite(t)?t:0; }
+function ensureMovementKey(r,kind){
+  if(!r||typeof r!=='object')return r;
+  var old=String(r._k||''), key=movementBizKey(kind,r);
+  if(old&&old!==key&&DEC&&DEC[old]&&!DEC[key]) DEC[key]=DEC[old];
+  r._kind=kind; r._k=key;
+  if(!r.id)r.id=(kind==='resign'?'r_':'j_')+uid();
+  return r;
+}
+function ensureJoinKey(r){ return ensureMovementKey(r,'join'); }
+function ensureResignKey(r){ return ensureMovementKey(r,'resign'); }
+function normalizeOnboardingMovement(rows,kind){
+  var map={}, order=[];
+  (Array.isArray(rows)?rows:[]).forEach(function(raw){
+    var r=Object.assign({},raw||{}), old=String(r._k||''); ensureMovementKey(r,kind); var k=r._k;
+    if(old&&old!==k&&DEC&&DEC[old]&&!DEC[k])DEC[k]=DEC[old];
+    if(!map[k]){map[k]=r;order.push(k);return;}
+    var a=map[k], newer=movementUpdatedMs(r)>=movementUpdatedMs(a)?r:a, older=newer===r?a:r;
+    var keepId=a.id||r.id, merged=Object.assign({},older,newer);
+    Object.keys(older).forEach(function(x){if((merged[x]===undefined||merged[x]===null||merged[x]==='')&&older[x]!==undefined&&older[x]!==null&&older[x]!=='')merged[x]=older[x];});
+    merged.id=keepId||merged.id; merged._kind=kind; merged._k=k; map[k]=merged;
+  });
+  return order.map(function(k){return map[k];});
+}
+function normalizeOnboardingCollections(){
+  JOINS=normalizeOnboardingMovement(JOINS,'join'); RESIGNS=normalizeOnboardingMovement(RESIGNS,'resign');
+}
 /* ⑦ 寫入仍是 v2 的 key 與欄位名稱 → COMPLETE 模組照常讀得到 */
-function saveJoins(){ try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('joins'); }
-function saveResigns(){ try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('resigns'); }
+function saveJoins(){ JOINS=normalizeOnboardingMovement(JOINS,'join'); try{localStorage.setItem(K_JOINS,JSON.stringify(JOINS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('joins'); }
+function saveResigns(){ RESIGNS=normalizeOnboardingMovement(RESIGNS,'resign'); try{localStorage.setItem(K_RESIGNS,JSON.stringify(RESIGNS));localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){toast('儲存失敗（空間不足）：'+e.message,'error');} scheduleOnboardingSync('resigns'); }
 function saveSettles(){ try{localStorage.setItem(K_SETTLES,JSON.stringify(SETTLES));}catch(e){} scheduleOnboardingSync('settles'); }
 function saveDec(){ try{localStorage.setItem(K_DEC,JSON.stringify(DEC));}catch(e){} }
 function saveMeta(){ try{localStorage.setItem(K_META,JSON.stringify(META));}catch(e){} }
@@ -1123,9 +1155,10 @@ function colL(n){
 /* ═══════════ ② 去重合併 upsert ═══════════ */
 function mergeInto(target,incoming){
   var map={}, order=[];
-  target.forEach(function(r){ if(!map[r._k])order.push(r._k); map[r._k]=r; });
+  target.forEach(function(r){ if(r&&(/^J\|/.test(String(r._k||''))||r._kind==='join'))ensureJoinKey(r); else if(r&&(/^R\|/.test(String(r._k||''))||r._kind==='resign'))ensureResignKey(r); if(!map[r._k])order.push(r._k); map[r._k]=r; });
   var added=0, updated=0, dupEvent=[];
   incoming.forEach(function(r){
+    if(r&&(/^J\|/.test(String(r._k||''))||r._kind==='join'))ensureJoinKey(r); else if(r&&(/^R\|/.test(String(r._k||''))||r._kind==='resign'))ensureResignKey(r);
     var k=r._k;
     if(map[k]){
       var ex=map[k];
@@ -1887,7 +1920,7 @@ function cloudUpload(options){
 }
 function applyCloud(recs,silent){
   var j=[],r=[],st=[];recs.forEach(function(o){var k=o._kind;if(k==='join'){ensureJoinKey(o);j.push(o)}else if(k==='resign'){ensureResignKey(o);r.push(o)}else if(k==='settle')st.push(o);else if(o.resignDate!==undefined){ensureResignKey(o);r.push(o)}else if(o.joinDate!==undefined){ensureJoinKey(o);j.push(o)}});
-  _onboardApplying=true;try{var mj=mergeInto(JOINS,j);JOINS=mj.arr;var mr=mergeInto(RESIGNS,r);RESIGNS=mr.arr;var ms=mergeInto(SETTLES,st);SETTLES=ms.arr;saveJoins();saveResigns();saveSettles()}finally{_onboardApplying=false}
+  _onboardApplying=true;try{var mj=mergeInto(JOINS,j);JOINS=normalizeOnboardingMovement(mj.arr,'join');var mr=mergeInto(RESIGNS,r);RESIGNS=normalizeOnboardingMovement(mr.arr,'resign');var ms=mergeInto(SETTLES,st);SETTLES=ms.arr;saveJoins();saveResigns();saveSettles();saveDec()}finally{_onboardApplying=false}
   rebuildFilterOptions();renderAll();if(!silent&&(mj.added+mr.added+ms.added+mj.updated+mr.updated+ms.updated))toast('☁↓ '+L('已合併變更','Merged changes'),'ok');
 }
 function cloudDownload(options){
@@ -2502,6 +2535,7 @@ async function saveRec(){
   if(isJoin){
     var jr=Object.assign({},base,{ _k:'J|'+empId+'|'+g('joinDate'), id:_recId||('j_'+uid()),
       joinDate:g('joinDate'), introducer:g('introducer') });
+    ensureJoinKey(jr);
     JOINS=mergeInto(_recId?JOINS.filter(function(x){return x.id!==_recId;}):JOINS,[jr]).arr;
   }else{
     var rr=Object.assign({},base,{ _k:'R|'+empId+'|'+g('resignDate'), id:_recId||('r_'+uid()),
@@ -2511,6 +2545,7 @@ async function saveRec(){
       workingDays:(isFinite(days)&&days>0)?days:0,
       amount:parseFloat(g('amount'))||0,
       hasSettlement:(parseFloat(g('amount'))||0)>0 });
+    ensureResignKey(rr);
     RESIGNS=mergeInto(_recId?RESIGNS.filter(function(x){return x.id!==_recId;}):RESIGNS,[rr]).arr;
   }
   saveJoins(); saveResigns();
@@ -2586,6 +2621,21 @@ function init(){
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init);
 else init();
+
+/* Shared Join/Resign ledger bridge with Manpower. Both pages use the same
+   localStorage collections and canonical employee+month business key. */
+function reconcileMovementFromSharedStorage(kind){
+  try{
+    var key=kind==='resign'?K_RESIGNS:K_JOINS, raw=JSON.parse(localStorage.getItem(key)||'[]');
+    if(kind==='resign')RESIGNS=normalizeOnboardingMovement(raw,'resign'); else JOINS=normalizeOnboardingMovement(raw,'join');
+    rebuildFilterOptions();renderAll();
+  }catch(e){console.warn('[onboarding shared movement]',e);}
+}
+window.addEventListener('storage',function(e){
+  if(e.key===K_JOINS){reconcileMovementFromSharedStorage('join');scheduleOnboardingSync('manpower-linked-join');}
+  else if(e.key===K_RESIGNS){reconcileMovementFromSharedStorage('resign');scheduleOnboardingSync('manpower-linked-resign');}
+});
+document.addEventListener('visibilitychange',function(){if(!document.hidden){reconcileMovementFromSharedStorage('join');reconcileMovementFromSharedStorage('resign');}});
 
 /* Auto-sync retry on network recovery / app resume. */
 
