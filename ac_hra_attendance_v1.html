@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>VRT 考勤分析系統 v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -250,8 +253,8 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 
 <!-- ══ EMPLOYEE LEAVE (independent page inside Attendance) ══ -->
 <div class="sec" id="sec-leave">
-  <div class="online-note" data-zh="員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。" data-en="Employee Leave is an independent page inside Attendance. Employee data can reuse HRA PAY when available, with manual add/edit as fallback." data-km="ការសុំច្បាប់ជាទំព័រឯករាជ្យនៅក្នុង Attendance។">員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。</div>
-  <iframe id="employeeLeaveFrame" class="leave-frame" src="ac_hra_employee_leave_v1.html" title="Employee Leave" allow="camera"></iframe>
+  <div class="online-note" data-zh="員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。" data-en="Employee Leave is an independent page inside Attendance. Employee data can reuse HRA PAY when available, with manual add/edit as fallback." data-km="ការសុំច្បាប់ជាទំព័រឯករាជ្យនៅក្នុង Attendance។ ទិន្នន័យបុគ្គលិកអាចធ្វើសមកាលកម្មពី HRA PAY ហើយអាចបន្ថែម ឬកែសម្រួលដោយដៃបាន។">員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。</div>
+  <iframe id="employeeLeaveFrame" class="leave-frame" src="ac_hra_employee_leave_v1.html?v=55&build=20260828" title="Employee Leave" allow="camera"></iframe>
 </div>
 
 <!-- ══ DAILY ══ -->
@@ -789,7 +792,7 @@ function renderTab(name,force){
   const run=async()=>{
     try{
       if(name==='entry'){renderOnlineEntry();}
-      else if(name==='leave'){const fr=document.getElementById('employeeLeaveFrame');if(fr&&!fr.src)fr.src='ac_hra_employee_leave_v1.html';}
+      else if(name==='leave'){ensureEmployeeLeaveV55(false);}
       else if(name==='daily'){populateDateSel('dsel');renderDaily();}
       else if(name==='weekly'){populateWeekSel();renderWeekly();}
       else if(name==='monthly'){populateMonthSel();renderMonthly();}
@@ -3105,6 +3108,8 @@ window.addEventListener('online',()=>setTimeout(()=>attAutoSync({source:'network
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>attAutoSync({source:'resume'}),180)});
 }
 if(window.HRAAutoSync)HRAAutoSync.install({key:'attendance',push:function(o){return attAutoSync({source:(o&&o.reason)||'auto',silentConflict:true})},canSync:function(){return !!GAS_URL},startDelay:450,upId:'btnPush',downId:'btnPull'});
+
+window.addEventListener('pageshow',()=>ensureEmployeeLeaveV55(false));
 </script>
 </body>
 </html>
