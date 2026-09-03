@@ -7,8 +7,9 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
-<!-- v51 Contract Sync UI Fix: v50 sync logic + visible cloud bar/status/counters -->
-<title>AC HRA 合約管理 / Contract Tracker v2</title>
+<script src="shared/hra-hr-governance.js?v=57"></script>
+<!-- v56 Lifecycle Link: approved Join/Resign → Probation/Contract + editable lifecycle settings -->
+<title>AC HRA 合約管理 / Contract Tracker v2 · Lifecycle v56</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
@@ -228,6 +229,15 @@ table tbody tr:hover{background:#fbf9f0}
     <div id="upcomingList"></div>
   </div>
 
+  <!-- Employee lifecycle linkage -->
+  <div class="panel" id="lifecyclePanel">
+    <h2>🔗 <span data-i18n="lifecycleTitle">人事生命週期連動</span>
+      <button class="btn small ghost" onclick="refreshLifecycleNow()">↻ <span data-i18n="lifecycleRefresh">重新檢查</span></button>
+    </h2>
+    <div class="small-text" id="lifecycleNote" style="margin-bottom:8px"></div>
+    <div id="lifecycleList"></div>
+  </div>
+
   <!-- Anomalies banner -->
   <div class="panel" id="dashAnomaliesPanel">
     <h2>⚠️ <span data-i18n="anomaliesTitle">異常警示</span>
@@ -259,7 +269,8 @@ table tbody tr:hover{background:#fbf9f0}
         <button class="btn small danger" onclick="deleteSelectedProbs()">🗑 <span data-i18n="btnDelete">刪除</span></button>
         <button class="btn small warning" onclick="clearAllProbs()">⚡ <span data-i18n="btnClearAll">全清除</span></button>
         <button class="btn small success" onclick="exportProbationExcel()">💾 <span data-i18n="btnSave">儲存</span></button>
-        <button class="btn small ghost" onclick="window.print()">🖨 <span data-i18n="print">列印</span></button>
+        <button class="btn small ghost" onclick="printProbationApplications()">🖨 <span data-i18n="print">列印</span></button>
+        <button class="btn small ghost" onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('contract','Contract / Probation Excel Conflicts')">⚠ Conflict</button>
       </div>
     </h2>
     <!-- KPI card strip -->
@@ -320,7 +331,8 @@ table tbody tr:hover{background:#fbf9f0}
         <button class="btn small danger" onclick="deleteSelectedConts()">🗑 <span data-i18n="btnDelete">刪除</span></button>
         <button class="btn small warning" onclick="clearAllConts()">⚡ <span data-i18n="btnClearAll">全清除</span></button>
         <button class="btn small success" onclick="exportContractExcel()">💾 <span data-i18n="btnSave">儲存</span></button>
-        <button class="btn small ghost" onclick="window.print()">🖨 <span data-i18n="print">列印</span></button>
+        <button class="btn small ghost" onclick="printContractApplications()">🖨 <span data-i18n="print">列印</span></button>
+        <button class="btn small ghost" onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('contract','Contract / Probation Excel Conflicts')">⚠ Conflict</button>
       </div>
     </h2>
     <!-- KPI card strip -->
@@ -444,6 +456,25 @@ table tbody tr:hover{background:#fbf9f0}
       <label data-i18n="reminderDays">提前提醒天數</label>
       <input type="number" id="setReminderDays" value="15" min="1" max="90" style="width:80px">
     </div>
+
+    <h3 style="color:var(--navy);margin:16px 0 10px;font-size:14px">🔗 <span data-i18n="lifecycleSettings">人事生命週期連動</span></h3>
+    <div class="setting-row">
+      <label data-i18n="autoProbationOnJoin">入職核可後自動建立試用期</label>
+      <input type="checkbox" id="setLifeAutoProb" checked style="width:20px;height:20px">
+    </div>
+    <div class="setting-row">
+      <label data-i18n="autoTerminateOnResign">離職核可後自動終止在職合約</label>
+      <input type="checkbox" id="setLifeAutoTerm" checked style="width:20px;height:20px">
+    </div>
+    <div class="setting-row">
+      <label data-i18n="autoCloseProbationOnResign">離職核可後關閉未完成試用期</label>
+      <input type="checkbox" id="setLifeCloseProb" checked style="width:20px;height:20px">
+    </div>
+    <div class="setting-row">
+      <label data-i18n="nearExpiryDays">離職與合約到期合併提示天數</label>
+      <div><input type="number" id="setLifeNearDays" value="15" min="0" max="180" style="width:80px"> <span data-i18n="daysUnit">天</span></div>
+    </div>
+    <div class="help-text" data-i18n="lifecycleHelp">所有自動建立／更新的試用期與合約仍可在原分頁新增、編輯或刪除；不鎖死資料。</div>
 
     <h3 style="color:var(--navy);margin:16px 0 10px;font-size:14px">💰 <span data-i18n="severanceSettings">5% 遣散金設定</span></h3>
     <div class="setting-row">
@@ -675,7 +706,10 @@ const I18N = {
     anExpiryTitle:"未來12個月到期分佈",anProbRateTitle:"試用期通過率（依部門）",anContTypeTitle:"合約類型分佈",anDeptTitle:"部門人員分佈",
     anProb:"試用",anCont:"合約",anCurrentMonth:"本月",anPassRate:"通過率",anTotal:"總計",anPeople:"人",anOfTotal:"佔比",anContByDept:"合約部門分佈",
     anSevereCritical:"嚴重異常",anWarning:"警告",anTotalItems:"項目總計",
-    anTabExpiry:"到期分佈",anTabProbRate:"試用期通過率",anTabContType:"合約類型",anTabDept:"部門分佈"},
+    anTabExpiry:"到期分佈",anTabProbRate:"試用期通過率",anTabContType:"合約類型",anTabDept:"部門分佈",
+    lifecycleTitle:"人事生命週期連動",lifecycleRefresh:"重新檢查",lifecycleSettings:"人事生命週期連動",
+    autoProbationOnJoin:"入職核可後自動建立試用期",autoTerminateOnResign:"離職核可後自動終止在職合約",autoCloseProbationOnResign:"離職核可後關閉未完成試用期",nearExpiryDays:"離職與合約到期合併提示天數",daysUnit:"天",
+    lifecycleHelp:"所有自動建立／更新的試用期與合約仍可在原分頁新增、編輯或刪除；不鎖死資料。"},
   en:{appTitle:"HR Contract & Probation Tracker",navDashboard:"Dashboard",navEmployees:"Employees",navProbation:"Probation",
     navContracts:"Contracts",navReminders:"Reminders",navAnalytics:"Analytics",navAnomalies:"Anomalies",navSettings:"Settings",
     employeeList:"Employee List",addEmployee:"Add Employee",importExcel:"Import",exportExcel:"Export",print:"Print",
@@ -719,7 +753,10 @@ const I18N = {
     anExpiryTitle:"Next 12 Months — Expiry Distribution",anProbRateTitle:"Probation Pass Rate by Department",anContTypeTitle:"Contract Type Distribution",anDeptTitle:"Department Distribution",
     anProb:"Probation",anCont:"Contract",anCurrentMonth:"This Month",anPassRate:"Pass Rate",anTotal:"Total",anPeople:"ppl",anOfTotal:"of total",anContByDept:"Contract by Department",
     anSevereCritical:"Critical",anWarning:"Warning",anTotalItems:"Total Items",
-    anTabExpiry:"Expiry Chart",anTabProbRate:"Probation Rate",anTabContType:"Contract Types",anTabDept:"Departments"},
+    anTabExpiry:"Expiry Chart",anTabProbRate:"Probation Rate",anTabContType:"Contract Types",anTabDept:"Departments",
+    lifecycleTitle:"Employee Lifecycle Linkage",lifecycleRefresh:"Refresh",lifecycleSettings:"Employee Lifecycle Linkage",
+    autoProbationOnJoin:"Auto-create probation after approved join",autoTerminateOnResign:"Auto-terminate active contracts after approved resignation",autoCloseProbationOnResign:"Close unfinished probation after approved resignation",nearExpiryDays:"Days window to combine resignation + contract ending",daysUnit:"days",
+    lifecycleHelp:"All automatically created or updated probation/contract records remain normal records: you can add, edit or delete them at any time."},
   km:{appTitle:"ប្រព័ន្ធតាមដានកិច្ចសន្យា និងសាកល្បង",navDashboard:"ផ្ទាំងសង្ខេប",navEmployees:"និយោជិត",navProbation:"សាកល្បង",
     navContracts:"កិច្ចសន្យា",navReminders:"រំលឹក",navAnalytics:"វិភាគ",navAnomalies:"អនាធិបតេយ្យ",navSettings:"ការកំណត់",
     employeeList:"បញ្ជីនិយោជិត",addEmployee:"បន្ថែមនិយោជិត",importExcel:"នាំចូល",exportExcel:"នាំចេញ",print:"បោះពុម្ព",
@@ -754,7 +791,10 @@ const I18N = {
     autoCreateProb:"បង្កើតកំណត់ត្រាសាកល្បងស្វ័យប្រវត្តិ",editProbation:"កែសាកល្បង",editContract:"កែកិច្ចសន្យា",
     workerHelp:"កម្មករ",technicalHelp:"ជាងបច្ចេកទេស, QC, Mechanic",managementHelp:"Line Leader, Supervisor, Manager",
     totalEmp:"និយោជិតសរុប",activeEmp:"កំពុងធ្វើការ",probPending:"រង់ចាំវាយតម្លៃ",contExpireSoon:"ផុតកំណត់ ≤15 ថ្ងៃ",
-    probOverdue:"ហួសពេលវាយតម្លៃ",contExpired:"កិច្ចសន្យាផុតកំណត់",totalAnomalies:"អនាធិបតេយ្យសរុប",severanceTotal:"5% ត្រូវបង់"}
+    probOverdue:"ហួសពេលវាយតម្លៃ",contExpired:"កិច្ចសន្យាផុតកំណត់",totalAnomalies:"អនាធិបតេយ្យសរុប",severanceTotal:"5% ត្រូវបង់",
+    lifecycleTitle:"ការភ្ជាប់វដ្តបុគ្គលិក",lifecycleRefresh:"ពិនិត្យឡើងវិញ",lifecycleSettings:"ការភ្ជាប់វដ្តបុគ្គលិក",
+    autoProbationOnJoin:"បង្កើតរយៈពេលសាកល្បងដោយស្វ័យប្រវត្តិបន្ទាប់ពីអនុម័តការចូល",autoTerminateOnResign:"បញ្ចប់កិច្ចសន្យាសកម្មដោយស្វ័យប្រវត្តិបន្ទាប់ពីអនុម័តការចាកចេញ",autoCloseProbationOnResign:"បិទរយៈពេលសាកល្បងមិនទាន់បញ្ចប់បន្ទាប់ពីអនុម័តការចាកចេញ",nearExpiryDays:"ចំនួនថ្ងៃសម្រាប់បញ្ចូលការចាកចេញ និងការបញ្ចប់កិច្ចសន្យាជាការជូនដំណឹងតែមួយ",daysUnit:"ថ្ងៃ",
+    lifecycleHelp:"កំណត់ត្រាសាកល្បង និងកិច្ចសន្យាដែលប្រព័ន្ធបង្កើត ឬកែដោយស្វ័យប្រវត្តិ នៅតែអាចបន្ថែម កែ និងលុបបានគ្រប់ពេល។"}
 };
 
 let LANG="zh";
@@ -797,11 +837,11 @@ function dbPut(store,obj){return new Promise((res,rej)=>{
 })}
 function dbDel(store,id){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readwrite").objectStore(store).delete(id);
-  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('db-del')};tx.onerror=()=>rej(tx.error);
+  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('record-deleted')};tx.onerror=()=>rej(tx.error);
 })}
 function dbClear(store){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readwrite").objectStore(store).clear();
-  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('db-clear')};tx.onerror=()=>rej(tx.error);
+  tx.onsuccess=()=>{res();if(['employees','probations','contracts','dashProbs','dashConts'].includes(store)&&!_contractCloudApplying)scheduleContractSync('batch-delete')};tx.onerror=()=>rej(tx.error);
 })}
 function dbGet(store,id){return new Promise((res,rej)=>{
   const tx=db.transaction(store,"readonly").objectStore(store).get(id);
@@ -814,6 +854,7 @@ let DASH_PROBS=[],DASH_CONTS=[];
 const DEFAULT_SETTINGS={
   id:"main",probationDurations:{worker:1,technical:2,management:3},
   reminderDays:15,severanceRate:5,severanceMinMonths:6,language:"zh",
+  lifecycle:{autoCreateProbation:true,autoTerminateOnResign:true,autoCloseProbationOnResign:true,nearExpiryDays:15},
   telegramToken:"",telegramChatId:"-5115311567",
   gasUrl:"https://script.google.com/macros/s/AKfycbwVxpnEQGhEHkKt6RTTp-EEEf8Unr7qg0yITiyu8zIXS1tHJrKZL73To7FOikBsatKU/exec"
 };
@@ -824,9 +865,12 @@ async function loadAll(){
   DASH_PROBS=await dbAll("dashProbs");
   DASH_CONTS=await dbAll("dashConts");
   const s=await dbGet("settings","main");
-  SETTINGS=s||DEFAULT_SETTINGS;
+  SETTINGS=Object.assign({},DEFAULT_SETTINGS,s||{});
+  SETTINGS.probationDurations=Object.assign({},DEFAULT_SETTINGS.probationDurations,(s&&s.probationDurations)||{});
+  SETTINGS.lifecycle=Object.assign({},DEFAULT_SETTINGS.lifecycle,(s&&s.lifecycle)||{});
   if(!s)await dbPut("settings",SETTINGS);
   LANG=SETTINGS.language||"zh";
+  contractPublishMirrors();
 }
 
 /* ========== 工具函式 ========== */
@@ -1299,7 +1343,7 @@ async function deleteSelectedProbs(){
   if(!confirm(`確定刪除 ${ids.length} 筆試用期紀錄？`))return;
   for(const id of ids)await dbDel("dashProbs",id);
   DASH_PROBS=DASH_PROBS.filter(r=>!ids.includes(r.id));
-  renderDashProb(); toast(`已刪除 ${ids.length} 筆`,"success");
+  renderDashProb(); scheduleContractSync('batch-delete'); toast(`已刪除 ${ids.length} 筆`,"success");
 }
 async function deleteSelectedConts(){
   const ids=[...document.querySelectorAll(".cont-cb:checked")].map(cb=>cb.dataset.id);
@@ -1307,27 +1351,27 @@ async function deleteSelectedConts(){
   if(!confirm(`確定刪除 ${ids.length} 筆合約紀錄？`))return;
   for(const id of ids)await dbDel("dashConts",id);
   DASH_CONTS=DASH_CONTS.filter(r=>!ids.includes(r.id));
-  renderDashCont(); toast(`已刪除 ${ids.length} 筆`,"success");
+  renderDashCont(); scheduleContractSync('batch-delete'); toast(`已刪除 ${ids.length} 筆`,"success");
 }
 async function delOneDashProb(id){
   if(!confirm("確定刪除此試用期紀錄？"))return;
   await dbDel("dashProbs",id);
   DASH_PROBS=DASH_PROBS.filter(r=>r.id!==id);
-  renderDashProb(); toast("已刪除","success");
+  renderDashProb(); scheduleContractSync('record-deleted'); toast("已刪除","success");
 }
 async function delOneDashCont(id){
   if(!confirm("確定刪除此合約紀錄？"))return;
   await dbDel("dashConts",id);
   DASH_CONTS=DASH_CONTS.filter(r=>r.id!==id);
-  renderDashCont(); toast("已刪除","success");
+  renderDashCont(); scheduleContractSync('record-deleted'); toast("已刪除","success");
 }
 async function clearAllProbs(){
   if(!confirm(`確定清除全部 ${DASH_PROBS.length} 筆試用期紀錄？此操作無法復原！`))return;
-  await dbClear("dashProbs");DASH_PROBS=[];renderDashProb();toast("試用期紀錄已全部清除","success");
+  await dbClear("dashProbs");DASH_PROBS=[];renderDashProb();scheduleContractSync('batch-delete');toast("試用期紀錄已全部清除","success");
 }
 async function clearAllConts(){
   if(!confirm(`確定清除全部 ${DASH_CONTS.length} 筆合約紀錄？此操作無法復原！`))return;
-  await dbClear("dashConts");DASH_CONTS=[];renderDashCont();toast("合約紀錄已全部清除","success");
+  await dbClear("dashConts");DASH_CONTS=[];renderDashCont();scheduleContractSync('batch-delete');toast("合約紀錄已全部清除","success");
 }
 
 // ── Modals: open / save ───────────────────────────────────
@@ -1366,6 +1410,7 @@ async function saveDashProb(){
     score:document.getElementById("dpScore").value!==""?Number(document.getElementById("dpScore").value):null,
     result:document.getElementById("dpResult").value,
     remarks:document.getElementById("dpRemarks").value.trim(),
+    source:'online',applicationDate:(DASH_PROBS.find(x=>x.id===id)?.applicationDate||todayISO()),
     updatedAt:new Date().toISOString(),
     createdAt:DASH_PROBS.find(x=>x.id===id)?.createdAt||new Date().toISOString()
   };
@@ -1413,6 +1458,7 @@ async function saveDashCont(){
     endDate:document.getElementById("dcEndDate").value,
     status:document.getElementById("dcStatus").value,
     notes:document.getElementById("dcNotes").value.trim(),
+    source:'online',applicationDate:(DASH_CONTS.find(x=>x.id===id)?.applicationDate||todayISO()),
     updatedAt:new Date().toISOString(),
     createdAt:DASH_CONTS.find(x=>x.id===id)?.createdAt||new Date().toISOString()
   };
@@ -1452,10 +1498,12 @@ async function importProbDash(evt){
       const remarks=String(row[10]||"").trim();
       // dedup key = factoryId + joinDate
       const key=factoryId+"_"+(joinDate||"");
-      const existing=DASH_PROBS.find(r=>r.factoryId===factoryId&&(r.joinDate||"")===joinDate);
-      const id=existing?.id||uid("dp");
-      const rec={id,factoryId,khmerSurname,khmerName,joinDate,probEnd,evalDate,score,result,dept,remarks,
+      let existing=DASH_PROBS.find(r=>r.factoryId===factoryId&&(r.joinDate||'')===joinDate);
+      if(!existing&&window.HRAHRGovernance){const cand=DASH_PROBS.filter(r=>String(r.factoryId||'')===factoryId);if(cand.length===1&&cand[0].joinDate&&joinDate&&cand[0].joinDate!==joinDate){HRAHRGovernance.logConflict({module:'contract',recordKey:'PROB|'+factoryId,employeeId:factoryId,field:'joinDate',systemValue:cand[0].joinDate,importValue:joinDate,sourceFile:f.name,reason:'probation-join-date-mismatch'});skipped++;continue}}
+      const id=existing?.id||uid('dp');
+      let rec={id,factoryId,khmerSurname,khmerName,joinDate,probEnd,evalDate,score,result,dept,remarks,source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),
         updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
+      if(existing&&window.HRAHRGovernance){rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'PROB|'+factoryId+'|'+(joinDate||''),employeeId:factoryId,sourceFile:f.name,approved:existing.result==='passed'||existing.result==='failed',criticalFields:['joinDate','probEnd','evalDate','score','result']}).record;rec.id=existing.id}
       await dbPut("dashProbs",rec);
       if(existing){const i=DASH_PROBS.findIndex(r=>r.id===existing.id);DASH_PROBS[i]=rec;updated++;}
       else{DASH_PROBS.push(rec);added++;}
@@ -1495,10 +1543,12 @@ async function importContDash(evt){
     const months={"FDC-6M":6,"FDC-1Y":12,"FDC-2Y":24}[contractType];
     const endDate=months&&entryDate?addMonths(entryDate,months):"";
     const status=contractType==="UDC"?"active":(endDate&&endDate<today?"expired":"active");
-    const existing=DASH_CONTS.find(r=>r.factoryId===factoryId&&(r.entryDate||"")===entryDate);
-    const id=existing?.id||uid("dc");
-    const rec={id,factoryId,name,dept,section,position,entryDate,contractType,endDate,status,notes:"",
+    let existing=DASH_CONTS.find(r=>r.factoryId===factoryId&&(r.entryDate||'')===entryDate);
+    if(!existing&&window.HRAHRGovernance){const cand=DASH_CONTS.filter(r=>String(r.factoryId||'')===factoryId&&String(r.status||'active')!=='terminated');if(cand.length===1&&cand[0].entryDate&&entryDate&&cand[0].entryDate!==entryDate){HRAHRGovernance.logConflict({module:'contract',recordKey:'CONT|'+factoryId,employeeId:factoryId,field:'entryDate',systemValue:cand[0].entryDate,importValue:entryDate,sourceFile:f.name,reason:'contract-entry-date-mismatch'});continue}}
+    const id=existing?.id||uid('dc');
+    let rec={id,factoryId,name,dept,section,position,entryDate,contractType,endDate,status,notes:'',source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),
       updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
+    if(existing&&window.HRAHRGovernance){rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'CONT|'+factoryId+'|'+(entryDate||''),employeeId:factoryId,sourceFile:f.name,approved:existing.status==='renewed'||existing.status==='terminated',criticalFields:['entryDate','contractType','endDate','status']}).record;rec.id=existing.id}
     await dbPut("dashConts",rec);
     if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);DASH_CONTS[i]=rec;updated++;}
     else{DASH_CONTS.push(rec);added++;}
@@ -2280,35 +2330,37 @@ function parseExcelDate(v){return normalizeDate(v);}
 /* ========== 備份 / 還原 ========== */
 function exportAllBackup(){
   const backup={
-    version:1,exportedAt:new Date().toISOString(),
-    employees:EMPLOYEES,probations:PROBATIONS,contracts:CONTRACTS,settings:SETTINGS
+    version:2,exportedAt:new Date().toISOString(),
+    employees:EMPLOYEES,probations:PROBATIONS,contracts:CONTRACTS,
+    dashProbations:DASH_PROBS,dashContracts:DASH_CONTS,settings:SETTINGS
   };
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement("a");a.href=url;
-  a.download=`VRT_HR_Backup_${todayISO()}.json`;a.click();
-  URL.revokeObjectURL(url);toast("備份已下載","success");
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;
+  a.download=`VRT_HR_Backup_${todayISO()}.json`;a.click();URL.revokeObjectURL(url);toast("備份已下載","success");
 }
 async function restoreFromBackup(evt){
   const f=evt.target.files[0];if(!f)return;
-  if(!confirm("⚠️ 還原將覆蓋目前所有資料，確定？"))return;
   const text=await f.text();
   try{
     const data=JSON.parse(text);
-    await dbClear("employees");await dbClear("probations");await dbClear("contracts");
-    for(const e of (data.employees||[]))await dbPut("employees",e);
-    for(const p of (data.probations||[]))await dbPut("probations",p);
-    for(const c of (data.contracts||[]))await dbPut("contracts",c);
-    if(data.settings){data.settings.id="main";await dbPut("settings",data.settings)}
-    await loadAll();refreshAll();toast("還原完成","success");
+    if(!confirm("⚠️ 還原將以工號／日期／合約識別碼安全合併，不會刪除目前未出現在備份中的資料。確定？")){evt.target.value="";return;}
+    EMPLOYEES=contractMergeRows(EMPLOYEES,data.employees||[],'employee');
+    PROBATIONS=contractMergeRows(PROBATIONS,data.probations||[],'legacy_probation');
+    CONTRACTS=contractMergeRows(CONTRACTS,data.contracts||[],'legacy_contract');
+    DASH_PROBS=contractMergeRows(DASH_PROBS,data.dashProbations||data.dashProbs||[],'dash_probation');
+    DASH_CONTS=contractMergeRows(DASH_CONTS,data.dashContracts||data.dashConts||[],'dash_contract');
+    if(data.settings)SETTINGS=Object.assign({},data.settings,SETTINGS||{});
+    await contractPersistAll();await dbPut('settings',Object.assign({id:'main'},SETTINGS));
+    contractReconcileLegacyToDash();await contractPersistAll();refreshAll();scheduleContractSync('restore');toast("合併還原完成","success");
   }catch(e){toast("還原失敗: "+e.message,"danger")}
   evt.target.value="";
 }
 async function clearAllData(){
   if(!confirm("⚠️ 將清除所有資料，且無法復原。確定繼續？"))return;
   if(!confirm("⚠️⚠️ 再次確認：真的要清除？"))return;
-  await dbClear("employees");await dbClear("probations");await dbClear("contracts");
-  await loadAll();refreshAll();toast("已清除所有資料","warning");
+  await dbClear("employees");await dbClear("probations");await dbClear("contracts");await dbClear('dashProbs');await dbClear('dashConts');
+  EMPLOYEES=[];PROBATIONS=[];CONTRACTS=[];DASH_PROBS=[];DASH_CONTS=[];
+  await loadAll();refreshAll();scheduleContractSync('batch-delete');toast("已清除所有資料","warning");
 }
 
 /* ========== 設定 ========== */
@@ -2317,6 +2369,11 @@ function loadSettingsUI(){
   document.getElementById("setProbTechnical").value=SETTINGS.probationDurations?.technical||2;
   document.getElementById("setProbManagement").value=SETTINGS.probationDurations?.management||3;
   document.getElementById("setReminderDays").value=SETTINGS.reminderDays||15;
+  const life=SETTINGS.lifecycle||DEFAULT_SETTINGS.lifecycle;
+  document.getElementById("setLifeAutoProb").checked=life.autoCreateProbation!==false;
+  document.getElementById("setLifeAutoTerm").checked=life.autoTerminateOnResign!==false;
+  document.getElementById("setLifeCloseProb").checked=life.autoCloseProbationOnResign!==false;
+  document.getElementById("setLifeNearDays").value=life.nearExpiryDays!=null?life.nearExpiryDays:(SETTINGS.reminderDays||15);
   document.getElementById("setSeveranceRate").value=SETTINGS.severanceRate||5;
   document.getElementById("setSeveranceMin").value=SETTINGS.severanceMinMonths||6;
   document.getElementById("setTelegramToken").value=SETTINGS.telegramToken||"";
@@ -2330,6 +2387,13 @@ async function saveSettings(){
     management:parseInt(document.getElementById("setProbManagement").value)||3
   };
   SETTINGS.reminderDays=parseInt(document.getElementById("setReminderDays").value)||15;
+  SETTINGS.lifecycle={
+    autoCreateProbation:document.getElementById("setLifeAutoProb").checked,
+    autoTerminateOnResign:document.getElementById("setLifeAutoTerm").checked,
+    autoCloseProbationOnResign:document.getElementById("setLifeCloseProb").checked,
+    nearExpiryDays:Math.max(0,parseInt(document.getElementById("setLifeNearDays").value)||0)
+  };
+  try{const cur=JSON.parse(localStorage.getItem('ac_hra_lifecycle_settings_v1')||'{}')||{};localStorage.setItem('ac_hra_lifecycle_settings_v1',JSON.stringify(Object.assign(cur,SETTINGS.lifecycle,{probationDurations:SETTINGS.probationDurations})));}catch(_){}
   SETTINGS.severanceRate=safeNum(document.getElementById("setSeveranceRate").value)||5;
   SETTINGS.severanceMinMonths=parseInt(document.getElementById("setSeveranceMin").value)||6;
   SETTINGS.telegramToken=document.getElementById("setTelegramToken").value.trim();
@@ -2441,8 +2505,10 @@ function contractStripCloud(r){
 }
 function contractIdentity(r,type){
   if(!r)return type+'|';
-  if(r.id)return type+'|id|'+String(r.id);
-  if(type==='employee')return type+'|'+String(r.factoryId||r.vrtCode||r.idNumber||r.employeeId||'');
+  /* Restore/cloud merge uses a BUSINESS identity before the random local id.
+     This is the HRA-PAY v3.9.8 rule: the same semantic record imported/restored
+     from another browser must update one row, not become a second count. */
+  if(type==='employee')return type+'|'+String(r.factoryId||r.vrtCode||r.idNumber||r.employeeId||r.id||'');
   if(type==='dash_probation')return type+'|'+String(r.factoryId||r.employeeId||'')+'|'+String(r.joinDate||'')+'|'+String(r.probEnd||'');
   if(type==='dash_contract')return type+'|'+String(r.factoryId||r.employeeId||'')+'|'+String(r.entryDate||r.startDate||'')+'|'+String(r.contractType||'')+'|'+String(r.endDate||'');
   if(type==='legacy_probation')return type+'|'+String(r.employeeId||r.factoryId||'')+'|'+String(r.startDate||'')+'|'+String(r.endDate||'');
@@ -2581,10 +2647,195 @@ async function contractAutoSync(reason){
   }finally{_contractSyncBusy=false;}
 }
 
+/* ========== v56 Employee lifecycle linkage ========== */
+const LIFECYCLE_LOCAL_KEY='ac_hra_lifecycle_cache_v1',LIFECYCLE_APPLIED_KEY='ac_hra_contract_lifecycle_applied_v1';
+let LIFECYCLE_APPROVED={joins:[],resigns:[],decisions:{},source:'local'};
+function contractPublishMirrors(){
+  try{
+    localStorage.setItem('vrt_dashProbs',JSON.stringify(DASH_PROBS||[]));
+    localStorage.setItem('vrt_dashConts',JSON.stringify(DASH_CONTS||[]));
+    localStorage.setItem('vrt_contract_employees',JSON.stringify(EMPLOYEES||[]));
+    /* Merge rather than overwrite: Maternity owns Health Fee eligibility fields
+       in the same shared lifecycle settings object. Contract only updates its
+       own toggles and probation durations. */
+    let shared={};try{shared=JSON.parse(localStorage.getItem('ac_hra_lifecycle_settings_v1')||'{}')||{}}catch(__){}
+    localStorage.setItem('ac_hra_lifecycle_settings_v1',JSON.stringify(Object.assign(shared,SETTINGS.lifecycle||{}, {probationDurations:SETTINGS.probationDurations||{}})));
+  }catch(_){}
+}
+function lifeCode(r){return String(r&&(
+  r.empId||r.factoryId||r.vrtCode||r.idNo||r.employeeId||r.idNumber||''
+)||'').replace(/\s+/g,'').trim()}
+function lifeDate(kind,r){return String(r&&(kind==='join'?r.joinDate:r.resignDate)||'').slice(0,10)}
+function lifeDecisionOk(kind,r,dec){
+  const id=lifeCode(r),dt=lifeDate(kind,r),p=kind==='join'?'J':'R';
+  const keys=[r&&r._k,`${p}|${id}|${dt}`,`${p}|${id}|${dt.slice(0,7)}`].filter(Boolean);
+  return keys.some(k=>{
+    const d=dec&&dec[k];if(!d||d.d!=='ok')return false;
+    /* An edit after approval must be approved again before it can alter
+       probation/contract lifecycle data. */
+    const ra=Date.parse(r&& (r.updatedAt||r._updatedAt||r.modifiedAt)||0)||0,da=Date.parse(d.at||d.updatedAt||0)||0;
+    return !ra||!da||da>=ra;
+  });
+}
+function lifecycleLocalApproved(){
+  let joins=[],resigns=[],dec={};
+  try{joins=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[]}catch(_){}
+  try{resigns=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[]}catch(_){}
+  try{dec=JSON.parse(localStorage.getItem('ac_hra_ob_decisions')||'{}')||{}}catch(_){}
+  joins=(Array.isArray(joins)?joins:[]).filter(r=>lifeDecisionOk('join',r,dec));
+  resigns=(Array.isArray(resigns)?resigns:[]).filter(r=>lifeDecisionOk('resign',r,dec));
+  return {joins,resigns,decisions:dec,source:'local'};
+}
+async function contractPullApprovedMovements(){
+  let ctx=lifecycleLocalApproved(),url=contractGasUrl();
+  if(url&&typeof HRASmartSync!=='undefined'){
+    try{
+      const res=await HRASmartSync.pullReliable({url,tool:'onboarding',localRecords:[]});
+      const dec=Object.assign({},ctx.decisions,(res&&res.meta&&res.meta.decisions)||{}),rows=Array.isArray(res&&res.records)?res.records:[];
+      const joins=[],resigns=[];
+      rows.forEach(raw=>{
+        const r=Object.assign({},raw||{}),k=String(r._kind||'').toLowerCase();
+        if(k==='movement_state')return;
+        if(k==='join'||r.joinDate!==undefined){if(lifeDecisionOk('join',r,dec))joins.push(r);return;}
+        if(k==='resign'||r.resignDate!==undefined){if(lifeDecisionOk('resign',r,dec))resigns.push(r);}
+      });
+      if(joins.length||resigns.length)ctx={joins,resigns,decisions:dec,source:'cloud'};
+    }catch(e){console.warn('[contract lifecycle onboarding pull]',e)}
+  }
+  LIFECYCLE_APPROVED=ctx;
+  try{localStorage.setItem(LIFECYCLE_LOCAL_KEY,JSON.stringify({at:new Date().toISOString(),joins:ctx.joins,resigns:ctx.resigns,decisions:ctx.decisions}));}catch(_){}
+  return ctx;
+}
+function lifeEmpMatch(code){code=String(code||'');return EMPLOYEES.find(e=>[e.vrtCode,e.factoryId,e.idNo,e.employeeId,e.idNumber,e.id].some(v=>String(v||'')===code))||null}
+function lifeDashProbMatch(code,joinDate){return DASH_PROBS.find(r=>String(r.factoryId||r.employeeId||'')===String(code)&&(!joinDate||String(r.joinDate||'')===String(joinDate)))||null}
+function lifeActiveContracts(code){return DASH_CONTS.filter(r=>String(r.factoryId||r.employeeId||'')===String(code)&&String(r.status||'active')==='active')}
+function lifeLegacyContracts(emp){return CONTRACTS.filter(r=>String(r.employeeId||'')===String(emp&&emp.id||'')&&String(r.status||'active')==='active')}
+function lifePosCategory(emp,r){
+  const raw=String(emp&&emp.positionCategory||r&&r.positionCategory||'').toLowerCase();
+  if(raw==='management'||raw==='technical'||raw==='worker')return raw;
+  const pos=String((r&&r.position)||(emp&&emp.position)||'').toLowerCase();
+  if(/manager|supervisor|leader|chief|head|主任|主管|組長|課長|經理/.test(pos))return 'management';
+  if(/qc|mechanic|technician|engineer|ie\b|技術|機修|品管/.test(pos))return 'technical';
+  return 'worker';
+}
+function lifeSame(a,b,keys){return keys.every(k=>String((a&&a[k])??'')===String((b&&b[k])??''))}
+function lifeAppendNote(existing,token){const cur=String(existing||'').trim();return cur.includes(token)?cur:[cur,token].filter(Boolean).join(' · ')}
+async function lifecycleApplyJoin(r){
+  const code=lifeCode(r),joinDate=lifeDate('join',r);if(!code||!joinDate)return false;
+  let changed=false,emp=lifeEmpMatch(code),now=new Date().toISOString();
+  if(!emp){
+    emp={id:'life_emp_'+code,vrtCode:code,factoryId:code,khmerName:r.name||'',englishName:r.engName||r.name||'',department:r.dept||'',section:r.section||'',position:r.position||'',positionCategory:lifePosCategory(null,r),joinDate,status:'active',notes:'Auto from approved Join; editable',lifecycleManaged:true,createdAt:now,updatedAt:now};
+    await dbPut('employees',emp);changed=true;
+  }else{
+    const next=Object.assign({},emp,{vrtCode:emp.vrtCode||code,factoryId:emp.factoryId||code,englishName:r.engName||r.name||emp.englishName,khmerName:r.name||emp.khmerName,department:r.dept||emp.department,section:r.section||emp.section,position:r.position||emp.position,joinDate:joinDate||emp.joinDate,status:'active'});
+    /* Do not touch updatedAt merely because the page was opened. That would
+       reopen cloud/reminder state after an already-sent summary. */
+    if(!lifeSame(emp,next,['vrtCode','factoryId','englishName','khmerName','department','section','position','joinDate','status'])){
+      next.updatedAt=now;await dbPut('employees',next);emp=next;changed=true;
+    }
+  }
+  if((SETTINGS.lifecycle||{}).autoCreateProbation!==false&&!lifeDashProbMatch(code,joinDate)){
+    const cat=lifePosCategory(emp,r),months=getProbationMonthsFor(cat)||1,end=addMonths(joinDate,months),sourceKey=r._k||`J|${code}|${joinDate}`;
+    await dbPut('dashProbs',{id:'life_dp_'+code+'_'+joinDate,factoryId:code,dept:r.dept||emp.department||'',khmerSurname:'',khmerName:r.name||emp.khmerName||emp.englishName||'',joinDate,probEnd:end,evalDate:'',score:null,result:'pending',remarks:'Auto from approved Join · editable',lifecycleManaged:true,sourceMovementKey:sourceKey,updatedAt:now,createdAt:now});
+    changed=true;
+    if(!PROBATIONS.some(p=>String(p.employeeId||'')===String(emp.id)&&String(p.startDate||'')===joinDate)){
+      await dbPut('probations',{id:'life_prob_'+code+'_'+joinDate,employeeId:emp.id,startDate:joinDate,durationMonths:months,endDate:end,status:'pending',evaluationDate:'',evaluator:'',notes:'Auto from approved Join · editable',lifecycleManaged:true,sourceMovementKey:sourceKey,createdAt:now,updatedAt:now});
+    }
+  }
+  return changed;
+}
+async function lifecycleApplyResign(r){
+  const code=lifeCode(r),resignDate=lifeDate('resign',r);if(!code||!resignDate)return false;
+  let changed=false,emp=lifeEmpMatch(code),now=new Date().toISOString(),sourceKey=r._k||`R|${code}|${resignDate}`;
+  if(emp){
+    const next=Object.assign({},emp,{status:'terminated',resignDate,lifecycleResignKey:sourceKey});
+    if(!lifeSame(emp,next,['status','resignDate','lifecycleResignKey'])){next.updatedAt=now;await dbPut('employees',next);emp=next;changed=true;}
+  }
+  const lc=SETTINGS.lifecycle||DEFAULT_SETTINGS.lifecycle;
+  if(lc.autoCloseProbationOnResign!==false){
+    for(const p of PROBATIONS.filter(p=>String(p.employeeId||'')===String(emp&&emp.id||'')&&['pending','extended'].includes(String(p.status||'')))){
+      const token='Closed by approved resignation '+resignDate,next=Object.assign({},p,{status:'terminated',evaluationDate:resignDate,notes:lifeAppendNote(p.notes,token),lifecycleAutoClosed:true,lifecycleResignKey:sourceKey});
+      if(!lifeSame(p,next,['status','evaluationDate','notes','lifecycleAutoClosed','lifecycleResignKey'])){next.updatedAt=now;await dbPut('probations',next);changed=true;}
+    }
+    for(const p of DASH_PROBS.filter(p=>String(p.factoryId||p.employeeId||'')===code&&['pending','extended'].includes(String(p.result||'pending')))){
+      const token='Closed by approved resignation '+resignDate,next=Object.assign({},p,{result:'terminated',evalDate:resignDate,remarks:lifeAppendNote(p.remarks,token),lifecycleAutoClosed:true,lifecycleResignKey:sourceKey});
+      if(!lifeSame(p,next,['result','evalDate','remarks','lifecycleAutoClosed','lifecycleResignKey'])){next.updatedAt=now;await dbPut('dashProbs',next);changed=true;}
+    }
+  }
+  if(lc.autoTerminateOnResign!==false){
+    for(const c of lifeActiveContracts(code)){
+      const token='Terminated by approved resignation '+resignDate,next=Object.assign({},c,{status:'terminated',terminationDate:resignDate,terminationReason:'resignation',notes:lifeAppendNote(c.notes,token),lifecycleAutoTerminated:true,lifecycleResignKey:sourceKey});
+      if(!lifeSame(c,next,['status','terminationDate','terminationReason','notes','lifecycleAutoTerminated','lifecycleResignKey'])){next.updatedAt=now;await dbPut('dashConts',next);changed=true;}
+    }
+    for(const c of lifeLegacyContracts(emp)){
+      const token='Terminated by approved resignation '+resignDate,next=Object.assign({},c,{status:'terminated',terminationDate:resignDate,terminationReason:'resignation',notes:lifeAppendNote(c.notes,token),lifecycleAutoTerminated:true,lifecycleResignKey:sourceKey});
+      if(!lifeSame(c,next,['status','terminationDate','terminationReason','notes','lifecycleAutoTerminated','lifecycleResignKey'])){next.updatedAt=now;await dbPut('contracts',next);changed=true;}
+    }
+  }
+  return changed;
+}
+function lifecycleAppliedRead(){try{return JSON.parse(localStorage.getItem(LIFECYCLE_APPLIED_KEY)||'{}')||{};}catch(_){return {};}}
+function lifecycleAppliedWrite(x){try{localStorage.setItem(LIFECYCLE_APPLIED_KEY,JSON.stringify(x||{}));}catch(_){}}
+function lifecycleMovementSignature(kind,r){
+  const code=lifeCode(r),date=lifeDate(kind,r),lc=SETTINGS.lifecycle||DEFAULT_SETTINGS.lifecycle;
+  const body=[kind,code,date,r&&r.name||'',r&&r.engName||'',r&&r.dept||'',r&&r.section||'',r&&r.position||'',r&&r.updatedAt||r&&r._updatedAt||'',kind==='join'?String(lc.autoCreateProbation!==false):[String(lc.autoTerminateOnResign!==false),String(lc.autoCloseProbationOnResign!==false)].join('/')].join('|');
+  let h=2166136261;for(let i=0;i<body.length;i++){h^=body.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(36);
+}
+async function applyApprovedLifecycle(ctx){
+  ctx=ctx||LIFECYCLE_APPROVED;let changed=false,applied=lifecycleAppliedRead(),dirtyMap=false;
+  for(const r of (ctx.joins||[])){
+    const key='J|'+lifeCode(r)+'|'+lifeDate('join',r),sig=lifecycleMovementSignature('join',r);
+    if(applied[key]===sig)continue;
+    changed=(await lifecycleApplyJoin(r))||changed;applied[key]=sig;dirtyMap=true;
+  }
+  for(const r of (ctx.resigns||[])){
+    const key='R|'+lifeCode(r)+'|'+lifeDate('resign',r),sig=lifecycleMovementSignature('resign',r);
+    if(applied[key]===sig)continue;
+    changed=(await lifecycleApplyResign(r))||changed;applied[key]=sig;dirtyMap=true;
+  }
+  if(dirtyMap)lifecycleAppliedWrite(applied);
+  if(changed){await loadAll();contractPublishMirrors();scheduleContractSync('lifecycle-approved');}
+  return changed;
+}
+function lifecycleFindJoin(code){return (LIFECYCLE_APPROVED.joins||[]).filter(r=>lifeCode(r)===String(code)).sort((a,b)=>lifeDate('join',b).localeCompare(lifeDate('join',a)))[0]||null}
+function lifecycleFindResign(code){return (LIFECYCLE_APPROVED.resigns||[]).filter(r=>lifeCode(r)===String(code)).sort((a,b)=>lifeDate('resign',b).localeCompare(lifeDate('resign',a)))[0]||null}
+function renderLifecyclePanel(){
+  const box=document.getElementById('lifecycleList'),note=document.getElementById('lifecycleNote');if(!box)return;
+  const ctx=LIFECYCLE_APPROVED||{joins:[],resigns:[]},near=Math.max(0,Number((SETTINGS.lifecycle||{}).nearExpiryDays||SETTINGS.reminderDays||15));
+  if(note)note.textContent=(ctx.source==='cloud'?'☁ Cloud':'📱 Local')+' · Approved Join '+(ctx.joins||[]).length+' / Resign '+(ctx.resigns||[]).length+' · Auto records remain editable.';
+  const rows=[];
+  (ctx.joins||[]).forEach(r=>{
+    const code=lifeCode(r),jd=lifeDate('join',r),prob=lifeDashProbMatch(code,jd),cont=DASH_CONTS.find(c=>String(c.factoryId||c.employeeId||'')===code&&String(c.status||'active')==='active');
+    if(!prob)rows.push({cls:'warning',title:'📝 Probation setup / 試用期待建立',r,action:`<button class="btn small gold" onclick="lifecycleCreateProb('${code}','${jd}')">+ Probation</button>`});
+    if(!cont)rows.push({cls:'info',title:'📄 Contract setup / 合約待建立',r,action:`<button class="btn small" onclick="lifecycleCreateContract('${code}','${jd}')">+ Contract</button>`});
+  });
+  (ctx.resigns||[]).forEach(r=>{
+    const code=lifeCode(r),rd=lifeDate('resign',r),all=DASH_CONTS.filter(c=>String(c.factoryId||c.employeeId||'')===code),nearC=all.filter(c=>c.endDate&&Math.abs(Math.round((new Date(c.endDate)-new Date(rd))/864e5))<=near).sort((a,b)=>Math.abs(new Date(a.endDate)-new Date(rd))-Math.abs(new Date(b.endDate)-new Date(rd)))[0];
+    if(nearC){const diff=Math.round((new Date(nearC.endDate)-new Date(rd))/864e5);rows.push({cls:'warning',title:'🔴 Resignation + Contract Ending / 離職＋合約終止',r,extra:`Resign ${rd} · Contract end ${nearC.endDate} · ${diff>=0?'+':''}${diff} day(s)`,action:`<button class="btn small" onclick="openDashContModal('${nearC.id}')">✏️ Edit</button>`});}
+  });
+  if(!rows.length){box.innerHTML='<div class="alert success">✅ '+(LANG==='en'?'No lifecycle action pending.':LANG==='km'?'មិនមានសកម្មភាពវដ្តបុគ្គលិកកំពុងរង់ចាំទេ។':'目前沒有待處理的人事生命週期項目。')+'</div>';return;}
+  box.innerHTML=rows.map(x=>{const r=x.r,code=lifeCode(r),name=escapeHtml(r.name||r.engName||'—'),date=lifeDate(r.resignDate?'resign':'join',r);return `<div class="alert ${x.cls}"><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${x.title}</b><span>${escapeHtml(code)} · ${name} · ${escapeHtml(date)}</span><span>${escapeHtml([r.dept,r.section,r.position].filter(Boolean).join(' / '))}</span><span style="margin-left:auto">${x.action||''}</span></div>${x.extra?`<div class="small-text">${escapeHtml(x.extra)}</div>`:''}</div>`}).join('');
+}
+async function lifecycleCreateProb(code,joinDate){
+  let r=lifecycleFindJoin(code)||{},e=lifeEmpMatch(code);openDashProbModal();
+  document.getElementById('dpFactoryId').value=code;document.getElementById('dpDept').value=r.dept||e&&e.department||'';document.getElementById('dpJoinDate').value=joinDate||r.joinDate||e&&e.joinDate||todayISO();
+  const cat=lifePosCategory(e,r),months=getProbationMonthsFor(cat)||1;document.getElementById('dpProbEnd').value=addMonths(document.getElementById('dpJoinDate').value,months);
+}
+async function lifecycleCreateContract(code,joinDate){
+  let r=lifecycleFindJoin(code)||{},e=lifeEmpMatch(code);openDashContModal();
+  document.getElementById('dcFactoryId').value=code;document.getElementById('dcDept').value=r.dept||e&&e.department||'';document.getElementById('dcName').value=r.name||e&&e.khmerName||e&&e.englishName||'';document.getElementById('dcSection').value=r.section||e&&e.section||'';document.getElementById('dcPosition').value=r.position||e&&e.position||'';document.getElementById('dcEntry').value=joinDate||r.joinDate||e&&e.joinDate||todayISO();dcCalcEnd();
+}
+async function refreshLifecycleNow(silent){
+  const b=document.querySelector('#lifecyclePanel button');if(b)b.disabled=true;
+  try{await contractPullApprovedMovements();await applyApprovedLifecycle();renderLifecyclePanel();refreshAll();if(!silent)toast('Lifecycle refreshed','success');}
+  catch(e){console.warn(e);if(!silent)toast('Lifecycle refresh failed: '+e.message,'warning')}
+  finally{if(b)b.disabled=false;}
+}
+
 /* ========== 整體刷新 ========== */
 function refreshAll(){
   const activePage=document.querySelector(".page.active")?.id||"page-dashboard";
-  if(activePage==="page-dashboard")renderDashboard();
+  if(activePage==="page-dashboard"){renderDashboard();renderLifecyclePanel();}
   else if(activePage==="page-employees")renderEmployees();
   else if(activePage==="page-probation")renderDashProb();
   else if(activePage==="page-contracts")renderDashCont();
@@ -2598,13 +2849,15 @@ async function init(){
   await openDB();await loadAll();
   await contractHealGasUrl();
   if(contractReconcileLegacyToDash())await contractPersistAll();
+  try{await contractPullApprovedMovements();await applyApprovedLifecycle();}catch(e){console.warn('[lifecycle init]',e)}
+  contractPublishMirrors();
   document.querySelector(`.lang-switch button[data-lang="${LANG}"]`)?.classList.add("active");
   document.querySelectorAll(".lang-switch button").forEach(b=>{
     if(b.dataset.lang!==LANG)b.classList.remove("active");
   });
   applyLang();
   contractRenderCloudMeta();
-  renderDashboard();
+  renderDashboard();renderLifecyclePanel();
   if(!window.HRAAutoSync)setTimeout(()=>contractAutoSync('startup'),350);
 }
 
@@ -2618,6 +2871,7 @@ if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>contractAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>contractAutoSync('resume'),180)});
 }
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>refreshLifecycleNow(true).catch(()=>{}),250)});
 if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',pull:pullFromGas,push:syncToGas,canSync:function(){return !!contractGasUrl()&&typeof HRASmartSync!=='undefined'},startDelay:650});
 </script>
 
@@ -2636,6 +2890,19 @@ function hraSecTelegramFormat(text){
   function flush(){if(!blk.length)return;var title='',rows=[];function emit(){if(title||rows.length)out.push(block(title,rows));title='';rows=[];}blk.forEach(function(raw){var p=plain(raw).replace(/^[┌├└]\s*/,'').trim(),ps=pairs(p);if(ps.length)rows=rows.concat(ps);else{emit();title=p;}});emit();blk=[];}
   text.split('\n').forEach(function(line){var p=plain(line);if(/^[┌├└]\s*/.test(p)){blk.push(line);return;}flush();if(!p){out.push('');return;}if(/^━{3,}|^─{3,}/.test(p)){out.push('━━━━━━━━━━━━━━━━');return;}if(/<(?:b|i|code|a)\b/i.test(line))out.push(line);else out.push(escH(p));});flush();return out.join('\n').replace(/\n{3,}/g,'\n\n');
 }
+
+function _printProbRows(){
+  const search=(document.getElementById('dashProbSearch')?.value||'').toLowerCase(),resF=document.getElementById('dashProbResult')?.value||'';let a=[...DASH_PROBS];
+  if(probMode!=='all'&&probPeriods.length){const k=probPeriods[probPeriodIdx]||'';a=a.filter(r=>periodKey(getProbDate(r),probMode)===k)}
+  if(resF)a=a.filter(r=>r.result===resF);if(search)a=a.filter(r=>(String(r.factoryId||'')+' '+String(r.khmerName||'')+' '+String(r.khmerSurname||'')+' '+String(r.dept||'')).toLowerCase().includes(search));return a;
+}
+function _printContRows(){
+  const search=(document.getElementById('dashContSearch')?.value||'').toLowerCase(),st=document.getElementById('dashContStatus')?.value||'',ty=document.getElementById('dashContType')?.value||'';let a=[...DASH_CONTS];
+  if(contMode!=='all'&&contPeriods.length){const k=contPeriods[contPeriodIdx]||'';a=a.filter(r=>periodKey(getContDate(r),contMode)===k)}
+  if(ty)a=a.filter(r=>r.contractType===ty);if(st)a=a.filter(r=>(r.status||'active')===st);if(search)a=a.filter(r=>[r.factoryId,r.name,r.dept,r.section,r.position].join(' ').toLowerCase().includes(search));return a;
+}
+function printProbationApplications(){if(!window.HRAHRGovernance)return window.print();HRAHRGovernance.openPrint({title:'VRT Probation Application / Evaluation',subtitle:'Trial period application and evaluation',rows:_printProbRows(),columns:[{label:'ID 工號',key:'factoryId'},{label:'Name 姓名',value:r=>(r.khmerSurname||'')+' '+(r.khmerName||'')},{label:'Dept 部門',key:'dept'},{label:'Join Date 入職日',key:'joinDate'},{label:'Probation End 到期',key:'probEnd'},{label:'Evaluation Date 評估日',key:'evalDate'},{label:'Score 分數',key:'score'},{label:'Result 結果',key:'result'},{label:'Application Date 申請日',key:'applicationDate'},{label:'Remarks 備註',key:'remarks'}]});}
+function printContractApplications(){if(!window.HRAHRGovernance)return window.print();HRAHRGovernance.openPrint({title:'VRT Employment Contract Application',subtitle:'Contract issue / renewal / termination',rows:_printContRows(),columns:[{label:'ID 工號',key:'factoryId'},{label:'Name 姓名',key:'name'},{label:'Dept 部門',key:'dept'},{label:'Section 組別',key:'section'},{label:'Position 職位',key:'position'},{label:'Join Date 入職日',key:'entryDate'},{label:'Contract Type 類型',key:'contractType'},{label:'Contract End 到期',key:'endDate'},{label:'Status 狀態',key:'status'},{label:'Application Date 申請日',key:'applicationDate'},{label:'Notes 備註',key:'notes'}]});}
 </script>
 
 </body>

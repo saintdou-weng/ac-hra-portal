@@ -155,14 +155,14 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 <div id="hdr">
   <div class="hlo">
     <span class="hvrt">VRT</span>
-    <div class="htit"><div>🔗 AC HRA COMPLETE</div><div style="font-size:8px;opacity:.7">Integration Center v5</div></div>
+    <div class="htit"><div>🔗 AC HRA COMPLETE</div><div style="font-size:8px;opacity:.7">Integration Center v5.9</div></div>
   </div>
   <div class="hbtns">
     <span class="sync" id="syncTip"></span>
     <button class="hb lg on" id="btn-zh" onclick="setL('zh')">中</button>
     <button class="hb lg"    id="btn-en" onclick="setL('en')">EN</button>
     <button class="hb tl" onclick="doLoad()" title="讀取所有資料源">☁↓ 讀取</button>
-    <button class="hb bl" onclick="doSave()" title="推送至雲端">☁↑ 推送</button>
+    <button class="hb bl" onclick="doSave()" title="刷新整合資料；各模組由 Auto Sync 上傳">↻ 刷新</button>
     <button class="hb" style="background:#7c3aed;color:#fff;border-color:#7c3aed" onclick="toggleCP()">⚙</button>
     <button class="hb gy" onclick="window.print()">🖨</button>
   </div>
@@ -183,7 +183,7 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
   </div>
   <div style="display:flex;gap:6px;margin-bottom:8px">
     <button class="cp-btn" style="background:var(--teal);flex:1" onclick="doLoad()">☁↓ 拉取全部</button>
-    <button class="cp-btn" style="background:var(--blue);flex:1" onclick="doSave()">☁↑ 推送</button>
+    <button class="cp-btn" style="background:var(--blue);flex:1" onclick="doSave()">↻ 刷新</button>
   </div>
   <div class="cp-log" id="cplog"></div>
 </div>
@@ -293,6 +293,7 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
   </div>
   <div class="panel">
     <h3>🔗 資料來源狀態</h3>
+    <div style="font-size:10px;color:var(--gray);margin:-4px 0 8px">v5.9 直接讀取各模組實際 IndexedDB / Canonical Ledger；整合頁不覆蓋來源資料。</div>
     <div class="ks ks4" id="src-kpi"></div>
   </div>
   <div class="panel">
@@ -325,9 +326,10 @@ body{background:var(--bg);color:var(--navy);font-family:var(--f);min-height:100v
 
 <script>
 'use strict';
-// ══ COMPLETE v5 — Reactive Integration Hub ══════════════════
-// Reads ONLY from raw localStorage. No compare export cache.
-// Period filter → rebuild from raw → rerender KPI + table.
+// ══ COMPLETE v5.9 — Multi-source Reactive Integration Hub ═════════════
+// Primary module stores are read directly (IndexedDB + canonical localStorage mirrors).
+// Integration is read-only: it never pushes an empty/partial analysis snapshot over module data.
+// Period filter → rebuild from source cache → rerender KPI + table.
 
 // ── Raw data storage keys ─────────────────────────────────
 const RAW={
@@ -350,6 +352,97 @@ const GAS_HRA='vrt_att_cloud_v1_url', GAS_PROD='vrt_portal_gas_url';
 // ── Safe read helpers ─────────────────────────────────────
 function _ls(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
 function _arr(k){const v=_ls(k);return Array.isArray(v)?v:(v?.employees||v?.records||[]);}
+const SOURCE_CACHE={att:[],joins:[],resigns:[],matEmps:[],nursing:[],health:[],conts:[],probs:[],recruit:[],manpower:{},loadedAt:0,sources:{}};
+function _array(v){return Array.isArray(v)?v:(v&&Array.isArray(v.records)?v.records:[])}
+function _stamp(){return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}
+async function _idbExists(name){
+  try{if(indexedDB.databases){const ds=await indexedDB.databases();return ds.some(d=>d&&d.name===name)}}catch(e){}
+  return true;
+}
+async function _idbOne(name,store,key){
+  if(!await _idbExists(name))return null;
+  return new Promise(resolve=>{
+    let req,created=false;
+    try{req=indexedDB.open(name)}catch(e){resolve(null);return}
+    req.onupgradeneeded=()=>{created=true;try{req.transaction.abort()}catch(e){}};
+    req.onerror=()=>resolve(null);
+    req.onsuccess=()=>{
+      const db=req.result;
+      if(created||!db.objectStoreNames.contains(store)){try{db.close()}catch(e){};resolve(null);return}
+      try{const tx=db.transaction(store,'readonly'),q=tx.objectStore(store).get(key);q.onsuccess=()=>{const v=q.result;db.close();resolve(v??null)};q.onerror=()=>{db.close();resolve(null)}}catch(e){try{db.close()}catch(_){};resolve(null)}
+    };
+  });
+}
+async function _idbAll(name,store){
+  if(!await _idbExists(name))return [];
+  return new Promise(resolve=>{
+    let req,created=false;
+    try{req=indexedDB.open(name)}catch(e){resolve([]);return}
+    req.onupgradeneeded=()=>{created=true;try{req.transaction.abort()}catch(e){}};
+    req.onerror=()=>resolve([]);
+    req.onsuccess=()=>{
+      const db=req.result;
+      if(created||!db.objectStoreNames.contains(store)){try{db.close()}catch(e){};resolve([]);return}
+      try{const tx=db.transaction(store,'readonly'),q=tx.objectStore(store).getAll();q.onsuccess=()=>{const v=Array.isArray(q.result)?q.result:[];db.close();resolve(v)};q.onerror=()=>{db.close();resolve([])}}catch(e){try{db.close()}catch(_){};resolve([])}
+    };
+  });
+}
+function _movementDate(kind,r){return _normDate(r&&(kind==='resign'?(r.resignDate||r.date):(r.joinDate||r.date)))||''}
+function _movementKey(kind,r){const id=String(r?.empId||r?.employeeId||r?.idNo||'').replace(/\D/g,'');const d=_movementDate(kind,r);return r?._k||(id?`${kind}|${id}|${d.slice(0,7)}`:`${kind}|${r?.name||''}|${d}`)}
+function _movementDeleted(kind,r){
+  const states=_array(_ls('ac_hra_movement_state_v1'));
+  const k=_movementKey(kind,r);
+  return states.some(x=>x&&x.deleted===true&&(x.targetKey===r?._k||x.targetKey===k||x._k===`MS|${kind==='resign'?'R':'J'}|${r?._k||k}`));
+}
+function _unionMovement(kind,...lists){const m=new Map();lists.flat().filter(Boolean).forEach(r=>{if(_movementDeleted(kind,r))return;const k=_movementKey(kind,r);const old=m.get(k);const ot=Date.parse(old?.updatedAt||old?.modifiedAt||0)||0,nt=Date.parse(r?.updatedAt||r?.modifiedAt||0)||0;m.set(k,!old||nt>=ot?Object.assign({},old||{},r):Object.assign({},r,old))});return [...m.values()]}
+function _source(name){return SOURCE_CACHE[name]||[]}
+async function refreshSourceCache(options={}){
+  const log=!!options.log;
+  if(log)setST('☁ 讀取各模組資料庫…');
+  // Attendance: current primary store is IndexedDB; localStorage is only legacy/fallback and may be removed after save.
+  let att=await _idbOne('AC_HRA_Attendance','snapshot','database');
+  if(!Array.isArray(att)||!att.length)att=_arr('vrt_att_v5_db')||[];
+  SOURCE_CACHE.att=Array.isArray(att)?att:[];SOURCE_CACHE.sources.att=SOURCE_CACHE.att.length?'IndexedDB / Attendance':'empty';
+
+  // Manpower: v3.x primary store is IndexedDB app_data/database; legacy recruit mirror is intentionally removed.
+  let mp=await _idbOne('ac_hra_manpower_v2_store','app_data','database');
+  if(!mp||typeof mp!=='object')mp=_ls('ac_hra_manpower_v2_db')||{};
+  SOURCE_CACHE.manpower=mp||{};
+  const mpJoin=_array(mp?.joins),mpResign=_array(mp?.resigns);
+  const obJoin=_arr('ac_hra_joins')||[],obResign=_arr('ac_hra_resigns')||[];
+  SOURCE_CACHE.joins=_unionMovement('join',obJoin,mpJoin);
+  SOURCE_CACHE.resigns=_unionMovement('resign',obResign,mpResign);
+  SOURCE_CACHE.recruit=_array(mp?.candidates).length?_array(mp.candidates):(_arr('ac_hra_manpower_recruit')||[]);
+  SOURCE_CACHE.sources.manpower=`IDB ${SOURCE_CACHE.recruit.length} candidates / ${SOURCE_CACHE.joins.length} join / ${SOURCE_CACHE.resigns.length} resign`;
+
+  // Contract: read actual IndexedDB stores first; mirrors are fallback only.
+  let probs=await _idbAll('HRContractDB','dashProbs'),conts=await _idbAll('HRContractDB','dashConts');
+  if(!probs.length)probs=_arr('vrt_dashProbs')||[];
+  if(!conts.length)conts=_arr('vrt_dashConts')||[];
+  SOURCE_CACHE.probs=probs;SOURCE_CACHE.conts=conts;SOURCE_CACHE.sources.contract=`${probs.length} probation / ${conts.length} contract`;
+
+  // Maternity module deliberately maintains compatible localStorage mirrors.
+  const mat=_ls('vrt_maternity_v1')||{};
+  SOURCE_CACHE.matEmps=Array.isArray(mat)?mat:_array(mat.employees||mat.records);
+  SOURCE_CACHE.nursing=_arr('vrt_nursing_fees_v2')||[];
+  SOURCE_CACHE.health=_arr('vrt_health_fees_v1')||[];
+  SOURCE_CACHE.sources.maternity=`${SOURCE_CACHE.matEmps.length} maternity / ${SOURCE_CACHE.nursing.length} nursing / ${SOURCE_CACHE.health.length} health`;
+  SOURCE_CACHE.loadedAt=Date.now();
+  renderSourceStatus();
+  if(log){cpLog(`Attendance: ${SOURCE_CACHE.att.length} (${SOURCE_CACHE.sources.att})`);cpLog(`Manpower: ${SOURCE_CACHE.sources.manpower}`);cpLog(`Contract: ${SOURCE_CACHE.sources.contract}`);cpLog(`Maternity: ${SOURCE_CACHE.sources.maternity}`);setST(`✅ 已刷新 ${_stamp()}`,'ok')}
+  return SOURCE_CACHE;
+}
+function renderSourceStatus(){
+  const e=document.getElementById('src-kpi');if(!e)return;
+  const cards=[
+    ['Attendance',SOURCE_CACHE.att.length,SOURCE_CACHE.sources.att],
+    ['Join / Resign',SOURCE_CACHE.joins.length+' / '+SOURCE_CACHE.resigns.length,'Canonical shared ledger'],
+    ['Recruitment',SOURCE_CACHE.recruit.length,SOURCE_CACHE.sources.manpower],
+    ['Probation / Contract',SOURCE_CACHE.probs.length+' / '+SOURCE_CACHE.conts.length,SOURCE_CACHE.sources.contract],
+    ['Maternity / Nursing',SOURCE_CACHE.matEmps.length+' / '+SOURCE_CACHE.nursing.length,SOURCE_CACHE.sources.maternity],
+  ];
+  e.innerHTML=cards.map(x=>`<div class="kpi ${x[1]&&x[1]!=='0 / 0'?'gn':'gd'}"><div class="kl">${x[0]}</div><div class="kv" style="font-size:18px">${x[1]}</div><div class="ks2">${x[2]||''}</div></div>`).join('');
+}
 
 // ══ PERIOD STATE — independent per tab ════════════════════
 const STATES={
@@ -365,100 +458,76 @@ const FN_MAP={
 };
 
 // ── Period helpers ────────────────────────────────────────
+function _normDate(v){
+  if(!v)return'';
+  if(v instanceof Date&&!isNaN(v))return _lds(v);
+  let s=String(v).trim();
+  if(/^\d{4}-\d{2}$/.test(s))return s+'-01';
+  let m=s.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);if(m)return m[1]+'-'+String(+m[2]).padStart(2,'0')+'-'+String(+m[3]).padStart(2,'0');
+  m=s.match(/^(\d{4})[\/-](\d{1,2})$/);if(m)return m[1]+'-'+String(+m[2]).padStart(2,'0')+'-01';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  return'';
+}
 function _lds(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function _isoWeekKey(ds){const n=_normDate(ds);if(!n)return'';const d=new Date(n+'T00:00:00');d.setHours(0,0,0,0);d.setDate(d.getDate()+3-((d.getDay()+6)%7));const y=d.getFullYear(),w=1+Math.round((d-new Date(y,0,4)+86400000*((new Date(y,0,4).getDay()+6)%7))/604800000);return y+'-W'+String(w).padStart(2,'0')}
 function periodKey(ds,mode){
-  if(mode==='all'||!ds)return'ALL';
-  const d=String(ds).slice(0,10);
-  if(mode==='day')return d;
-  if(mode==='week'){const dt=new Date(d),jan=new Date(dt.getFullYear(),0,1);const w=Math.ceil(((dt-jan)/86400000+jan.getDay()+1)/7);return dt.getFullYear()+'-W'+String(w).padStart(2,'0');}
-  if(mode==='month')return d.slice(0,7);
-  return d.slice(0,4);
+  if(mode==='all'||!ds)return'ALL';const d=_normDate(ds);if(!d)return'';
+  if(mode==='day')return d;if(mode==='week')return _isoWeekKey(d);if(mode==='month')return d.slice(0,7);return d.slice(0,4);
+}
+function _dateFromPeriodKey(val,mode){
+  if(!val)return new Date();
+  if(mode==='day'){const m=val.match(/^(\d{4})-(\d{2})-(\d{2})$/);if(m)return new Date(+m[1],+m[2]-1,+m[3])}
+  if(mode==='month'){const m=val.match(/^(\d{4})-(\d{2})$/);if(m)return new Date(+m[1],+m[2]-1,1)}
+  if(mode==='year'&&/^\d{4}$/.test(val))return new Date(+val,0,1);
+  if(mode==='week'){const m=val.match(/^(\d{4})-W(\d{2})$/);if(m){const y=+m[1],w=+m[2],jan4=new Date(y,0,4),mon=new Date(jan4);mon.setDate(jan4.getDate()-((jan4.getDay()+6)%7)+(w-1)*7);return mon}}
+  return new Date();
 }
 function periodLabel(st){
-  const d=st.pivot;
-  if(st.mode==='all')return'全部';
-  if(st.mode==='day')return _lds(d);
-  if(st.mode==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);return(s.getMonth()+1)+'/'+s.getDate()+'~'+(e.getMonth()+1)+'/'+e.getDate();}
-  if(st.mode==='month')return d.getFullYear()+'年'+(d.getMonth()+1)+'月';
-  return d.getFullYear()+'年';
+  const d=st.pivot;if(st.mode==='all')return'全部';if(st.mode==='day')return _lds(d);
+  if(st.mode==='week'){const s=new Date(d);s.setDate(d.getDate()-(d.getDay()||7)+1);const e=new Date(s);e.setDate(s.getDate()+6);return _lds(s)+' ~ '+_lds(e)}
+  if(st.mode==='month')return d.getFullYear()+'年'+(d.getMonth()+1)+'月';return d.getFullYear()+'年';
 }
-
-// ── buildPeriods: unique sorted period keys from date array ─
-function buildPeriods(dates,mode){
-  if(mode==='all')return[];
-  const keys=[...new Set(dates.filter(Boolean).map(d=>periodKey(String(d).slice(0,10),mode)))].filter(k=>k&&k!=='ALL');
-  return keys.sort().reverse();
-}
-
-// ── filterByPeriod: real data filter ──────────────────────
-function filterByPeriod(arr,st,getDate){
-  if(st.mode==='all')return arr;
-  const curKey=periodKey(_lds(st.pivot),st.mode);
-  return arr.filter(r=>{const d=getDate?getDate(r):r.date;return d&&periodKey(String(d).slice(0,10),st.mode)===curKey;});
-}
+function buildPeriods(dates,mode){if(mode==='all')return[];const keys=[...new Set(dates.map(_normDate).filter(Boolean).map(d=>periodKey(d,mode)))].filter(k=>k&&k!=='ALL');return keys.sort().reverse()}
+function filterByPeriod(arr,st,getDate){if(st.mode==='all')return arr;const curKey=periodKey(_lds(st.pivot),st.mode);return arr.filter(r=>{const d=getDate?getDate(r):r.date;return periodKey(d,st.mode)===curKey})}
+function _candidateDate(r){return _normDate(r?.registerDate||r?.applyDate||r?.date)}
+function _candidateJoinDate(r){return _normDate(r?.joinDate||((r?.joined===true)?r?.registerDate:'')||r?.date)}
+function _probDate(r){return _normDate(r?.joinDate||r?.startDate||r?.probStart||r?.evalDate||r?.probEnd)}
+function _contractDate(r){return _normDate(r?.startDate||r?.contractStart||r?.joinDate||r?.effectiveDate||r?.endDate)}
+function _matDate(r){return _normDate(r?.leaveStart||r?.applyDate||r?.registerTime||r?.date||r?.edd||r?.joinDate)}
+function _nursingDate(r){return _normDate((r?.payMonth||r?.period||'')+(String(r?.payMonth||r?.period||'').length===7?'-01':''))}
 
 // ══ PERIOD NAV BAR ════════════════════════════════════════
-// CRITICAL: renderPeriodBar ONLY updates the nav UI.
-// It does NOT call the render function. rerenderAfterPeriod does.
 function renderPeriodBar(barId){
-  const st=STATES[barId];const el=document.getElementById(barId);if(!st||!el)return;
-  const fn=FN_MAP[barId];
-  const curKey=st.mode==='all'?'ALL':periodKey(_lds(st.pivot),st.mode);
-  const modes=['all','day','week','month','year'];
-  const mLabels={all:'全部',day:'日',week:'週',month:'月',year:'年'};
-  const selOpts=st.periods.length
-    ?st.periods.map(p=>`<option value="${p}"${p===curKey?' selected':''}>${p}</option>`).join('')
-    :(curKey&&curKey!=='ALL'?`<option value="${curKey}" selected>${curKey}</option>`:'<option value="">—</option>');
-  el.innerHTML=`<div class="pnav">${
-    modes.map(m=>`<button class="pnav-btn${st.mode===m?' on':''}" onclick="_onMode('${barId}','${m}')">${mLabels[m]}</button>`).join('')
-  }<button class="pnav-arr" onclick="_onNav('${barId}',-1)">◀</button
-  ><select class="pnav-sel" id="${barId}-sel" onchange="_onJump('${barId}',this.value)" ${st.mode==='all'?'disabled':''}>${selOpts}</select
-  ><button class="pnav-arr" onclick="_onNav('${barId}',1)">▶</button
-  ><button class="pnav-arr" onclick="_onToday('${barId}')" title="今天/Today">●</button></div>`;
+  const st=STATES[barId],el=document.getElementById(barId);if(!st||!el)return;
+  const curKey=st.mode==='all'?'ALL':periodKey(_lds(st.pivot),st.mode),modes=['all','day','week','month','year'],mLabels={all:'全部',day:'日',week:'週',month:'月',year:'年'};
+  let opts=[...st.periods];if(curKey&&curKey!=='ALL'&&!opts.includes(curKey))opts.unshift(curKey);
+  const selOpts=opts.length?opts.map(p=>`<option value="${p}"${p===curKey?' selected':''}>${p}${!st.periods.includes(p)?' · 無資料':''}</option>`).join(''):'<option value="">—</option>';
+  el.innerHTML=`<div class="pnav">${modes.map(m=>`<button class="pnav-btn${st.mode===m?' on':''}" onclick="_onMode('${barId}','${m}')">${mLabels[m]}</button>`).join('')}<button class="pnav-arr" onclick="_onNav('${barId}',-1)">◀</button><select class="pnav-sel" id="${barId}-sel" onchange="_onJump('${barId}',this.value)" ${st.mode==='all'?'disabled':''}>${selOpts}</select><button class="pnav-arr" onclick="_onNav('${barId}',1)">▶</button><button class="pnav-arr" onclick="_onToday('${barId}')" title="今天/Today">●</button></div>`;
 }
-
-// ── rerenderAfterPeriod: update nav then call render fn ───
-// Render fn receives (skipPbar=true) so it does NOT re-call renderPeriodBar
-function rerenderAfterPeriod(barId){
-  renderPeriodBar(barId);
-  const fn=FN_MAP[barId];
-  if(fn&&window[fn])window[fn](true);
-}
-
-// ── Nav event handlers ────────────────────────────────────
-function _onMode(barId,mode){
-  const st=STATES[barId];if(!st)return;
-  st.mode=mode;if(mode!=='all')st.pivot=new Date();
-  rerenderAfterPeriod(barId);
-}
-function _onNav(barId,dir){
-  const st=STATES[barId];if(!st||st.mode==='all')return;
-  const d=new Date(st.pivot);
-  if(st.mode==='day')d.setDate(d.getDate()+dir);
-  else if(st.mode==='week')d.setDate(d.getDate()+dir*7);
-  else if(st.mode==='month')d.setMonth(d.getMonth()+dir);
-  else if(st.mode==='year')d.setFullYear(d.getFullYear()+dir);
-  st.pivot=d;rerenderAfterPeriod(barId);
-}
-function _onToday(barId){const st=STATES[barId];if(!st)return;st.pivot=new Date();rerenderAfterPeriod(barId);}
-function _onJump(barId,val){
-  const st=STATES[barId];if(!st||!val)return;
-  const y=+val.slice(0,4),mo=st.mode==='month'?+val.slice(5,7)-1:0,dd=st.mode==='day'?+val.slice(8,10):1;
-  st.pivot=new Date(y,mo,dd||1);rerenderAfterPeriod(barId);
-}
+// IMPORTANT: recompute the tab first, then draw the period bar. v58 did the opposite, leaving stale month/year options.
+function rerenderAfterPeriod(barId){const fn=FN_MAP[barId];if(fn&&window[fn])window[fn](true);renderPeriodBar(barId)}
+function _onMode(barId,mode){const st=STATES[barId];if(!st)return;st.mode=mode;if(mode!=='all')st.pivot=new Date();rerenderAfterPeriod(barId)}
+function _onNav(barId,dir){const st=STATES[barId];if(!st||st.mode==='all')return;const d=new Date(st.pivot);if(st.mode==='day')d.setDate(d.getDate()+dir);else if(st.mode==='week')d.setDate(d.getDate()+dir*7);else if(st.mode==='month')d.setMonth(d.getMonth()+dir);else if(st.mode==='year')d.setFullYear(d.getFullYear()+dir);st.pivot=d;rerenderAfterPeriod(barId)}
+function _onToday(barId){const st=STATES[barId];if(!st)return;st.pivot=new Date();rerenderAfterPeriod(barId)}
+function _onJump(barId,val){const st=STATES[barId];if(!st||!val)return;st.pivot=_dateFromPeriodKey(val,st.mode);rerenderAfterPeriod(barId)}
 
 // ══ TAB NAV ═══════════════════════════════════════════════
-function switchTab(t){
+async function switchTab(t){
   document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('.pane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t));
   const fn={unified:'renderUnified',as:'renderAS',ac:'renderAC',am:'renderAM',recruit:'renderRecruit',unmatched:'renderUnmatched',cfg:'loadCfg'}[t];
-  try{if(fn&&window[fn])window[fn]();}catch(e){console.error(t,e);}
+  try{if(t!=='cfg'&&t!=='unmatched')await refreshSourceCache({log:false});if(fn&&window[fn])window[fn]();}catch(e){console.error(t,e);}
 }
-document.addEventListener('DOMContentLoaded',()=>{
+let _refreshTimer=null;async function refreshAndRender(reason){clearTimeout(_refreshTimer);_refreshTimer=setTimeout(async()=>{try{await refreshSourceCache({log:false});renderAll();setST(`✅ ${_stamp()}`,'ok')}catch(e){console.warn('[complete refresh]',reason,e)}},80)}
+document.addEventListener('DOMContentLoaded',async()=>{
   document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.t)));
-  const lang=localStorage.getItem('complete_lang')||'zh';
-  setL(lang);loadCfg();renderUnified();
+  const lang=localStorage.getItem('complete_lang')||'zh';setL(lang);loadCfg();await refreshSourceCache({log:true});renderUnified();
 });
+window.addEventListener('pageshow',()=>refreshAndRender('pageshow'));
+window.addEventListener('focus',()=>refreshAndRender('focus'));
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshAndRender('visible')});
+window.addEventListener('storage',()=>refreshAndRender('storage'));
+setInterval(()=>{if(!document.hidden)refreshAndRender('timer')},15000);
 
 // ── Helpers ───────────────────────────────────────────────
 function toast(m,d=3000){const e=document.getElementById('toast');if(!e)return;e.textContent=m;e.classList.add('show');clearTimeout(toast._t);toast._t=setTimeout(()=>e.classList.remove('show'),d);}
@@ -503,10 +572,9 @@ function renderUnified(skipPbar){
   try{
     const st=STATES['pbar-uni'];
     // Load raw data
-    const attRaw=_arr(RAW.att)||[];
-    const joins=_arr(RAW.joins)||_arr('ac_hra_join')||[];
-    // onboarding module may use 'ac_hra_resigned' or 'ac_hra_resigns'
-    const resigns=_arr(RAW.resigns)||_arr('ac_hra_resigned')||_arr('ac_hra_resign')||[];
+    const attRaw=_source('att');
+    const joins=_source('joins');
+    const resigns=_source('resigns');
     console.log('[renderAC] joins:',joins.length,'resigns:',resigns.length);
     if(!joins.length&&!resigns.length){
       const obKeys=Object.keys(localStorage).filter(k=>/join|resign|onboard|entry|hire|hra/i.test(k));
@@ -517,23 +585,21 @@ function renderUnified(skipPbar){
         catch(e){}
       });
     }
-    const contsRaw=_arr(RAW.conts)||[];
-    const probsRaw=_arr(RAW.probs)||[];
-    // Try multiple possible maternity storage keys
-    const matRaw=_ls(RAW.mat)||{};   // vrt_maternity_v1
-    const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||[]);
-    const rcRaw=_arr(RAW.recruit)||[];
+    const contsRaw=_source('conts');
+    const probsRaw=_source('probs');
+    const matEmps=_source('matEmps');
+    const rcRaw=_source('recruit');
     /* ★ 護理費 + 核可狀態 */
-    const nurRaw=_arr(RAW.nursing)||[];
+    const nurRaw=_source('nursing');
     const decMat=_ls(RAW.decMat)||{};
     const decOnb=_ls(RAW.decOnb)||{};
     st.nursing=nurRaw;
     st.decisions=Object.assign({},decMat,decOnb);
     console.log('[uni] nursing:',nurRaw.length,'decisions:',Object.keys(st.decisions).length);
 
-    // Build periods from attendance (largest dataset)
-    const attDates=attRaw.map(r=>r.date).filter(Boolean);
-    st.periods=buildPeriods(attDates,st.mode);
+    // Build periods from the UNION of all relevant modules, not Attendance alone.
+    const allDates=[...attRaw.map(r=>r.date),...joins.map(r=>r.joinDate||r.date),...resigns.map(r=>r.resignDate||r.date),...rcRaw.flatMap(r=>[r.registerDate||r.date,r.joinDate]),...probsRaw.map(_probDate),...contsRaw.map(_contractDate),...matEmps.map(_matDate),...nurRaw.map(_nursingDate)].filter(Boolean);
+    st.periods=buildPeriods(allDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-uni');
     const _minPeriod=st.periods.length?st.periods[st.periods.length-1]:'';
     const _maxPeriod=st.periods.length?st.periods[0]:'';
@@ -562,9 +628,11 @@ function renderUnified(skipPbar){
     if(useGrand)grandRows.forEach(r=>{const d=String(r.date).slice(0,10);grandByDay[d]=Math.max(grandByDay[d]||0,(+r.m||0)+(+r.f||0));});
     const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
     const resignsF=filterByPeriod(resigns,st,r=>r.resignDate||r.date);
-    const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
-    const probF=filterByPeriod(probsRaw,st,r=>r.joinDate||r.date);
-    const contF=filterByPeriod(contsRaw,st,r=>r.joinDate||r.date);
+    const rcF=filterByPeriod(rcRaw,st,r=>r.registerDate||r.date);
+    const rcJoinedF=filterByPeriod(rcRaw.filter(r=>r.joined===true||r.joinDate),st,r=>r.joinDate||r.registerDate||r.date);
+    const probF=filterByPeriod(probsRaw,st,_probDate);
+    const contF=filterByPeriod(contsRaw,st,_contractDate);
+    const matF=filterByPeriod(matEmps,st,_matDate);
 
     // rebuildCompareRows
     const attDays=new Set(attLeaf.map(r=>String(r.date).slice(0,10))).size||1;
@@ -579,8 +647,8 @@ function renderUnified(skipPbar){
     const attResign=attF.reduce((s,r)=>s+(+r.resign||0),0);
     const sewLines=new Set(sewF.map(r=>_normLine(r.line||''))).size;
     const nonSewDepts=new Set(attF.filter(r=>!_isSewLine(r)&&r.line).map(r=>r.line.replace(/[/／].*/,'').trim())).size;
-    const pregnant=matEmps.filter(e=>e.status==='pregnant').length;
-    const maternity=matEmps.filter(e=>e.status==='maternity'||e.status==='returned').length;
+    const pregnant=matF.filter(e=>String(e.status||'').toLowerCase()==='pregnant').length;
+    const maternity=matF.filter(e=>['maternity','returned'].includes(String(e.status||'').toLowerCase())).length;
 
     // renderBigCards — correct CSS classes: bc, bc-lbl, bc-val, bc-sub
     const bc=document.getElementById('big-cards');
@@ -593,7 +661,7 @@ function renderUnified(skipPbar){
       {l:'HR 入職',          v:joinsF.length,sub:'HR離職: '+resignsF.length,c:'gd'},
       {l:'試用期',           v:probF.length,sub:'合約: '+contF.length,c:'gd'},
       {l:'Portal產假 / ML假(均/天)',v:`${maternity} / ${attDays>0?Math.round(attMLSum/attDays):0}`,sub:'孕婦: '+pregnant,c:'pu'},
-      {l:'招募錄取',         v:rcF.filter(r=>r.result==='join').length,sub:'總招募: '+rcF.length,c:'tl'},
+      {l:'招募入職',         v:rcJoinedF.length,sub:'本期應徵: '+rcF.length,c:'tl'},
       {l:'非車縫部門',       v:nonSewDepts,sub:'車縫線: '+sewLines,c:'gd'},
     ].map(k=>`<div class="bc ${k.c}"><div class="bc-lbl">${k.l}</div><div class="bc-val">${k.v}</div><div class="bc-sub">${k.sub}</div></div>`).join(''));
 
@@ -651,7 +719,7 @@ function renderUnified(skipPbar){
 function renderAS(skipPbar){
   try{
     const st=STATES['pbar-as'];
-    const attRaw=_arr(RAW.att)||[];
+    const attRaw=_source('att');
     const attDates=attRaw.map(r=>r.date).filter(Boolean);
     st.periods=buildPeriods(attDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-as');
@@ -721,8 +789,8 @@ function renderAS(skipPbar){
 function renderAC(skipPbar){
   try{
     const st=STATES['pbar-ac'];
-    const joins=_arr(RAW.joins)||_arr('ac_hra_join')||[];
-    const resigns=_arr(RAW.resigns)||_arr('ac_hra_resigned')||_arr('ac_hra_resign')||[];
+    const joins=_source('joins');
+    const resigns=_source('resigns');
     const allDates=[...joins.map(r=>r.joinDate||r.date),...resigns.map(r=>r.resignDate||r.date)];
     st.periods=buildPeriods(allDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-ac');
@@ -764,14 +832,15 @@ function renderAC(skipPbar){
 function renderAM(skipPbar){
   try{
     const st=STATES['pbar-am'];
-    const matRaw=_ls(RAW.mat)||{};
-    // vrt_mat_data can be: {employees:[...]}, [...], or {records:[...]}
-    const matEmps=Array.isArray(matRaw)?matRaw:(matRaw.employees||matRaw.records||[]);
-    const attRaw=_arr(RAW.att)||[];
-    st.periods=buildPeriods(attRaw.map(r=>r.date).filter(Boolean),st.mode);
+    const matEmps=_source('matEmps');
+    const attRaw=_source('att');
+    const nurAll=_source('nursing');
+    const amDates=[...attRaw.map(r=>r.date),...matEmps.map(_matDate),...nurAll.map(_nursingDate)].filter(Boolean);
+    st.periods=buildPeriods(amDates,st.mode);
     if(!skipPbar)renderPeriodBar('pbar-am');
     console.log('[renderAM] matEmps:',matEmps.length,'sample:',matEmps[0]);
     if(!matEmps.length)console.warn('[renderAM] vrt_maternity_v1 is empty');
+    const matF=filterByPeriod(matEmps,st,_matDate);
 
     // Portal maternity counts — check multiple status formats
     const _isMaternity=e=>['maternity','maternity_leave','on_leave','産假','請假'].includes((e.status||'').toLowerCase())
@@ -779,7 +848,7 @@ function renderAM(skipPbar){
       ||e.onMaternityLeave===true;
     const _isReturned=e=>['returned','復工','return'].includes((e.status||'').toLowerCase())
       ||(e.maternityEnd&&new Date(e.maternityEnd)<=new Date());
-    const portalMat=matEmps.filter(e=>_isMaternity(e)||_isReturned(e)).length;
+    const portalMat=matF.filter(e=>_isMaternity(e)||_isReturned(e)).length;
 
     // Attendance ML leave by line (filtered by period)
     const _seenAM=new Set();
@@ -799,30 +868,22 @@ function renderAM(skipPbar){
       const dept=r.line?r.line.replace(/[/／].*/,'').trim():'?';
       lineML[dept]=(lineML[dept]||0)+(+r.ml||0);
     });
-    const matByDept=Object.fromEntries(matEmps.filter(e=>e.dept||e.section).map(e=>{
+    const matByDept=Object.fromEntries(matF.filter(e=>e.dept||e.section).map(e=>{
       const d=(e.dept||e.section||'').replace(/[/／].*/,'').trim();
       return[d,(_isMaternity(e)||_isReturned(e))?1:0];
     }).reduce((acc,[k,v])=>{acc.set(k,(acc.get(k)||0)+v);return acc;},new Map()));
     const allDepts=new Set([...Object.keys(lineML),...Object.keys(matByDept)]);
     const byLine=[...allDepts].map(dept=>({dept,portal:matByDept[dept]||0,attML:lineML[dept]||0,diff:(matByDept[dept]||0)-(lineML[dept]||0)})).filter(r=>r.portal||r.attML).sort((a,b)=>b.attML-a.attML);
 
-    /* ★ 護理費（原本完全沒接） */
-    const nurAll=_arr(RAW.nursing)||[];
-    const nurF=nurAll.filter(r=>{
-      if(!r.payMonth)return false;
-      const p=periodLabel(st)||'';
-      if(st.mode==='month')return r.payMonth===(st.periods&&st.periods[st.idx||0]||r.payMonth);
-      if(st.mode==='year') return String(r.payMonth).slice(0,4)===String(st.periods&&st.periods[st.idx||0]||'').slice(0,4);
-      return true;
-    });
-    const nurUse=nurF.length?nurF:nurAll;
+    /* ★ 護理費：同樣依目前 Day/Week/Month/Year 過濾，不能 fallback 到全部月份。 */
+    const nurF=filterByPeriod(nurAll,st,_nursingDate);
+    const nurUse=st.mode==='all'?nurAll:nurF;
     const nurAmt=nurUse.reduce((s,r)=>s+(+r.amount||0),0);
-    const nurPpl=new Set(nurUse.map(r=>r.cardId)).size;
-    /* ★ 核可狀態 */
-    const DEC=Object.assign({},_ls(RAW.decMat)||{},_ls(RAW.decOnb)||{});
-    let dOk=0,dNo=0;
-    Object.keys(DEC).forEach(k=>{const d=DEC[k];if(!d||!d.d)return;d.d==='ok'?dOk++:dNo++;});
-    const pendAll=Math.max(0,(matEmps.length+nurAll.length)-(dOk+dNo));
+    const nurPpl=new Set(nurUse.map(r=>r.cardId||r.idNo||r.empId).filter(Boolean)).size;
+    /* ★ 核可狀態只計本期間看得到的資料，避免 0 / 1565 這類全歷史誤計。 */
+    const DEC=_ls(RAW.decMat)||{};
+    const approvalPool=[...matF,...nurUse];let dOk=0,dNo=0,pendAll=0;
+    approvalPool.forEach(r=>{const d=DEC[r?._k];if(!d||!d.d)pendAll++;else if(d.d==='ok')dOk++;else dNo++;});
 
     const kEl=document.getElementById('kpi-am'),cEl=document.getElementById('am-content');
     if(kEl)kEl.innerHTML=[
@@ -848,14 +909,15 @@ function renderAM(skipPbar){
 function renderRecruit(skipPbar){
   try{
     const st=STATES['pbar-rc'];
-    const rcRaw=_arr(RAW.recruit)||[];
-    const joins=_arr(RAW.joins)||[];
-    st.periods=buildPeriods(rcRaw.map(r=>r.joinDate||r.date).filter(Boolean),st.mode);
+    const rcRaw=_source('recruit');
+    const joins=_source('joins');
+    const rcDates=rcRaw.flatMap(r=>[r.registerDate||r.date,r.joinDate]).filter(Boolean);
+    st.periods=buildPeriods([...rcDates,...joins.map(r=>r.joinDate||r.date)],st.mode);
     if(!skipPbar)renderPeriodBar('pbar-rc');
 
-    const rcF=filterByPeriod(rcRaw,st,r=>r.joinDate||r.date);
+    const rcF=filterByPeriod(rcRaw,st,r=>r.registerDate||r.date);
     const joinsF=filterByPeriod(joins,st,r=>r.joinDate||r.date);
-    const rcJoined=rcF.filter(r=>r.result==='join');
+    const rcJoined=filterByPeriod(rcRaw.filter(r=>r.joined===true||r.joinDate),st,r=>r.joinDate||r.registerDate||r.date);
 
     // rebuildCompareRows by dept
     const rcMap={},obMap={};
@@ -910,19 +972,12 @@ function setL(lang){
 // ══ CLOUD / SETTINGS ═════════════════════════════════════════
 function toggleCP(){document.getElementById('cpanel')?.classList.toggle('open');}
 async function doLoad(){
-  setST('☁ 讀取中…');
-  try{
-    cpLog('讀取各模組 raw localStorage…');
-    Object.entries(RAW).forEach(([k,key])=>{const v=localStorage.getItem(key);cpLog(k+': '+(v?'✅ '+(JSON.parse(v)?.length||'obj'):'⚠ 無資料'));});
-    renderAll();setST(`✓ ${new Date().toLocaleTimeString()}`,'ok');toast('✅ 讀取完成');
-  }catch(e){console.error(e);toast('❌ '+e.message);}
-  finally{if(document.getElementById('syncTip')?.textContent.includes('讀取'))setST('');}
+  try{await refreshSourceCache({log:true});renderAll();toast('✅ 已重新讀取 Attendance / Manpower / Onboarding / Contract / Maternity 實際資料庫');}
+  catch(e){console.error(e);setST('❌ 讀取失敗','err');toast('❌ '+e.message);}
 }
 async function doSave(){
-  const url=localStorage.getItem(GAS_HRA)||'';if(!url){toast('請先設定 GAS URL');return;}
-  setST('☁ 推送…');
-  try{const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain'},body:JSON.stringify({ts:new Date().toISOString()})});toast(r.ok?'✅ 推送成功':'❌ '+r.status);}
-  catch(e){toast('❌ '+e.message);}finally{setST('');}
+  // Complete is an analysis view. It must never upload an empty/stale aggregate back over source modules.
+  await doLoad();toast('ℹ️ 整合分析為唯讀；各模組由自己的 Auto Sync 上傳，這裡已刷新最新本機資料');
 }
 function loadCfg(){
   const h=document.getElementById('hraUrl'),p=document.getElementById('prodUrl');

@@ -1287,12 +1287,13 @@ function scheduleCalendarCloudUpload(reason){
   clearTimeout(CAL_AUTO_PUSH_TIMER);
   CAL_AUTO_PUSH_TIMER=setTimeout(()=>{CAL_AUTO_PUSH_TIMER=null;if(window.calPush)window.calPush({auto:true,reason})},900);
 }
-function saveDB(track=true){
+function saveDB(track=true,reason){
+  reason=reason||'calendar-updated';
   try{
     if(track)logDbDiff(LAST_SAVED_DB,DB);LAST_SAVED_DB=clone(DB);
     const flat=flatDB();localStorage.setItem(CAL_DB_KEY,JSON.stringify(DB));localStorage.setItem(CAL_FLAT_KEY,JSON.stringify(flat));localStorage.setItem(CAL_CHANGE_KEY,JSON.stringify(CHANGE_LOG));localStorage.setItem(CAL_SETTINGS_KEY,JSON.stringify(CAL_SETTINGS));
     let meta={};try{meta=JSON.parse(localStorage.getItem(CAL_META_KEY)||'{}')}catch{}localStorage.setItem(CAL_META_KEY,JSON.stringify({...meta,localUpdatedAt:Date.now(),count:flat.length,changeCount:CHANGE_LOG.length}));
-    if(track)scheduleCalendarCloudUpload('calendar-updated');
+    if(track)scheduleCalendarCloudUpload(reason);
   }catch(e){console.warn('Calendar save failed',e)}
 }
 function loadDB(){
@@ -2161,7 +2162,7 @@ function importJSON(e){
           else unchanged++
         });
       });
-      saveDB(); init();
+      saveDB(true,'import'); init();
       document.getElementById('imp-status').innerHTML=`<div class="success-msg">✅ ${lang==='en'?`Imported ${added}, updated ${updated}, unchanged ${unchanged}.`:`新增 ${added} 筆、更新 ${updated} 筆、相同略過 ${unchanged} 筆。`}</div>`;
     }catch(err){ document.getElementById('imp-status').innerHTML=`<div class="error-msg">❌ 解析失敗: ${err.message}</div>`; }
   };
@@ -2274,7 +2275,7 @@ function importCalendarExcel(e){
     try{
       const wb=XLSXStyle.read(ev.target.result,{type:'array',cellDates:true,cellStyles:true});
       const records=parseCalendarExcelWorkbook(wb,file.name),r=mergeCalendarExcelRecords(records);
-      saveDB();init();
+      saveDB(true,'import');init();
       if(status)status.innerHTML=`<div class="success-msg">✅ ${lang==='en'?`Excel imported: ${r.added} new, ${r.updated} updated, ${r.unchanged} unchanged.`:`Excel 匯入完成：新增 ${r.added} 筆、更新 ${r.updated} 筆、相同略過 ${r.unchanged} 筆。`}</div>`;
       /* 已設定 GAS 時自動同步；沒有設定則只保留在本機，不要求另做格式轉換。 */
       if(window.calPush&&typeof gasUrl==='function'&&gasUrl())Promise.resolve(window.calPush()).catch(err=>console.warn('Calendar cloud sync after Excel import failed',err));
@@ -2674,7 +2675,7 @@ function saveHol(){
     const wy=+refdate.slice(0,4);if(!DB[wy])DB[wy]=[];
     DB[wy].push({id:uid(),date:refdate,enddate:'',zh:zh+'：原假日改為正常上班',en:(h.en||zh)+' — original holiday becomes a normal workday',km:(h.km||'')+(h.km?' — ':'')+'ថ្ងៃឈប់ដើមប្តូរជាថ្ងៃធ្វើការ',type:'workday',days:1,note:note,refdate:date,source:h.source,swapId:swapId,swapRole:'original_to_workday',updatedAt:h.updatedAt});
   }
-  saveDB(); closeModal(); init();
+  saveDB(true,'calendar-updated'); closeModal(); init();
 }
 function confirmDelete(id){
   if(confirm('確定要刪除這筆假日記錄嗎？')) deleteHolById(id);
@@ -2685,7 +2686,7 @@ function deleteHol(){
 function deleteHolById(id){
   let target=null;Object.keys(DB).some(y=>{target=(DB[y]||[]).find(h=>h.id===id);return !!target});
   Object.keys(DB).forEach(y=>{ DB[y]=DB[y].filter(h=>h.id!==id&&(!target?.swapId||h.swapId!==target.swapId)); });
-  saveDB(); closeModal(); init();
+  saveDB(true,'record-deleted'); closeModal(); init();
 }
 
 // ═══════════════════ LANG UI UPDATES ═══════════════════
@@ -2844,12 +2845,15 @@ init();
         localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),count:count,changeCount:CHANGE_LOG.length})));
         calLog('✓ '+(lang==='en'?(options.auto?'Automatic changed-data upload complete':'Manual upload complete'):(options.auto?'變更已自動上傳':'手動上傳完成'))+' ('+(d.uploaded||0)+' '+(lang==='en'?'changed':'筆變更')+')','ok');
         calShowStatus();
+        return d;
       } else if(d && d.cancelled){
         calLog('⚠ '+(lang==='en'?'Upload cancelled; cloud data was kept':'已取消覆蓋，雲端資料已保留'),'err');
+        return false;
       } else {
         calLog('✗ '+(d&&d.error||'GAS error'),'err');
+        return false;
       }
-    } catch(e){ calLog('✗ '+e.message,'err'); }
+    } catch(e){ calLog('✗ '+e.message,'err'); return false; }
     finally{ if(btn&&!options.auto){ btn.disabled=false; btn.innerHTML=lang==='en'?'☁ Upload':'☁ 上傳'; } }
   };
 

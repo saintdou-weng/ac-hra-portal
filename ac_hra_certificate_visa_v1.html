@@ -536,12 +536,13 @@ async function loadState(){
   try{const db=await openDb();const value=await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE).objectStore(DB_STORE).get(DB_KEY);q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error)});db.close();return value&&value.certificates?Object.assign(defaultState(),value):defaultState()}
   catch(e){console.warn('IndexedDB unavailable',e);return defaultState()}
 }
-async function persist(){
+async function persist(reason){
+  reason=reason||'persist';
   STATE.updatedAt=new Date().toISOString();
   const db=await openDb();await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=resolve;q.onerror=()=>reject(q.error)});db.close();
   const meta={count:STATE.certificates.length+STATE.people.length+STATE.requests.length,certCount:STATE.certificates.length,expatCount:STATE.people.length,requestCount:STATE.requests.length,updatedAt:STATE.updatedAt};
   localStorage.setItem(META_KEY,JSON.stringify(meta));
-  if(!_certCloudApplying)scheduleCertSync('persist');
+  if(!_certCloudApplying)scheduleCertSync(reason);
 }
 function showLoading(text){document.getElementById('loadingText').textContent=text||'…';document.getElementById('loading').classList.add('on')}
 function hideLoading(){document.getElementById('loading').classList.remove('on')}
@@ -670,7 +671,7 @@ function renderPeople(){
 }
 function renderApprovals(){
   const rows=STATE.requests.slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button>${r.status==='pending'?`<button class="btn small green" onclick="decideRequest('${r.id}','approved')">${tr('approve')}</button><button class="btn small red" onclick="decideRequest('${r.id}','rejected')">${tr('reject')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
+  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteRequest('${r.id}')">${tr('delete')}</button>${r.status==='pending'?`<button class="btn small green" onclick="decideRequest('${r.id}','approved')">${tr('approve')}</button><button class="btn small red" onclick="decideRequest('${r.id}','rejected')">${tr('reject')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
 }
 function renderAnalysis(){
   if(ACTIVE_TAB!=='analysis')return;const field=document.getElementById('analysisField').value;const ev=allEvents().filter(e=>field==='all'||e.type===field);
@@ -875,7 +876,7 @@ async function saveCertificate(e){
   Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),startDate:v.startDate,expiryDate:v.expiryDate,renewalDate:v.renewalDate,cost:v.cost,remark:v.remark,evidence:v.evidence,updatedAt:new Date().toISOString()});
   if(fresh)STATE.certificates.push(c);await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
-async function deleteCertificate(id){if(!confirm(tr('confirmDelete')))return;STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);await persist();renderAll();}
+async function deleteCertificate(id){if(!confirm(tr('confirmDelete')))return;STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);await persist('record-deleted');renderAll();}
 function openPersonForm(id=''){
   document.getElementById('personForm').reset();const p=STATE.people.find(x=>x.id===id)||{};
   const map={personId:p.id,personEmployeeId:p.employeeId,personNameEn:p.nameEn,personNameKh:p.nameKh,personNickname:p.nickname,personDepartment:p.department,personStatus:p.status||'active',personSex:p.sex,personNationality:p.nationality,personDob:p.dob,personJoin:p.joinDate,personPassport:p.passport,personPassportExpiry:p.passportExpiry,personVisaExpiry:p.visaExpiry,personWpExpiry:p.workPermitExpiry,personResidenceExpiry:p.residenceExpiry,personPhone:p.phone,personRemark:p.remark};Object.entries(map).forEach(([k,v])=>setVal(k,v));openModal('personModal')
@@ -886,7 +887,7 @@ async function savePerson(e){
   if(p)Object.assign(p,incoming);else STATE.people.push({...incoming,id:uid('person'),createdAt:new Date().toISOString(),rosterManaged:false,history:[]});
   await persist();closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
-async function deletePerson(id){if(!confirm(tr('confirmDelete')))return;STATE.people=STATE.people.filter(x=>x.id!==id);selectedPeople.delete(id);await persist();renderAll();}
+async function deletePerson(id){if(!confirm(tr('confirmDelete')))return;STATE.people=STATE.people.filter(x=>x.id!==id);selectedPeople.delete(id);await persist('record-deleted');renderAll();}
 function selectItem(kind,id,on){(kind==='certificate'?selectedCerts:selectedPeople)[on?'add':'delete'](id)}
 function visibleIds(kind){
   if(kind==='certificate'){const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;return STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).map(x=>x.id)}
@@ -910,6 +911,12 @@ async function saveRequest(e){
   if(r.status==='pending'&&!r.submittedAt)r.submittedAt=new Date().toISOString();if(fresh)STATE.requests.push(r);
   await persist();pendingRequestItems=[];closeModal('requestModal');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('saved')}`)
 }
+async function deleteRequest(id){
+  const r=STATE.requests.find(x=>x.id===id);if(!r)return;
+  const extra=r.status&&r.status!=='pending'?'\n'+(LANG==='en'?'This request already has a decision. Delete it anyway?':'此申請已有核可結果，仍要刪除嗎？'):'';
+  if(!confirm(tr('confirmDelete')+extra))return;
+  STATE.requests=STATE.requests.filter(x=>x.id!==id);await persist('record-deleted');renderAll();toast(`✅ ${tr('delete')}`)
+}
 async function decideRequest(id,status){
   const r=STATE.requests.find(x=>x.id===id);if(!r)return;const opinion=window.prompt(tr('requestDecision'),r.opinion||'');if(opinion===null)return;
   r.status=status;r.opinion=opinion;r.decidedAt=new Date().toISOString();r.updatedAt=r.decidedAt;r.reviewerTelegramId=STATE.settings.approverTelegramId;
@@ -921,7 +928,7 @@ async function decideRequest(id,status){
 function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function exportJson(){downloadBlob(new Blob([JSON.stringify(STATE,null,2)],{type:'application/json'}),`AC_HRA_Certificate_Visa_${todayISO()}.json`)}
 document.getElementById('jsonInput').addEventListener('change',async e=>{
-  const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!d.certificates||!d.people)throw new Error('Invalid backup');STATE=Object.assign(defaultState(),d);await persist();renderAll();toast(`✅ ${tr('saved')}`)}catch(x){toast(`❌ ${x.message}`)}e.target.value=''
+  const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!d.certificates||!d.people)throw new Error('Invalid backup');STATE.certificates=certMergeArray('certificate',STATE.certificates,d.certificates||[]);STATE.people=certMergeArray('person',STATE.people,d.people||[]);STATE.requests=certMergeArray('request',STATE.requests,d.requests||[]);STATE.imports=certMergeArray('import',STATE.imports,d.imports||[]);STATE.settings=Object.assign({},d.settings||{},STATE.settings||{});await persist('restore');renderAll();toast(`✅ ${tr('saved')}`)}catch(x){toast(`❌ ${x.message}`)}e.target.value=''
 });
 function exportExcel(){
   if(!window.XLSX){toast('XLSX library unavailable');return}const wb=XLSX.utils.book_new();
@@ -932,7 +939,7 @@ function exportExcel(){
   XLSX.writeFile(wb,`AC_HRA_Certificate_Visa_${todayISO()}.xlsx`)
 }
 async function clearAllData(){
-  if(!confirm(tr('confirmClear')))return;STATE=defaultState();selectedCerts.clear();selectedPeople.clear();await persist();renderAll();toast(tr('cleared'))
+  if(!confirm(tr('confirmClear')))return;STATE=defaultState();selectedCerts.clear();selectedPeople.clear();await persist('batch-delete');renderAll();toast(tr('cleared'))
 }
 function saveSettings(){
   STATE.settings.reminderDays=Math.max(1,Number(val('setReminderDays'))||45);STATE.settings.approverTelegramId=val('setApproverId')||'5026942575';STATE.settings.defaultDepartment=val('setDefaultDept');
@@ -950,8 +957,8 @@ function certMergeRow(a,b){a=a||{};b=b||{};const at=Date.parse(a.updatedAt||0)||
 function certMergeArray(kind,local,remote){const map=new Map();(local||[]).forEach(r=>map.set(certKey(kind,r),r));(remote||[]).forEach(r=>{const k=r._k||certKey(kind,r),old=map.get(k);const c=Object.assign({},r);delete c._kind;delete c._k;map.set(k,old?certMergeRow(old,c):c)});return [...map.values()]}
 function certApply(records){const g={certificate:[],person:[],request:[],import:[],settings:[]};(records||[]).forEach(r=>{if(g[r._kind])g[r._kind].push(r)});_certCloudApplying=true;try{STATE.certificates=certMergeArray('certificate',STATE.certificates,g.certificate);STATE.people=certMergeArray('person',STATE.people,g.person);STATE.requests=certMergeArray('request',STATE.requests,g.request);STATE.imports=certMergeArray('import',STATE.imports,g.import);if(g.settings[0]&&g.settings[0].settings)STATE.settings=Object.assign({},g.settings[0].settings,STATE.settings||{})}finally{_certCloudApplying=false}}
 function scheduleCertSync(reason){if(_certCloudApplying||!gasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('certificate_visa',reason||'change',{},900);return;}clearTimeout(_certCloudTimer);_certCloudTimer=setTimeout(()=>certAutoSync(reason||'change'),900)}
-async function cloudPush(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return}const recs=certFlat();try{const d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:recs,recordCount:recs.length,summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto push]',e)}}
-async function cloudPull(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return}try{const res=await HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL_ID,localRecords:certFlat()});if(res&&res.records&&res.records.length){certApply(res.records);_certCloudApplying=true;try{await persist()}finally{_certCloudApplying=false}renderAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto pull]',e)}}
+async function cloudPush(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return false}const recs=certFlat();try{const d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:recs,recordCount:recs.length,summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto push]',e);return false}}
+async function cloudPull(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return false}try{const res=await HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL_ID,localRecords:certFlat()});if(res&&res.records&&res.records.length){certApply(res.records);_certCloudApplying=true;try{await persist()}finally{_certCloudApplying=false}renderAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto pull]',e);return false}}
 async function certAutoSync(reason){if(_certCloudBusy||!gasUrl()||!navigator.onLine)return;_certCloudBusy=true;try{await cloudPull({auto:true,silent:true});await cloudPush({auto:true,silent:true,reason})}catch(e){console.warn('[certificate auto sync]',e)}finally{_certCloudBusy=false}}
 
 /* ── Telegram summaries (manual only; no bot token in the HTML) ─────── */

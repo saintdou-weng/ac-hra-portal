@@ -8,6 +8,7 @@
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
+<script src="shared/hra-hr-governance.js?v=57"></script>
 <script src="shared/inspector.js"></script>
 <script src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -409,6 +410,9 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         <select id="mvDept" class="select" onchange="renderMovement()"></select>
         <button class="btn primary" onclick="openRecordModal('join')">＋ <span data-zh="新增入職" data-en="Add join" data-km="បន្ថែមចូល">新增入職</span></button>
         <button class="btn ghost" onclick="openRecordModal('resign')">＋ <span data-zh="新增離職" data-en="Add resign" data-km="បន្ថែមចាកចេញ">新增離職</span></button>
+        <button class="btn ghost" onclick="printMovementApplications()">🖨 <span data-zh="列印申請" data-en="Print application" data-km="បោះពុម្ពសំណើ">列印申請</span></button>
+        <button class="btn ghost" onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('manpower','Manpower Excel / System Conflicts')">⚠ <span data-zh="資料衝突" data-en="Conflicts" data-km="ទិន្នន័យផ្ទុយ">資料衝突</span></button>
+        <span class="muted" style="font-size:11px" data-zh="入／離職不論從 Manpower 或 Onboarding 輸入，都共用同一筆資料與 Onboarding 核可／提醒。" data-en="Join / Resign entered here or in Onboarding shares one record and the same Onboarding approval/reminder." data-km="ការចូល/ចាកចេញដែលបញ្ចូលនៅទីនេះ ឬ Onboarding ប្រើកំណត់ត្រា និងការអនុម័ត/រំលឹក Onboarding ដូចគ្នា។">入／離職不論從 Manpower 或 Onboarding 輸入，都共用同一筆資料與 Onboarding 核可／提醒。</span>
       </div>
       <div class="table-wrap">
         <table>
@@ -1380,13 +1384,24 @@ function upsertArray(target,incoming,kind){
       for(const [k,v] of map){if(canonicalPlanKey(v)===writeKey){oldKey=k;old=v;break}}
     }
     if(!old){
+      if(window.HRAHRGovernance&&(kind==='join'||kind==='resign')&&r.empId){
+        const rd=kind==='join'?r.joinDate:r.resignDate;let near=null;
+        for(const v of map.values()){if(String(v.empId||'')!==String(r.empId||''))continue;const vd=kind==='join'?v.joinDate:v.resignDate;if(!vd||!rd)continue;const gap=Math.abs((new Date(vd+'T00:00:00')-new Date(rd+'T00:00:00'))/86400000);if(gap<=45){near=v;break}}
+        if(near){HRAHRGovernance.logConflict({module:'manpower',recordKey:near._k||near.id||'',employeeId:r.empId,field:kind==='join'?'joinDate':'resignDate',systemValue:kind==='join'?near.joinDate:near.resignDate,importValue:rd,sourceFile:(r.sourceFiles||[])[0]||'',reason:'nearby-event-date-mismatch'});updated++;return}
+      }
       const fresh={...r,_k:writeKey,updatedAt:r.updatedAt||new Date().toISOString()};
       map.set(writeKey,fresh);added++;return;
     }
     if(kind==='plan'&&old.snapshotDate&&r.snapshotDate&&old.snapshotDate>r.snapshotDate){
       unchanged++;return;
     }
-    const merged=mergeRecord(old,r);
+    let merged;
+    if(window.HRAHRGovernance&&(kind==='join'||kind==='resign')&&(r.sourceFiles||r.source)){
+      let dec={};try{dec=JSON.parse(localStorage.getItem('ac_hra_ob_decisions')||'{}')||{}}catch(e){}
+      const approved=!!(dec[writeKey]&&dec[writeKey].d==='ok');
+      const gm=HRAHRGovernance.safeMerge(old,r,{module:'manpower',recordKey:writeKey,employeeId:r.empId||old.empId,sourceFile:(r.sourceFiles||[])[0]||'',approved,criticalFields:kind==='join'?['joinDate']:['resignDate','joinDate']});
+      merged=gm.record;
+    }else merged=mergeRecord(old,r);
     merged._k=writeKey;
     if(stableRecord(old)===stableRecord(merged)){old.sourceFiles=merged.sourceFiles;old._k=writeKey;unchanged++}
     else{if(oldKey!==writeKey)map.delete(oldKey);map.set(writeKey,merged);updated++}
@@ -2333,11 +2348,13 @@ function renderRecruit(){
 }
 
 function onboardingData(){
-  let joins=[],resigns=[];
+  let joins=[],resigns=[],decisions={};
   try{joins=arrayValue(JSON.parse(lsGet(ONBOARD_JOIN_KEY)||'[]'))}catch(e){}
   try{resigns=arrayValue(JSON.parse(lsGet(ONBOARD_RESIGN_KEY)||'[]'))}catch(e){}
+  try{decisions=JSON.parse(lsGet('ac_hra_ob_decisions')||'{}')||{}}catch(e){}
   const idOf=r=>digits(r.empId||r.idNo||r.factoryId||r.id||r.cardNo);
-  return{joins,resigns,joinIds:new Set(joins.map(idOf).filter(Boolean)),resignIds:new Set(resigns.map(idOf).filter(Boolean)),idOf};
+  const decision=(kind,r)=>{const id=idOf(r),dt=String(kind==='join'?r.joinDate:r.resignDate||'').slice(0,10),p=kind==='join'?'J':'R',d=decisions[`${p}|${id}|${dt}`]||decisions[r._k]||null;return d&&d.d||''};
+  return{joins,resigns,decisions,decision,joinIds:new Set(joins.map(idOf).filter(Boolean)),resignIds:new Set(resigns.map(idOf).filter(Boolean)),idOf};
 }
 function renderMovement(){
   const st=NAV.movement,m=metricsForState(st);
@@ -2354,14 +2371,15 @@ function renderMovement(){
   rows=rows.filter(r=>(!dept||deptMatches(r,dept))&&(!q||`${r.empId} ${r.name} ${r.dept} ${r.section}`.toLowerCase().includes(q)))
     .sort((a,b)=>b._date.localeCompare(a._date)||String(a.empId).localeCompare(String(b.empId),undefined,{numeric:true}));
   el('movementBody').innerHTML=rows.map(r=>{
-    const isJoin=r._viewKind==='join',rl=resignLabel(r.resignType),matched=isJoin?ob.joinIds.has(r.empId):ob.resignIds.has(r.empId);
+    const isJoin=r._viewKind==='join',rl=resignLabel(r.resignType),matched=isJoin?ob.joinIds.has(r.empId):ob.resignIds.has(r.empId),od=ob.decision(isJoin?'join':'resign',r);
+    const obBadge=!matched?`<span class="badge gray">${L('未同步','Not synced','មិនទាន់សមកាលកម្ម')}</span>`:od==='ok'?`<span class="badge ok">✅ ${L('已核可','Approved','បានអនុម័ត')}</span>`:od==='no'?`<span class="badge danger">↩ ${L('退回','Rejected','បានបដិសេធ')}</span>`:od==='return'?`<span class="badge warn">↩ ${L('退回修改','Returned','បានត្រឡប់')}</span>`:`<span class="badge warn">⏳ ${L('待核可','Pending approval','រង់ចាំអនុម័ត')}</span>`;
     return `<tr>
       <td><span class="badge ${isJoin?'ok':'danger'}">${isJoin?L('入職','Join','ចូល'):L('離職','Resign','ចាកចេញ')}</span></td>
       <td class="mono">${esc(r._date)}</td><td class="mono"><b>${esc(r.empId)}</b></td><td>${esc(r.name)}</td>
       <td>${esc([r.dept,r.section].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' / ')||'—')}</td><td>${esc(r.position||'—')}</td>
       <td>${isJoin?esc(r.referral||'—'):`<span class="badge ${rl[1]}">${esc(rl[0])}</span>`}</td>
       <td>${esc(isJoin?r.remark||'—':r.reason||r.remark||'—')}</td>
-      <td><span class="badge ${matched?'ok':'gray'}">${matched?'✓ '+L('已找到','Matched','ត្រូវគ្នា'):L('未找到','Not found','រកមិនឃើញ')}</span></td>
+      <td>${obBadge}</td>
       <td class="no-print nowrap"><button class="btn ghost small" onclick="openRecordModal('${isJoin?'join':'resign'}','${encodeURIComponent(r._k)}')">✎</button>
       <button class="btn danger small" onclick="deleteRecord('${isJoin?'join':'resign'}','${encodeURIComponent(r._k)}')">×</button></td>
     </tr>`;
@@ -3018,6 +3036,12 @@ async function cloudDownload(options={}){
     if(mainRes?.meta?.decisions&&typeof mainRes.meta.decisions==='object'){
       MP_DEC={...mainRes.meta.decisions,...MP_DEC};saveMpDec();
     }
+    if(moveRes?.meta?.decisions&&typeof moveRes.meta.decisions==='object'){
+      let obDec={};try{obDec=JSON.parse(lsGet('ac_hra_ob_decisions')||'{}')||{}}catch(e){}
+      /* Cloud is authoritative for reviewer decisions; keep local-only keys
+         only when cloud does not have them yet. */
+      obDec={...obDec,...moveRes.meta.decisions};lsSet('ac_hra_ob_decisions',JSON.stringify(obDec));
+    }
     const rawMain=arrayValue(mainRes?.records),rawMovement=arrayValue(moveRes?.records);
     const movementStates=rawMovement.filter(r=>r&&r._kind==='movement_state');
     if(movementStates.length)mergeMovementStates(movementStates);
@@ -3098,6 +3122,32 @@ function movementApprovalItems(rows){
   return rows.map(x=>{const r=x.r,isJoin=x.kind==='join';return{key:`MV|${r._k||[x.kind,r.empId,x.date].join('|')}`,kind:x.kind,id:r.empId||'',name:r.name||'—',dept:r.dept||'—',group:r.section||'—',position:r.position||'—',gender:r.gender||'',age:n(r.age)||'',days:n(r.workingDays)||0,period:String(x.date||'').slice(0,7),
     info:`${isJoin?tgBi('入職','Join','both'):tgBi('離職','Resign','both')} ${x.date||'—'}${!isJoin&&r.reason?` · ${tgBi('原因','Reason','both')} ${r.reason}`:''}${r.remark?` · ${tgBi('備註','Remark','both')} ${r.remark}`:''}`,amount:0};});
 }
+/* v56: Join/Resign approval is canonical Onboarding approval even when the
+   record was entered from Manpower. This prevents two independent approval
+   ledgers and guarantees the existing Onboarding recent-update reminder sees
+   the exact same approved/unapproved state. */
+function movementOnboardingApprovalItems(rows){
+  return (rows||[]).map(x=>{const r=x.r,isJoin=x.kind==='join',date=String(x.date||'').slice(0,10),key=`${isJoin?'J':'R'}|${r.empId||''}|${date}`;
+    const jr=isJoin?r:(DB.joins.filter(j=>String(j.empId||'')===String(r.empId||'')&&(!date||String(j.joinDate||'')<=date)).sort((a,b)=>String(b.joinDate||'').localeCompare(String(a.joinDate||'')))[0]||{}),joinDate=r.joinDate||jr.joinDate||'';
+    return{key,kind:x.kind,id:r.empId||'',name:r.name||'—',dept:r.dept||'—',group:r.section||'—',position:r.position||'—',gender:r.gender||'',age:n(r.age)||'',days:n(r.workingDays)||0,period:date,date,joinDate,resignDate:r.resignDate||'',amount:0,
+    info:`${isJoin?tgBi('入職','Join','both'):tgBi('離職','Resign','both')} ${date||'—'}${joinDate&&!isJoin?` · ${tgBi('入職日','Join date','both')} ${joinDate}`:''}${!isJoin&&r.reason?` · ${tgBi('原因','Reason','both')} ${r.reason}`:''}${r.remark?` · ${tgBi('備註','Remark','both')} ${r.remark}`:''}`};
+  });
+}
+async function submitMovementToOnboardingApproval(rows,period){
+  rows=(rows||[]).filter(Boolean);if(!rows.length)return true;
+  const url=gasUrl();if(!url){toast(L('請先設定 GAS URL','Set GAS URL first','សូមកំណត់ GAS URL'),'warn');return false}
+  const tl=el('tgLanguage')?.value||LANG,lang=tl==='en'?'en':tl==='km'?'km':'zh',items=movementOnboardingApprovalItems(rows);
+  const payload={action:'approvalRequest',type:'approvalRequest',module:'onboarding',scope:'both',title:'Join / Resign Review',batch:'OB-MP-'+String(period||'ALL').replace(/[^0-9A-Za-z]/g,''),period:period||'ALL',route:'review',lang,items,
+    idempotencyKey:['onboarding','manpower-entry',period||'ALL',items.map(x=>`${x.key}|${x.info}`).sort().join(',')].join('|'),requestedBy:'manpower_web',requestedAt:new Date().toISOString()};
+  try{
+    const d=await fetchJsonWithTimeout(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+    if(d&&d.ok===false)throw new Error(d.error||'Join/Resign approval failed');const x=(d&&d.data)||d||{};
+    if(!x.closed&&!x.alreadyApproved&&!x.alreadyDecided&&!x.alreadyPending&&!x.messageId&&!x.sentToGroup)throw new Error(L('Telegram 未確認送達','Telegram delivery was not confirmed','មិនទាន់បញ្ជាក់ការផ្ញើ Telegram'));
+    toast(L('入離職已送至共用 Onboarding 核可帳本','Join / Resign sent to the shared Onboarding approval ledger','បានផ្ញើចូល/ចេញទៅបញ្ជីអនុម័ត Onboarding រួម'),'ok');
+    return true;
+  }catch(e){toast(e.message,'err');return false}
+}
+
 function buildTelegramHtml(){
   const state=tgPeriodState(),lang=el('tgLanguage').value,m=metricsForState(state),label=el('tgPeriod').value||pLabel(state);let t=`👥 <b>${tgBi('VRT 人力摘要','VRT Manpower Summary',lang)}</b>\n━━━━━━━━━━━━━━━━\n📌 <b>${tgBi('總覽','Overview',lang)}</b>\n├ ${tgBi('期間','Period',lang)} │ ${esc(label)}\n`;
   if(el('tgPlan').checked){t+=`├ ${tgBi('需求','Required',lang)} │ <b>${fmt(m.required)}</b>\n├ ${tgBi('已入職／完成','Joined / filled',lang)} │ <b>${fmt(m.actual)}</b>\n├ ${tgBi('尚缺','Gap',lang)} │ <b>${fmt(m.gap)}</b>\n└ ${tgBi('完成度','Completion',lang)} │ ${pct(m.fillRate)}\n`;}
@@ -3182,7 +3232,18 @@ async function sendTelegram(){
   const btn=el('tgSendBtn');btn.disabled=true;btn.textContent=L('傳送中…','Sending…','កំពុងផ្ញើ…');
   try{
     if(el('tgSendMode')?.value==='approval'){
-      const ok=await submitManpowerApprovalItems(telegramApprovalItems(),el('tgPeriod')?.value||'', 'selected');if(ok)closeModal('tgModal');return;
+      const period=el('tgPeriod')?.value||'',state=tgPeriodState();
+      let ok=true;
+      /* Movement is approved only once: always through module=onboarding. */
+      if(el('tgMovement').checked){
+        const movementRows=movementRowsForState(state);
+        ok=await submitMovementToOnboardingApproval(movementRows,period);
+        if(!ok)return;
+      }
+      /* Manpower plan/recruitment still use the Manpower approval ledger. */
+      const normalItems=telegramApprovalItems().filter(x=>x.kind!=='join'&&x.kind!=='resign'&&!String(x.key||'').startsWith('MV|'));
+      if(normalItems.length){ok=await submitManpowerApprovalItems(normalItems,period,'selected');if(!ok)return;}
+      if(ok)closeModal('tgModal');return;
     }
     const d=await fetchJsonWithTimeout(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'telegram',tool:'manpower',module:'manpower',period:el('tgPeriod')?.value||'',messageType:'summary',text:LAST_TG_HTML})});
     if(d?.ok===false)throw new Error(d.error||'Telegram failed');
@@ -3233,15 +3294,16 @@ function restoreJSON(input){
   const reader=new FileReader();reader.onload=async()=>{
     try{
       const raw=JSON.parse(reader.result),incoming=safeDB(raw.db||raw);
-      if(!confirm(L('還原會取代目前本機 Manpower 資料，確定繼續？','Restore will replace current local Manpower data. Continue?','ការស្តារនឹងជំនួសទិន្នន័យបច្ចុប្បន្ន។')))return;
-      DB=incoming;if(raw.approvalDecisions&&typeof raw.approvalDecisions==='object'){MP_DEC=raw.approvalDecisions;saveMpDec()}relinkCandidates();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
-      toast(saved.ok?L('還原並保存完成','Restore and save complete','ស្តារ និងរក្សាទុករួចរាល់'):L('資料已還原到畫面但無法保存','Data restored on screen but could not be saved','បានស្តារលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
+      if(!confirm(L('還原會依唯一鍵安全合併，不會刪除目前未出現在備份中的資料。確定繼續？','Restore will merge safely by unique key and keep current records not present in the backup. Continue?','ការស្តារនឹងបញ្ចូលរួមដោយសុវត្ថិភាព។')))return;
+      mergeParsed(incoming,{interactive:false});DB.imports=[...DB.imports,...(incoming.imports||[])].filter((x,i,a)=>a.findIndex(y=>(y.file||'')===(x.file||'')&&(y.at||'')===(x.at||''))===i);
+      if(raw.approvalDecisions&&typeof raw.approvalDecisions==='object'){MP_DEC=Object.assign({},MP_DEC,raw.approvalDecisions);saveMpDec()}relinkCandidates();const saved=await saveDB();populateFilters();renderAll();renderImportLog();if(saved.ok)scheduleManpowerCloudUpload('restore');
+      toast(saved.ok?L('合併還原並保存完成','Merge restore and save complete','ស្តារ និងបញ្ចូលរួមរួចរាល់'):L('資料已還原到畫面但無法保存','Data restored on screen but could not be saved','បានស្តារលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
     }catch(e){toast(L('JSON 檔案無效','Invalid JSON file','ឯកសារ JSON មិនត្រឹមត្រូវ'),'err')}
   };reader.readAsText(file);
 }
 async function clearAllData(){
   if(!confirm(L('確定清除所有 Manpower 本機資料？請先備份。','Clear all local Manpower data? Back up first.','លុបទិន្នន័យ Manpower ទាំងអស់?')))return;
-  DB=DEFAULT_DB();MP_DEC={};saveMpDec();const saved=await saveDB();populateFilters();renderAll();renderImportLog();
+  DB=DEFAULT_DB();MP_DEC={};saveMpDec();const saved=await saveDB();populateFilters();renderAll();renderImportLog();if(saved.ok)scheduleManpowerCloudUpload('batch-delete');
   toast(saved.ok?L('已清除並保存','All data cleared and saved','បានលុប និងរក្សាទុក'):L('畫面已清除但無法保存變更','Cleared on screen but the change could not be saved','បានលុបលើអេក្រង់ ប៉ុន្តែមិនអាចរក្សាទុក'),saved.ok?'ok':'err');
 }
 function renderImportLog(){
@@ -3330,6 +3392,20 @@ window.addEventListener('online',()=>setTimeout(async()=>{try{await cloudDownloa
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(async()=>{try{await cloudDownload({auto:true,silent:true});await cloudUpload({auto:true,silent:true,reason:'resume'})}catch(e){console.warn('[manpower resume sync]',e)}},180)});
 }
 if(window.HRAAutoSync)HRAAutoSync.install({key:'manpower',pull:cloudDownload,push:cloudUpload,canSync:function(){return !!gasUrl()},startDelay:450,upId:'cloudUpBtn',downId:'cloudDownBtn'});
+
+function printMovementApplications(){
+  if(!window.HRAHRGovernance)return window.print();
+  var q=norm(el('mvSearch')&&el('mvSearch').value).toLowerCase(),typ=el('mvType')&&el('mvType').value,dept=el('mvDept')&&el('mvDept').value;
+  var rows=[].concat(DB.joins.map(function(r){return Object.assign({event:'Join',date:r.joinDate},r)}),DB.resigns.map(function(r){return Object.assign({event:'Resign',date:r.resignDate},r)}));
+  rows=rows.filter(function(r){return(!typ||r._kind===typ||r.event.toLowerCase()===typ)&&(!dept||deptMatches(r,dept))&&(!q||[r.empId,r.name,r.dept,r.section,r.position].join(' ').toLowerCase().includes(q))});
+  let dec={};try{dec=JSON.parse(localStorage.getItem('ac_hra_ob_decisions')||'{}')||{}}catch(e){}
+  HRAHRGovernance.openPrint({title:'VRT Manpower Join / Resign Application',subtitle:'Canonical shared movement ledger',rows:rows,columns:[
+    {label:'Type 類型',key:'event'},{label:'Date 日期',key:'date'},{label:'ID 工號',key:'empId'},{label:'Name 姓名',key:'name'},
+    {label:'Dept 部門',key:'dept'},{label:'Section 組別',key:'section'},{label:'Position 職位',key:'position'},
+    {label:'Join Date 入職日',key:'joinDate'},{label:'Reason / Remark 原因備註',value:function(r){return r.reason||r.remark||r.referral||''}},
+    {label:'Approval 核可',value:function(r){var d=dec[r._k]||{};return d.d==='ok'?'Approved':d.d==='no'?'Rejected':'Pending'}}
+  ]});
+}
 </script>
 </body>
 </html>

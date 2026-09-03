@@ -7,6 +7,7 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
+<script src="shared/hra-hr-governance.js?v=57"></script>
 <title>員工請假單 – VANTAGE RIVER TEXTILES CO., LTD</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Noto+Sans+Khmer:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -302,6 +303,10 @@ table.mobile-leave-tbl{border-collapse:collapse;width:100%;min-width:650px;font-
     <button class="btn-sm-primary" id="btn-add-emp" onclick="openEmpModal()">+ 新增員工</button>
     <button class="btn-sm-secondary" id="btn-sync-pay" onclick="syncFromHraPay()">↻ HRA PAY 更新</button>
     <button class="btn-sm-secondary" id="btn-import" onclick="openModal('modal-import')">從 Excel 匯入</button>
+    <button class="btn-sm-secondary" onclick="exportLeaveExcel()">↓ XLSX</button>
+    <button class="btn-sm-secondary" onclick="backupLeaveJSON()">📦 JSON</button>
+    <button class="btn-sm-secondary" onclick="document.getElementById('leave-json-restore').click()">📂 JSON</button>
+    <input id="leave-json-restore" type="file" accept=".json" style="display:none" onchange="restoreLeaveJSON(this)">
   </div>
 </div>
 
@@ -317,7 +322,7 @@ table.mobile-leave-tbl{border-collapse:collapse;width:100%;min-width:650px;font-
     <div class="mobile-employee-actions">
       <button class="btn-sm-primary" onclick="openEmpModal()">＋ 員工</button>
       <button class="btn-sm-secondary" onclick="syncFromHraPay()">↻ HRA PAY</button>
-      <button class="btn-sm-secondary" onclick="openModal('modal-import')">↓ Excel</button>
+      <button class="btn-sm-secondary" onclick="exportLeaveExcel()">↓ XLSX</button>
     </div>
   </div>
   <!-- Employee info card -->
@@ -743,9 +748,10 @@ function sanitizeLegacyDemoLeaves(){
 // STORAGE
 // ═══════════════════════════════════════════════════════════
 let _leaveCloudApplying=false,_leaveCloudTimer=null,_leaveCloudBusy=false;
-function saveData(){
+function saveData(reason){
+  reason=reason||'save';
   try{localStorage.setItem("vrt_emps",JSON.stringify(emps));localStorage.setItem("vrt_lvs",JSON.stringify(lvs));}catch(e){}
-  if(!_leaveCloudApplying)scheduleLeaveCloudSync('save');
+  if(!_leaveCloudApplying)scheduleLeaveCloudSync(reason);
 }
 function loadData(){
   try{
@@ -1167,7 +1173,7 @@ function escHtml(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/<
 function leaveGasUrl(){return (localStorage.getItem('vrt_att_cloud_v1_url')||localStorage.getItem('ac_hra_gas_url')||'').trim()}
 
 function leaveCloudKeyEmp(e){return 'EMP|'+String(e&&e.fid||'').trim().toUpperCase()}
-function leaveCloudKeyLv(fid,r){return ['LEAVE',String(fid||'').trim().toUpperCase(),r.startDate||'',r.endDate||'',r.leaveType||'',r.id||''].join('|')}
+function leaveCloudKeyLv(fid,r){return ['LEAVE',String(fid||'').trim().toUpperCase(),r.startDate||'',r.endDate||'',r.leaveType||''].join('|')}
 function flatLeaveCloudRecords(){
   const out=[];emps.forEach(e=>{const x=Object.assign({},e,{_kind:'employee',_k:leaveCloudKeyEmp(e),employeeLocalId:e.id,updatedAt:e.updatedAt||new Date(0).toISOString()});out.push(x);(lvs[e.id]||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'leave',_k:leaveCloudKeyLv(e.fid,r),fid:e.fid,employeeLocalId:e.id,updatedAt:r.updatedAt||r.createdAt||new Date(0).toISOString()}))) });return out
 }
@@ -1176,7 +1182,7 @@ function applyLeaveCloudRecords(records){
   const remoteEmp=(records||[]).filter(r=>r&&r._kind==='employee'),remoteLv=(records||[]).filter(r=>r&&r._kind==='leave');
   const byFid=new Map(emps.map(e=>[String(e.fid||'').trim().toUpperCase(),e]));
   remoteEmp.forEach(r=>{const fid=String(r.fid||'').trim(),key=fid.toUpperCase();if(!fid)return;let e=byFid.get(key);if(e){const keep=e.id;Object.assign(e,leaveMergeRow(e,r));e.id=keep}else{e=Object.assign({},r,{id:'E_CLOUD_'+key.replace(/[^A-Z0-9]/g,'_')});delete e._kind;delete e._k;delete e.employeeLocalId;emps.push(e);lvs[e.id]=lvs[e.id]||[];byFid.set(key,e)}});
-  remoteLv.forEach(r=>{const e=byFid.get(String(r.fid||'').trim().toUpperCase());if(!e)return;const arr=lvs[e.id]||(lvs[e.id]=[]),rk=r._k||leaveCloudKeyLv(e.fid,r);let idx=arr.findIndex(x=>(x._cloudKey||leaveCloudKeyLv(e.fid,x))===rk);const clean=Object.assign({},r,{_cloudKey:rk});delete clean._kind;delete clean._k;delete clean.fid;delete clean.employeeLocalId;if(idx>=0)arr[idx]=leaveMergeRow(arr[idx],clean);else arr.push(clean)});
+  remoteLv.forEach(r=>{const e=byFid.get(String(r.fid||'').trim().toUpperCase());if(!e)return;const arr=lvs[e.id]||(lvs[e.id]=[]),rk=r._k||leaveCloudKeyLv(e.fid,r);let idx=arr.findIndex(x=>leaveCloudKeyLv(e.fid,x)===rk);const clean=Object.assign({},r,{_cloudKey:rk});delete clean._kind;delete clean._k;delete clean.fid;delete clean.employeeLocalId;if(idx>=0)arr[idx]=leaveMergeRow(arr[idx],clean);else arr.push(clean)});
 }
 function scheduleLeaveCloudSync(reason){if(_leaveCloudApplying||!leaveGasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('attendance_leave',reason||'change',{},900);return;}clearTimeout(_leaveCloudTimer);_leaveCloudTimer=setTimeout(()=>leaveAutoSync({reason:reason||'change'}),900)}
 async function leaveCloudUpload(options={}){if(_leaveCloudBusy||!leaveGasUrl()||typeof HRASmartSync==='undefined')return false;const recs=flatLeaveCloudRecords();return HRASmartSync.push({url:leaveGasUrl(),tool:'attendance_leave',records:recs,recordCount:recs.length,summary:{employees:emps.length,leaveRecords:Object.values(lvs).reduce((n,a)=>n+(a||[]).length,0)},allowDeletes:false,autoConfirmConflicts:!!options.auto})}
@@ -1324,8 +1330,9 @@ async function saveLeave(){
   }
   if(!lv.startDate||!lv.endDate){alert(lang==='en'?"Please enter dates":lang==='km'?"សូមបញ្ចូលកាលបរិច្ឆេទ":"請填寫日期");return;}
   if(!lvs[selId])lvs[selId]=[];
-  const i=editingLvId?lvs[selId].findIndex(r=>r.id===editingLvId):-1;
-  if(i>=0)lvs[selId][i]=Object.assign({},lvs[selId][i],lv); else lvs[selId].push(lv);
+  let i=editingLvId?lvs[selId].findIndex(r=>r.id===editingLvId):-1;
+  if(i<0){const sk=leaveCloudKeyLv((emps.find(x=>x.id===selId)||{}).fid,lv);i=lvs[selId].findIndex(r=>leaveCloudKeyLv((emps.find(x=>x.id===selId)||{}).fid,r)===sk);}
+  if(i>=0)lvs[selId][i]=Object.assign({},lvs[selId][i],lv,{id:lvs[selId][i].id||lv.id}); else lvs[selId].push(lv);
   editingLvId=null;
   saveData();
   closeModal("modal-leave");
@@ -1337,7 +1344,7 @@ function deleteLv(id){
   if(!confirm(lang==='en'?"Delete this leave record?":lang==='km'?"លុបកំណត់ត្រាច្បាប់នេះ?":"確定刪除此請假記錄？"))return;
   lvs[selId]=(lvs[selId]||[]).filter(r=>r.id!==id);
   if(editingLvId===id)editingLvId=null;
-  saveData(); renderRecord(); renderEmpCard(); renderEmpList();
+  saveData('record-deleted'); renderRecord(); renderEmpCard(); renderEmpList();
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1387,7 +1394,7 @@ function deleteEmp(){
   const e=emps.find(x=>x.id===selId);
   if(!e)return;
   if(!confirm((lang==='en'?"Delete employee ":lang==='km'?"លុបបុគ្គលិក ":"確定刪除員工 ")+e.nameEn+"？"))return;
-  emps=emps.filter(x=>x.id!==selId); delete lvs[selId]; saveData();
+  emps=emps.filter(x=>x.id!==selId); delete lvs[selId]; saveData('record-deleted');
   selId=null; editingEmpId=null;
   document.getElementById("emp-card").style.display="none";
   document.getElementById("tabs-area").style.display="none";
@@ -1503,6 +1510,32 @@ function syncFromHraPay(){
   });
   saveData();renderAll();
   alert((lang==='en'?"HRA PAY Employee Information updated":lang==='km'?"បានធ្វើបច្ចុប្បន្នភាពពី HRA PAY":"已從 HRA PAY Employee Information 更新")+`\n+ ${added}  /  ↻ ${updated}\n${src.key}${src.path?" · "+src.path:""}`);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SAFE EXPORT / JSON MERGE RESTORE
+// ═══════════════════════════════════════════════════════════
+function leaveEmployeeById(id){return emps.find(e=>e.id===id)||{};}
+function exportLeaveExcel(){
+  if(!window.XLSX){alert('XLSX library unavailable');return;}
+  const wb=XLSX.utils.book_new();
+  const empRows=emps.map(e=>({ID:e.fid,Name:e.nameEn,'Khmer Name':e.nameKh,Gender:e.g,DOB:e.dob,'Join Date':e.joinDate,Department:e.dept,Section:e.sec,Position:e.pos,Phone:e.phone,Nationality:e.nat,Address:e.addr}));
+  const leaveRows=[];Object.keys(lvs||{}).forEach(id=>{const e=leaveEmployeeById(id);(lvs[id]||[]).forEach(r=>leaveRows.push({'Employee ID':e.fid,'Name':e.nameEn,'Department':e.dept,'Section':e.sec,'Position':e.pos,'Leave Type':r.leaveType,'Start Date':r.startDate,'End Date':r.endDate,'Days':leaveDays(r),'Hours':r.subH||leaveDays(r)*8,'Substitute':r.substitute||r.subBy||'','Supervisor':r.supervisor||'','Remark':r.remark||'','Evidence':(r.evidence||[]).length}));});
+  [['Employees',empRows],['Leave Records',leaveRows]].forEach(([name,rows])=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{}]);XLSX.utils.book_append_sheet(wb,ws,name)});
+  XLSX.writeFile(wb,`VRT_Employee_Leave_${leaveLocalToday()}.xlsx`);
+}
+function backupLeaveJSON(){
+  const blob=new Blob([JSON.stringify({_app:'ac_hra_employee_leave',version:2,exportedAt:new Date().toISOString(),employees:emps,leaves:lvs},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`VRT_Employee_Leave_Backup_${leaveLocalToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function restoreLeaveJSON(input){
+  const f=input.files&&input.files[0];input.value='';if(!f)return;const rd=new FileReader();rd.onload=function(){try{
+    const d=JSON.parse(rd.result),ie=Array.isArray(d.employees)?d.employees:[],il=d.leaves&&typeof d.leaves==='object'?d.leaves:{};
+    const byFid=new Map(emps.map(e=>[String(e.fid||'').trim().toUpperCase(),e]));
+    ie.forEach(r=>{const fid=String(r.fid||'').trim(),k=fid.toUpperCase();if(!fid)return;const old=byFid.get(k);if(old)Object.assign(old,leaveMergeRow(old,r),{id:old.id});else{const n=Object.assign({},r,{id:r.id||('E_JSON_'+Date.now()+'_'+Math.random().toString(36).slice(2,7))});emps.push(n);lvs[n.id]=lvs[n.id]||[];byFid.set(k,n)}});
+    Object.keys(il).forEach(oldId=>{const srcEmp=ie.find(e=>String(e.id)===String(oldId))||emps.find(e=>String(e.id)===String(oldId));if(!srcEmp)return;const e=byFid.get(String(srcEmp.fid||'').trim().toUpperCase());if(!e)return;const arr=lvs[e.id]||(lvs[e.id]=[]),map=new Map(arr.map(r=>[leaveCloudKeyLv(e.fid,r),r]));(il[oldId]||[]).forEach(r=>{const k=leaveCloudKeyLv(e.fid,r);map.set(k,map.has(k)?leaveMergeRow(map.get(k),r):r)});lvs[e.id]=[...map.values()];});
+    saveData('restore');renderAll();alert(lang==='en'?'JSON merged safely':'JSON 已安全合併還原');
+  }catch(e){alert('JSON restore failed: '+e.message)}};rd.readAsText(f);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1713,7 +1746,7 @@ renderLeaveCloudBadge=function(state,detail){
   el.dataset.state=state||'idle';el.textContent=(map[state]||map.idle)+(detail?' '+detail:'');
 };
 const _saveDataV55=saveData;
-saveData=function(){_saveDataV55();renderLeaveCloudBadge(navigator.onLine?'dirty':'offline','');if(window.HRAAutoSync)HRAAutoSync.markDirty('attendance_leave','change',{},120);};
+saveData=function(reason){reason=reason||'change';_saveDataV55(reason);renderLeaveCloudBadge(navigator.onLine?'dirty':'offline','');if(window.HRAAutoSync)HRAAutoSync.markDirty('attendance_leave',reason,{},/delete/i.test(reason)?0:120);};
 
 // Stable charts: disable Chart.js ResizeObserver/responsive loop completely.
 function v55Canvas(id,height){const c=document.getElementById(id);if(!c)return null;const box=c.parentElement;const w=Math.max(300,Math.floor((box&&box.getBoundingClientRect().width)||600));c.width=Math.floor(w*(window.devicePixelRatio||1));c.height=Math.floor(height*(window.devicePixelRatio||1));c.style.width='100%';c.style.height=height+'px';return c;}

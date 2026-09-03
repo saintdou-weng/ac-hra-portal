@@ -7,6 +7,7 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
+<script src="shared/hra-hr-governance.js?v=57"></script>
 <title>AC HRA · 入離職管理 Onboarding & Turnover v3</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -168,6 +169,8 @@ tbody tr:hover{background:#f8fafc}
     <select id="f-join-gen"  onchange="renderJoin()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">性別 Gender</option><option value="F">F</option><option value="M">M</option></select>
     <input id="f-join-q" oninput="renderJoin()" placeholder="搜尋工號/姓名 Search" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[140px]">
     <button onclick="openRec('join')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">＋ 新增 Add</button>
+    <button onclick="printOnboardingApplication('join')" class="text-xs px-2.5 py-1.5 rounded-md border border-sky-200 bg-sky-50 text-sky-700">🖨 列印 Print</button>
+    <button onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('onboarding','Onboarding Excel / System Conflicts')" class="text-xs px-2.5 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700">⚠ 衝突</button>
     <button onclick="resetFilters('join')" class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺</button>
     <span id="join-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -194,6 +197,8 @@ tbody tr:hover{background:#f8fafc}
     <select id="f-res-gen" onchange="renderResign()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white"><option value="">性別 Gender</option><option value="F">F</option><option value="M">M</option></select>
     <input id="f-res-q" oninput="renderResign()" placeholder="搜尋工號/姓名 Search" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white flex-1 min-w-[140px]">
     <button onclick="openRec('resign')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">＋ 新增 Add</button>
+    <button onclick="printOnboardingApplication('resign')" class="text-xs px-2.5 py-1.5 rounded-md border border-sky-200 bg-sky-50 text-sky-700">🖨 列印 Print</button>
+    <button onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('onboarding','Onboarding Excel / System Conflicts')" class="text-xs px-2.5 py-1.5 rounded-md border border-amber-200 bg-amber-50 text-amber-700">⚠ 衝突</button>
     <button onclick="resetFilters('resign')" class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺</button>
     <span id="res-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -265,6 +270,7 @@ tbody tr:hover{background:#f8fafc}
     <button onclick="apprMark('ok')"  class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">✔ 標記核可</button>
     <button onclick="openReject()"    class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">✖ 標記退回</button>
     <button onclick="apprMark('')"    class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺ 清除</button>
+    <button onclick="printOnboardingApplication('approval')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-sky-200 bg-sky-50 text-sky-700">🖨 列印申請</button>
     <button onclick="openTg('approval')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️ 送出核可請求</button>
     <span id="appr-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -1238,11 +1244,25 @@ function mergeInto(target,incoming){
         }
       }
       var keepId=ex.id, keepDec=ex._dec;
-      Object.assign(ex,r,{_k:k,id:keepId});
+      if(window.HRAHRGovernance&&r.source==='excel'){
+        var approved=!!(DEC&&DEC[k]&&DEC[k].d==='ok');
+        var critical=r.joinDate!==undefined?['joinDate']:r.resignDate!==undefined?['resignDate','settleDate']:['settleDate'];
+        var gm=HRAHRGovernance.safeMerge(ex,r,{module:'onboarding',recordKey:k,employeeId:r.empId||ex.empId,sourceFile:r.sourceFile||'',approved:approved,criticalFields:critical});
+        Object.assign(ex,gm.record,{_k:k,id:keepId});
+      }else Object.assign(ex,r,{_k:k,id:keepId});
       if(keepDec)ex._dec=keepDec;
       updated++;
     }else{
-      map[k]=r; order.push(k); added++;
+      /* v57: same employee + same movement type + a nearby but different Excel date
+         is a date conflict, not a new person/event. Keep the confirmed/system row
+         until HR reviews it. Rehire / second resignation can still be entered
+         manually after review. */
+      var near=null, rDate=r.joinDate||r.resignDate||'';
+      if(r.source==='excel'&&r.empId&&rDate){
+        order.some(function(ok){var q=map[ok];if(!q||String(q.empId||'')!==String(r.empId||''))return false;var qDate=q.joinDate||q.resignDate||'';if(!qDate)return false;var gap=Math.abs(dayDiff(qDate,rDate)||9999);if(gap<=45){near=q;return true}return false;});
+      }
+      if(near&&window.HRAHRGovernance){HRAHRGovernance.logConflict({module:'onboarding',recordKey:near._k||near.id||'',employeeId:r.empId,field:r.joinDate?'joinDate':'resignDate',systemValue:near.joinDate||near.resignDate||'',importValue:rDate,sourceFile:r.sourceFile||'',reason:'nearby-event-date-mismatch'});updated++;}
+      else{map[k]=r; order.push(k); added++;}
     }
   });
   return { arr:order.map(function(k){return map[k];}), added:added, updated:updated, dupEvent:dupEvent };
@@ -1350,6 +1370,7 @@ function readOne(file){
             if(/^resign/i.test(sn)){ var a=parseResignSheet(rows,sn); inR=inR.concat(a.rows); warns=warns.concat(a.warn); }
             else if(/^(jion|join)/i.test(sn)){ var b=parseJoinSheet(rows,sn); inJ=inJ.concat(b.rows); warns=warns.concat(b.warn); }
           });
+          inJ.forEach(function(r){r.source='excel';r.sourceFile=file.name;r.importedAt=nowStamp();}); inR.forEach(function(r){r.source='excel';r.sourceFile=file.name;r.importedAt=nowStamp();});
           var mj=mergeInto(JOINS,inJ);   JOINS=mj.arr;
           var mr=mergeInto(RESIGNS,inR); RESIGNS=mr.arr;
           dups=mr.dupEvent;
@@ -1363,6 +1384,7 @@ function readOne(file){
             var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
             var a=parseSettleSheet(rows,sn); inS=inS.concat(a.rows); warns=warns.concat(a.warn);
           });
+          inS.forEach(function(r){r.source='excel';r.sourceFile=file.name;r.importedAt=nowStamp();});
           var ms=mergeInto(SETTLES,inS); SETTLES=ms.arr;
           var at=attachSettlements(RESIGNS,inS);
           ns=inS.length;
@@ -2282,7 +2304,7 @@ function buildApprovalItems(p,scope){
      這裡一律用「工號＋日期」重組，不動 _k（_k 仍供匯入合併使用）。 */
   function apprKey(pfx,id,dt){ return pfx+'|'+(id||'')+'|'+(String(dt||'').slice(0,10)); }
   if(scope!=='join') d.R.forEach(function(r){
-    var x=DEC[r._k]||{};
+    var x=DEC[r._k]||{}, jr=JOINS.filter(function(j){return String(j.empId||'')===String(r.empId||'')&&(!r.resignDate||String(j.joinDate||'')<=String(r.resignDate||''));}).sort(function(a,b){return String(b.joinDate||'').localeCompare(String(a.joinDate||''));})[0]||{}, jd=r.joinDate||jr.joinDate||'';
     items.push({key:apprKey('R',r.empId,r.resignDate),kind:'resign',id:r.empId,name:r.name,
       dept:r.dept||'', group:lineOf(r), position:r.position||'',
       gender:r.gender||'', age:saneAge(r.age)||'', days:+r.workingDays||0,
@@ -2290,8 +2312,8 @@ function buildApprovalItems(p,scope){
       /* ★ 一次核多人時（結算日基準）每個人的離職日不同，
          這裡帶完整日期而不是月份，群組訊息才看得出誰是哪天離職。
          GAS 的免核可判斷取前 7 碼，帶完整日期不影響。 */
-      period:(String(r.resignDate||'').slice(0,10)||monthOfKey(p)), date:r.resignDate, type:r.resignType,
-      info:((REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||'')
+      period:(String(r.resignDate||'').slice(0,10)||monthOfKey(p)), date:r.resignDate, joinDate:jd, type:r.resignType,
+      info:((jd?L('入職日 Join ','Join date ')+String(jd).slice(0,10)+' · ':'')+(REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||'')
             +(r.resignDate?((REASON_ZH[r.reasonCat]||r.reasonCat||r.reason?' · ':'')
               +L('離職日 Resigned ','Resigned ')+String(r.resignDate).slice(0,10)):'')
             +(r.settleDate&&String(r.settleDate).slice(0,10)!==String(r.resignDate).slice(0,10)
@@ -2465,8 +2487,13 @@ function saveSets(){
 }
 function clearAllData(){
   if(!confirm(L('確定要清除所有入離職與結算資料？此動作無法復原。','Clear ALL onboarding data? This cannot be undone.')))return;
+  /* Explicit delete tombstones are required before clearing the shared Join/Resign ledger.
+     Otherwise the richer Manpower/Onboarding side can correctly union the old rows back in. */
+  JOINS.slice().forEach(function(x){setMovementDeleted('join',x,true);});
+  RESIGNS.slice().forEach(function(x){setMovementDeleted('resign',x,true);});
   JOINS=[]; RESIGNS=[]; SETTLES=[]; DEC={}; _apprSel={};
-  saveJoins(); saveResigns(); saveSettles(); saveDec();
+  try{localStorage.setItem(K_JOINS,'[]');localStorage.setItem(K_RESIGNS,'[]');localStorage.setItem(K_SETTLES,'[]');localStorage.setItem(K_DEC,'{}');}catch(e){}
+  scheduleOnboardingSync('batch-delete');
   setHtml('import-report', '<span class="text-slate-400">'+T('dz3')+'</span>');
   rebuildFilterOptions(); renderAll();
   toast(L('已清除','Cleared'),'ok');
@@ -2628,11 +2655,27 @@ function deleteRec(){
   if(r)setMovementDeleted('resign',r,true);
   JOINS=JOINS.filter(function(x){return x.id!==_recId;});
   RESIGNS=RESIGNS.filter(function(x){return x.id!==_recId;});
-  saveJoins(); saveResigns(); rebuildFilterOptions(); closeRec(); renderAll();
+  saveJoins(); saveResigns();
+  scheduleOnboardingSync('record-deleted');
+  rebuildFilterOptions(); closeRec(); renderAll();
   toast(L('已刪除並同步刪除狀態','Deleted and deletion state will sync','បានលុប និងស្ថានភាពលុបនឹងធ្វើសមកាលកម្ម'),'ok');
 }
 
 /* ═══════════ ⑤ inline onclick 必須掛 window ═══════════ */
+
+function printOnboardingApplication(kind){
+  if(!window.HRAHRGovernance)return window.print();
+  var rows=[];
+  if(kind==='join')rows=joinFiltered().map(function(r){return Object.assign({event:'Join'},r)});
+  else if(kind==='resign')rows=resignFiltered().map(function(r){return Object.assign({event:'Resign'},r)});
+  else {var ks=apprSelected();var src=ks.length?_apprRows.filter(function(x){return ks.indexOf(x.key)>=0}):_apprRows;rows=src.map(function(x){return Object.assign({event:x.kind==='join'?'Join':'Resign'},x.r||{})})}
+  HRAHRGovernance.openPrint({title:'VRT HR Join / Resign Application',subtitle:kind==='approval'?'Approval application / 核可申請':'Personnel movement / 人事異動',rows:rows,columns:[
+    {label:'Type 類型',value:function(r){return r.event||''}},{label:'ID 工號',key:'empId'},{label:'Name 姓名',key:'name'},
+    {label:'Join Date 入職日',key:'joinDate'},{label:'Resign Date 離職日',key:'resignDate'},{label:'Dept 部門',key:'dept'},
+    {label:'Section 組別',key:'section'},{label:'Position 職位',key:'position'},{label:'Reason / Remark 原因備註',value:function(r){return r.reason||r.remark||''}},
+    {label:'Approval 核可',value:function(r){var d=DEC[r._k]||{};return d.d==='ok'?'Approved':d.d==='no'?'Rejected':'Pending'}}
+  ],note:'Effective business dates are printed separately from import/update/approval timestamps. Excel conflicts are never silently allowed to overwrite a confirmed date.'});
+}
 Object.assign(window,{
   openRec:openRec, closeRec:closeRec, saveRec:saveRec, deleteRec:deleteRec, setRecKind:setRecKind,
   onFiles:onFiles, setTab:setTab, toggleLang:toggleLang, setLang:setLang,

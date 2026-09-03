@@ -131,6 +131,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 </style>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
+<!-- v58 Attendance Telegram compact non-zero leave display -->
 </head>
 <body>
 
@@ -155,7 +156,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
   <div class="cloud-dot" id="cloudDot"></div>
   <span class="cloud-lbl" id="cloudLbl" data-zh="雲端未設定（僅手動同步）" data-en="Cloud not configured (manual sync only)" data-km="Cloud មិនទាន់កំណត់ (ធ្វើដោយដៃ)">雲端未設定（僅手動同步）</span>
   <span class="cloud-ts" id="cloudTs"></span>
-  <span class="cloud-ts" data-zh="不會自動上傳或下載" data-en="No automatic upload or download" data-km="មិនផ្ទុកឡើង ឬទាញយកដោយស្វ័យប្រវត្តិ">不會自動上傳或下載</span>
+  <span class="cloud-ts" data-zh="自動增量同步；☁↑/☁↓ 僅作強制同步備用" data-en="Automatic incremental sync; ☁↑/☁↓ are force-sync backups" data-km="សមកាលកម្មបន្ថែមដោយស្វ័យប្រវត្តិ; ☁↑/☁↓ សម្រាប់បង្ខំសមកាលកម្ម">自動增量同步；☁↑/☁↓ 僅作強制同步備用</span>
   <div class="cloud-btns">
     <button class="btn-cloud btn-push" onclick="pushCloud()" id="btnPush" disabled title="上傳至雲端 Push to Cloud" style="font-size:15px;padding:4px 9px">☁↑</button>
     <button class="btn-cloud btn-pull" onclick="pullCloud()" id="btnPull" disabled title="從雲端拉取 Pull from Cloud" style="font-size:15px;padding:4px 9px">☁↓</button>
@@ -254,7 +255,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <!-- ══ EMPLOYEE LEAVE (independent page inside Attendance) ══ -->
 <div class="sec" id="sec-leave">
   <div class="online-note" data-zh="員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。" data-en="Employee Leave is an independent page inside Attendance. Employee data can reuse HRA PAY when available, with manual add/edit as fallback." data-km="ការសុំច្បាប់ជាទំព័រឯករាជ្យនៅក្នុង Attendance។ ទិន្នន័យបុគ្គលិកអាចធ្វើសមកាលកម្មពី HRA PAY ហើយអាចបន្ថែម ឬកែសម្រួលដោយដៃបាន។">員工請假是 Attendance 內的獨立分頁；不需要從 HRA Portal 再找另一個入口。員工資料可先同步 HRA PAY，抓不到時仍可人工新增／編輯。</div>
-  <iframe id="employeeLeaveFrame" class="leave-frame" src="ac_hra_employee_leave_v1.html?v=55&build=20260828" title="Employee Leave" allow="camera"></iframe>
+  <iframe id="employeeLeaveFrame" class="leave-frame" src="ac_hra_employee_leave_v1.html?v=60&build=20260901" title="Employee Leave" allow="camera"></iframe>
 </div>
 
 <!-- ══ DAILY ══ -->
@@ -664,7 +665,9 @@ async function loadFromIDB() {
 })();
 
 
-function saveDB(){
+function saveDB(reason){
+  reason=reason||'save';
+  DB=attDedupeRows(DB);
   markDataChanged();
   LS.set('log', IMPORT_LOG);
   updateHeader();
@@ -673,7 +676,7 @@ function saveDB(){
     toast(T('瀏覽器資料庫無法寫入，請先下載 JSON 備份','Browser database could not be written. Download a JSON backup now.','មិនអាចរក្សាទុកទិន្នន័យបាន'),'err');
     return 0;
   });
-  _savePromise.then(()=>attScheduleAutoSync('save'));
+  _savePromise.then(()=>attScheduleAutoSync(reason));
   return _savePromise;
 }
 function updateHeader(){
@@ -714,6 +717,19 @@ function subtotalsForDate(d){return ensureDataIndex().subtotalsByDate.get(d)||[]
 // ═══════ ONLINE ATTENDANCE CRUD ═══════
 let ATT_EDIT_INDEX=-1;
 const ATT_NUM_FIELDS=['m','f','att','join','resign','ti','to','al','pl','sl','np','bus','fl','ml','idle'];
+function attNormKey(v){return String(v==null?'':v).trim().toUpperCase().replace(/\s+/g,' ')}
+function attSemanticKey(r,idx){
+  const kind=r&&r.isGrand?'GRAND':r&&r.isSubtotal?'SUB':'DETAIL';
+  const dims=[attNormKey(r&&r.dept),attNormKey(r&&r.sect),attNormKey(r&&r.line)].join('|');
+  if(!String(r&&r.date||'').trim())return 'UNDATED|'+(r&&r.id||idx);
+  if(kind==='DETAIL'&&!dims.replace(/\|/g,''))return String(r.date)+'|DETAIL|'+(r&&r.id||r&&r.sourceRow||idx);
+  return String(r.date)+'|'+kind+'|'+dims;
+}
+function attDedupeRows(rows){
+  const map=new Map();(rows||[]).forEach((r,i)=>{if(!r)return;const k=attSemanticKey(r,i),old=map.get(k);if(!old){map.set(k,r);return}const ot=Date.parse(old.updatedAt||0)||0,nt=Date.parse(r.updatedAt||0)||0;map.set(k,nt>=ot?r:old)});return [...map.values()];
+}
+function attMergeRows(local,incoming){return attDedupeRows([...(local||[]),...(incoming||[])]);}
+
 function _oeDateDefault(){const e=document.getElementById('oe-date');if(e&&!e.value)e.value=_latestInDB()||new Date().toISOString().slice(0,10);return e?e.value:''}
 function attendanceKind(r){return r.isGrand?'grand':r.isSubtotal?'subtotal':'detail'}
 function renderOnlineEntry(){
@@ -740,7 +756,7 @@ async function saveAttendanceEditor(){
   if(ATT_EDIT_INDEX>=0)DB[ATT_EDIT_INDEX]={...DB[ATT_EDIT_INDEX],...r};else DB.push(r);
   if(!IMPORT_LOG.includes(date))IMPORT_LOG.push(date); await saveDB();closeAttendanceEditor();document.getElementById('oe-date').value=date;renderOnlineEntry();toast(T('已儲存','Saved','បានរក្សាទុក'),'ok');
 }
-async function deleteAttendanceRow(index){const r=DB[index];if(!r)return;if(!confirm(T('確定刪除此考勤列？','Delete this attendance row?','លុបទិន្នន័យនេះ?')))return;DB.splice(index,1);await saveDB();renderOnlineEntry();toast(T('已刪除','Deleted','បានលុប'),'ok')}
+async function deleteAttendanceRow(index){const r=DB[index];if(!r)return;if(!confirm(T('確定刪除此考勤列？','Delete this attendance row?','លុបទិន្នន័យនេះ?')))return;DB.splice(index,1);await saveDB('record-deleted');renderOnlineEntry();toast(T('已刪除','Deleted','បានលុប'),'ok')}
 async function rebuildGrandTotal(){
   const date=_oeDateDefault();if(!date)return;const detail=DB.filter(r=>r.date===date&&!r.isGrand&&!r.isSubtotal);if(!detail.length){toast(T('此日期沒有明細可重算','No detail rows for this date','មិនមានទិន្នន័យលម្អិត'),'err');return}
   const g={date,dept:'總人數 / Grand Total',sect:'',line:'',tr:0,isSubtotal:false,isGrand:true,source:'online-auto',updatedAt:new Date().toISOString()};ATT_NUM_FIELDS.forEach(k=>g[k]=detail.reduce((n,r)=>n+(Number(r[k])||0),0));
@@ -1341,15 +1357,22 @@ function buildTelegramSummary(mode,key,lang){
 
   if(mode==='daily'&&grands[0]){
     const g=grands[0];
-    text+=`${sep}\n📋 <b>${tgLabel('假別明細','Leave Breakdown',lang)}</b>\n`;
-    text+=`├ AL ${tgLabel('特休','Annual Leave',lang)} │ ${g.al||0}\n`;
-    text+=`├ PL ${tgLabel('事假','Personal Leave',lang)} │ ${g.pl||0}\n`;
-    text+=`├ SL ${tgLabel('病假','Sick Leave',lang)} │ ${g.sl||0}\n`;
-    text+=`├ NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)} │ ${g.np||0}\n`;
-    text+=`├ Bus ${tgLabel('公假／出差','Business Leave',lang)} │ ${g.bus||0}\n`;
-    text+=`├ FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} │ ${g.fl||0}\n`;
-    text+=`├ ML ${tgLabel('產假','Maternity Leave',lang)} │ ${g.ml||0}\n`;
-    text+=`└ ${tgLabel('停工','Idle',lang)} │ ${g.idle||0}\n`;
+    const leaveRows=[
+      ['AL '+tgLabel('特休','Annual Leave',lang),Number(g.al||0)],
+      ['PL '+tgLabel('事假','Personal Leave',lang),Number(g.pl||0)],
+      ['SL '+tgLabel('病假','Sick Leave',lang),Number(g.sl||0)],
+      ['NP '+tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang),Number(g.np||0)],
+      ['Bus '+tgLabel('公假／出差','Business Leave',lang),Number(g.bus||0)],
+      ['FL '+tgLabel('喪假／特殊假','Funeral / Special Leave',lang),Number(g.fl||0)],
+      ['ML '+tgLabel('產假','Maternity Leave',lang),Number(g.ml||0)],
+      [tgLabel('停工','Idle',lang),Number(g.idle||0)]
+    ].filter(r=>r[1]>0);
+    /* v58: zero leave types are omitted.  If nobody used any leave/idle,
+       the whole Leave Breakdown block is skipped to save Telegram space. */
+    if(leaveRows.length){
+      text+=`${sep}\n📋 <b>${tgLabel('假別明細','Leave Breakdown',lang)}</b>\n`;
+      leaveRows.forEach((r,i)=>{text+=`${i===leaveRows.length-1?'└':'├'} ${r[0]} │ ${r[1]}\n`;});
+    }
   }
   if(mode==='weekly'){
     text+=`${sep}\n📅 <b>${tgLabel('每日明細','Daily Detail',lang)}</b>\n`;
@@ -1378,11 +1401,28 @@ function buildTelegramSummary(mode,key,lang){
       const dn=tgName(s.dept,lang),sn=tgName(s.name,lang);
       const label=s.dept&&s.dept!==s.name?(dn+' / '+sn):(sn||dn);
       text+=`┌ ${telegramRateIcon(rate)} <b>${label}</b>\n`;
-      text+=`├ ${tgLabel('出勤率','Attendance Rate',lang)} │ ${rate==null?'—':(rate*100).toFixed(1)+'%'}\n`;
-      text+=`├ AL ${tgLabel('特休','Annual Leave',lang)} │ ${s.al||0}   PL ${tgLabel('事假','Personal Leave',lang)} │ ${s.pl||0}\n`;
-      text+=`├ SL ${tgLabel('病假','Sick Leave',lang)} │ ${s.sl||0}   NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)} │ ${s.np||0}\n`;
-      text+=`├ Bus ${tgLabel('公假／出差','Business Leave',lang)} │ ${s.bus||0}   FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} │ ${s.fl||0}\n`;
-      text+=`└ ML ${tgLabel('產假','Maternity Leave',lang)} │ ${s.ml||0}`+(s.idle?`   ${tgLabel('停工','Idle',lang)} │ ${s.idle}`:'')+'\n';
+      const leaveParts=[
+        ['AL '+tgLabel('特休','Annual Leave',lang),Number(s.al||0)],
+        ['PL '+tgLabel('事假','Personal Leave',lang),Number(s.pl||0)],
+        ['SL '+tgLabel('病假','Sick Leave',lang),Number(s.sl||0)],
+        ['NP '+tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang),Number(s.np||0)],
+        ['Bus '+tgLabel('公假／出差','Business Leave',lang),Number(s.bus||0)],
+        ['FL '+tgLabel('喪假／特殊假','Funeral / Special Leave',lang),Number(s.fl||0)],
+        ['ML '+tgLabel('產假','Maternity Leave',lang),Number(s.ml||0)],
+        [tgLabel('停工','Idle',lang),Number(s.idle||0)]
+      ].filter(r=>r[1]>0);
+      /* v58 compact department card: Rate is always shown; only non-zero leave
+         types are appended.  A department with no leave uses one line only. */
+      const rateLine=`${tgLabel('出勤率','Attendance Rate',lang)} │ ${rate==null?'—':(rate*100).toFixed(1)+'%'}`;
+      if(!leaveParts.length){
+        text+=`└ ${rateLine}\n`;
+      }else{
+        text+=`├ ${rateLine}\n`;
+        for(let i=0;i<leaveParts.length;i+=3){
+          const grp=leaveParts.slice(i,i+3).map(r=>`${r[0]} │ ${r[1]}`).join('   ');
+          text+=`${i+3>=leaveParts.length?'└':'├'} ${grp}\n`;
+        }
+      }
     });
     if(lang!=='zh'){
       text+=`${sep}\n📖 <b>${tgLabel('假別代碼','Leave Codes',lang)}</b>\n`;
@@ -2182,8 +2222,8 @@ function renderGroupAnalysis(){
 
 // ═══════ BACKUP / RESTORE ═══════
 function backupJSON(){const data={db:DB,log:IMPORT_LOG,ts:new Date().toISOString()};const blob=new Blob([JSON.stringify(data)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`vrt_att_backup_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('📦 已備份','ok');}
-function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){DB=d.db;IMPORT_LOG=d.log||[];saveDB();toast(`📂 已還原 ${DB.length} 筆`,'ok');if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','restore',{},60);}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
-function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB();toast('🗑 已清除','ok');}
+function restoreJSON(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.db){const before=DB.length;DB=attMergeRows(DB,Array.isArray(d.db)?d.db:[]);IMPORT_LOG=[...new Set([...(IMPORT_LOG||[]),...((d.log||[])),...DB.map(x=>x.date).filter(Boolean)])];saveDB('restore');toast(`📂 合併還原 ${DB.length} 筆（新增/更新 ${Math.max(0,DB.length-before)}）`,'ok');if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','restore',{},60);}else throw new Error('格式錯誤');}catch(ex){toast('❌ '+ex.message,'err');}};r.readAsText(f);}
+function clearAllData(){if(!confirm('確定清除所有考勤資料？此操作不可還原！'))return;DB=[];IMPORT_LOG=[];saveDB('batch-delete');toast('🗑 已清除','ok');}
 function exportAllCSV(){if(!DB.length){toast('無資料','err');return;}
   const h=['date','dept','sect','line','m','f','ttl','join','resign','report','al','pl','sl','np','bus','fl','ml','idle','absent','att','rate','isSubtotal','isGrand'];
   const rows=DB.map(r=>{const c=calc(r);return[r.date,r.dept,r.sect,r.line,r.m,r.f,c.ttl,r.join,r.resign,c.report,r.al,r.pl,r.sl,r.np,r.bus,r.fl,r.ml,r.idle,c.absent,r.att,c.rate!=null?(c.rate*100).toFixed(1):'',r.isSubtotal?'Y':'',r.isGrand?'Y':''].map(v=>'"'+String(v||'').replace(/"/g,'""')+'"').join(',');});
@@ -2379,186 +2419,74 @@ function showCloudUpdateBanner(snap) {
 
 // ── PUSH to Cloud ──
 async function pushCloud() {
-  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
+  if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); return; }
   if (!DB.length) { toast(T('尚無資料可上傳','No data to upload','គ្មានទិន្នន័យសម្រាប់ផ្ទុកឡើង'), 'err'); return; }
-
-  // ── Debug: show what we're about to push ─────────────────────────
-  const _latestAttDate = [...new Set(DB.map(r=>r.date).filter(Boolean))].sort().pop()||'';
-  console.log('[ATT PUSH] records='+DB.length+' latest='+_latestAttDate);
-  toast(T('準備上傳','Preparing upload','កំពុងរៀបចំផ្ទុកឡើង')+': '+DB.length+' · '+_latestAttDate, 'info');
-
-  setSyncStatus('syncing', T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…'));
-  setProgress(0, true);
-  const summary = buildCloudSummary();
-  // Reduce chunk size to avoid GAS payload limit (151k records ≈ 35MB+ uncompressed)
-  const _PUSH_CHUNK = Math.min(CHUNK_SIZE, 3000); // 3000 records ≈ 700KB per chunk
-  const totalChunks = Math.ceil(DB.length / _PUSH_CHUNK);
-  let allOk = true;
-  // Include updatedAt = latest date in DB (not push timestamp)
-  const _pushUpdatedAt = _latestAttDate || new Date().toISOString().slice(0,10);
-
-  try {
-    for (let i = 0; i < totalChunks; i++) {
-      const chunk = DB.slice(i * _PUSH_CHUNK, (i + 1) * _PUSH_CHUNK);
-      setProgress((i / totalChunks) * 100);
-      if (i % 5 === 0) setSyncStatus('syncing', `${T('上傳中…','Uploading…','កំពុងផ្ទុកឡើង…')} ${i+1}/${totalChunks}`);
-
-      const payload = {
-        action      : 'push',
-        tool        : 'attendance',
-        chunk       : i,
-        totalChunks,
-        records     : chunk,
-        recordCount : DB.length,
-        updatedAt   : _pushUpdatedAt,   // ← latest DATE in records, not push timestamp
-        importLog   : i === 0 ? IMPORT_LOG : [],  // only send importLog in first chunk
-        summary     : i === 0 ? summary : {},
-        pushedBy    : 'attendance_cloud_v1',
-      };
-
-      const r = await fetch(GAS_URL, {
-        method      : 'POST',
-        redirect    : 'follow',
-        headers     : { 'Content-Type': 'text/plain;charset=utf-8' },
-        body        : JSON.stringify(payload),
-      });
-      const d = await r.json();
-      if (!d.ok) { allOk = false; break; }
+  if (!navigator.onLine) { setSyncStatus('offline'); toast(T('目前離線，資料已留在本機待同步','Offline; data remains queued locally','ក្រៅបណ្តាញ'), 'err'); return; }
+  setSyncStatus('syncing',T('強制檢查並上傳差異…','Checking and pushing local differences…','កំពុងពិនិត្យ និងផ្ទុកភាពខុសគ្នា…'));
+  setProgress(8,true);
+  try{
+    const local=attDateStats(DB);
+    const meta=await attPost({action:'attendanceDiff',dateStats:local,dates:[],metaOnly:true});
+    const cloud=(meta&&meta.dateStats)||{};
+    const dates=Object.keys(local).filter(d=>!attSameStat(local[d],cloud[d])).sort();
+    if(!dates.length){
+      attSaveBaseline(Object.assign({},local));
+      setProgress(100,true);setSyncStatus('synced',T('✅ 雲端已是最新','✅ Cloud is already up to date','✅ Cloud ថ្មីបំផុតរួចហើយ'));
+      toast(T('☁↑ 沒有需要上傳的變更','☁↑ No changes to upload','☁↑ គ្មានការផ្លាស់ប្តូរត្រូវផ្ទុកឡើង'),'ok');
+      setTimeout(()=>setProgress(0,false),900);return;
     }
-
-    setProgress(100);
-    if (allOk) {
-      lastSyncTs = new Date().toISOString();
-      localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
-      saveMeta({updatedAt: _pushUpdatedAt, source:'cloud'});
-      // Re-fetch cloud meta to sync cloudUpdatedAt (so next startup won't re-pull)
-      try{
-        const _mr=await fetch(GAS_URL+'?action=pull&tool=attendance&meta=1',{method:'GET',redirect:'follow'});
-        const _md=await _mr.json();
-        const _nct=_md.data?.chunked?(_md.data?.meta?.timestamp||''):(_md.data?.data?.updatedAt||'');
-        if(_nct)saveMeta({cloudUpdatedAt:_nct});
-        updateSyncBadge(_pushUpdatedAt,_nct||_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');
-      }catch(e){updateSyncBadge(_pushUpdatedAt,_pushUpdatedAt,LS.get('sewMeta')?.updatedAt||'','');}
-      setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-      toast(`✅ ${T('上傳成功','Upload complete','ផ្ទុកឡើងជោគជ័យ')} — ${DB.length} / ${totalChunks} · ${_pushUpdatedAt}`, 'ok');
-    } else {
-      setSyncStatus('failed', T('上傳失敗','Upload failed','ផ្ទុកឡើងបរាជ័យ'));
-      toast(T('❌ 部分上傳失敗，請重試','❌ Upload incomplete. Try again.','❌ ផ្ទុកឡើងមិនពេញលេញ'), 'err');
+    let uploaded=0;
+    const batchSize=7;
+    for(let i=0;i<dates.length;i+=batchSize){
+      const batch=dates.slice(i,i+batchSize);
+      uploaded+=await attPushDates(batch);
+      setProgress(Math.min(90,10+Math.round((i+batch.length)/dates.length*80)),true);
     }
-  } catch(e) {
-    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
-    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
-  }
-  setTimeout(() => setProgress(0, false), 2000);
+    const finalLocal=attDateStats(DB), m2=await attPost({action:'attendanceDiff',dateStats:finalLocal,dates:[],metaOnly:true});
+    const finalCloud=(m2&&m2.dateStats)||{}, bl={};
+    Object.keys(finalLocal).forEach(d=>{if(attSameStat(finalLocal[d],finalCloud[d]))bl[d]=finalLocal[d]});
+    attSaveBaseline(bl);
+    setProgress(100,true);setSyncStatus('synced',T(`✅ 強制上傳完成 ${dates.length} 日 / ${uploaded} 筆`,`✅ Forced upload complete: ${dates.length} dates / ${uploaded} rows`,`✅ ផ្ទុកឡើងរួចរាល់`));
+    toast(T(`✅ 上傳完成：${dates.length} 個日期／${uploaded} 筆`,`✅ Upload complete: ${dates.length} dates / ${uploaded} rows`,`✅ ផ្ទុកឡើងរួចរាល់`),'ok');
+  }catch(e){
+    console.error('[pushCloud diff]',e);setSyncStatus('failed');toast(T('❌ 上傳失敗：','❌ Upload failed: ','❌ ផ្ទុកឡើងបរាជ័យ៖ ')+e.message,'err');
+  }finally{setTimeout(()=>setProgress(0,false),1800)}
 }
 
-// ── PULL from Cloud ──
 async function pullCloud(silent) {
-  if (!GAS_URL) { if (!silent) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); } return; }
-
-  setSyncStatus('syncing', T('下載中…','Downloading…','កំពុងទាញយក…'));
-  setProgress(0, true);
-
-  try {
-    // Step 1: Get meta
-    const r1 = await fetch(GAS_URL + '?action=pull&tool=attendance&meta=1', { method:'GET', redirect:'follow' });
-    const d1 = await r1.json();
-
-    if (!d1.ok) { setSyncStatus('failed', T('下載失敗','Download failed','ទាញយកបរាជ័យ')); toast(T('❌ 下載失敗','❌ Download failed','❌ ទាញយកបរាជ័យ'), 'err'); return; }
-    if (!d1.data || d1.data.data === null || d1.data.message === '尚無雲端資料') {
-      setSyncStatus('idle', T('雲端尚無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
-      if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
-      setProgress(0, false); return;
+  if (!GAS_URL) { if(!silent)toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'),'err'); return false; }
+  if (!navigator.onLine) { setSyncStatus('offline'); if(!silent)toast(T('目前離線','Offline','ក្រៅបណ្តាញ'),'err'); return false; }
+  setSyncStatus('syncing',T('檢查雲端差異…','Checking cloud differences…','កំពុងពិនិត្យភាពខុសគ្នា Cloud…'));
+  setProgress(8,true);
+  try{
+    const local=attDateStats(DB);
+    const meta=await attPost({action:'attendanceDiff',dateStats:local,dates:[],metaOnly:true});
+    const cloud=(meta&&meta.dateStats)||{};
+    const dates=Object.keys(cloud).filter(d=>!attSameStat(local[d],cloud[d])).sort();
+    if(!dates.length){
+      const bl={};Object.keys(local).forEach(d=>{if(attSameStat(local[d],cloud[d]))bl[d]=local[d]});attSaveBaseline(bl);
+      setProgress(100,true);setSyncStatus('synced',T('✅ 已檢查，沒有新資料','✅ Checked; no newer cloud data','✅ បានពិនិត្យ គ្មានទិន្នន័យថ្មី'));
+      if(!silent)toast(T('☁↓ 雲端沒有新的差異資料','☁↓ No cloud differences to download','☁↓ គ្មានភាពខុសគ្នាត្រូវទាញយក'),'ok');
+      setTimeout(()=>setProgress(0,false),900);return true;
     }
-
-    // Step 2: Confirm only if manual pull (not silent auto-sync)
-    const cloudTs2 = d1.data?.chunked ? (d1.data?.meta?.timestamp||'') : (d1.data?.data?.updatedAt||'');
-    if (!silent && DB.length > 0) {
-      const cloudRecs = d1.data?.chunked ? (d1.data?.meta?.recordCount || 0) : (d1.data?.data?.recordCount || 0);
-      if (!confirm(T(
-        `雲端有 ${cloudRecs} 筆資料 (${formatTs(cloudTs2)})\n本地有 ${DB.length} 筆。\n\n拉取後會以雲端快照取代本機資料，不會產生重複紀錄。\n確定拉取？`,
-        `Cloud has ${cloudRecs} records (${formatTs(cloudTs2)}).\nLocal has ${DB.length} records.\n\nThe cloud snapshot will replace local data, so duplicates are not created.\nContinue?`,
-        `Cloud: ${cloudRecs} / Local: ${DB.length}\nបន្តទាញយក?`
-      ))) {
-        setSyncStatus('idle', ''); setProgress(0, false); return;
-      }
+    /* Cloud wins only for dates that actually exist in cloud. Local-only dates are retained,
+       so a manual download cannot erase unsent local attendance. */
+    let downloaded=0;
+    const batchSize=7;
+    for(let i=0;i<dates.length;i+=batchSize){
+      const batch=dates.slice(i,i+batchSize);
+      downloaded+=await attPullDates(batch,attDateStats(DB));
+      setProgress(Math.min(90,10+Math.round((i+batch.length)/dates.length*80)),true);
     }
-
-    let pullDB    = [];
-    let pullLog   = [];
-    let recordCount = 0;
-
-    if (!d1.data?.chunked) {
-      // Non-chunked: d1.data.data = the pushed payload object
-      const payload = d1.data?.data || {};
-      pullDB  = payload.records || payload.employees || [];
-      pullLog = payload.importLog || [];
-      recordCount = pullDB.length;
-      setProgress(100);
-    } else {
-      // Chunked
-      const meta   = d1.data?.meta || {};
-      const chunks = meta.totalChunks || 1;
-      pullLog = meta.importLog || [];
-      recordCount = meta.recordCount || 0;
-
-      for (let i = 0; i < chunks; i++) {
-        setProgress((i / chunks) * 80);
-        const r = await fetch(`${GAS_URL}?action=pull&tool=attendance&chunk=${i}`, { method:'GET', redirect:'follow' });
-        const d = await r.json();
-        pullDB.push(...(d.data?.records || d.records || []));
-      }
-      setProgress(90);
-    }
-
-    // Step 3: Load pulled data into memory
-    // Use sewing approach: full data in memory, only recent 90 days in localStorage
-    if (!pullDB.length) {
-      if (!silent) toast(T('☁️ 雲端尚無資料','☁️ No cloud data','☁️ គ្មានទិន្នន័យ Cloud'), 'info');
-      setSyncStatus('idle', T('雲端無資料','No cloud data','គ្មានទិន្នន័យ Cloud'));
-      setProgress(0, false);
-      return;
-    }
-
-    // Load ALL records into memory
-    DB = pullDB;
-
-    // Build IMPORT_LOG from pulled data
-    IMPORT_LOG = [...new Set(pullDB.map(r => r.date).filter(Boolean))];
-    markDataChanged();
-
-    // Save ALL to IndexedDB (no size limit, persists across page refresh)
-    try {
-      await saveToIDB(pullDB);
-      toast(`💾 ${T('已儲存至本機','Saved locally','បានរក្សាទុកក្នុងម៉ាស៊ីន')} (${pullDB.length})`, 'ok');
-    } catch(idbErr) { console.warn('[IDB]', idbErr); }
-    try { LS.set('log', IMPORT_LOG); } catch(e2) {}
-
-    updateHeader();
-
-    lastSyncTs = new Date().toISOString();
-    localStorage.setItem(CLOUD_CFG_KEY + '_lastPush', lastSyncTs);
-    setSyncStatus('synced', T('已同步 ','Synced ','បានធ្វើសមកាលកម្ម ')+formatTs(lastSyncTs));
-    // Save EXACT cloudTs so next startup !== check won't re-pull
-    const _cloudMeta = d1.data?.chunked ? d1.data.meta : d1.data?.data;
-    const _exactCloudTs = cloudTs2||_cloudMeta?.updatedAt||_cloudMeta?.timestamp||lastSyncTs;
-    saveMeta({cloudUpdatedAt:_exactCloudTs, updatedAt:_latestInDB(pullDB), source:'cloud'});
-    console.log('[pullCloud] saved cloudUpdatedAt='+_exactCloudTs);
-    updateSyncBadge(_latestInDB(pullDB), _exactCloudTs, LS.get('sewMeta')?.updatedAt||'','');
-    setProgress(100);
-
-    toast(`✅ ${T('下載完成','Download complete','ទាញយកជោគជ័យ')} — ${pullDB.length}`, 'ok');
-
-    // Re-render all views with new data
-    try { renderAll(); } catch(e) { console.warn('[pullCloud] renderAll:', e); }
-    // Refresh sewing compare if active
-    const sewTab = [...document.querySelectorAll('.tab')].find(x=>x.classList.contains('active')&&x.textContent.includes('車縫'));
-    if (sewTab) { try { initSewCmp(); } catch(e2) {} }
-  } catch(e) {
-    setSyncStatus('offline', T('連線失敗','Connection failed','ការតភ្ជាប់បរាជ័យ'));
-    toast(T('❌ 下載失敗：','❌ Download failed: ','❌ ទាញយកបរាជ័យ៖ ')+e.message, 'err');
-  }
-  setTimeout(() => setProgress(0, false), 2000);
+    const finalLocal=attDateStats(DB), m2=await attPost({action:'attendanceDiff',dateStats:finalLocal,dates:[],metaOnly:true});
+    const finalCloud=(m2&&m2.dateStats)||{}, bl={};Object.keys(finalLocal).forEach(d=>{if(attSameStat(finalLocal[d],finalCloud[d]))bl[d]=finalLocal[d]});attSaveBaseline(bl);
+    setProgress(100,true);setSyncStatus('synced',T(`✅ 下載完成 ${dates.length} 日 / ${downloaded} 筆`,`✅ Download complete: ${dates.length} dates / ${downloaded} rows`,`✅ ទាញយករួចរាល់`));
+    if(!silent)toast(T(`✅ 下載完成：${dates.length} 個日期／${downloaded} 筆`,`✅ Download complete: ${dates.length} dates / ${downloaded} rows`,`✅ ទាញយករួចរាល់`),'ok');
+    try{renderAll()}catch(e){}
+    return true;
+  }catch(e){
+    console.error('[pullCloud diff]',e);setSyncStatus('failed');if(!silent)toast(T('❌ 下載失敗：','❌ Download failed: ','❌ ទាញយកបរាជ័យ៖ ')+e.message,'err');return false;
+  }finally{setTimeout(()=>setProgress(0,false),1800)}
 }
 
 // ── Send Telegram via GAS (CORS bypass) ──
@@ -2594,8 +2522,15 @@ async function sendViaTg() {
       }),
     });
     const d = await r.json();
-    if (d.ok) { toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok'); if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','telegram',{},60); else attScheduleAutoSync('telegram'); }
-    else       { toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + (d.error || ''), 'err'); }
+    const x = (d && d.data) ? d.data : (d || {});
+    const delivered = d && d.ok !== false && !!(x.sentToGroup || x.sent || x.messageId);
+    if (delivered) {
+      toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok');
+      if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','telegram',{},60); else attScheduleAutoSync('telegram');
+    } else {
+      const err=(x && x.error) || (d && d.error) || T('Telegram 未確認送達，請勿當作已送出','Telegram delivery was not confirmed','Telegram មិនទាន់បញ្ជាក់ការផ្ញើ');
+      toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + err, 'err');
+    }
   } catch(e) {
     toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
   }
@@ -2621,7 +2556,7 @@ function buildCloudSummary() {
   };
 }
 
-// Compatibility no-op. Imports are saved locally, but cloud upload is always manual.
+// Legacy compatibility no-op. v61 uses automatic incremental sync; manual ☁↑/☁↓ are force-sync controls.
 function scheduleAutoSave() {
   return false;
 }
