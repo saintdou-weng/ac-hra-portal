@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=43"></script>
+<script src="shared/hra-smart-sync.js?v=62"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
-<script src="shared/hra-auto-sync.js?v=49"></script>
+<script src="shared/hra-auto-sync.js?v=62"></script>
 <script src="shared/hra-hr-governance.js?v=57"></script>
 <!-- v56 Lifecycle Link: approved Join/Resign → Probation/Contract + editable lifecycle settings -->
 <title>AC HRA 合約管理 / Contract Tracker v2 · Lifecycle v56</title>
@@ -165,6 +165,8 @@ table tbody tr:hover{background:#fbf9f0}
 .nav-arrow{background:transparent;border:1px solid var(--navy);color:var(--navy);padding:2px 8px;cursor:pointer;border-radius:3px;font-size:13px;line-height:1}
 .nav-arrow:hover{background:var(--navy);color:#fff}
 .period-label{font-size:12px;font-weight:600;color:var(--navy);min-width:90px;text-align:center;padding:0 4px}
+.period-select{height:28px;min-width:128px;max-width:190px;border:1px solid #cbd5e1;border-radius:6px;background:#fff;color:var(--navy);font-size:12px;font-weight:700;padding:2px 24px 2px 8px}
+.period-empty{font-size:11px;color:#94a3b8;font-weight:700;white-space:nowrap}
 .dash-h2-wrap{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 .cb-col{width:28px}
 /* ── Probation result colours ── */
@@ -261,6 +263,8 @@ table tbody tr:hover{background:#fbf9f0}
           </div>
           <button class="nav-arrow" id="probNavL" onclick="navDash('prob',-1)" style="display:none">◀</button>
           <span class="period-label" id="probPeriodLabel"></span>
+          <select class="period-select" id="probPeriodSelect" onchange="selectDashPeriod('prob',this.value)" style="display:none"></select>
+          <span class="period-empty" id="probPeriodEmpty" style="display:none">無資料 / No data</span>
           <button class="nav-arrow" id="probNavR" onclick="navDash('prob',1)"  style="display:none">▶</button>
         </div>
         <button class="btn gold small" onclick="openDashProbModal()">+ <span data-i18n="btnAdd">新增</span></button>
@@ -323,6 +327,8 @@ table tbody tr:hover{background:#fbf9f0}
           </div>
           <button class="nav-arrow" id="contNavL" onclick="navDash('cont',-1)" style="display:none">◀</button>
           <span class="period-label" id="contPeriodLabel"></span>
+          <select class="period-select" id="contPeriodSelect" onchange="selectDashPeriod('cont',this.value)" style="display:none"></select>
+          <span class="period-empty" id="contPeriodEmpty" style="display:none">無資料 / No data</span>
           <button class="nav-arrow" id="contNavR" onclick="navDash('cont',1)"  style="display:none">▶</button>
         </div>
         <button class="btn gold small" onclick="openDashContModal()">+ <span data-i18n="btnAdd">新增</span></button>
@@ -1124,19 +1130,33 @@ function renderDashboard(){
 let probMode='all', probPeriodIdx=0, probPeriods=[];
 let contMode='all', contPeriodIdx=0, contPeriods=[];
 
-function getProbDate(r){ return r.joinDate||r.startDate||""; }
-function getContDate(r){ return r.entryDate||r.startDate||""; }
+/* v62: period data must survive cloud/Excel refreshes.  Earlier builds only
+ * built the period list when the user clicked Day/Week/Month/Year.  If cloud
+ * data arrived afterwards the active Month tab could remain selected while
+ * the period list stayed empty, which looked like "Month has no data". */
+function firstValidDate(){
+  for(const v of arguments){
+    const x=String(v||'').trim();
+    const m=x.match(/(20\d{2})[-\/.](\d{1,2})(?:[-\/.](\d{1,2}))?/);
+    if(m)return m[1]+'-'+String(+m[2]).padStart(2,'0')+(m[3]?'-'+String(+m[3]).padStart(2,'0'):'');
+  }
+  return '';
+}
+function getProbDate(r){ return firstValidDate(r&&r.joinDate,r&&r.startDate,r&&r.probEnd,r&&r.endDate,r&&r.evalDate); }
+function getContDate(r){ return firstValidDate(r&&r.entryDate,r&&r.startDate,r&&r.endDate,r&&r.joinDate); }
 
 function periodKey(dateStr,mode){
+  dateStr=firstValidDate(dateStr);
   if(!dateStr)return"";
-  const d=new Date(dateStr+"T00:00:00");
-  if(mode==="day")  return dateStr.slice(0,10);
+  const full=dateStr.length>=10?dateStr:(dateStr+'-01');
+  const d=new Date(full+"T00:00:00");
+  if(mode==="day")  return full.slice(0,10);
   if(mode==="week") {
     const mon=new Date(d); mon.setDate(d.getDate()-((d.getDay()||7)-1));
     return mon.toISOString().slice(0,10);
   }
-  if(mode==="month")return dateStr.slice(0,7);
-  if(mode==="year") return dateStr.slice(0,4);
+  if(mode==="month")return full.slice(0,7);
+  if(mode==="year") return full.slice(0,4);
   return"";
 }
 function periodLabel(key,mode){
@@ -1145,81 +1165,88 @@ function periodLabel(key,mode){
   if(mode==="week") { const end=new Date(key+"T00:00:00");end.setDate(end.getDate()+6);
     return key+" ~ "+end.toISOString().slice(0,10); }
   if(mode==="month")return key;
-  if(mode==="year") return key+"年";
+  if(mode==="year") return key;
   return key;
 }
 function buildPeriods(arr,getDate,mode){
   if(mode==="all")return[];
-  const keys=[...new Set(arr.map(r=>periodKey(getDate(r),mode)).filter(Boolean))].sort().reverse();
-  return keys;
+  return [...new Set((arr||[]).map(r=>periodKey(getDate(r),mode)).filter(Boolean))].sort().reverse();
 }
-
+function syncPeriodUi(type){
+  const isProb=type==='prob', mode=isProb?probMode:contMode, periods=isProb?probPeriods:contPeriods, idx=isProb?probPeriodIdx:contPeriodIdx;
+  const label=document.getElementById(isProb?'probPeriodLabel':'contPeriodLabel');
+  const sel=document.getElementById(isProb?'probPeriodSelect':'contPeriodSelect');
+  const empty=document.getElementById(isProb?'probPeriodEmpty':'contPeriodEmpty');
+  const left=document.getElementById(isProb?'probNavL':'contNavL'), right=document.getElementById(isProb?'probNavR':'contNavR');
+  const show=mode!=='all';
+  if(left){left.style.display=show?'':'none';left.disabled=!periods.length||idx>=periods.length-1;}
+  if(right){right.style.display=show?'':'none';right.disabled=!periods.length||idx<=0;}
+  if(!show){if(label)label.textContent='';if(sel)sel.style.display='none';if(empty)empty.style.display='none';return;}
+  if(!periods.length){if(label)label.textContent='';if(sel){sel.innerHTML='';sel.style.display='none';}if(empty)empty.style.display='';return;}
+  const cur=periods[Math.max(0,Math.min(periods.length-1,idx))]||periods[0];
+  if(label){label.textContent='';label.style.display='none';}
+  if(empty)empty.style.display='none';
+  if(sel){sel.style.display='';sel.innerHTML=periods.map(k=>`<option value="${k}">${periodLabel(k,mode)}</option>`).join('');sel.value=cur;}
+}
+function rebuildDashPeriods(type,preserveKey){
+  const isProb=type==='prob', mode=isProb?probMode:contMode, arr=isProb?DASH_PROBS:DASH_CONTS, getter=isProb?getProbDate:getContDate;
+  const oldPeriods=isProb?probPeriods:contPeriods, oldIdx=isProb?probPeriodIdx:contPeriodIdx;
+  const oldKey=preserveKey || oldPeriods[oldIdx] || '';
+  const periods=buildPeriods(arr,getter,mode);
+  let idx=oldKey?periods.indexOf(oldKey):-1;if(idx<0)idx=0;
+  if(isProb){probPeriods=periods;probPeriodIdx=idx;}else{contPeriods=periods;contPeriodIdx=idx;}
+  syncPeriodUi(type);
+  return periods;
+}
+function selectDashPeriod(type,key){
+  const periods=type==='prob'?probPeriods:contPeriods;
+  let idx=periods.indexOf(key);if(idx<0)idx=0;
+  if(type==='prob'){probPeriodIdx=idx;renderDashProb();}else{contPeriodIdx=idx;renderDashCont();}
+}
 function setDashMode(type,mode){
   if(type==="prob"){
-    probMode=mode;
-    probPeriods=buildPeriods(DASH_PROBS,getProbDate,mode);
-    probPeriodIdx=0;
-    // update tab button styles
-    document.querySelectorAll("#probPeriodCtrl .ptabs button").forEach(b=>{
-      b.classList.toggle("active",b.dataset.ptab===mode);
-    });
-    const show=(mode!=="all");
-    document.getElementById("probNavL").style.display=show?"":"none";
-    document.getElementById("probNavR").style.display=show?"":"none";
+    probMode=mode; probPeriodIdx=0;
+    document.querySelectorAll("#probPeriodCtrl .ptabs button").forEach(b=>b.classList.toggle("active",b.dataset.ptab===mode));
   }else{
-    contMode=mode;
-    contPeriods=buildPeriods(DASH_CONTS,getContDate,mode);
-    contPeriodIdx=0;
-    document.querySelectorAll("#contPeriodCtrl .ptabs button").forEach(b=>{
-      b.classList.toggle("active",b.dataset.ptab===mode);
-    });
-    const show=(mode!=="all");
-    document.getElementById("contNavL").style.display=show?"":"none";
-    document.getElementById("contNavR").style.display=show?"":"none";
+    contMode=mode; contPeriodIdx=0;
+    document.querySelectorAll("#contPeriodCtrl .ptabs button").forEach(b=>b.classList.toggle("active",b.dataset.ptab===mode));
   }
+  rebuildDashPeriods(type,'');
   if(type==="prob")renderDashProb(); else renderDashCont();
 }
 function navDash(type,dir){
   if(type==="prob"){
+    if(!probPeriods.length)return;
     probPeriodIdx=Math.max(0,Math.min(probPeriods.length-1,probPeriodIdx+dir));
-    renderDashProb();
+    syncPeriodUi('prob');renderDashProb();
   }else{
+    if(!contPeriods.length)return;
     contPeriodIdx=Math.max(0,Math.min(contPeriods.length-1,contPeriodIdx+dir));
-    renderDashCont();
+    syncPeriodUi('cont');renderDashCont();
   }
 }
 
 // ── Render probation table ────────────────────────────────
 function renderDashProb(){
-  // ── KPI strip ──
   const remDays=SETTINGS.reminderDays||15; const today=todayISO();
-  const total=DASH_PROBS.length;
-  const passed=DASH_PROBS.filter(p=>p.result==="passed").length;
-  const failed=DASH_PROBS.filter(p=>p.result==="failed").length;
-  const pending=DASH_PROBS.filter(p=>p.result==="pending").length;
-  const overdue=DASH_PROBS.filter(p=>p.result==="pending"&&p.probEnd&&daysFromToday(p.probEnd)<0).length;
+  if(probMode!=="all")rebuildDashPeriods('prob'); else syncPeriodUi('prob');
+  let periodList=[...DASH_PROBS];
+  if(probMode!=="all"&&probPeriods.length){const curKey=probPeriods[probPeriodIdx]||"";periodList=periodList.filter(r=>periodKey(getProbDate(r),probMode)===curKey);}
+  else if(probMode!=="all"&&!probPeriods.length)periodList=[];
+  // KPI cards now represent the selected day/week/month/year, not all history.
+  const total=periodList.length;
+  const passed=periodList.filter(p=>p.result==="passed").length;
+  const failed=periodList.filter(p=>p.result==="failed").length;
+  const pending=periodList.filter(p=>p.result==="pending").length;
+  const overdue=periodList.filter(p=>p.result==="pending"&&p.probEnd&&daysFromToday(p.probEnd)<0).length;
   const rate=passed+failed>0?Math.round(passed/(passed+failed)*100):0;
   const strip=document.getElementById("probKpiStrip");
   if(strip)strip.innerHTML=[
-    {l:t("probKpiTotal"),  v:total,  c:"#1e3a8a"},
-    {l:t("probKpiPassed"), v:passed, c:"#059669"},
-    {l:t("probKpiPending"),v:pending,c:"#d97706"},
-    {l:t("probKpiFailed"), v:failed, c:"#dc2626"},
-    {l:t("probKpiOverdue"),v:overdue,c:"#9f1239"},
-    {l:t("probKpiPassRate"),v:rate+"%" ,c:rate>=70?"#059669":rate>=50?"#d97706":"#dc2626"},
+    {l:t("probKpiTotal"),v:total,c:"#1e3a8a"},{l:t("probKpiPassed"),v:passed,c:"#059669"},{l:t("probKpiPending"),v:pending,c:"#d97706"},{l:t("probKpiFailed"),v:failed,c:"#dc2626"},{l:t("probKpiOverdue"),v:overdue,c:"#9f1239"},{l:t("probKpiPassRate"),v:rate+"%",c:rate>=70?"#059669":rate>=50?"#d97706":"#dc2626"},
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashProbSearch")?.value||"").toLowerCase();
   const resF=(document.getElementById("dashProbResult")?.value||"");
-  let list=[...DASH_PROBS];
-
-  // period filter
-  if(probMode!=="all"&&probPeriods.length){
-    const curKey=probPeriods[probPeriodIdx]||"";
-    list=list.filter(r=>periodKey(getProbDate(r),probMode)===curKey);
-    document.getElementById("probPeriodLabel").textContent=periodLabel(curKey,probMode);
-  }else{
-    document.getElementById("probPeriodLabel").textContent="";
-  }
+  let list=[...periodList];
   if(resF)list=list.filter(r=>r.result===resF);
   if(search)list=list.filter(r=>(r.factoryId+r.khmerName+r.khmerSurname+r.dept||"").toLowerCase().includes(search));
   list.sort((a,b)=>(getProbDate(b)||"").localeCompare(getProbDate(a)||""));
@@ -1249,48 +1276,32 @@ function renderDashProb(){
       </td>
     </tr>`;
   }).join("")||`<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--muted)">沒有資料 / No data</td></tr>`;
-  document.getElementById("dashProbSummary").textContent=`共 ${list.length} 筆 / Total ${DASH_PROBS.length}`;
+  document.getElementById("dashProbSummary").textContent=(probMode==='all'?`共 ${list.length} 筆 / Total ${DASH_PROBS.length}`:`本期間 ${list.length} 筆 / Period ${periodList.length} · All ${DASH_PROBS.length}`);
 }
 
 // ── Render contract table ─────────────────────────────────
 function renderDashCont(){
-  // ── KPI strip ──
-  const remDays2=SETTINGS.reminderDays||15;
-  const ctotal=DASH_CONTS.length;
-  const cactive=DASH_CONTS.filter(c=>c.contractType==="UDC"||(c.endDate&&daysFromToday(c.endDate)>=0)).length;
-  const cexpired=DASH_CONTS.filter(c=>c.contractType!=="UDC"&&c.endDate&&daysFromToday(c.endDate)<0).length;
-  const csoon=DASH_CONTS.filter(c=>{if(c.contractType==="UDC")return false;const d=daysFromToday(c.endDate);return d!==null&&d>=0&&d<=remDays2;}).length;
-  const cfdc=DASH_CONTS.filter(c=>c.contractType!=="UDC").length;
-  const cudc=DASH_CONTS.filter(c=>c.contractType==="UDC").length;
+  const remDays2=SETTINGS.reminderDays||15; const today=todayISO();
+  if(contMode!=="all")rebuildDashPeriods('cont'); else syncPeriodUi('cont');
+  let periodList=[...DASH_CONTS];
+  if(contMode!=="all"&&contPeriods.length){const curKey=contPeriods[contPeriodIdx]||"";periodList=periodList.filter(r=>periodKey(getContDate(r),contMode)===curKey);}
+  else if(contMode!=="all"&&!contPeriods.length)periodList=[];
+  periodList=periodList.map(r=>{let st=r.status||"active";if(st==="active"&&r.endDate&&r.contractType!=="UDC"&&r.endDate<today)st="expired";return {...r,_computedStatus:st};});
+  // KPI cards now reflect the active period selection.
+  const ctotal=periodList.length;
+  const cactive=periodList.filter(c=>c._computedStatus==="active").length;
+  const cexpired=periodList.filter(c=>c._computedStatus==="expired").length;
+  const csoon=periodList.filter(c=>{if(c.contractType==="UDC"||c._computedStatus!=="active")return false;const d=daysFromToday(c.endDate);return d!==null&&d>=0&&d<=remDays2;}).length;
+  const cfdc=periodList.filter(c=>c.contractType!=="UDC").length;
+  const cudc=periodList.filter(c=>c.contractType==="UDC").length;
   const cstrip=document.getElementById("contKpiStrip");
   if(cstrip)cstrip.innerHTML=[
-    {l:t("contKpiTotal"),  v:ctotal,  c:"#1e3a8a"},
-    {l:t("contKpiActive"), v:cactive, c:"#059669"},
-    {l:t("contKpiExpired"),v:cexpired,c:"#dc2626"},
-    {l:t("contKpiSoon"),   v:csoon,   c:"#d97706"},
-    {l:t("contKpiFDC"),    v:cfdc,    c:"#b8860b"},
-    {l:t("contKpiUDC"),    v:cudc,    c:"#0369a1"},
+    {l:t("contKpiTotal"),v:ctotal,c:"#1e3a8a"},{l:t("contKpiActive"),v:cactive,c:"#059669"},{l:t("contKpiExpired"),v:cexpired,c:"#dc2626"},{l:t("contKpiSoon"),v:csoon,c:"#d97706"},{l:t("contKpiFDC"),v:cfdc,c:"#b8860b"},{l:t("contKpiUDC"),v:cudc,c:"#0369a1"},
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashContSearch")?.value||"").toLowerCase();
   const statusF=(document.getElementById("dashContStatus")?.value||"");
   const typeF=(document.getElementById("dashContType")?.value||"");
-  let list=[...DASH_CONTS];
-
-  // auto-compute status
-  const today=todayISO();
-  list=list.map(r=>{
-    let st=r.status||"active";
-    if(st==="active"&&r.endDate&&r.contractType!=="UDC"&&r.endDate<today)st="expired";
-    return {...r,_computedStatus:st};
-  });
-
-  if(contMode!=="all"&&contPeriods.length){
-    const curKey=contPeriods[contPeriodIdx]||"";
-    list=list.filter(r=>periodKey(getContDate(r),contMode)===curKey);
-    document.getElementById("contPeriodLabel").textContent=periodLabel(curKey,contMode);
-  }else{
-    document.getElementById("contPeriodLabel").textContent="";
-  }
+  let list=[...periodList];
   if(statusF)list=list.filter(r=>r._computedStatus===statusF);
   if(typeF)list=list.filter(r=>r.contractType===typeF);
   if(search)list=list.filter(r=>(r.factoryId+r.name+r.dept+r.position||"").toLowerCase().includes(search));
@@ -1328,7 +1339,7 @@ function renderDashCont(){
       </td>
     </tr>`;
   }).join("")||`<tr><td colspan="12" style="text-align:center;padding:20px;color:var(--muted)">沒有資料 / No data</td></tr>`;
-  document.getElementById("dashContSummary").textContent=`共 ${list.length} 筆 / Total ${DASH_CONTS.length}`;
+  document.getElementById("dashContSummary").textContent=(contMode==='all'?`共 ${list.length} 筆 / Total ${DASH_CONTS.length}`:`本期間 ${list.length} 筆 / Period ${periodList.length} · All ${DASH_CONTS.length}`);
 }
 
 // ── Checkbox helpers ──────────────────────────────────────
@@ -2567,14 +2578,21 @@ function contractReconcileLegacyToDash(){
   });
   return changed;
 }
+function dbReplaceAllFast(store,rows){return new Promise((res,rej)=>{
+  const tx=db.transaction(store,'readwrite'),os=tx.objectStore(store);os.clear();(rows||[]).forEach(r=>os.put(r));
+  tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);tx.onabort=()=>rej(tx.error||new Error('IndexedDB transaction aborted'));
+})}
 async function contractPersistAll(){
   _contractCloudApplying=true;
   try{
-    await dbClear('employees');for(const r of EMPLOYEES)await dbPut('employees',r);
-    await dbClear('probations');for(const r of PROBATIONS)await dbPut('probations',r);
-    await dbClear('contracts');for(const r of CONTRACTS)await dbPut('contracts',r);
-    await dbClear('dashProbs');for(const r of DASH_PROBS)await dbPut('dashProbs',r);
-    await dbClear('dashConts');for(const r of DASH_CONTS)await dbPut('dashConts',r);
+    /* v62: one transaction per store instead of one transaction per row.
+       Large Contract/Probation datasets no longer spend seconds rewriting
+       hundreds of rows after an unchanged cloud check. */
+    await dbReplaceAllFast('employees',EMPLOYEES);
+    await dbReplaceAllFast('probations',PROBATIONS);
+    await dbReplaceAllFast('contracts',CONTRACTS);
+    await dbReplaceAllFast('dashProbs',DASH_PROBS);
+    await dbReplaceAllFast('dashConts',DASH_CONTS);
   }finally{_contractCloudApplying=false;}
 }
 async function contractHealGasUrl(){
@@ -2628,9 +2646,17 @@ async function pullFromGas(options={}){
   try{
     const res=await HRASmartSync.pullReliable({url,tool:'contract',localRecords:contractFlat()});
     if(res&&Array.isArray(res.records)){
-      contractApply(res.records);
-      contractReconcileLegacyToDash();
-      await contractPersistAll();
+      const remoteChanged=Number(res.downloaded||0)>0||Number(res.removed||0)>0||!!res.migrated||!!res.compatibilityFallback||!!res.directFallback;
+      if(remoteChanged){
+        contractApply(res.records);
+        contractReconcileLegacyToDash();
+        await contractPersistAll();
+        contractPublishMirrors();
+      }
+      /* Even when downloaded=0, rebuild active period options because an
+         import/lifecycle update may have changed the local arrays meanwhile. */
+      if(probMode!=='all')rebuildDashPeriods('prob');
+      if(contMode!=='all')rebuildDashPeriods('cont');
       refreshAll();
     }
     contractSyncMetaWrite('pull',(res&&res.downloaded!=null)?res.downloaded:0);
@@ -2849,15 +2875,17 @@ async function init(){
   await openDB();await loadAll();
   await contractHealGasUrl();
   if(contractReconcileLegacyToDash())await contractPersistAll();
-  try{await contractPullApprovedMovements();await applyApprovedLifecycle();}catch(e){console.warn('[lifecycle init]',e)}
   contractPublishMirrors();
   document.querySelector(`.lang-switch button[data-lang="${LANG}"]`)?.classList.add("active");
-  document.querySelectorAll(".lang-switch button").forEach(b=>{
-    if(b.dataset.lang!==LANG)b.classList.remove("active");
-  });
-  applyLang();
-  contractRenderCloudMeta();
+  document.querySelectorAll(".lang-switch button").forEach(b=>{if(b.dataset.lang!==LANG)b.classList.remove("active");});
+  applyLang();contractRenderCloudMeta();
+  /* v62 local-first: show IndexedDB data immediately.  v61 awaited the
+     Onboarding lifecycle cloud pull before the first useful render, so a slow
+     GAS connection made Contract/Probation look empty and "同步中…" for a long
+     time even though local data already existed. */
   renderDashboard();renderLifecyclePanel();
+  if(probMode!=='all')rebuildDashPeriods('prob');if(contMode!=='all')rebuildDashPeriods('cont');
+  setTimeout(async()=>{try{await contractPullApprovedMovements();await applyApprovedLifecycle();contractPublishMirrors();refreshAll();}catch(e){console.warn('[lifecycle background init]',e)}},1800);
   if(!window.HRAAutoSync)setTimeout(()=>contractAutoSync('startup'),350);
 }
 
