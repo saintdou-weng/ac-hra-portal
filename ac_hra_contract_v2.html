@@ -212,7 +212,7 @@ table tbody tr:hover{background:#fbf9f0}
 .chart-bar .bar-label{position:absolute;top:100%;left:50%;transform:translateX(-50%);font-size:10px;margin-top:4px;color:var(--muted);white-space:nowrap}
 .help-text{font-size:11px;color:var(--muted);margin-top:3px;font-style:italic}
 
-/* v64 — Manpower/Onboarding-style period + integrated dashboard analytics */
+/* v65 — Manpower/Onboarding-style period + integrated dashboard analytics */
 .integrated-overview{padding:14px 16px}
 .integrated-overview .module-head{margin-bottom:10px}
 .integrated-overview .module-title{font-size:18px}
@@ -244,7 +244,7 @@ table tbody tr:hover{background:#fbf9f0}
 <body>
 
 <header>
-  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v64</span></h1>
+  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v65</span></h1>
   <div class="lang-switch">
     <button data-lang="zh" class="active">繁中</button>
     <button data-lang="en">English</button>
@@ -275,7 +275,7 @@ table tbody tr:hover{background:#fbf9f0}
 
 <main>
 
-<!-- Dashboard + Analytics (v64 integrated) -->
+<!-- Dashboard + Analytics (v65 integrated) -->
 <section class="page active" id="page-dashboard">
   <div class="panel integrated-overview" id="integratedAnalytics">
     <div class="module-head">
@@ -489,7 +489,7 @@ table tbody tr:hover{background:#fbf9f0}
   </div>
 </section>
 
-<!-- Analytics merged into Dashboard in v64 -->
+<!-- Analytics merged into Dashboard in v65 -->
 <section class="page" id="page-analytics" style="display:none"></section>
 
 <!-- Anomalies -->
@@ -1118,7 +1118,7 @@ document.querySelectorAll(".lang-switch button").forEach(b=>{
 
 /* ========== 渲染 - Dashboard ========== */
 
-/* v64 dashboard + analytics shared period filter */
+/* v65 dashboard + analytics shared period filter */
 let overviewMode='month', overviewPivot=new Date(), overviewPeriods=[];
 function safePivotForMode(d,mode){
   d=new Date(d||new Date());
@@ -1231,7 +1231,7 @@ function renderDashboard(){
    ═══════════════════════════════════════════════════════════ */
 
 // ── Period nav state ──────────────────────────────────────
-/* v64: deterministic Manpower-style period navigation.
+/* v65: deterministic Manpower-style period navigation.
    Dropdown always has nearby real periods plus data periods; arrows shift the
    pivot itself, so they work even when the destination contains zero rows. */
 let probMode='month', probPivot=new Date(), probPeriodIdx=0, probPeriods=[];
@@ -1581,47 +1581,156 @@ async function importProbDash(evt){
 }
 
 // ── Excel Import: Contract（Contract 2026 Excel 格式）────
+function _normHdr(v){return String(v||'').trim().toLowerCase().replace(/[\s_./\\()-]+/g,'')}
+function _findHdrIdx(headers,aliases){
+  const hs=headers.map(_normHdr), aa=aliases.map(_normHdr);
+  for(let i=0;i<hs.length;i++){if(aa.includes(hs[i]))return i}
+  for(let i=0;i<hs.length;i++){if(aa.some(a=>a&&hs[i].includes(a)))return i}
+  return -1;
+}
+function _contractTypeFrom(v){
+  const x=String(v||'').toLowerCase().trim();
+  if(/udc|unlimited|indefinite/.test(x))return 'UDC';
+  if(/2\s*year|24\s*month/.test(x))return 'FDC-2Y';
+  if(/1\s*year|12\s*month/.test(x))return 'FDC-1Y';
+  if(/6\s*month|six\s*month/.test(x))return 'FDC-6M';
+  return '';
+}
+function _contractEffectiveMonthFromName(name){
+  const s=String(name||'');
+  let m=s.match(/(20\d{2})[-_. ](0?[1-9]|1[0-2])/);if(m)return `${m[1]}-${String(m[2]).padStart(2,'0')}`;
+  const mon={jan:1,january:1,feb:2,february:2,mar:3,march:3,apr:4,april:4,may:5,jun:6,june:6,jul:7,july:7,aug:8,august:8,sep:9,september:9,oct:10,october:10,nov:11,november:11,dec:12,december:12};
+  m=s.toLowerCase().match(/\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sep|october|oct|november|nov|december|dec)\b[^0-9]*(20\d{2})/);
+  if(m)return `${m[2]}-${String(mon[m[1]]).padStart(2,'0')}`;
+  return '';
+}
+function _detectContractListSheet(wb){
+  let best=null;
+  for(const nm of wb.SheetNames){
+    if(/chart/i.test(nm))continue;
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,defval:'',raw:false});
+    for(let r=0;r<Math.min(rows.length,25);r++){
+      const h=rows[r]||[];
+      const idx={
+        no:_findHdrIdx(h,['N','N°','No','No.','#']),
+        id:_findHdrIdx(h,['ID','Factory ID','FactoryID','VRT Code','VRT']),
+        name:_findHdrIdx(h,['Name','Employee Name']),
+        dept:_findHdrIdx(h,['Dep.','Dept','Department','Deparment']),
+        section:_findHdrIdx(h,['Section','Line']),
+        position:_findHdrIdx(h,['Position','Job Title']),
+        join:_findHdrIdx(h,['Join Date','JoinDate','Entry Date','入職日']),
+        ctype:_findHdrIdx(h,['Contract','Contract Type','ContractType','Type']),
+        cstart:_findHdrIdx(h,['Contract Start','Contract Start Date','Start Date','Effective Date']),
+        cend:_findHdrIdx(h,['Contract End','Contract End Date','End Date','Expiry Date','Expire Date'])
+      };
+      let score=0;['id','name','dept','section','position','join','ctype'].forEach(k=>{if(idx[k]>=0)score+=2});
+      if(idx.id>=0&&idx.join>=0)score+=3;if(idx.ctype>=0)score+=5;
+      if(/contract/i.test(nm))score+=1;
+      if(!best||score>best.score)best={name:nm,rows,headerRow:r,idx,score};
+    }
+  }
+  return best&&best.score>=10?best:null;
+}
+function _contractImportExisting(fid,joinDate,ctype){
+  let exact=DASH_CONTS.find(r=>String(r.factoryId||r.employeeId||'')===fid&&joinDate&&String(r.entryDate||r.joinDate||'')===joinDate);
+  if(exact)return {record:exact,mode:'exact'};
+  const cand=DASH_CONTS.filter(r=>String(r.factoryId||r.employeeId||'')===fid&&String(r.status||'active')!=='terminated');
+  const placeholders=cand.filter(r=>!String(r.contractType||'').trim()||!String(r.entryDate||'').trim()||(!String(r.endDate||'').trim()&&String(r.contractType||'').toUpperCase()!=='UDC'));
+  if(placeholders.length===1)return {record:placeholders[0],mode:'placeholder'};
+  if(cand.length===1&&(!cand[0].contractType||!cand[0].entryDate))return {record:cand[0],mode:'single-incomplete'};
+  return {record:null,candidates:cand};
+}
+
+// ── Excel Import: Contract（安全相容 Contract List / Contract 2026）────
 async function importContDash(evt){
   const f=evt.target.files[0];if(!f)return;
   const buf=await f.arrayBuffer();
-  const wb=XLSX.read(buf,{type:"array",cellDates:true});
-  // 找合約 sheet（"Contract 2026." 或包含 Contract 的 sheet）
-  let sheetName=wb.SheetNames.find(n=>/contract\s*20/i.test(n))||
-                wb.SheetNames.find(n=>/contract/i.test(n))||wb.SheetNames[0];
-  const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:"",raw:false});
-  let added=0,updated=0;
-  const today=todayISO();
-  for(const row of rows){
-    const no=String(row[0]||"").trim();
-    if(!/^\d+/.test(no))continue;
-    const factoryId=String(row[1]||"").replace(/\.0$/,"").trim();
-    if(!factoryId)continue;
-    const name=String(row[2]||"").trim();
-    const dept=String(row[3]||"").trim();
-    const section=String(row[4]||"").trim();
-    const position=String(row[5]||"").trim();
-    const entryDate=normalizeDate(row[6]);
-    const ctRaw=String(row[7]||"").toLowerCase().trim();
-    let contractType="FDC-6M";
-    if(/6\s*month/i.test(ctRaw))contractType="FDC-6M";
-    else if(/1\s*year/i.test(ctRaw)||/12\s*month/i.test(ctRaw))contractType="FDC-1Y";
-    else if(/2\s*year/i.test(ctRaw)||/24\s*month/i.test(ctRaw))contractType="FDC-2Y";
-    else if(/udc/i.test(ctRaw))contractType="UDC";
-    const months={"FDC-6M":6,"FDC-1Y":12,"FDC-2Y":24}[contractType];
-    const endDate=months&&entryDate?addMonths(entryDate,months):"";
-    const status=contractType==="UDC"?"active":(endDate&&endDate<today?"expired":"active");
-    let existing=DASH_CONTS.find(r=>r.factoryId===factoryId&&(r.entryDate||'')===entryDate);
-    if(!existing&&window.HRAHRGovernance){const cand=DASH_CONTS.filter(r=>String(r.factoryId||'')===factoryId&&String(r.status||'active')!=='terminated');if(cand.length===1&&cand[0].entryDate&&entryDate&&cand[0].entryDate!==entryDate){HRAHRGovernance.logConflict({module:'contract',recordKey:'CONT|'+factoryId,employeeId:factoryId,field:'entryDate',systemValue:cand[0].entryDate,importValue:entryDate,sourceFile:f.name,reason:'contract-entry-date-mismatch'});continue}}
-    const id=existing?.id||uid('dc');
-    let rec={id,factoryId,name,dept,section,position,entryDate,contractType,endDate,status,notes:'',source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),
-      updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
-    if(existing&&window.HRAHRGovernance){rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'CONT|'+factoryId+'|'+(entryDate||''),employeeId:factoryId,sourceFile:f.name,approved:existing.status==='renewed'||existing.status==='terminated',criticalFields:['entryDate','contractType','endDate','status']}).record;rec.id=existing.id}
-    await dbPut("dashConts",rec);
-    if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);DASH_CONTS[i]=rec;updated++;}
-    else{DASH_CONTS.push(rec);added++;}
+  const wb=XLSX.read(buf,{type:'array',cellDates:true});
+  const detected=_detectContractListSheet(wb);
+  let added=0,updated=0,conflicts=0,skipped=0,pendingDates=0;
+  const today=todayISO(), effectiveMonth=_contractEffectiveMonthFromName(f.name);
+
+  // 新式：用表頭辨識，避免誤抓「5% For Contract Worker」薪資計算表。
+  if(detected){
+    const {rows,headerRow,idx}=detected;
+    for(let ri=headerRow+1;ri<rows.length;ri++){
+      const row=rows[ri]||[];
+      const factoryId=String(row[idx.id]||'').replace(/\.0$/,'').trim();
+      if(!factoryId||!/\d/.test(factoryId))continue;
+      const name=idx.name>=0?String(row[idx.name]||'').trim():'';
+      const dept=idx.dept>=0?String(row[idx.dept]||'').trim():'';
+      const section=idx.section>=0?String(row[idx.section]||'').trim():'';
+      const position=idx.position>=0?String(row[idx.position]||'').trim():'';
+      const joinDate=idx.join>=0?normalizeDate(row[idx.join]):'';
+      const contractType=idx.ctype>=0?_contractTypeFrom(row[idx.ctype]):'';
+      const contractStart=idx.cstart>=0?normalizeDate(row[idx.cstart]):'';
+      let explicitEnd=idx.cend>=0?normalizeDate(row[idx.cend]):'';
+      if(!factoryId||(!joinDate&&!contractStart)){skipped++;continue}
+      if(!contractType){skipped++;continue}
+      if(!explicitEnd&&contractStart&&contractType!=='UDC'){
+        const months={'FDC-6M':6,'FDC-1Y':12,'FDC-2Y':24}[contractType];
+        if(months)explicitEnd=addMonths(contractStart,months);
+      }
+
+      const found=_contractImportExisting(factoryId,joinDate,contractType);
+      let existing=found.record;
+      if(!existing&&found.candidates&&found.candidates.length){
+        if(window.HRAHRGovernance)HRAHRGovernance.logConflict({module:'contract',recordKey:'CONT|'+factoryId,employeeId:factoryId,field:'contractRecord',systemValue:`${found.candidates.length} existing record(s)`,importValue:`${joinDate||'—'} | ${contractType}`,sourceFile:f.name,reason:'ambiguous-contract-import'});
+        conflicts++;continue;
+      }
+
+      // Excel 只有 Join Date + Contract 類型時，不用 Join Date 推算新的 Contract End。
+      // 既有合約日期保留；新資料標記「期間待確認」，避免製造錯誤到期日。
+      if(existing&&existing.contractType&&contractType&&String(existing.contractType)!==contractType){
+        if(window.HRAHRGovernance)HRAHRGovernance.logConflict({module:'contract',recordKey:'CONT|'+factoryId,employeeId:factoryId,field:'contractType',systemValue:existing.contractType,importValue:contractType,sourceFile:f.name,reason:'contract-type-mismatch'});
+        conflicts++;
+      }
+      const finalType=(existing&&existing.contractType)||contractType;
+      const finalEntry=(existing&&existing.entryDate)||joinDate||contractStart||'';
+      const finalEnd=explicitEnd||(existing&&existing.endDate)||'';
+      const needsPeriodReview=finalType!=='UDC'&&!finalEnd;
+      if(needsPeriodReview)pendingDates++;
+      const noteParts=[];
+      if(existing&&existing.notes)noteParts.push(existing.notes);
+      if(effectiveMonth)noteParts.push(`Import reference ${effectiveMonth}`);
+      if(needsPeriodReview)noteParts.push('Contract start/end not provided in Excel; please confirm period');
+      const id=existing?.id||uid('dc');
+      let rec={
+        ...(existing||{}),id,factoryId,
+        name:name||(existing&&existing.name)||'',dept:dept||(existing&&existing.dept)||'',section:section||(existing&&existing.section)||'',position:position||(existing&&existing.position)||'',
+        entryDate:finalEntry,joinDate:joinDate||(existing&&existing.joinDate)||'',contractStart:contractStart||(existing&&existing.contractStart)||'',
+        contractType:finalType,endDate:finalEnd,
+        status:(existing&&existing.status)|| (finalType==='UDC'?'active':(finalEnd&&finalEnd<today?'expired':'active')),
+        effectiveMonth:effectiveMonth||(existing&&existing.effectiveMonth)||'',needsPeriodReview,
+        notes:[...new Set(noteParts.filter(Boolean))].join(' · '),source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()
+      };
+      // 已核可/終止資料仍經 governance 保護，Excel 不直接覆蓋正式關鍵欄位。
+      if(existing&&window.HRAHRGovernance){
+        rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'CONT|'+factoryId+'|'+(finalEntry||''),employeeId:factoryId,sourceFile:f.name,approved:existing.status==='renewed'||existing.status==='terminated',criticalFields:['entryDate','contractType','contractStart','endDate','status']}).record;rec.id=existing.id;
+      }
+      await dbPut('dashConts',rec);
+      if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);if(i>=0)DASH_CONTS[i]=rec;updated++;}
+      else{DASH_CONTS.push(rec);added++;}
+    }
+  }else{
+    // 舊格式 fallback：維持 v65 相容性，但不再用 Join Date 自動推算 Contract End。
+    let sheetName=wb.SheetNames.find(n=>/contract\s*20/i.test(n))||wb.SheetNames.find(n=>/contract/i.test(n))||wb.SheetNames[0];
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:'',raw:false});
+    for(const row of rows){
+      const no=String(row[0]||'').trim();if(!/^\d+/.test(no))continue;
+      const factoryId=String(row[1]||'').replace(/\.0$/,'').trim();if(!factoryId)continue;
+      const name=String(row[2]||'').trim(),dept=String(row[3]||'').trim(),section=String(row[4]||'').trim(),position=String(row[5]||'').trim();
+      const entryDate=normalizeDate(row[6]),contractType=_contractTypeFrom(row[7]);if(!entryDate||!contractType){skipped++;continue}
+      const found=_contractImportExisting(factoryId,entryDate,contractType),existing=found.record;
+      if(!existing&&found.candidates&&found.candidates.length){conflicts++;continue}
+      const id=existing?.id||uid('dc'),finalEnd=(existing&&existing.endDate)||'',needsPeriodReview=contractType!=='UDC'&&!finalEnd;if(needsPeriodReview)pendingDates++;
+      const rec={...(existing||{}),id,factoryId,name:name||(existing&&existing.name)||'',dept:dept||(existing&&existing.dept)||'',section:section||(existing&&existing.section)||'',position:position||(existing&&existing.position)||'',entryDate:(existing&&existing.entryDate)||entryDate,contractType:(existing&&existing.contractType)||contractType,endDate:finalEnd,status:(existing&&existing.status)||'active',effectiveMonth:effectiveMonth||(existing&&existing.effectiveMonth)||'',needsPeriodReview,source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()};
+      await dbPut('dashConts',rec);if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);if(i>=0)DASH_CONTS[i]=rec;updated++;}else{DASH_CONTS.push(rec);added++;}
+    }
   }
-  renderDashCont();evt.target.value="";
-  toast(`合約匯入：新增 ${added} / 更新 ${updated}`,"success");if(window.HRAAutoSync)HRAAutoSync.schedule('contract','import',{},60);
+  rebuildDashPeriods('cont');renderDashCont();evt.target.value='';
+  toast(`合約匯入：新增 ${added} / 更新 ${updated} / 衝突 ${conflicts} / 跳過 ${skipped}${pendingDates?` / 待確認期間 ${pendingDates}`:''}`,(conflicts||skipped)?'warning':'success');
+  if(window.HRAAutoSync)HRAAutoSync.schedule('contract','import',{},60);
 }
 
 /* ── end dashboard helpers ── */
