@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
+<!-- v67 Contract Telegram routing + 5% approval amount fix -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
@@ -244,7 +245,7 @@ table tbody tr:hover{background:#fbf9f0}
 <body>
 
 <header>
-  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v66</span></h1>
+  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v67</span></h1>
   <div class="lang-switch">
     <button data-lang="zh" class="active">繁中</button>
     <button data-lang="en">English</button>
@@ -356,8 +357,8 @@ table tbody tr:hover{background:#fbf9f0}
         <button class="btn small warning" onclick="clearAllProbs()">⚡ <span data-i18n="btnClearAll">全清除</span></button>
         <button class="btn small success" onclick="exportProbationExcel()">💾 <span data-i18n="btnSave">儲存</span></button>
         <button class="btn small ghost" onclick="printProbationApplications()">🖨 <span data-i18n="print">列印</span></button>
-        <button class="btn small ghost" onclick="sendContractPeriodSummary('prob')">📱 摘要</button>
-        <button class="btn small gold" onclick="sendContractPeriodApproval('prob')">✅ 核可</button>
+        <button id="probSummaryBtn" class="btn small ghost" onclick="sendContractPeriodSummary('prob')">📱 摘要</button>
+        <button id="probApprovalBtn" class="btn small gold" onclick="sendContractPeriodApproval('prob')">✅ 核可</button>
         <button class="btn small ghost" onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('contract','Contract / Probation Excel Conflicts')">⚠ Conflict</button>
       </div>
     </div>
@@ -425,8 +426,8 @@ table tbody tr:hover{background:#fbf9f0}
         <button class="btn small warning" onclick="clearAllConts()">⚡ <span data-i18n="btnClearAll">全清除</span></button>
         <button class="btn small success" onclick="exportContractExcel()">💾 <span data-i18n="btnSave">儲存</span></button>
         <button class="btn small ghost" onclick="printContractApplications()">🖨 <span data-i18n="print">列印</span></button>
-        <button class="btn small ghost" onclick="sendContractPeriodSummary('cont')">📱 摘要</button>
-        <button class="btn small gold" onclick="sendContractPeriodApproval('cont')">✅ 核可</button>
+        <button id="contSummaryBtn" class="btn small ghost" onclick="sendContractPeriodSummary('cont')">📱 摘要</button>
+        <button id="contApprovalBtn" class="btn small gold" onclick="sendContractPeriodApproval('cont')">✅ 核可</button>
         <button class="btn small ghost" onclick="HRAHRGovernance&&HRAHRGovernance.openConflictCenter('contract','Contract / Probation Excel Conflicts')">⚠ Conflict</button>
       </div>
     </div>
@@ -954,7 +955,7 @@ const DEFAULT_SETTINGS={
   id:"main",probationDurations:{worker:1,technical:2,management:3},
   reminderDays:15,severanceRate:5,severanceMinMonths:6,language:"zh",
   lifecycle:{autoCreateProbation:true,autoTerminateOnResign:true,autoCloseProbationOnResign:true,nearExpiryDays:15},
-  telegramToken:"",telegramChatId:"-5115311567",
+  telegramToken:"",telegramChatId:"",
   gasUrl:"https://script.google.com/macros/s/AKfycbwVxpnEQGhEHkKt6RTTp-EEEf8Unr7qg0yITiyu8zIXS1tHJrKZL73To7FOikBsatKU/exec"
 };
 async function loadAll(){
@@ -967,6 +968,10 @@ async function loadAll(){
   SETTINGS=Object.assign({},DEFAULT_SETTINGS,s||{});
   SETTINGS.probationDurations=Object.assign({},DEFAULT_SETTINGS.probationDurations,(s&&s.probationDurations)||{});
   SETTINGS.lifecycle=Object.assign({},DEFAULT_SETTINGS.lifecycle,(s&&s.lifecycle)||{});
+  /* v67: old Contract builds shipped a hard-coded chat id that is no longer
+     authoritative.  GAS owns the destination now; clear only that known stale
+     default while preserving any explicitly customized emergency chat id. */
+  if(String(SETTINGS.telegramChatId||'')==='-5115311567')SETTINGS.telegramChatId='';
   if(!s)await dbPut("settings",SETTINGS);
   LANG=SETTINGS.language||"zh";
   contractPublishMirrors();
@@ -1367,9 +1372,15 @@ function renderDashCont(){
   const csoon=periodList.filter(c=>{if(c.contractType==="UDC"||c._computedStatus!=="active")return false;const d=daysFromToday(c.endDate);return d!==null&&d>=0&&d<=remDays2;}).length;
   const cfdc=periodList.filter(c=>/^FDC/i.test(String(c.contractType||""))).length;
   const cudc=periodList.filter(c=>String(c.contractType||"").toUpperCase()==="UDC").length;
+  const settlePeriod=contMode==='all'?'ALL':curKey;
+  const settleRows=contractSettlementEntriesForPeriod(settlePeriod);
+  const settleAmt=settleRows.reduce((s,x)=>s+safeNum(x.settlement&&x.settlement.netPay),0);
+  const settleCountLabel=LANG==='en'?'5% Payable':LANG==='km'?'5% ត្រូវបង់':'5% 結算筆數';
+  const settleAmtLabel=LANG==='en'?'Payable Total':LANG==='km'?'សរុបត្រូវបង់':'應付總額';
   const cstrip=document.getElementById("contKpiStrip");
   if(cstrip)cstrip.innerHTML=[
     {l:t("contKpiTotal"),v:ctotal,c:"#1e3a8a"},{l:t("contKpiActive"),v:cactive,c:"#059669"},{l:t("contKpiExpired"),v:cexpired,c:"#dc2626"},{l:t("contKpiSoon"),v:csoon,c:"#d97706"},{l:t("contKpiFDC"),v:cfdc,c:"#b8860b"},{l:t("contKpiUDC"),v:cudc,c:"#0369a1"},
+    {l:settleCountLabel,v:settleRows.length,c:"#7c3aed"},{l:settleAmtLabel,v:'$'+settleAmt.toFixed(2),c:"#0f766e"}
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashContSearch")?.value||"").toLowerCase();
   const statusF=(document.getElementById("dashContStatus")?.value||"");
@@ -2487,6 +2498,14 @@ function contractSettlementRowsFromWorkbook(wb,fileName){
   const sc=contractHeaderIndex(h,['section','line','group','組別']);
   const pc=contractHeaderIndex(h,['position','job title','職位']);
   const jc=contractHeaderIndex(h,['join date','joining date','入職日']);
+  /* v67: the legacy "5% For Contract Woker" sheet has merged headers:
+     row header shows Name | (blank) | Deparment | (blank) | Join date,
+     while the data are Name | Department | Section | Position | Join date.
+     Use the real data columns instead of treating Section as Department. */
+  const legacyShifted=(idc===1 && nc===2 && jc===6 && dc===4 && pc<0);
+  const dataDeptCol=legacyShifted?3:dc;
+  const dataSectionCol=legacyShifted?4:sc;
+  const dataPositionCol=legacyShifted?5:pc;
   const avc=contractHeaderIndex(h,['average salary','avg salary','平均薪資']);
   const fivec=contractHeaderIndex(h,['5% paid','5% pay','5%','5% reserve','5% severance']);
   const adc=contractHeaderIndex(h,['annual day','annual days','年假天數']);
@@ -2497,7 +2516,7 @@ function contractSettlementRowsFromWorkbook(wb,fileName){
     if(!/^\d+$/.test(id))continue;
     const net=safeNum(r[npc]),avg=safeNum(r[avc]),five=safeNum(r[fivec]),annualDay=safeNum(r[adc]),annualPaid=safeNum(r[apc]);
     if(!net && !five && !avg)continue;
-    out.push({factoryId:id,name:String(r[nc]||'').trim(),dept:String(r[dc]||'').trim(),section:String(r[sc]||'').trim(),position:String(r[pc]||'').trim(),joinDate:normalizeDate(r[jc]),averageSalary:avg,severance5:five,annualDay,annualPaid,netPay:net,payoutMonth:month,sourceFile:fileName,sheet:sheetName});
+    out.push({factoryId:id,name:String(r[nc]||'').trim(),dept:String(dataDeptCol>=0?r[dataDeptCol]||'':'').trim(),section:String(dataSectionCol>=0?r[dataSectionCol]||'':'').trim(),position:String(dataPositionCol>=0?r[dataPositionCol]||'':'').trim(),joinDate:normalizeDate(r[jc]),averageSalary:avg,severance5:five,annualDay,annualPaid,netPay:net,payoutMonth:month,sourceFile:fileName,sheet:sheetName});
   }
   return out;
 }
@@ -2524,6 +2543,50 @@ async function contractApplySettlementRows(rows){
     await dbPut('dashConts',rec);
   }
   return {added,updated};
+}
+async function contractMergeExactImportDuplicates(){
+  /* v67 conservative dedupe: merge only rows that describe the exact same
+     employee + contract identity.  Different start/end/type periods are kept. */
+  const groups=new Map();
+  DASH_CONTS.forEach(function(r){
+    const fid=String(r.factoryId||r.employeeId||'').trim();
+    if(!fid)return;
+    const key=[fid,String(r.contractType||''),String(r.joinDate||r.entryDate||''),String(r.endDate||''),String(r.effectiveMonth||'')].join('|');
+    if(!groups.has(key))groups.set(key,[]);
+    groups.get(key).push(r);
+  });
+  let removed=0;
+  for(const arr of groups.values()){
+    if(arr.length<2)continue;
+    arr.sort(function(a,b){
+      const sa=(Array.isArray(a.settlements)?a.settlements.length:0)*100+
+        ['name','dept','section','position','endDate','contractStart'].filter(k=>a[k]).length;
+      const sb=(Array.isArray(b.settlements)?b.settlements.length:0)*100+
+        ['name','dept','section','position','endDate','contractStart'].filter(k=>b[k]).length;
+      return sb-sa;
+    });
+    const keep=arr[0], mergedSettlements=[];
+    arr.forEach(function(r){
+      (Array.isArray(r.settlements)?r.settlements:[]).forEach(function(st){
+        const k=String(st.payoutMonth||'')+'|'+String(st.factoryId||keep.factoryId||'');
+        const ix=mergedSettlements.findIndex(x=>(String(x.payoutMonth||'')+'|'+String(x.factoryId||keep.factoryId||''))===k);
+        if(ix<0||safeNum(st.netPay)>safeNum(mergedSettlements[ix].netPay)) {
+          if(ix>=0)mergedSettlements[ix]=st; else mergedSettlements.push(st);
+        }
+      });
+      if(r===keep)return;
+      ['name','dept','section','position','joinDate','entryDate','contractStart','endDate','notes','sourceFile'].forEach(function(k){if(!keep[k]&&r[k])keep[k]=r[k]});
+      ['averageSalary','severance5','annualDay','annualPaid','netPay'].forEach(function(k){if(!safeNum(keep[k])&&safeNum(r[k]))keep[k]=r[k]});
+    });
+    if(mergedSettlements.length)keep.settlements=mergedSettlements;
+    keep.updatedAt=new Date().toISOString();
+    await dbPut('dashConts',keep);
+    for(let i=1;i<arr.length;i++){await dbDel('dashConts',arr[i].id);removed++;}
+    const drop=new Set(arr.slice(1).map(x=>x.id));
+    DASH_CONTS=DASH_CONTS.filter(x=>!drop.has(x.id));
+    const ki=DASH_CONTS.findIndex(x=>x.id===keep.id); if(ki>=0)DASH_CONTS[ki]=keep;
+  }
+  return removed;
 }
 async function contractImportMasterFromWorkbook(wb,fileName){
   let added=0,updated=0,skipped=0,conflicts=0,pendingDates=0;
@@ -2582,8 +2645,9 @@ async function smartImportContractFiles(evt){
       const sr=contractSettlementRowsFromWorkbook(wb,f.name);
       if(sr.length){const ar=await contractApplySettlementRows(sr);totals.settlement+=sr.length;totals.settleAdded+=ar.added;totals.settleUpdated+=ar.updated;}
     }
+    const deduped=await contractMergeExactImportDuplicates();
     rebuildDashPeriods('cont');rebuildOverviewPeriods();renderDashCont();renderDashboard();scheduleContractSync('import');
-    const msg=`✅ Master 新增 ${totals.masterAdded} / 更新 ${totals.masterUpdated} · 5% 明細 ${totals.settlement} · 衝突 ${totals.conflicts}`;
+    const msg=`✅ Master 新增 ${totals.masterAdded} / 更新 ${totals.masterUpdated} · 5% 明細 ${totals.settlement} · 去重 ${deduped} · 衝突 ${totals.conflicts}`;
     if(box)box.textContent=msg;toast(msg,'success');
   }catch(e){console.error(e);if(box)box.textContent='❌ '+e.message;toast('智慧匯入失敗：'+e.message,'danger')}
   evt.target.value='';
@@ -2599,51 +2663,148 @@ function contractCurrentPeriod(kind){
   return contMode==='all'?'ALL':currentDashKey('cont');
 }
 function contractSettlementForPeriod(r,period){
-  const ss=Array.isArray(r&&r.settlements)?r.settlements:[];
-  if(period==='ALL')return ss.length?ss[ss.length-1]:null;
-  const p=String(period||'').slice(0,7);
-  return ss.find(x=>String(x.payoutMonth||'').slice(0,7)===p)||null;
+  const fid=String(r&&(r.factoryId||r.employeeId||r.id)||'').trim();
+  const p=period==='ALL'?'ALL':String(period||'').slice(0,7);
+  const candidates=[];
+  function collect(rec){
+    if(!rec)return;
+    const ss=Array.isArray(rec.settlements)?rec.settlements:[];
+    ss.forEach(function(x){
+      const pm=String(x&&x.payoutMonth||'').slice(0,7);
+      if(p==='ALL'||pm===p)candidates.push(x);
+    });
+    const topMonth=String(rec.latestSettlementMonth||rec.payoutMonth||rec.effectiveMonth||'').slice(0,7);
+    const topNet=safeNum(rec.netPay),topFive=safeNum(rec.severance5);
+    if((topNet||topFive) && (p==='ALL'||topMonth===p)){
+      candidates.push({factoryId:fid,name:rec.name||'',dept:rec.dept||'',section:rec.section||'',position:rec.position||'',joinDate:rec.joinDate||rec.entryDate||'',averageSalary:safeNum(rec.averageSalary),severance5:topFive,annualDay:safeNum(rec.annualDay),annualPaid:safeNum(rec.annualPaid),netPay:topNet,payoutMonth:topMonth||p,sourceFile:rec.sourceFile||'',_topLevel:true});
+    }
+  }
+  collect(r);
+  if(fid){
+    DASH_CONTS.forEach(function(other){
+      if(other!==r && String(other&&(other.factoryId||other.employeeId||other.id)||'').trim()===fid)collect(other);
+    });
+  }
+  if(!candidates.length)return null;
+  candidates.sort(function(a,b){
+    const pa=String(a.payoutMonth||''),pb=String(b.payoutMonth||'');
+    if(pa!==pb)return pb.localeCompare(pa);
+    return safeNum(b.netPay)-safeNum(a.netPay);
+  });
+  return candidates[0];
+}
+function contractSettlementEntriesForPeriod(period){
+  const p=period==='ALL'?'ALL':String(period||'').slice(0,7),map=new Map();
+  DASH_CONTS.forEach(function(r){
+    const fid=String(r&&(r.factoryId||r.employeeId||r.id)||'').trim(); if(!fid)return;
+    const st=contractSettlementForPeriod(r,p); if(!st)return;
+    if(p!=='ALL' && String(st.payoutMonth||'').slice(0,7)!==p)return;
+    const old=map.get(fid);
+    if(!old || safeNum(st.netPay)>safeNum(old.settlement&&old.settlement.netPay)){
+      map.set(fid,{record:r,settlement:st});
+    }
+  });
+  return Array.from(map.values()).sort(function(a,b){
+    return String(a.record.factoryId||'').localeCompare(String(b.record.factoryId||''),undefined,{numeric:true});
+  });
+}
+function contractTgBtn(kind,mode){
+  return document.getElementById((kind==='prob'?'prob':'cont')+(mode==='approval'?'ApprovalBtn':'SummaryBtn'));
+}
+function contractTgBusy(kind,mode,on){
+  const b=contractTgBtn(kind,mode); if(!b)return;
+  if(on){
+    if(!b.dataset.oldHtml)b.dataset.oldHtml=b.innerHTML;
+    b.disabled=true;b.innerHTML=mode==='approval'?'⏳ 核可送出中…':'⏳ 摘要送出中…';
+  }else{
+    b.disabled=false;if(b.dataset.oldHtml)b.innerHTML=b.dataset.oldHtml;
+  }
+}
+async function contractGasPost(payload){
+  const url=contractGasUrl(); if(!url)throw new Error('請先設定 GAS URL / GAS URL is not configured');
+  const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
+  const txt=await r.text();let d=null;try{d=JSON.parse(txt)}catch(_){}
+  if(!d)throw new Error('GAS 回傳非 JSON / GAS returned non-JSON (HTTP '+r.status+')');
+  if(!r.ok||d.ok===false)throw new Error(d.error||(d.data&&d.data.error)||('GAS HTTP '+r.status));
+  return d.data||d;
 }
 async function sendContractPeriodSummary(kind){
-  const rows=contractCurrentRows(kind),period=contractCurrentPeriod(kind);
+  const rows=contractCurrentRows(kind),period=contractCurrentPeriod(kind),isProb=kind==='prob';
   if(!rows.length){toast('本期間沒有資料 / No data for this period','warning');return false}
-  const isProb=kind==='prob',title=isProb?'Probation Summary':'Contract Summary';
-  const lines=[`${isProb?'📝':'📄'} <b>${title}</b>`,`━━━━━━━━━━━━━━━━`,`Period / 期間 │ ${escapeHtml(period)}`,`Records / 筆數 │ <b>${rows.length}</b>`];
-  if(isProb){
-    const pass=rows.filter(r=>normalizeProbResult(r)==='passed').length,fail=rows.filter(r=>normalizeProbResult(r)==='failed').length,pending=rows.length-pass-fail;
-    lines.push(`Passed / 通過 │ ${pass}    Failed / 未通過 │ ${fail}`,`Pending / 待評估 │ ${pending}`);
-    rows.slice(0,20).forEach((r,i)=>lines.push(`#${i+1} ${escapeHtml(r.factoryId||'—')} · ${escapeHtml((r.khmerName||r.name||'—'))} · ${escapeHtml(r.dept||'—')} · ${escapeHtml(r.probEnd||'—')} · ${escapeHtml(normalizeProbResult(r))}`));
-  }else{
-    let total=0;rows.forEach(r=>{const st=contractSettlementForPeriod(r,period);if(st)total+=safeNum(st.netPay)});
-    if(total>0)lines.push(`5% Finish Contract Net Pay / 應付總額 │ <b>$${total.toFixed(2)}</b>`);
-    rows.slice(0,20).forEach((r,i)=>{const st=contractSettlementForPeriod(r,period);lines.push(`#${i+1} ${escapeHtml(r.factoryId||'—')} · ${escapeHtml(r.name||'—')} · ${escapeHtml(r.dept||'—')} · ${escapeHtml(r.contractType||'—')} · End ${escapeHtml(r.endDate||'—')}${st?` · Net $${safeNum(st.netPay).toFixed(2)}`:''}`)});
-  }
-  if(rows.length>20)lines.push(`… +${rows.length-20}`);
-  return sendTelegramMessage(lines.join('\n'),{period:String(period).slice(0,7),periodType:kind==='prob'?probMode:contMode,messageType:'summary'});
+  contractTgBusy(kind,'summary',true);
+  toast('⏳ 正在送出摘要 / Sending summary…','info');
+  try{
+    const title=isProb?'Probation Summary':'Contract Summary';
+    const lines=[`${isProb?'📝':'📄'} <b>${title}</b>`,`━━━━━━━━━━━━━━━━`,`Period / 期間 │ ${escapeHtml(period)}`];
+    if(isProb){
+      const pass=rows.filter(r=>normalizeProbResult(r)==='passed').length,fail=rows.filter(r=>normalizeProbResult(r)==='failed').length,pending=rows.length-pass-fail;
+      lines.push(`Records / 筆數 │ <b>${rows.length}</b>`,`Passed / 通過 │ ${pass}    Failed / 未通過 │ ${fail}`,`Pending / 待評估 │ ${pending}`);
+      rows.slice(0,20).forEach((r,i)=>lines.push(`#${i+1} ${escapeHtml(r.factoryId||'—')} · ${escapeHtml((r.khmerName||r.name||'—'))} · ${escapeHtml(r.dept||'—')} · ${escapeHtml(r.probEnd||'—')} · ${escapeHtml(normalizeProbResult(r))}`));
+      if(rows.length>20)lines.push(`… +${rows.length-20}`);
+    }else{
+      const moneyRows=contractSettlementEntriesForPeriod(period),total=moneyRows.reduce((s,x)=>s+safeNum(x.settlement&&x.settlement.netPay),0);
+      lines.push(`Contract master / 合約資料 │ <b>${rows.length}</b>`,`5% payable / 結算筆數 │ <b>${moneyRows.length}</b>`,`Payable total / 應付總額 │ <b>$${total.toFixed(2)}</b>`);
+      if(moneyRows.length){
+        moneyRows.slice(0,30).forEach((x,i)=>{
+          const r=x.record,st=x.settlement;
+          lines.push(`#${i+1} ${escapeHtml(r.factoryId||'—')} · ${escapeHtml(r.name||st.name||'—')} · ${escapeHtml(r.dept||st.dept||'—')} / ${escapeHtml(r.section||st.section||'—')} · Net <b>$${safeNum(st.netPay).toFixed(2)}</b> · 5% $${safeNum(st.severance5).toFixed(2)}`);
+        });
+        if(moneyRows.length>30)lines.push(`… +${moneyRows.length-30}`);
+      }else{
+        rows.slice(0,20).forEach((r,i)=>lines.push(`#${i+1} ${escapeHtml(r.factoryId||'—')} · ${escapeHtml(r.name||'—')} · ${escapeHtml(r.dept||'—')} · ${escapeHtml(r.contractType||'—')} · End ${escapeHtml(r.endDate||'—')}`));
+        if(rows.length>20)lines.push(`… +${rows.length-20}`);
+      }
+    }
+    /* v67 follows Onboarding/Maternity: GAS owns the Telegram destination.
+       Do NOT pass the Contract page's old local chat ID, which can override the
+       valid group in GAS and cause "Bad Request: chat not found". */
+    const x=await contractGasPost({action:'telegram',type:'notify',tool:'contract',module:'contract',scope:isProb?'probation':'contract',period:String(period).slice(0,7),periodType:isProb?probMode:contMode,messageType:'summary',lang:LANG==='en'?'en':LANG==='km'?'km':'zh',text:hraSecTelegramFormat(lines.join('\n'))});
+    if(!x.messageId&&!x.sentToGroup&&!x.sent)throw new Error('Telegram 沒有回傳群組訊息編號 / delivery not confirmed');
+    if(window.HRAAutoSync)HRAAutoSync.schedule('contract','telegram',{},60);else scheduleContractSync('telegram');
+    toast('✅ 摘要已送到 HRA 群組 / Summary sent','success');return true;
+  }catch(e){
+    console.error('[Contract summary]',e);toast('摘要送出失敗：'+e.message,'danger');return false;
+  }finally{contractTgBusy(kind,'summary',false)}
 }
 async function sendContractPeriodApproval(kind){
-  const rows=contractCurrentRows(kind),period=contractCurrentPeriod(kind),url=contractGasUrl();
-  if(!url){toast('請先設定 GAS URL','danger');return false}
-  if(!rows.length){toast('本期間沒有可送核資料 / No records for approval','warning');return false}
-  const isProb=kind==='prob',items=rows.map((r,i)=>{
-    if(isProb){
-      const days=r.joinDate&&r.probEnd?Math.max(0,daysBetween(r.joinDate,r.probEnd)):0;
-      return {key:`PROB|${r.factoryId||r.id}|${r.probEnd||r.joinDate||period}`,itemId:`PROB|${r.factoryId||r.id}|${r.probEnd||r.joinDate||period}`,empId:String(r.factoryId||''),name:String(r.khmerName||r.name||'—'),dept:String(r.dept||''),group:String(r.section||''),position:String(r.position||''),period:String(r.probEnd||r.evalDate||r.joinDate||period),days,amount:0,info:`Probation end ${r.probEnd||'—'} · Evaluation ${r.evalDate||'—'} · Score ${r.score==null?'—':r.score} · Result ${normalizeProbResult(r)}`,note:String(r.remarks||'')};
-    }
-    const st=contractSettlementForPeriod(r,period),join=r.joinDate||r.entryDate||'',refDate=(st&&st.payoutMonth?st.payoutMonth+'-01':r.endDate||join||period),days=join&&refDate?Math.max(0,daysBetween(join,refDate)):0;
-    return {key:`CONT|${r.factoryId||r.id}|${String(period).slice(0,7)}`,itemId:`CONT|${r.factoryId||r.id}|${String(period).slice(0,7)}`,empId:String(r.factoryId||''),name:String(r.name||'—'),dept:String(r.dept||''),group:String(r.section||''),position:String(r.position||''),period:String((st&&st.payoutMonth)||r.endDate||period),days,amount:st?safeNum(st.netPay):0,info:`Contract ${r.contractType||'—'} · Join ${join||'—'} · End ${r.endDate||'—'}${st?` · 5% reserve $${safeNum(st.severance5).toFixed(2)} · Net $${safeNum(st.netPay).toFixed(2)}`:''}`,note:String(r.notes||'')};
-  });
-  const p=String(period||'ALL'),payload={action:'approvalRequest',type:'approvalRequest',module:'contract',scope:isProb?'probation':'contract',title:isProb?'Probation Review':'Contract Review',batch:(isProb?'PB-':'CT-')+p.replace(/[^0-9A-Za-z]/g,''),period:p,route:'review',lang:LANG==='en'?'en':LANG==='km'?'km':'zh',items,idempotencyKey:['contract',kind,p,items.map(x=>x.itemId).sort().join(',')].join('|'),requestedBy:'contract_web',requestedAt:new Date().toISOString()};
+  const baseRows=contractCurrentRows(kind),period=contractCurrentPeriod(kind),isProb=kind==='prob';
+  if(!baseRows.length){toast('本期間沒有可送核資料 / No records for approval','warning');return false}
+  contractTgBusy(kind,'approval',true);
+  toast('⏳ 正在建立核可批次 / Creating approval batch…','info');
   try{
-    const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-    const txt=await r.text();let d;try{d=JSON.parse(txt)}catch(_){throw new Error('GAS returned non-JSON')}
-    if(!r.ok||d.ok===false)throw new Error(d.error||`GAS HTTP ${r.status}`);
-    const x=d.data||d;
-    if(x.alreadyPending){toast('本批已在待核，不重複發送','warning');return true}
-    if(x.alreadyApproved||x.alreadyDecided){toast('本批已完成核可，不重複發送','warning');return true}
-    if(!x.closed&&!x.messageId&&!x.sentToGroup)throw new Error('Telegram 未確認送達');
-    scheduleContractSync('approval');toast('✅ 已送出核可 / Approval sent','success');return true;
-  }catch(e){console.error(e);toast('核可送出失敗：'+e.message,'danger');return false}
+    let items=[];
+    if(isProb){
+      items=baseRows.map((r,i)=>{
+        const days=r.joinDate&&r.probEnd?Math.max(0,daysBetween(r.joinDate,r.probEnd)):0;
+        return {key:`PROB|${r.factoryId||r.id}|${r.probEnd||r.joinDate||period}`,itemId:`PROB|${r.factoryId||r.id}|${r.probEnd||r.joinDate||period}`,kind:'probation',empId:String(r.factoryId||''),name:String(r.khmerName||r.name||'—'),dept:String(r.dept||''),group:String(r.section||''),position:String(r.position||''),period:String(r.probEnd||r.evalDate||r.joinDate||period),days,amount:0,info:`Probation end ${r.probEnd||'—'} · Evaluation ${r.evalDate||'—'} · Score ${r.score==null?'—':r.score} · Result ${normalizeProbResult(r)}`,note:String(r.remarks||'')};
+      });
+    }else{
+      const moneyRows=contractSettlementEntriesForPeriod(period);
+      if(moneyRows.length){
+        items=moneyRows.map((x,i)=>{
+          const r=x.record,st=x.settlement,join=r.joinDate||r.entryDate||st.joinDate||'',refDate=(st.payoutMonth?st.payoutMonth+'-01':r.endDate||join||period),days=join&&refDate?Math.max(0,daysBetween(join,refDate)):0;
+          return {key:`CONT5|${r.factoryId||r.id}|${String(st.payoutMonth||period).slice(0,7)}`,itemId:`CONT5|${r.factoryId||r.id}|${String(st.payoutMonth||period).slice(0,7)}`,kind:'contract_settlement',empId:String(r.factoryId||''),name:String(r.name||st.name||'—'),dept:String(r.dept||st.dept||''),group:String(r.section||st.section||''),position:String(r.position||st.position||''),period:String(st.payoutMonth||period),days,amount:safeNum(st.netPay),info:`${r.contractType||'FDC'} · Join ${join||'—'} · 5% $${safeNum(st.severance5).toFixed(2)} · Annual $${safeNum(st.annualPaid).toFixed(2)} · Net $${safeNum(st.netPay).toFixed(2)}`,note:String(r.notes||'')};
+        });
+      }else{
+        if(!confirm('本期間沒有 5% 結算金額。仍要送「合約資料核可」（金額會顯示 —）嗎？\nNo 5% settlement amount exists for this period. Send contract-record approval without amounts?'))return false;
+        items=baseRows.map((r,i)=>{
+          const join=r.joinDate||r.entryDate||'',refDate=r.endDate||join||period,days=join&&refDate?Math.max(0,daysBetween(join,refDate)):0;
+          return {key:`CONT|${r.factoryId||r.id}|${String(period).slice(0,7)}`,itemId:`CONT|${r.factoryId||r.id}|${String(period).slice(0,7)}`,kind:'contract_record',empId:String(r.factoryId||''),name:String(r.name||'—'),dept:String(r.dept||''),group:String(r.section||''),position:String(r.position||''),period:String(r.endDate||period),days,amount:0,info:`Contract ${r.contractType||'—'} · Join ${join||'—'} · End ${r.endDate||'—'}`,note:String(r.notes||'')};
+        });
+      }
+    }
+    if(!items.length)throw new Error('沒有可送核可的明細 / No approval items');
+    const p=String(period||'ALL'),total=items.reduce((s,x)=>s+safeNum(x.amount),0);
+    const payload={action:'approvalRequest',type:'approvalRequest',module:'contract',scope:isProb?'probation':'contract',title:isProb?'Probation Review':'Contract 5% Settlement Review',batch:(isProb?'PB-':'CT-')+p.replace(/[^0-9A-Za-z]/g,''),period:p,route:'review',lang:LANG==='en'?'en':LANG==='km'?'km':'zh',count:items.length,items,idempotencyKey:['contract',kind,p,items.length,items.map(x=>x.itemId).sort().join(',')].join('|'),requestedBy:'contract_web',requestedAt:new Date().toISOString(),summary:{records:items.length,totalAmount:total}};
+    const x=await contractGasPost(payload);
+    if(x.closed){toast('本批已完成核可，不重複發送 / Batch already closed','warning');return true}
+    if(x.reused||x.alreadyPending){toast('本批已在 Telegram 待核，已刷新原訊息 / Existing pending batch refreshed','warning');return true}
+    if(!x.messageId&&!x.sentToGroup)throw new Error('Telegram 未確認送達 / delivery not confirmed');
+    scheduleContractSync('approval');
+    toast(`✅ 核可已送出 ${items.length} 筆${total>0?` · $${total.toFixed(2)}`:''} / Approval sent`,'success');return true;
+  }catch(e){
+    console.error('[Contract approval]',e);toast('核可送出失敗：'+e.message,'danger');return false;
+  }finally{contractTgBusy(kind,'approval',false)}
 }
 
 /* ========== 備份 / 還原 ========== */
@@ -2729,26 +2890,36 @@ async function saveSettings(){
 /* ========== Telegram ========== */
 async function sendTelegramMessage(text,meta={}){
   text=hraSecTelegramFormat(text);
-  const token=SETTINGS.telegramToken,chat=SETTINGS.telegramChatId,gas=contractGasUrl();
-  /* v46: prefer HRA GAS so successful Telegram delivery is written into the
-     reminder audit. v45 could send directly to Telegram and bypass this
-     receipt, causing a just-sent Contract summary to be reminded again. */
+  const gas=contractGasUrl();
   if(gas){
     try{
-      const payload=Object.assign({action:'telegram',tool:'contract',module:'contract',text:text,chatId:chat||''},meta||{});
-      const r=await fetch(gas,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});
-      const j=await r.json(),x=(j&&j.data)||j||{};
-      if(j&&j.ok!==false&&(x.sentToGroup||x.messageId)){if(window.HRAAutoSync)HRAAutoSync.schedule('contract',(meta&&meta.messageType)==='approval'?'approval':'telegram',{},60);else scheduleContractSync('telegram');return true;}
-      throw new Error((j&&j.error)||x.error||'Telegram delivery not confirmed');
-    }catch(e){console.error('[Contract GAS Telegram]',e);if(!token||!chat){toast('Telegram 失敗：'+e.message,'danger');return false}}
+      /* Same routing rule as Onboarding/Maternity: the HRA GAS deployment is
+         the single source of truth for Telegram group/bot.  The Contract page
+         must not override it with an old per-browser chat ID. */
+      const payload=Object.assign({action:'telegram',type:'notify',tool:'contract',module:'contract',text:text,lang:LANG==='en'?'en':LANG==='km'?'km':'zh'},meta||{});
+      const x=await contractGasPost(payload);
+      if(x.sentToGroup||x.messageId||x.sent){
+        if(window.HRAAutoSync)HRAAutoSync.schedule('contract',(meta&&meta.messageType)==='approval'?'approval':'telegram',{},60);else scheduleContractSync('telegram');
+        return true;
+      }
+      throw new Error(x.error||'Telegram delivery not confirmed');
+    }catch(e){
+      console.error('[Contract GAS Telegram]',e);
+      toast('Telegram 失敗：'+e.message,'danger');
+      return false;
+    }
   }
-  if(!token||!chat){toast('請先在設定填入 Telegram Bot Token 或 GAS URL','danger');return false}
+  /* Emergency direct mode is retained only when no GAS URL exists at all. */
+  const token=String(SETTINGS.telegramToken||'').trim(),chat=String(SETTINGS.telegramChatId||'').trim();
+  if(!token||!chat){toast('請先設定 HRA GAS URL；或在緊急模式填 Bot Token + Chat ID','danger');return false}
   try{
     const url=`https://api.telegram.org/bot${token}/sendMessage`;
     const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:chat,text,parse_mode:'HTML'})});
-    const j=await r.json();if(!j.ok){toast('Telegram 錯誤：'+j.description,'danger');return false}if(window.HRAAutoSync)HRAAutoSync.schedule('contract','telegram',{},60);else scheduleContractSync('telegram');return true;
+    const j=await r.json();if(!j.ok)throw new Error(j.description||'Telegram send failed');
+    if(window.HRAAutoSync)HRAAutoSync.schedule('contract','telegram',{},60);else scheduleContractSync('telegram');return true;
   }catch(e){toast('Telegram 失敗：'+e.message,'danger');return false}
 }
+
 async function testTelegram(){
   const ok=await sendTelegramMessage(`🏭 <b>VRT HR 系統測試</b>\n時間：${new Date().toLocaleString()}\n連線正常 ✅`);
   if(ok)toast("Telegram 測試訊息已發送","success");
