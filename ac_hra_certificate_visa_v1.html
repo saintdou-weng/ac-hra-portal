@@ -7,6 +7,8 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
+<script src="shared/certificate-model.js?v=72"></script>
+<script src="shared/certificate-workflow.js?v=72"></script>
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -128,6 +130,8 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
   .form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.panel-head,.panel-body{padding:13px}
   .control.search{min-width:0;width:100%}.dialog{border-radius:14px}.modal{padding:8px}
 }
+
+.source-highlight td{background:#fffbc8}.source-highlight td:first-child{border-left:4px solid #e4b400}
 </style>
 </head>
 <body>
@@ -138,7 +142,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="brand-icon">🛂</div>
         <div class="brand">
           <h1 data-i18n="title">證書、簽證與工作證管理</h1>
-          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v1.0</p>
+          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v72</p>
         </div>
         <div class="grow"></div>
         <div class="lang">
@@ -251,7 +255,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
       <div class="panel">
         <div class="panel-head toolbar">
           <h2 data-i18n="companyCertificates">公司證書與合約</h2><div class="grow"></div>
-          <input class="control search" id="certSearch" data-i18n-placeholder="searchCert" placeholder="搜尋證書／分類／聯絡人" oninput="renderCertificates()">
+          <select class="control" id="certScope" onchange="renderCertificates()"><option value="current" data-i18n="currentList">目前清單</option><option value="history" data-i18n="historicalList">歷史／最新未列</option><option value="all" data-i18n="allStatuses">全部狀態</option></select><input class="control search" id="certSearch" data-i18n-placeholder="searchCert" placeholder="搜尋證書／分類／聯絡人" oninput="renderCertificates()">
           <select class="control" id="certDept" onchange="renderCertificates()"><option value="" data-i18n="allCategories">全部分類</option></select>
           <button class="btn" onclick="openCertForm()" data-i18n="onlineAdd">＋ 線上新增</button>
           <button class="btn blue" onclick="createBatchRequest('certificate')" data-i18n="batchApply">批次申請核可</button>
@@ -266,7 +270,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <h2 data-i18n="expatDocuments">外籍人員與證件</h2><div class="grow"></div>
           <input class="control search" id="peopleSearch" data-i18n-placeholder="searchPeople" placeholder="搜尋工號／姓名／護照" oninput="renderPeople()">
           <select class="control" id="peopleDept" onchange="renderPeople()"><option value="" data-i18n="allDepartments">全部部門</option></select>
-          <select class="control" id="peopleStatus" onchange="renderPeople()"><option value="" data-i18n="allStatuses">全部狀態</option><option value="active" data-i18n="active">在職</option><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select>
+          <select class="control" id="peopleStatus" onchange="renderPeople()"><option value="active" selected data-i18n="active">在職／有效</option><option value="" data-i18n="allStatuses">全部狀態</option><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select>
           <button class="btn" onclick="openPersonForm()" data-i18n="onlineAdd">＋ 線上新增</button>
           <button class="btn blue" onclick="createBatchRequest('person')" data-i18n="batchApply">批次申請核可</button>
         </div>
@@ -325,6 +329,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
     <div class="dialog-body">
       <div class="drop" onclick="document.getElementById('modalFileInput').click()"><input id="modalFileInput" type="file" accept=".xlsx,.xls" multiple><div class="big">📥</div><strong data-i18n="chooseFilesTogether">可一次選 Certificate、Visa、Permit 多個檔案</strong><span data-i18n="dedupHint">同工號／護照／姓名＋生日會更新，不會重複建立</span></div>
       <div style="height:12px"></div><div class="notice" data-i18n="latestRule">若舊名單有、最新名單沒有，先標為「最新名單未列／待確認」；來源明確寫離職才標為離職。</div>
+      <div class="field"><label data-i18n="importScope">匯入範圍</label><select class="control" id="importMode"><option value="complete" data-i18n="importComplete">完整最新清單（未列項目保留歷史）</option><option value="merge" data-i18n="importPartial">局部更新（其他項目保留追蹤）</option></select></div>
       <ul class="import-log" id="importPreview"></ul>
     </div>
   </div>
@@ -367,7 +372,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="field"><label data-i18n="nameKh">柬文姓名</label><input id="personNameKh"></div>
         <div class="field"><label data-i18n="nickname">英文名／暱稱</label><input id="personNickname"></div>
         <div class="field"><label data-i18n="department">部門</label><input id="personDepartment"></div>
-        <div class="field"><label data-i18n="status">狀態</label><select id="personStatus"><option value="active" data-i18n="active">在職</option><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select></div>
+        <div class="field"><label data-i18n="status">狀態</label><select id="personStatus"><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select></div>
         <div class="field"><label data-i18n="sex">性別</label><input id="personSex"></div>
         <div class="field"><label data-i18n="nationality">國籍</label><input id="personNationality"></div>
         <div class="field"><label data-i18n="dob">生日</label><input id="personDob" type="date"></div>
@@ -392,10 +397,10 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
       <div class="dialog-body"><input id="requestId" type="hidden"><div class="form-grid">
         <div class="field"><label data-i18n="requestTitle">申請主旨</label><input id="requestTitle" required></div>
         <div class="field"><label data-i18n="requestType">申請類型</label><select id="requestType"><option value="renewal" data-i18n="renewal">續期</option><option value="new" data-i18n="newApplication">新申請</option><option value="change" data-i18n="change">資料變更</option><option value="close" data-i18n="closeCase">結案／停止</option></select></div>
-        <div class="field"><label data-i18n="applicant">申請人</label><input id="requestApplicant"></div>
+        <div class="field"><label data-i18n="applicant">申請人</label><input id="requestApplicant" required></div><div class="field" id="requestDocumentField"><label data-i18n="documentType">證件類型</label><select id="requestDocumentType"><option value="visa" data-i18n="visa">簽證</option><option value="passport" data-i18n="passport">護照</option><option value="workPermit" data-i18n="workPermit">工作證</option><option value="residence" data-i18n="residence">居留證</option></select></div>
         <div class="field"><label data-i18n="dueDate">期限</label><input id="requestDue" type="date"></div>
         <div class="field"><label data-i18n="estimatedCost">預估費用</label><input id="requestCost" type="number" step="0.01"></div>
-        <div class="field"><label data-i18n="status">狀態</label><select id="requestStatus"><option value="draft" data-i18n="draft">草稿</option><option value="pending" data-i18n="pending">待核可</option><option value="approved" data-i18n="approved">已核可</option><option value="rejected" data-i18n="rejected">退件</option></select></div>
+        <div class="field"><label data-i18n="status">狀態</label><select id="requestStatus"><option value="draft" data-i18n="draft">草稿</option><option value="pending" data-i18n="pending">待核可</option></select></div>
         <div class="field full"><label data-i18n="selectedItems">選取項目</label><div class="notice" id="requestItemsLabel">0</div></div>
         <div class="field full"><label data-i18n="remark">備註</label><textarea id="requestRemark"></textarea></div>
       </div></div>
@@ -412,7 +417,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="field"><label data-i18n="messageType">訊息類型</label><select id="tgType" onchange="refreshTgPreview()"><option value="summary" data-i18n="summary">摘要</option><option value="approval" data-i18n="approvalRequest">核可申請</option><option value="reminder" data-i18n="expiryReminder">45 天到期提醒</option></select></div>
         <div class="field"><label data-i18n="summaryPeriod">摘要期間</label><select id="tgPeriod" onchange="refreshTgPreview()"><option value="day" data-i18n="daily">每日</option><option value="week" data-i18n="weekly">每周</option><option value="month" data-i18n="monthly">每月</option><option value="year" data-i18n="yearly">每年</option></select></div>
         <div class="field"><label data-i18n="language">語言</label><select id="tgLang" onchange="refreshTgPreview()"><option value="zh" data-i18n="chinese">中文</option><option value="en" data-i18n="english">English</option><option value="both" data-i18n="bilingual">中英雙語</option><option value="all3" data-i18n="trilingual">中英柬三語</option></select></div>
-        <div class="field"><label data-i18n="recipient">核可者 ID</label><input id="tgRecipient" value="5026942575" oninput="refreshTgPreview()"></div>
+        <div class="field"><label data-i18n="recipient">核可者 ID</label><input id="tgRecipient" value="5026942575" readonly></div>
         <div class="field"><label>發送人 / Applicant · Inspector</label><input id="tgActor" placeholder="Phary / HRA" oninput="localStorage.setItem('ac_hra_cert_tg_actor',this.value);refreshTgPreview()"></div>
         <div class="field full"><label data-i18n="preview">預覽</label><div class="preview" id="tgPreview"></div></div>
       </div>
@@ -426,7 +431,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
 
 <script>
 'use strict';
-const APP_VERSION='1.0.0';
+const APP_VERSION='1.2.72';
 const DB_NAME='ac_hra_certificate_visa_v1';
 const DB_STORE='snapshots';
 const DB_KEY='main';
@@ -494,7 +499,7 @@ en:{
  imported:'Excel import',online:'Online entry',notInLatestLong:'Not in latest roster / Review',unknown:'Unassigned',localOnly:'Local workflow',requestDecision:'Enter approval / rejection comments (optional)',statusActive:'Active',statusComplete:'Completed',statusStopped:'Stopped',statusResigned:'Resigned',statusMissing:'Not in Latest Roster',statusPending:'Pending',statusApproved:'Approved',statusRejected:'Rejected',statusDraft:'Draft',
  latest:'Latest',records:'records',periodRows:'{n} periods',sourceCertificate:'Certificate',sourceVisa:'Visa / Permit'
 }};
-function tr(k,v={}){let s=(I18N[LANG]&&I18N[LANG][k])||I18N.zh[k]||k;Object.entries(v).forEach(([a,b])=>s=s.replaceAll('{'+a+'}',String(b)));return s}
+function tr(k,v={}){let s=(certificateExtraLabels[LANG]&&certificateExtraLabels[LANG][k])||(I18N[LANG]&&I18N[LANG][k])||I18N.zh[k]||k;Object.entries(v).forEach(([a,b])=>s=s.replaceAll('{'+a+'}',String(b)));return s}
 </script>
 <script>
 /* ── Storage, dates and rendering ─────────────────────────────────────── */
@@ -524,10 +529,10 @@ function isoDate(v){
 function dateObj(s){if(!s)return null;const [y,m,d]=String(s).slice(0,10).split('-').map(Number);return y&&m&&d?new Date(y,m-1,d):null}
 function todayISO(){return isoDate(new Date())}
 function fmtDate(s){if(!s)return '—';const d=dateObj(s);if(!d)return esc(s);return LANG==='en'?d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'}):`${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}`}
-function money(v){if(v===''||v==null||Number(v)===0)return '—';return '$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2})}
+function money(v){if(v===''||v==null)return '—';if(!Number.isFinite(Number(v)))return esc(v);return '$'+Number(v).toLocaleString(undefined,{maximumFractionDigits:2})}
 function dayDiff(s,from=new Date()){const d=dateObj(s);if(!d)return Infinity;const a=new Date(from.getFullYear(),from.getMonth(),from.getDate());return Math.round((d-a)/86400000)}
 function defaultState(){return{
-  version:APP_VERSION,certificates:[],people:[],requests:[],imports:[],
+  version:APP_VERSION,certificates:[],people:[],requests:[],imports:[],monthlySnapshots:[],
   settings:{reminderDays:45,approverTelegramId:'5026942575',defaultDepartment:'',latestRosterRank:0,latestRosterYear:''},
   updatedAt:new Date().toISOString()
 }}
@@ -540,7 +545,8 @@ async function persist(reason){
   reason=reason||'persist';
   STATE.updatedAt=new Date().toISOString();
   const db=await openDb();await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=resolve;q.onerror=()=>reject(q.error)});db.close();
-  const meta={count:STATE.certificates.length+STATE.people.length+STATE.requests.length,certCount:STATE.certificates.length,expatCount:STATE.people.length,requestCount:STATE.requests.length,updatedAt:STATE.updatedAt};
+  const _current=certificateMonthView(HRACertificateModel.monthAt()),_certCount=_current.certificates.filter(HRACertificateModel.current).length,_peopleCount=_current.people.filter(p=>p.status==='active'&&!p.notInLatest).length;
+  const meta={count:_certCount+_peopleCount+STATE.requests.length,certCount:_certCount,expatCount:_peopleCount,requestCount:STATE.requests.length,updatedAt:STATE.updatedAt};
   localStorage.setItem(META_KEY,JSON.stringify(meta));
   if(!_certCloudApplying)scheduleCertSync(reason);
 }
@@ -591,66 +597,66 @@ function syncPeriodPicker(){
 function pickPeriod(v){if(!v)return;if(PERIOD_MODE==='year')PERIOD_ANCHOR=new Date(+v,0,1);else{const a=v.split('-').map(Number);PERIOD_ANCHOR=new Date(a[0],(a[1]||1)-1,a[2]||1)}renderAll()}
 function movePeriod(n){if(PERIOD_MODE==='day')PERIOD_ANCHOR.setDate(PERIOD_ANCHOR.getDate()+n);else if(PERIOD_MODE==='week')PERIOD_ANCHOR.setDate(PERIOD_ANCHOR.getDate()+7*n);else if(PERIOD_MODE==='month')PERIOD_ANCHOR.setMonth(PERIOD_ANCHOR.getMonth()+n);else PERIOD_ANCHOR.setFullYear(PERIOD_ANCHOR.getFullYear()+n);PERIOD_ANCHOR=new Date(PERIOD_ANCHOR);renderAll()}
 function itemName(kind,id){
-  if(kind==='certificate'){const x=STATE.certificates.find(a=>a.id===id);return x?x.name:id}
-  const x=STATE.people.find(a=>a.id===id);return x?(x.nickname||x.nameEn||x.nameKh):id
+  if(kind==='certificate'){const x=certificatesForMonth().find(a=>a.id===id);return x?x.name:id}
+  const x=peopleForMonth().find(a=>a.id===id);return x?(x.nickname||x.nameEn||x.nameKh):id
 }
 function isEventCompleted(e){
-  const rec=e.kind==='certificate'?STATE.certificates.find(x=>x.id===e.recordId):STATE.people.find(x=>x.id===e.recordId);
+  const rec=e.kind==='certificate'?certificatesForMonth(e.snapshotMonth).find(x=>x.id===e.recordId):peopleForMonth(e.snapshotMonth).find(x=>x.id===e.recordId);
   if(!rec)return false;
   if(['stopped','resigned','not_in_latest'].includes(rec.status))return true;
-  if(rec.completedForDate&&rec.completedForDate>=e.date)return true;
-  return STATE.requests.some(r=>r.status==='approved'&&r.items?.some(i=>i.id===e.recordId)&&r.dueDate&&r.dueDate>=e.date)
+  if(rec.completedForDate&&rec.completedForDate===e.date)return true;
+  return STATE.requests.some(r=>(!r.period||!e.snapshotMonth||r.period<=e.snapshotMonth)&&(r.items||[]).some(i=>i.id===e.recordId&&(!i.documentType||i.documentType===e.type)&&i.targetDate===e.date&&(i.approvalStatus==='approved'||r.status==='approved')&&(!i.documentRequest||i.documentRequest.expiryDate===(e.kind==='certificate'?rec.expiryDate:rec[e.type+'Expiry']))))
 }
-function allEvents(){
+function allEvents(month=certificateViewMonth()){
   const out=[];
-  STATE.certificates.forEach(c=>{const d=c.renewalDate||c.expiryDate;if(d)out.push({id:`certificate:${c.id}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:num(c.cost)})});
-  STATE.people.forEach(p=>{
+  certificatesForMonth(month).filter(c=>HRACertificateModel.current(c)&&c.status!=='stopped').forEach(c=>{const d=certificateNextDate(c);if(d)out.push({id:`certificate:${c.id}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:c.costIsRate?0:num(c.cost),expiryDate:c.expiryDate,renewalDate:c.renewalDate})});
+  peopleForMonth(month).filter(p=>p.status==='active'&&!p.notInLatest).forEach(p=>{
     [['passport','passportExpiry'],['visa','visaExpiry'],['workPermit','workPermitExpiry'],['residence','residenceExpiry']].forEach(([type,key])=>{if(p[key])out.push({id:`${type}:${p.id}:${p[key]}`,kind:'person',recordId:p.id,type,date:p[key],name:p.nickname||p.nameEn||p.nameKh,department:p.department||tr('unknown'),source:p.sourceFile||tr('sourceVisa'),cost:type==='visa'?num(p.visaExpense):type==='workPermit'?num(p.workPermitExpense):0})})
   });
-  return out.map(e=>({...e,completed:isEventCompleted(e),days:dayDiff(e.date)})).sort((a,b)=>a.date.localeCompare(b.date))
+  return out.map(e=>({...e,snapshotMonth:month,completed:isEventCompleted({...e,snapshotMonth:month}),days:dayDiff(e.date,month===HRACertificateModel.monthAt()?new Date():dateObj(month+'-01'))})).sort((a,b)=>a.date.localeCompare(b.date))
 }
 function typeLabel(type){return tr({certificate:'companyCert',passport:'passport',visa:'visa',workPermit:'workPermit',residence:'residence'}[type]||type)}
-function statusKey(s){return {active:'statusActive',complete:'statusComplete',completed:'statusComplete',stopped:'statusStopped',resigned:'statusResigned',not_in_latest:'statusMissing',pending:'statusPending',approved:'statusApproved',rejected:'statusRejected',draft:'statusDraft',due:'due',expired:'expired'}[s]||s}
+function statusKey(s){return {active:'statusActive',complete:'statusComplete',completed:'statusComplete',stopped:'statusStopped',resigned:'statusResigned',not_in_latest:'statusMissing',pending:'statusPending',approved:'statusApproved',mixed:'mixedDecision',rejected:'statusRejected',draft:'statusDraft',due:'due',expired:'expired'}[s]||s}
 function badge(s,label){const cls=['approved','complete','completed','active'].includes(s)?'b-'+(s==='completed'?'complete':s):['pending','due','not_in_latest'].includes(s)?'b-'+s:['expired','rejected','resigned'].includes(s)?'b-'+s:['stopped','draft'].includes(s)?'b-'+s:'b-draft';return `<span class="badge ${cls}">${esc(label||tr(statusKey(s)))}</span>`}
 function eventState(e){if(e.completed)return'complete';if(e.days<0)return'expired';if(e.days<=Number(STATE.settings.reminderDays||45))return'due';return'active'}
 function emptyRow(cols,msg='noData'){return `<tr><td colspan="${cols}"><div class="empty"><div class="ico">📭</div>${esc(tr(msg))}</div></td></tr>`}
 function distinctDepartments(){
-  return [...new Set([...STATE.certificates.map(x=>x.department||x.category),...STATE.people.map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))
+  return [...new Set([...certificatesForMonth().map(x=>x.department||x.category),...peopleForMonth().map(x=>x.department)].filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))
 }
 function fillSelect(id,values,allKey){
   const e=document.getElementById(id);if(!e)return;const keep=e.value;e.innerHTML=`<option value="">${esc(tr(allKey))}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');if([...e.options].some(o=>o.value===keep))e.value=keep
 }
 function renderDashboard(){
-  const ev=allEvents(),activePeople=STATE.people.filter(p=>p.status==='active').length,rem=Number(STATE.settings.reminderDays||45);
-  document.getElementById('kCert').textContent=STATE.certificates.filter(c=>c.status!=='stopped').length;
+  const ev=allEvents(),activePeople=peopleForMonth().filter(p=>p.status==='active').length,rem=Number(STATE.settings.reminderDays||45);
+  document.getElementById('kCert').textContent=certificatesForMonth().filter(c=>HRACertificateModel.current(c)&&c.status!=='stopped').length;
   document.getElementById('kPeople').textContent=activePeople;
   document.getElementById('kDue').textContent=ev.filter(e=>!e.completed&&e.days>=0&&e.days<=rem).length;
   document.getElementById('kExpired').textContent=ev.filter(e=>!e.completed&&e.days<0).length;
-  document.getElementById('kPending').textContent=STATE.requests.filter(r=>r.status==='pending').length;
+  document.getElementById('kPending').textContent=certificatePendingRequests().length;
   const reminder=ev.filter(e=>!e.completed&&e.days<=rem).slice(0,80);
-  document.getElementById('reminderBody').innerHTML=reminder.length?reminder.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${e.days<0?esc(tr('daysOverdue',{n:Math.abs(e.days)})):e.days===0?tr('today'):esc(tr('daysLeft',{n:e.days}))}</td><td>${badge(eventState(e))}</td></tr>`).join(''):emptyRow(6,'noEvents');
-  const latestYear=STATE.settings.latestRosterYear,missing=STATE.people.filter(p=>p.status==='not_in_latest').length;
-  document.getElementById('latestRosterNote').textContent=latestYear?tr('latestRoster',{year:latestYear,active:activePeople,missing}):tr('notImported');
-  document.getElementById('dataBadges').innerHTML=badge('active',tr('certCount',{n:STATE.certificates.length}))+badge('active',tr('peopleCount',{n:STATE.people.length}))+badge('pending',tr('requestCount',{n:STATE.requests.length}));
-  document.getElementById('recentImports').innerHTML=STATE.imports.length?STATE.imports.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,6).map(x=>{const summary=x.stats?tr('fileImported',{file:x.file,...x.stats}):(x.summary||'');return `<li><b>${esc(x.file)}</b><br><span class="muted">${fmtDate(String(x.at).slice(0,10))} · ${esc(summary)}</span></li>`}).join(''):`<li class="muted">${tr('noData')}</li>`
+  document.getElementById('reminderBody').innerHTML=reminder.length?reminder.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${e.days<0?esc(tr('daysOverdue',{n:Math.abs(e.days)})):e.days===0?tr('today'):esc(tr('daysLeft',{n:e.days}))}</td><td>${badge(eventState(e),e.completed?tr('statusComplete'):certificateEventLabel(e,LANG))}</td></tr>`).join(''):emptyRow(6,'noEvents');
+  const latestYear=peopleForMonth().filter(p=>p.status==='active').reduce((y,p)=>Math.max(y,p.sourceYear||0),0)||STATE.settings.latestRosterYear,missing=peopleForMonth().filter(p=>p.status==='not_in_latest').length;
+  document.getElementById('latestRosterNote').textContent=(LANG==='en'?'Source month: ':'資料月份：')+certificateViewMonth()+' · '+(certificateMonthView().effectiveFrom&&certificateMonthView().effectiveFrom!=='0000-01'?(LANG==='en'?'Effective from ':'版本生效 ')+certificateMonthView().effectiveFrom+' · ':'')+(latestYear?tr('latestRoster',{year:latestYear,active:activePeople,missing}):tr('notImported'));
+  document.getElementById('dataBadges').innerHTML=badge('active',tr('certCount',{n:certificatesForMonth().filter(HRACertificateModel.current).length}))+badge('active',tr('peopleCount',{n:activePeople}))+badge('pending',tr('requestCount',{n:STATE.requests.length}));
+  document.getElementById('recentImports').innerHTML=STATE.imports.length?STATE.imports.slice().sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,6).map(x=>{const summary=x.stats?tr('fileImported',{file:x.file,...x.stats}):(x.summary||'');return `<li><b>${esc(x.file)}</b><br><span class="muted">${fmtDate(String(x.at).slice(0,10))}${x.stats?.effectiveFrom?' · '+esc(LANG==='en'?'Effective from ':'生效月份 ')+esc(x.stats.effectiveFrom):''} · ${esc(summary)}</span></li>`}).join(''):`<li class="muted">${tr('noData')}</li>`
 }
 function eventFilter(events,field,dept){
   const {start,end}=periodRange();return events.filter(e=>dateObj(e.date)>=start&&dateObj(e.date)<end&&(field==='all'||e.type===field)&&(!dept||e.department===dept))
 }
 function renderTimeline(){
   const field=document.getElementById('eventField').value,dept=document.getElementById('timelineDept').value;
-  const ev=eventFilter(allEvents(),field,dept);document.getElementById('timelineHint').textContent=`${periodLabel()} · ${ev.length} ${tr('records')}`;
-  document.getElementById('timelineBody').innerHTML=ev.length?ev.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${esc(e.source)}</td><td>${badge(eventState(e))}</td></tr>`).join(''):emptyRow(6,'noEvents')
+  const ev=eventFilter(certificatePeriodEvents(PERIOD_MODE),field,dept);document.getElementById('timelineHint').textContent=`${periodLabel()} · ${ev.length} ${tr('records')}`;
+  document.getElementById('timelineBody').innerHTML=ev.length?ev.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${esc(e.source)}</td><td>${badge(eventState(e),e.completed?tr('statusComplete'):certificateEventLabel(e,LANG))}</td></tr>`).join(''):emptyRow(6,'noEvents')
 }
 function setListMode(m){LIST_MODE=m;document.getElementById('monthListBtn').classList.toggle('on',m==='month');document.getElementById('yearListBtn').classList.toggle('on',m==='year');renderPeriodList()}
 function periodKey(date,mode){return mode==='year'?date.slice(0,4):date.slice(0,7)}
 function renderPeriodList(){
   const field=document.getElementById('listField').value,dept=document.getElementById('listDept').value;
-  let ev=allEvents().filter(e=>(field==='all'||e.type===field)&&(!dept||e.department===dept));
+  let ev=certificateHistoryEvents().filter(e=>(field==='all'||e.type===field)&&(!dept||e.department===dept));
   const years=ev.map(e=>+e.date.slice(0,4)).filter(Boolean);let min=Math.min(new Date().getFullYear(),...(years.length?years:[new Date().getFullYear()])),max=Math.max(new Date().getFullYear(),...(years.length?years:[new Date().getFullYear()]));
   min=Math.max(2000,min-1);max=Math.min(2100,max+1);
   const keys=[];if(LIST_MODE==='year'){for(let y=max;y>=min;y--)keys.push(String(y))}else{for(let y=max;y>=min;y--)for(let m=12;m>=1;m--)keys.push(`${y}-${String(m).padStart(2,'0')}`)}
-  const reqBy=k=>STATE.requests.filter(r=>r.dueDate&&periodKey(r.dueDate,LIST_MODE)===k);
+  const reqBy=k=>STATE.requests.filter(r=>periodKey(r.period||String(r.createdAt||'').slice(0,7)||r.dueDate||'',LIST_MODE)===k);
   const rows=keys.map(k=>{const a=ev.filter(e=>periodKey(e.date,LIST_MODE)===k),r=reqBy(k);return{k,a,r}}).filter(x=>x.a.length||x.r.length);
   document.getElementById('periodRowsCount').textContent=tr('periodRows',{n:rows.length});
   document.getElementById('periodBody').innerHTML=rows.length?rows.map(({k,a,r})=>{
@@ -661,20 +667,20 @@ function renderPeriodList(){
 function jumpToPeriod(k){const a=k.split('-').map(Number);PERIOD_ANCHOR=new Date(a[0],(a[1]||1)-1,1);PERIOD_MODE=k.length===4?'year':'month';document.querySelectorAll('#periodModes button').forEach(x=>x.classList.toggle('on',x.dataset.mode===PERIOD_MODE));setTab('timeline');renderAll()}
 function renderCertificates(){
   const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;
-  const rows=STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
-  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${money(c.cost)}</td><td>${badge(c.status||'active')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteCertificate('${c.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(10)
+  const rows=certificatesForMonth().filter(c=>certificateInView(c)&&(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
+  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr class="${c.highlighted?'source-highlight':''}"><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${esc(c.costText||money(c.cost))}</td><td>${badge(HRACertificateModel.current(c)?(c.status||'active'):'not_in_latest')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteCertificate('${c.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(10)
 }
 function renderPeople(){
   const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;
-  const rows=STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
+  const rows=peopleForMonth().filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
   document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${badge(p.status||'active')}</td><td><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button><button class="btn small red" onclick="deletePerson('${p.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(10)
 }
 function renderApprovals(){
-  const rows=STATE.requests.slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteRequest('${r.id}')">${tr('delete')}</button>${r.status==='pending'?`<button class="btn small green" onclick="decideRequest('${r.id}','approved')">${tr('approve')}</button><button class="btn small red" onclick="decideRequest('${r.id}','rejected')">${tr('reject')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
+  const rows=STATE.requests.filter(r=>(r.period||r.createdAt?.slice(0,7)||certificateViewMonth())===certificateViewMonth()).slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteRequest('${r.id}')">${tr('delete')}</button>${r.status==='pending'?`<button class="btn small blue" onclick="sendCertificateRequest('${r.id}')">${tr(r.batchId?'refreshApproval':'sendApproval')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
 }
 function renderAnalysis(){
-  if(ACTIVE_TAB!=='analysis')return;const field=document.getElementById('analysisField').value;const ev=allEvents().filter(e=>field==='all'||e.type===field);
+  if(ACTIVE_TAB!=='analysis')return;const field=document.getElementById('analysisField').value;const ev=certificatePeriodEvents(PERIOD_MODE).filter(e=>field==='all'||e.type===field);
   const groups={};ev.forEach(e=>groups[e.department]=(groups[e.department]||0)+1);const labels=Object.keys(groups).sort((a,b)=>groups[b]-groups[a]).slice(0,20),data=labels.map(x=>groups[x]);
   if(chartDept)chartDept.destroy();if(window.Chart)chartDept=new Chart(document.getElementById('deptChart'),{type:'bar',data:{labels,datasets:[{label:tr('totalDue'),data,backgroundColor:'#35b6cf',borderColor:'#167fa2',borderWidth:1}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true,ticks:{precision:0}}}}});
   const statuses={active:0,due:0,expired:0,complete:0};ev.forEach(e=>statuses[eventState(e)]++);
@@ -683,7 +689,7 @@ function renderAnalysis(){
 }
 function renderAll(){
   if(!STATE)return;syncPeriodPicker();
-  const deps=distinctDepartments();fillSelect('timelineDept',deps,'allDepartments');fillSelect('listDept',deps,'allDepartments');fillSelect('peopleDept',[...new Set(STATE.people.map(x=>x.department).filter(Boolean))].sort(),'allDepartments');fillSelect('certDept',[...new Set(STATE.certificates.map(x=>x.department||x.category).filter(Boolean))].sort(),'allCategories');
+  const deps=distinctDepartments();fillSelect('timelineDept',deps,'allDepartments');fillSelect('listDept',deps,'allDepartments');fillSelect('peopleDept',[...new Set(peopleForMonth().map(x=>x.department).filter(Boolean))].sort(),'allDepartments');fillSelect('certDept',[...new Set(certificatesForMonth().map(x=>x.department||x.category).filter(Boolean))].sort(),'allCategories');
   renderDashboard();renderTimeline();renderPeriodList();renderCertificates();renderPeople();renderApprovals();renderAnalysis()
 }
 
@@ -696,22 +702,22 @@ function yearFrom(...parts){
 function sourceStatus(remark){
   const s=String(remark||'');if(/STOP|CANCEL/i.test(s))return'stopped';if(/DONE|COMPLETE/i.test(s))return'complete';return'active'
 }
-function certKey(x){return `${norm(x.category)}|${norm(x.name)}`}
-function parseCertificate(rows,file,sheet){
+function certificateImportKey(x){return HRACertificateModel.certIdentity(x)}
+function parseCertificate(rows,file,sheet,ws){
   const hi=rows.findIndex(r=>{const s=headerText(r);return s.includes('CERTIFICATE')&&s.includes('START')&&s.includes('RENEW')&&!/PASS\s*[- ]?PORT|PASSPORT/.test(s)});
   if(hi<0)return[];
   const h=rows[hi].map(x=>clean(x).toUpperCase()),idx=(re,fallback)=>{const n=h.findIndex(x=>re.test(x));return n>=0?n:fallback};
-  const iCat=idx(/CERTIFICATE/,1),iStart=idx(/START/,5),iExp=idx(/EXP/,6),iRenew=idx(/RENEW/,7),iRemark=idx(/REMARK/,8),iContact=idx(/CONT/,9);
+  const flat=h.some(x=>/^CATEGORY$/.test(x)),iCat=flat?idx(/^CATEGORY$/,1):idx(/CERTIFICATE/,1),iName=flat?idx(/CERTIFICATE/,2):iCat+1,iCost=idx(/PRICE|^COST/,3),iDept=idx(/^DEPARTMENT$/,-1),iStatus=idx(/^STATUS$/,-1),iStart=idx(/START/,5),iExp=idx(/EXP/,6),iRenew=idx(/RENEW/,7),iRemark=idx(/REMARK/,8),iContact=idx(/CONT/,9);
   let current='';const year=yearFrom(rows[0]?.[0],file,sheet);const out=[];
   for(let r=hi+1;r<rows.length;r++){
     const row=rows[r];if(!row||row.every(v=>clean(v)===''))continue;
     const cat=clean(row[iCat]);if(cat)current=cat;
-    const name=clean(row[iCat+1])||cat;if(!name||(!current&&name===cat))continue;
+    const name=clean(row[iName])||cat;if(!name||(!current&&name===cat))continue;
     const remark=clean(row[iRemark]);const expiry=isoDate(row[iExp]),renewal=isoDate(row[iRenew]);
     out.push({
-      id:'',category:current||name,name,department:current||'',cost:num(row[3])||clean(row[3]),
+      id:'',category:current||name,name,department:iDept>=0?clean(row[iDept]):current||'',cost:certificateCost(row[iCost]).amount,costText:certificateCost(row[iCost]).text,costIsRate:certificateCost(row[iCost]).isRate,
       startDate:isoDate(row[iStart]),expiryDate:expiry,renewalDate:renewal,remark,contact:clean(row[iContact]),
-      status:sourceStatus(remark),completedForDate:/DONE|COMPLETE/i.test(remark)?(renewal||expiry):'',
+      status:iStatus>=0?clean(row[iStatus])||sourceStatus(remark):sourceStatus(remark),completedForDate:'',sourceRow:r+1,highlighted:certificateRowHighlighted(ws,r),
       sourceFile:file,sourceSheet:sheet,sourceYear:year,sourceRank:year*100,source:'excel'
     })
   }
@@ -724,15 +730,19 @@ function findHeader(rows){
 function findGroup(row,re,min=0){for(let i=min;i<row.length;i++)if(re.test(clean(row[i]).toUpperCase()))return i;return-1}
 function hasLatin(s){return /[A-Z]/i.test(String(s||''))}
 function parsePersonSheet(rows,file,sheet){
+  const flat=certificateParseFlatPeople(rows,file,sheet);if(flat)return flat;
   const hi=findHeader(rows);if(hi<0)return null;
   const h=rows[hi],hs=h.map(x=>clean(x).toUpperCase());
   const pass=findGroup(h,/PASS\s*[- ]?PORT|PASSPORT/),name=findGroup(h,/^NAME$|ENGLISH NAME/);
   if(pass<0||name<0)return null;
   const visaStart=findGroup(h,/VISA/,pass+3),wpStart=findGroup(h,/WORK\s*PERMIT/,pass+3),resStart=findGroup(h,/RESIDENCE\s*PERMIT/,pass+3),resCertStart=findGroup(h,/RESIDENCE\s*CERT/,pass+3),phone=findGroup(h,/PHONE/);
+  const sub=rows[hi+1]||[],boundaries=[visaStart,wpStart,resStart,resCertStart,phone,h.length].filter(n=>n>=0).sort((a,b)=>a-b);
+  const child=(start,re)=>{if(start<0)return -1;const end=boundaries.find(n=>n>start)||h.length;for(let i=start;i<end;i++)if(re.test(clean(sub[i])))return i;return -1;};
+  const cell=(row,start,re)=>{const i=child(start,re);return i<0?'':row[i];};
   const year=yearFrom(sheet,file),rank=year*100+(/WORK\s*PERMIT/i.test(sheet)?20:0);let outMode=false;const records=[];
   for(let r=hi+1;r<rows.length;r++){
     const row=rows[r]||[];if(row.some(v=>/^OUT$/i.test(clean(v)))){outMode=true;continue}
-    const passport=clean(row[pass]);let nameEn=clean(row[name]);if(!passport||!nameEn)continue;
+    const passport=clean(row[pass]);let nameEn=clean(row[name]);if(/^\d+$/.test(clean(row[name-1]))&&(!passport||!nameEn))throw new Error(file+' / '+sheet+' #'+(r+1)+': '+(LANG==='en'?'Name or passport is missing':'姓名或護照欄位缺漏'));if(!passport||!nameEn)continue;
     if(!hasLatin(nameEn)){const n=clean(rows[r+1]?.[name]);if(n&&hasLatin(n)&&!clean(rows[r+1]?.[pass]))nameEn=n}
     if(/លិខិត|នាម និង|PASS PORT/i.test(nameEn))continue;
     const all=clean(row.join(' ')),explicitResigned=/RESIGNED|TERMINATED|LEFT COMPANY/i.test(all);
@@ -740,7 +750,7 @@ function parsePersonSheet(rows,file,sheet){
       id:'',employeeId:'',nameEn,nameKh:clean(row[name+1]),sex:clean(row[name+2]),dob:isoDate(row[name+3]),
       nationality:clean(row[name+4]),passport,passportExpiry:isoDate(row[pass+1]),visaExpiry:isoDate(row[pass+2]),
       nickname:clean(row[pass+4]),joinDate:isoDate(row[pass+5]),department:'',phone:phone>=0?clean(row[phone]):'',
-      visaApplyDate:visaStart>=0?isoDate(row[visaStart]):'',visaReceivedDate:visaStart>=0?isoDate(row[visaStart+1]):'',visaNumber:visaStart>=0?clean(row[visaStart+2]):'',visaExpense:visaStart>=0?num(row[visaStart+3]):0,
+      visaApplyDate:visaStart>=0?isoDate(row[visaStart]):'',visaReceivedDate:visaStart>=0?isoDate(row[visaStart+1]):'',visaNumber:clean(cell(row,visaStart,/No[. ]|Nº|Number/i)),visaExpense:num(cell(row,visaStart,/Expense|Cost/i)),
       workPermitApplyDate:wpStart>=0?isoDate(row[wpStart]):'',workPermitReceivedDate:wpStart>=0?isoDate(row[wpStart+1]):'',workPermitNumber:wpStart>=0?clean(row[wpStart+2]):'',workPermitExpense:wpStart>=0?num(row[wpStart+3]):0,workPermitExpiry:'',
       residenceApplyDate:resStart>=0?isoDate(row[resStart]):'',residenceReceivedDate:resStart>=0?isoDate(row[resStart+1]):'',residenceExpense:resStart>=0?num(row[resStart+2]):0,residenceExpiry:'',
       residenceCertificateApplyDate:resCertStart>=0?isoDate(row[resCertStart]):'',residenceCertificateExpense:resCertStart>=0?num(row[resCertStart+1]):0,
@@ -752,15 +762,16 @@ function parsePersonSheet(rows,file,sheet){
   return{file,sheet,year,rank,records}
 }
 function parseWorkbook(wb,file){
-  const certificates=[];const candidates=[];
+  const certificates=[];const candidates=[];let certificateScopeRecognized=false;
   wb.SheetNames.forEach(sheet=>{
     const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheet],{header:1,raw:true,defval:''});
-    const c=parseCertificate(rows,file,sheet);if(c.length)certificates.push(...c);
+    if(rows.some(r=>{const h=headerText(r);return h.includes('CERTIFICATE')&&h.includes('START')&&h.includes('RENEW')&&!/PASSPORT|PASS PORT/.test(h)}))certificateScopeRecognized=true;
+    const c=parseCertificate(rows,file,sheet,wb.Sheets[sheet]);if(c.length)certificates.push(...c);
     const p=parsePersonSheet(rows,file,sheet);if(p)candidates.push(p)
   });
   const numeric=candidates.filter(x=>/^\s*20\d{2}\s*$/.test(x.sheet));const maxNumeric=numeric.length?Math.max(...numeric.map(x=>x.year)):0;
   const snapshots=candidates.filter(x=>/WORK\s*PERMIT/i.test(x.sheet)||(!numeric.length)||(/^\s*20\d{2}\s*$/.test(x.sheet)&&x.year===maxNumeric));
-  return{certificates,snapshots,recognized:certificates.length+snapshots.reduce((s,x)=>s+x.records.length,0)}
+  return{certificates,snapshots,certificateScopeRecognized,recognized:certificates.length+snapshots.reduce((s,x)=>s+x.records.length,0)||(certificateScopeRecognized||snapshots.length?1:0)}
 }
 function sameValue(a,b){
   const keys=['employeeId','nameEn','nameKh','passport','passportExpiry','visaExpiry','workPermitExpiry','status','category','name','expiryDate','renewalDate','cost'];
@@ -776,58 +787,23 @@ function mergeFields(target,source,newer=true){
     if(v!==''&&v!=null&&(newer||target[k]===''||target[k]==null))target[k]=v
   })
 }
-function applyImport(parsed,file){
-  const stat={ca:0,cu:0,pa:0,pu:0,dupe:0};
-  parsed.certificates.forEach(c=>{
-    let x=STATE.certificates.find(a=>certKey(a)===certKey(c));
-    if(x){if(sameValue(x,c))stat.dupe++;else stat.cu++;mergeFields(x,c,(c.sourceRank||0)>=(x.sourceRank||0));x.updatedAt=new Date().toISOString()}
-    else{c.id=uid('cert');c.createdAt=c.updatedAt=new Date().toISOString();STATE.certificates.push(c);stat.ca++}
-  });
-  const snaps=parsed.snapshots.slice().sort((a,b)=>a.rank-b.rank);let newest=null,newestActive=[];
-  snaps.forEach(s=>{
-    s.records.forEach(p=>{
-      let x=findPerson(p);
-      if(x){
-        if(sameValue(x,p))stat.dupe++;else stat.pu++;
-        const isNewer=s.rank>=(x.lastSnapshotRank||0);const keepDept=x.department,keepEid=x.employeeId;
-        mergeFields(x,p,isNewer);if(keepDept)x.department=keepDept;if(keepEid)x.employeeId=keepEid;
-        x.lastSnapshotRank=Math.max(x.lastSnapshotRank||0,s.rank);x.updatedAt=new Date().toISOString();x.history=x.history||[];
-      }else{
-        p.id=uid('person');p.department=STATE.settings.defaultDepartment||'';p.lastSnapshotRank=s.rank;p.createdAt=p.updatedAt=new Date().toISOString();p.history=[];STATE.people.push(p);x=p;stat.pa++
-      }
-      const hist={file:s.file,sheet:s.sheet,year:s.year,rank:s.rank,status:p.status,at:new Date().toISOString()};
-      if(!x.history.some(h=>h.file===hist.file&&h.sheet===hist.sheet&&h.status===hist.status))x.history.push(hist);
-      if(!newest||s.rank>newest.rank){newest=s;newestActive=[]}
-      if(newest&&s.rank===newest.rank&&p.status==='active')newestActive.push(x.id)
-    })
-  });
-  if(newest&&newest.rank>=(STATE.settings.latestRosterRank||0)){
-    const activeSet=new Set(newestActive);
-    STATE.people.forEach(p=>{
-      if(!p.rosterManaged||p.status==='resigned')return;
-      if(activeSet.has(p.id)&&p.lastSnapshotRank===newest.rank)p.status='active';
-      else if((p.lastSnapshotRank||0)<newest.rank)p.status='not_in_latest'
-    });
-    STATE.settings.latestRosterRank=newest.rank;STATE.settings.latestRosterYear=newest.year
-  }
-  const summary=tr('fileImported',{file, ...stat});STATE.imports.push({id:uid('imp'),file,at:new Date().toISOString(),summary,stats:stat});
-  return stat
+function applyImport(parsed,file,complete=true){
+  const stat=HRACertificateModel.apply(STATE,parsed,{file,complete,uid,at:new Date().toISOString()});
+  const summary=tr('fileImported',{file,...stat});STATE.imports.push({id:uid('imp'),file,at:new Date().toISOString(),summary,stats:stat});
+  return stat;
 }
-function finalizeLatestRoster(){
-  const rank=Number(STATE.settings.latestRosterRank||0);if(!rank)return;
-  STATE.people.forEach(p=>{if(p.rosterManaged&&p.status!=='resigned'&&(p.lastSnapshotRank||0)<rank)p.status='not_in_latest'})
-}
+function finalizeLatestRoster(){HRACertificateModel.reconcile(STATE)}
 async function importFiles(files){
-  files=[...files].filter(f=>/\.(xlsx|xls)$/i.test(f.name));if(!files.length)return;
+  files=[...files].filter(f=>/\.(xlsx|xls)$/i.test(f.name)).sort((a,b)=>(a.lastModified||0)-(b.lastModified||0));if(!files.length)return;
   closeModal('importModal');showLoading(LANG==='en'?'Reading and merging Excel…':'讀取、去重與合併 Excel…');
   const logs=[];let recognized=0;
   try{
     for(const f of files){
-      const data=await f.arrayBuffer(),wb=XLSX.read(data,{type:'array',cellDates:false});const parsed=parseWorkbook(wb,f.name);recognized+=parsed.recognized;
-      if(parsed.recognized){const stat=applyImport(parsed,f.name);logs.push(tr('fileImported',{file:f.name,...stat}))}else logs.push(`⚠ ${f.name}: ${tr('importFailed')}`)
+      const data=await f.arrayBuffer(),wb=XLSX.read(data,{type:'array',cellDates:false,cellStyles:true});const parsed=parseWorkbook(wb,f.name);recognized+=parsed.recognized;
+      if(parsed.recognized){const stat=applyImport(parsed,f.name,document.getElementById('importMode').value==='complete');logs.push(tr('fileImported',{file:f.name,...stat}))}else logs.push(`⚠ ${f.name}: ${tr('importFailed')}`)
       await new Promise(r=>setTimeout(r,0))
     }
-    if(!recognized)throw new Error(tr('importFailed'));finalizeLatestRoster();
+    if(!recognized)throw new Error(tr('importFailed'));finalizeLatestRoster();PERIOD_ANCHOR=new Date();PERIOD_MODE='month';setVal('certScope','current');setVal('peopleStatus','active');document.querySelectorAll('#periodModes button').forEach(x=>x.classList.toggle('on',x.dataset.mode==='month'));
     await persist();if(window.HRAAutoSync)HRAAutoSync.schedule('certificate_visa','import',{},60);selectedCerts.clear();selectedPeople.clear();renderAll();const _ta=document.getElementById('tgActor');if(_ta&&!_ta.value)_ta.value=localStorage.getItem('ac_hra_cert_tg_actor')||'';toast(`✅ ${tr('importDone')}`);
     document.getElementById('importPreview').innerHTML=logs.map(x=>`<li>${esc(x)}</li>`).join('');setTab('dashboard')
   }catch(e){console.error(e);toast(`❌ ${e.message}`,5000)}
@@ -843,6 +819,7 @@ function val(id){return document.getElementById(id).value.trim()}
 function setVal(id,v){document.getElementById(id).value=v??''}
 let CERT_PENDING_FILES=[];
 function certCurrentVersion(c,ym){
+  if(c&&c.cvSchema>=72&&!ym)return c;
   const versions=(c&&c.versions)||[]; if(!versions.length)return c||{};
   ym=ym||new Date().toISOString().slice(0,7);
   const eligible=versions.filter(v=>!v.effectiveFrom||v.effectiveFrom<=ym).sort((a,b)=>String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||'')));
@@ -864,34 +841,36 @@ async function uploadCertEvidence(files,recordKey,period){
   } return out;
 }
 function openCertForm(id=''){
+  if(!certificateCanEdit())return;
   document.getElementById('certForm').reset();CERT_PENDING_FILES=[];const c=STATE.certificates.find(x=>x.id===id)||{}, v=certCurrentVersion(c);
-  setVal('certId',c.id);setVal('certCategory',c.category);setVal('certName',c.name);setVal('certDepartment',c.department);setVal('certCost',v.cost??c.cost);setVal('certStart',v.startDate||c.startDate);setVal('certExpiry',v.expiryDate||c.expiryDate);setVal('certRenewal',v.renewalDate||c.renewalDate);setVal('certEffectiveFrom',v.effectiveFrom||String(v.startDate||c.startDate||'').slice(0,7));setVal('certStatus',c.status||'active');setVal('certContact',c.contact);setVal('certCompletedFor',c.completedForDate);setVal('certRemark',v.remark??c.remark);renderCertVersionUI(c);openModal('certModal')
+  setVal('certId',c.id);setVal('certCategory',c.category);setVal('certName',c.name);setVal('certDepartment',c.department);setVal('certCost',v.costText??c.costText??v.cost??c.cost);setVal('certStart',v.startDate||c.startDate);setVal('certExpiry',v.expiryDate||c.expiryDate);setVal('certRenewal',v.renewalDate||c.renewalDate);setVal('certEffectiveFrom',certificateViewMonth());setVal('certStatus',c.status||'active');setVal('certContact',c.contact);setVal('certCompletedFor',c.completedForDate);setVal('certRemark',v.remark??c.remark);renderCertVersionUI(c);openModal('certModal')
 }
 async function saveCertificate(e){
-  e.preventDefault();let c=STATE.certificates.find(x=>x.id===val('certId'));const fresh=!c;if(!c)c={id:uid('cert'),createdAt:new Date().toISOString(),source:'online',sourceFile:tr('online'),versions:[]};
+  e.preventDefault();if(!certificateCanEdit())return;HRACertificateModel.baseline(STATE,new Date().toISOString());let c=STATE.certificates.find(x=>x.id===val('certId'));const fresh=!c;if(!c)c={id:uid('cert'),createdAt:new Date().toISOString(),source:'online',sourceFile:tr('online'),versions:[]};
   c.versions=c.versions||[]; const effectiveFrom=val('certEffectiveFrom')||String(val('certStart')||new Date().toISOString()).slice(0,7);
   let evidence=[]; try{ if(CERT_PENDING_FILES.length)evidence=await uploadCertEvidence(CERT_PENDING_FILES,c.id,effectiveFrom); }catch(err){toast('⚠ Evidence upload: '+err.message,5000);}
-  const prev=c.versions.find(v=>v.effectiveFrom===effectiveFrom); const v={effectiveFrom,startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),cost:num(val('certCost'))||val('certCost'),remark:val('certRemark'),evidence:evidence.length?evidence:((prev&&prev.evidence)||[]),updatedAt:new Date().toISOString()};
+  const prev=c.versions.find(v=>v.effectiveFrom===effectiveFrom); const v={effectiveFrom,startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),cost:certificateCost(val('certCost')).amount,costText:val('certCost'),costIsRate:certificateCost(val('certCost')).isRate,remark:val('certRemark'),evidence:evidence.length?evidence:((prev&&prev.evidence)||[]),updatedAt:new Date().toISOString()};
   if(prev)Object.assign(prev,v);else c.versions.push(v);
-  Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),startDate:v.startDate,expiryDate:v.expiryDate,renewalDate:v.renewalDate,cost:v.cost,remark:v.remark,evidence:v.evidence,updatedAt:new Date().toISOString()});
-  if(fresh)STATE.certificates.push(c);await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
+  Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),startDate:v.startDate,expiryDate:v.expiryDate,renewalDate:v.renewalDate,cost:v.cost,costText:v.costText,costIsRate:v.costIsRate,cvSchema:72,cvRevisionAt:new Date().toISOString(),remark:v.remark,evidence:v.evidence,updatedAt:new Date().toISOString()});
+  if(fresh)STATE.certificates.push(c);saveCertificateRevision('Online certificate edit');await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
-async function deleteCertificate(id){if(!confirm(tr('confirmDelete')))return;STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);await persist('record-deleted');renderAll();}
+async function deleteCertificate(id){if(!certificateCanEdit())return;HRACertificateModel.baseline(STATE,new Date().toISOString());if(!confirm(tr('confirmDelete')))return;STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);saveCertificateRevision('Certificate removed');await persist('record-deleted');renderAll();}
 function openPersonForm(id=''){
+  if(!certificateCanEdit())return;
   document.getElementById('personForm').reset();const p=STATE.people.find(x=>x.id===id)||{};
   const map={personId:p.id,personEmployeeId:p.employeeId,personNameEn:p.nameEn,personNameKh:p.nameKh,personNickname:p.nickname,personDepartment:p.department,personStatus:p.status||'active',personSex:p.sex,personNationality:p.nationality,personDob:p.dob,personJoin:p.joinDate,personPassport:p.passport,personPassportExpiry:p.passportExpiry,personVisaExpiry:p.visaExpiry,personWpExpiry:p.workPermitExpiry,personResidenceExpiry:p.residenceExpiry,personPhone:p.phone,personRemark:p.remark};Object.entries(map).forEach(([k,v])=>setVal(k,v));openModal('personModal')
 }
 async function savePerson(e){
-  e.preventDefault();const incoming={employeeId:val('personEmployeeId'),nameEn:val('personNameEn'),nameKh:val('personNameKh'),nickname:val('personNickname'),department:val('personDepartment'),status:val('personStatus'),sex:val('personSex'),nationality:val('personNationality'),dob:val('personDob'),joinDate:val('personJoin'),passport:val('personPassport'),passportExpiry:val('personPassportExpiry'),visaExpiry:val('personVisaExpiry'),workPermitExpiry:val('personWpExpiry'),residenceExpiry:val('personResidenceExpiry'),phone:val('personPhone'),remark:val('personRemark'),updatedAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
+  e.preventDefault();if(!certificateCanEdit())return;HRACertificateModel.baseline(STATE,new Date().toISOString());const incoming={employeeId:val('personEmployeeId'),nameEn:val('personNameEn'),nameKh:val('personNameKh'),nickname:val('personNickname'),department:val('personDepartment'),status:val('personStatus'),sex:val('personSex'),nationality:val('personNationality'),dob:val('personDob'),joinDate:val('personJoin'),passport:val('personPassport'),passportExpiry:val('personPassportExpiry'),visaExpiry:val('personVisaExpiry'),workPermitExpiry:val('personWpExpiry'),residenceExpiry:val('personResidenceExpiry'),phone:val('personPhone'),remark:val('personRemark'),updatedAt:new Date().toISOString(),cvSchema:72,cvRevisionAt:new Date().toISOString(),source:'online',sourceFile:tr('online')};
   let p=STATE.people.find(x=>x.id===val('personId'));if(!p&&!val('personId'))p=findPerson(incoming);
   if(p)Object.assign(p,incoming);else STATE.people.push({...incoming,id:uid('person'),createdAt:new Date().toISOString(),rosterManaged:false,history:[]});
-  await persist();closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
+  saveCertificateRevision('Online person edit');await persist();closeModal('personModal');renderAll();toast(`✅ ${tr('saved')}`)
 }
-async function deletePerson(id){if(!confirm(tr('confirmDelete')))return;STATE.people=STATE.people.filter(x=>x.id!==id);selectedPeople.delete(id);await persist('record-deleted');renderAll();}
+async function deletePerson(id){if(!certificateCanEdit())return;HRACertificateModel.baseline(STATE,new Date().toISOString());if(!confirm(tr('confirmDelete')))return;STATE.people=STATE.people.filter(x=>x.id!==id);selectedPeople.delete(id);saveCertificateRevision('Person removed');await persist('record-deleted');renderAll();}
 function selectItem(kind,id,on){(kind==='certificate'?selectedCerts:selectedPeople)[on?'add':'delete'](id)}
 function visibleIds(kind){
-  if(kind==='certificate'){const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;return STATE.certificates.filter(c=>(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).map(x=>x.id)}
-  const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;return STATE.people.filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).map(x=>x.id)
+  if(kind==='certificate'){const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;return certificatesForMonth().filter(c=>certificateInView(c)&&(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).map(x=>x.id)}
+  const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;return peopleForMonth().filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).map(x=>x.id)
 }
 function toggleAll(kind,on){const set=kind==='certificate'?selectedCerts:selectedPeople;visibleIds(kind).forEach(id=>set[on?'add':'delete'](id));kind==='certificate'?renderCertificates():renderPeople()}
 function nextRequestNo(){const d=new Date(),prefix=`CV-${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}-`;const n=STATE.requests.filter(r=>String(r.number).startsWith(prefix)).length+1;return prefix+String(n).padStart(3,'0')}
@@ -901,42 +880,39 @@ function createBatchRequest(kind){
 }
 function openRequestForm(id=''){
   document.getElementById('requestForm').reset();const r=STATE.requests.find(x=>x.id===id)||{};
+  if(r.batchId){toast(tr('submittedReadOnly'));return;}
   if(id)pendingRequestItems=(r.items||[]).map(x=>({...x}));else if(!pendingRequestItems.length)pendingRequestItems=[];
-  setVal('requestId',r.id);setVal('requestTitle',r.title||((pendingRequestItems.length?`${tr('renewal')} · ${pendingRequestItems.length} ${tr('items')}`:'')));setVal('requestType',r.type||'renewal');setVal('requestApplicant',r.applicant);setVal('requestDue',r.dueDate);setVal('requestCost',r.cost);setVal('requestStatus',r.status||'draft');setVal('requestRemark',r.remark);
+  setVal('requestId',r.id);setVal('requestTitle',r.title||((pendingRequestItems.length?`${tr('renewal')} · ${pendingRequestItems.length} ${tr('items')}`:'')));setVal('requestType',r.type||'renewal');setVal('requestApplicant',r.applicant||localStorage.getItem('ac_hra_cert_tg_actor')||'');setVal('requestDue',r.dueDate);setVal('requestCost',r.cost);setVal('requestStatus',r.status||'pending');setVal('requestRemark',r.remark);
+  document.getElementById('requestDocumentField').style.display=pendingRequestItems.some(i=>i.kind!=='certificate')?'':'none';setVal('requestDocumentType',pendingRequestItems[0]?.documentType||'visa');
   document.getElementById('requestItemsLabel').textContent=tr('requestItems',{n:pendingRequestItems.length})+(pendingRequestItems.length?' · '+pendingRequestItems.slice(0,8).map(x=>x.name).join('、'):'');openModal('requestModal')
 }
 async function saveRequest(e){
-  e.preventDefault();let r=STATE.requests.find(x=>x.id===val('requestId'));const fresh=!r;if(!r)r={id:uid('req'),number:nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId};
-  Object.assign(r,{title:val('requestTitle'),type:val('requestType'),applicant:val('requestApplicant'),dueDate:val('requestDue'),cost:num(val('requestCost')),status:val('requestStatus'),remark:val('requestRemark'),items:pendingRequestItems.map(x=>({...x,targetDate:val('requestDue')})),updatedAt:new Date().toISOString()});
+  e.preventDefault();if(!pendingRequestItems.length){toast(tr('selectItems'));return;}let r=STATE.requests.find(x=>x.id===val('requestId'));if(r&&r.batchId){toast(tr('submittedReadOnly'));return;}const fresh=!r;if(!r)r={id:uid('req'),number:nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId};
+  Object.assign(r,{title:val('requestTitle'),type:val('requestType'),applicant:val('requestApplicant'),dueDate:val('requestDue'),cost:num(val('requestCost')),status:val('requestStatus'),period:certificateViewMonth(),remark:val('requestRemark'),items:pendingRequestItems.map(x=>certificateRequestItem(x,val('requestDue'),val('requestDocumentType'))),updatedAt:new Date().toISOString()});
   if(r.status==='pending'&&!r.submittedAt)r.submittedAt=new Date().toISOString();if(fresh)STATE.requests.push(r);
   await persist();pendingRequestItems=[];closeModal('requestModal');selectedCerts.clear();selectedPeople.clear();renderAll();toast(`✅ ${tr('saved')}`)
 }
 async function deleteRequest(id){
-  const r=STATE.requests.find(x=>x.id===id);if(!r)return;
+  const r=STATE.requests.find(x=>x.id===id);if(!r)return;if(r.batchId){toast(tr('submittedReadOnly'));return;}
   const extra=r.status&&r.status!=='pending'?'\n'+(LANG==='en'?'This request already has a decision. Delete it anyway?':'此申請已有核可結果，仍要刪除嗎？'):'';
   if(!confirm(tr('confirmDelete')+extra))return;
   STATE.requests=STATE.requests.filter(x=>x.id!==id);await persist('record-deleted');renderAll();toast(`✅ ${tr('delete')}`)
 }
-async function decideRequest(id,status){
-  const r=STATE.requests.find(x=>x.id===id);if(!r)return;const opinion=window.prompt(tr('requestDecision'),r.opinion||'');if(opinion===null)return;
-  r.status=status;r.opinion=opinion;r.decidedAt=new Date().toISOString();r.updatedAt=r.decidedAt;r.reviewerTelegramId=STATE.settings.approverTelegramId;
-  if(status==='approved'&&r.dueDate)r.items?.forEach(i=>{const rec=i.kind==='certificate'?STATE.certificates.find(x=>x.id===i.id):STATE.people.find(x=>x.id===i.id);if(rec)rec.completedForDate=r.dueDate});
-  await persist();renderAll();toast(`✅ ${tr(status==='approved'?'approved':'rejected')}`)
-}
+async function decideRequest(){toast(tr('telegramDecisionsOnly'));}
 
 /* ── Backup, Excel export, settings and manual cloud sync ────────────── */
 function downloadBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},500)}
 function exportJson(){downloadBlob(new Blob([JSON.stringify(STATE,null,2)],{type:'application/json'}),`AC_HRA_Certificate_Visa_${todayISO()}.json`)}
 document.getElementById('jsonInput').addEventListener('change',async e=>{
-  const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!d.certificates||!d.people)throw new Error('Invalid backup');STATE.certificates=certMergeArray('certificate',STATE.certificates,d.certificates||[]);STATE.people=certMergeArray('person',STATE.people,d.people||[]);STATE.requests=certMergeArray('request',STATE.requests,d.requests||[]);STATE.imports=certMergeArray('import',STATE.imports,d.imports||[]);STATE.settings=Object.assign({},d.settings||{},STATE.settings||{});await persist('restore');renderAll();toast(`✅ ${tr('saved')}`)}catch(x){toast(`❌ ${x.message}`)}e.target.value=''
+  const f=e.target.files[0];if(!f)return;try{const d=JSON.parse(await f.text());if(!d.certificates||!d.people)throw new Error('Invalid backup');STATE.monthlySnapshots=certMergeArray('monthSnapshot',STATE.monthlySnapshots||[],d.monthlySnapshots||[]);STATE.certificates=certMergeArray('certificate',STATE.certificates,d.certificates||[]);STATE.people=certMergeArray('person',STATE.people,d.people||[]);STATE.requests=certMergeArray('request',STATE.requests,d.requests||[]);STATE.imports=certMergeArray('import',STATE.imports,d.imports||[]);STATE.settings=HRACertificateModel.mergeSettings(STATE.settings,d.settings);finalizeLatestRoster();await persist('restore');renderAll();toast(`✅ ${tr('saved')}`)}catch(x){toast(`❌ ${x.message}`)}e.target.value=''
 });
 function exportExcel(){
   if(!window.XLSX){toast('XLSX library unavailable');return}const wb=XLSX.utils.book_new();
-  const cert=STATE.certificates.map(c=>({'Category':c.category,'Certificate / Item':c.name,'Department':c.department,'Cost':c.cost,'Start Date':c.startDate,'Expiry Date':c.expiryDate,'Renewal Date':c.renewalDate,'Status':c.status,'Contact':c.contact,'Remark':c.remark,'Source File':c.sourceFile}));
-  const people=STATE.people.map(p=>({'Employee ID':p.employeeId,'English Name':p.nameEn,'Khmer Name':p.nameKh,'Nickname':p.nickname,'Department':p.department,'Status':p.status,'Sex':p.sex,'Nationality':p.nationality,'DOB':p.dob,'Join Date':p.joinDate,'Passport No.':p.passport,'Passport Expiry':p.passportExpiry,'Visa Expiry':p.visaExpiry,'Visa Apply':p.visaApplyDate,'Visa Received':p.visaReceivedDate,'Visa No.':p.visaNumber,'Visa Expense':p.visaExpense,'Work Permit Expiry':p.workPermitExpiry,'Work Permit Apply':p.workPermitApplyDate,'Work Permit Received':p.workPermitReceivedDate,'Work Permit No.':p.workPermitNumber,'Work Permit Expense':p.workPermitExpense,'Residence Expiry':p.residenceExpiry,'Phone':p.phone,'Remark':p.remark,'Source File':p.sourceFile}));
+  const cert=certificatesForMonth().filter(HRACertificateModel.current).map(c=>({'Source Month':certificateViewMonth(),'Category':c.category,'Certificate / Item':c.name,'Department':c.department,'Cost':c.costText??c.cost,'Start Date':c.startDate,'Expiry Date':c.expiryDate,'Renewal Date':c.renewalDate,'Status':c.status,'Contact':c.contact,'Remark':c.remark,'Source File':c.sourceFile}));
+  const people=peopleForMonth().filter(p=>p.status==='active'&&!p.notInLatest).map(p=>({'Source Month':certificateViewMonth(),'Employee ID':p.employeeId,'English Name':p.nameEn,'Khmer Name':p.nameKh,'Nickname':p.nickname,'Department':p.department,'Status':p.status,'Sex':p.sex,'Nationality':p.nationality,'DOB':p.dob,'Join Date':p.joinDate,'Passport No.':p.passport,'Passport Expiry':p.passportExpiry,'Visa Expiry':p.visaExpiry,'Visa Apply':p.visaApplyDate,'Visa Received':p.visaReceivedDate,'Visa No.':p.visaNumber,'Visa Expense':p.visaExpense,'Work Permit Expiry':p.workPermitExpiry,'Work Permit Apply':p.workPermitApplyDate,'Work Permit Received':p.workPermitReceivedDate,'Work Permit No.':p.workPermitNumber,'Work Permit Expense':p.workPermitExpense,'Residence Expiry':p.residenceExpiry,'Phone':p.phone,'Remark':p.remark,'Source File':p.sourceFile}));
   const req=STATE.requests.map(r=>({'Request No.':r.number,'Subject':r.title,'Type':r.type,'Applicant':r.applicant,'Due Date':r.dueDate,'Cost':r.cost,'Status':r.status,'Item Count':r.items?.length||0,'Items':(r.items||[]).map(i=>i.name).join(' | '),'Opinion':r.opinion,'Created At':r.createdAt,'Decided At':r.decidedAt}));
   [['Certificates',cert],['Expat Documents',people],['Approval Requests',req]].forEach(([n,d])=>{const ws=XLSX.utils.json_to_sheet(d.length?d:[{}]);ws['!cols']=Object.keys(d[0]||{}).map(k=>({wch:Math.min(35,Math.max(12,k.length+2))}));XLSX.utils.book_append_sheet(wb,ws,n)});
-  XLSX.writeFile(wb,`AC_HRA_Certificate_Visa_${todayISO()}.xlsx`)
+  XLSX.writeFile(wb,`AC_HRA_Certificate_Visa_${certificateViewMonth()}_${todayISO()}.xlsx`)
 }
 async function clearAllData(){
   if(!confirm(tr('confirmClear')))return;STATE=defaultState();selectedCerts.clear();selectedPeople.clear();await persist('batch-delete');renderAll();toast(tr('cleared'))
@@ -951,72 +927,49 @@ async function postGas(payload){
   const url=gasUrl();if(!url)throw new Error(tr('gasMissing'));const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload)});const text=await r.text();let d;try{d=JSON.parse(text)}catch{throw new Error('Invalid GAS response')}if(d.ok===false)throw new Error(d.error||'GAS error');return d
 }
 let _certCloudApplying=false,_certCloudBusy=false,_certCloudTimer=null;
-function certKey(kind,r){const n=v=>String(v==null?'':v).trim().toUpperCase().replace(/[\s_\-–—\/]+/g,'');if(kind==='certificate')return 'C|'+n(r.category)+'|'+n(r.name);if(kind==='person')return 'P|'+(n(r.employeeId)||n(r.passport)||(n(r.nameEn||r.nameKh||r.nickname)+'|'+n(r.dob)));if(kind==='request')return 'R|'+(n(r.number)||n(r.id));if(kind==='import')return 'I|'+n(r.file||r.sourceFile||r.id);return 'SET|main'}
-function certFlat(){const out=[];(STATE.certificates||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'certificate',_k:certKey('certificate',r)})));(STATE.people||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'person',_k:certKey('person',r)})));(STATE.requests||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'request',_k:certKey('request',r)})));(STATE.imports||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'import',_k:certKey('import',r)})));out.push({_kind:'settings',_k:'SET|main',settings:STATE.settings||{},updatedAt:STATE.updatedAt||new Date(0).toISOString()});return out}
-function certMergeRow(a,b){a=a||{};b=b||{};const at=Date.parse(a.updatedAt||0)||0,bt=Date.parse(b.updatedAt||0)||0;const newer=bt>=at?b:a,older=bt>=at?a:b;const o=Object.assign({},older,newer);Object.keys(older).forEach(k=>{if((o[k]===undefined||o[k]===null||o[k]==='')&&older[k]!==''&&older[k]!=null)o[k]=older[k]});if(Array.isArray(a.versions)||Array.isArray(b.versions)){const map=new Map();[...(a.versions||[]),...(b.versions||[])].forEach(v=>{const k=String(v.effectiveFrom||v.startDate||v.expiryDate||v.updatedAt||JSON.stringify(v));const old=map.get(k);map.set(k,old?certMergeRow(old,v):v)});o.versions=[...map.values()].sort((x,y)=>String(x.effectiveFrom||x.startDate||'').localeCompare(String(y.effectiveFrom||y.startDate||'')))}return o}
+function certKey(kind,r){const n=v=>String(v==null?'':v).trim().toUpperCase().replace(/[\s_\-–—\/]+/g,'');if(kind==='certificate')return 'C|'+n(r.category)+'|'+n(r.name);if(kind==='person')return 'P|'+(n(r.employeeId)||n(r.passport)||(n(r.nameEn||r.nameKh||r.nickname)+'|'+n(r.dob)));if(kind==='request')return 'R|'+(n(r.number)||n(r.id));if(kind==='monthSnapshot')return 'M|'+r.id;if(kind==='import')return 'I|'+n(r.file||r.sourceFile||r.id);return 'SET|main'}
+function certFlat(){const out=[];(STATE.monthlySnapshots||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'monthSnapshot',_k:certKey('monthSnapshot',r)})));(STATE.certificates||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'certificate',_k:certKey('certificate',r)})));(STATE.people||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'person',_k:certKey('person',r)})));(STATE.requests||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'request',_k:certKey('request',r)})));(STATE.imports||[]).forEach(r=>out.push(Object.assign({},r,{_kind:'import',_k:certKey('import',r)})));out.push({_kind:'settings',_k:'SET|main',settings:STATE.settings||{},updatedAt:STATE.updatedAt||new Date(0).toISOString()});return out}
+function certMergeRow(a,b){return HRACertificateModel.mergeRow(a,b)}
 function certMergeArray(kind,local,remote){const map=new Map();(local||[]).forEach(r=>map.set(certKey(kind,r),r));(remote||[]).forEach(r=>{const k=r._k||certKey(kind,r),old=map.get(k);const c=Object.assign({},r);delete c._kind;delete c._k;map.set(k,old?certMergeRow(old,c):c)});return [...map.values()]}
-function certApply(records){const g={certificate:[],person:[],request:[],import:[],settings:[]};(records||[]).forEach(r=>{if(g[r._kind])g[r._kind].push(r)});_certCloudApplying=true;try{STATE.certificates=certMergeArray('certificate',STATE.certificates,g.certificate);STATE.people=certMergeArray('person',STATE.people,g.person);STATE.requests=certMergeArray('request',STATE.requests,g.request);STATE.imports=certMergeArray('import',STATE.imports,g.import);if(g.settings[0]&&g.settings[0].settings)STATE.settings=Object.assign({},g.settings[0].settings,STATE.settings||{})}finally{_certCloudApplying=false}}
+function certApply(records){const g={certificate:[],person:[],request:[],import:[],settings:[],monthSnapshot:[]};(records||[]).forEach(r=>{if(g[r._kind])g[r._kind].push(r)});_certCloudApplying=true;try{STATE.monthlySnapshots=certMergeArray('monthSnapshot',STATE.monthlySnapshots||[],g.monthSnapshot);STATE.certificates=certMergeArray('certificate',STATE.certificates,g.certificate);STATE.people=certMergeArray('person',STATE.people,g.person);STATE.requests=certMergeArray('request',STATE.requests,g.request);STATE.imports=certMergeArray('import',STATE.imports,g.import);if(g.settings[0]&&g.settings[0].settings)STATE.settings=g.settings.slice().sort((a,b)=>String(a.updatedAt||'').localeCompare(String(b.updatedAt||''))).reduce((settings,r)=>HRACertificateModel.mergeSettings(settings,r.settings),STATE.settings||{});finalizeLatestRoster();}finally{_certCloudApplying=false}}
 function scheduleCertSync(reason){if(_certCloudApplying||!gasUrl())return;if(window.HRAAutoSync){HRAAutoSync.schedule('certificate_visa',reason||'change',{},900);return;}clearTimeout(_certCloudTimer);_certCloudTimer=setTimeout(()=>certAutoSync(reason||'change'),900)}
-async function cloudPush(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return false}const recs=certFlat();try{const d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:recs,recordCount:recs.length,summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto push]',e);return false}}
-async function cloudPull(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return false}try{const res=await HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL_ID,localRecords:certFlat()});if(res&&res.records&&res.records.length){certApply(res.records);_certCloudApplying=true;try{await persist()}finally{_certCloudApplying=false}renderAll()}if(!options.silent&&(res&&res.downloaded))toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto pull]',e);return false}}
+async function cloudPush(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return false}finalizeLatestRoster();const recs=certFlat();try{const d=await HRASmartSync.push({url:gasUrl(),tool:TOOL_ID,records:recs,recordCount:recs.length,summary:{certificates:STATE.certificates.length,people:STATE.people.length,requests:STATE.requests.length},allowDeletes:false,autoConfirmConflicts:!!options.auto});if(!options.silent&&(d&&d.uploaded))toast(`✅ ${tr('cloudSent')} · ${d.uploaded}`);return d}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto push]',e);return false}}
+async function cloudPull(options={}){if(!gasUrl()){if(!options.silent)toast(tr('gasMissing'));return false}try{const res=await HRASmartSync.pullReliable({url:gasUrl(),tool:TOOL_ID,localRecords:certFlat()});if(res&&res.records&&res.records.length){certApply(res.records);_certCloudApplying=true;try{await persist()}finally{_certCloudApplying=false}renderAll()}await refreshCertificateApprovals({silent:true});if(!options.silent&&(res&&res.downloaded))toast(`✅ ${tr('cloudReceived')} · ${res.downloaded}`);return res}catch(e){if(!options.silent)toast(`❌ ${tr('cloudFail')}: ${e.message}`,5000);else console.warn('[certificate auto pull]',e);return false}}
 async function certAutoSync(reason){if(_certCloudBusy||!gasUrl()||!navigator.onLine)return;_certCloudBusy=true;try{await cloudPull({auto:true,silent:true});await cloudPush({auto:true,silent:true,reason})}catch(e){console.warn('[certificate auto sync]',e)}finally{_certCloudBusy=false}}
 
 /* ── Telegram summaries (manual only; no bot token in the HTML) ─────── */
-function eventsForMode(mode){
-  const {start,end}=periodRange(mode,PERIOD_ANCHOR);return allEvents().filter(e=>{const d=dateObj(e.date);return d>=start&&d<end})
-}
-function tgSummaryText(lang,mode){
-  const actor=(document.getElementById('tgActor')?.value||localStorage.getItem('ac_hra_cert_tg_actor')||'').trim();
-  const label=periodLabel(mode,PERIOD_ANCHOR),ev=eventsForMode(mode),due=ev.filter(e=>eventState(e)==='due').length,expired=ev.filter(e=>eventState(e)==='expired').length,pending=STATE.requests.filter(r=>r.status==='pending').length,active=STATE.people.filter(p=>p.status==='active').length;
-  if(lang==='en')return [`📊 <b>AC HRA Certificate & Visa</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>Overview</b>`,`├ Period │ ${label}`,`├ Company certificates │ ${STATE.certificates.length}`,`├ Active expats │ ${active}`,`├ Expiry / renewal events │ ${ev.length}`,`├ Due soon │ ${due}`,`├ Overdue │ ${expired}`,`├ Pending approval │ ${pending}`,`└ Inspector │ ${actor||'—'}`,`🏭 Vantage River Textiles`].join('\n');
-  return [`📊 <b>AC HRA 證書／簽證摘要</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>總覽 / Overview</b>`,`├ 期間 / Period │ ${label}`,`├ 公司證書 │ ${STATE.certificates.length} 項`,`├ 最新有效外籍人員 │ ${active} 人`,`├ 到期／續期事件 │ ${ev.length} 項`,`├ 即將到期 │ ${due}`,`├ 已逾期 │ ${expired}`,`├ 待核可 │ ${pending}`,`└ 檢查人 / Inspector │ ${actor||'—'}`,`🏭 Vantage River Textiles`].join('\n')
-}
-function tgApprovalText(lang){
-  const actor=(document.getElementById('tgActor')?.value||localStorage.getItem('ac_hra_cert_tg_actor')||'').trim();
-  const rows=STATE.requests.filter(r=>r.status==='pending').slice(0,20),id=document.getElementById('tgRecipient').value.trim();
-  const out=lang==='en'?[`✅ <b>APPROVAL REQUEST · AC HRA</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>Approval Overview</b>`,`├ Approver Telegram ID │ ${id||'—'}`,`├ Applicant │ ${actor||'—'}`,`└ Pending │ ${rows.length}`,`━━━━━━━━━━━━━━━━`,`📋 <b>Request Details</b>`]:[`✅ <b>AC HRA 核可申請</b>`,`━━━━━━━━━━━━━━━━`,`📌 <b>核可總覽 / Approval Overview</b>`,`├ 核可者 Telegram ID │ ${id||'—'}`,`├ 申請人 / Applicant │ ${actor||'—'}`,`└ 待核可 │ ${rows.length} 件`,`━━━━━━━━━━━━━━━━`,`📋 <b>申請明細 / Request Details</b>`];
-  rows.forEach((r,i)=>{out.push(`┌ <b>#${i+1} ${r.number||'—'}</b>`,`├ ${lang==='en'?'Title':'項目 / Title'} │ ${r.title||'—'}`,`├ ${lang==='en'?'Items':'數量 / Items'} │ ${r.items?.length||0}`,`└ ${lang==='en'?'Due':'期限 / Due'} │ ${r.dueDate||'—'}`)});
-  out.push(lang==='en'?'Reply with approval or rejection comments after the shared workflow is enabled.':'共用流程啟用後可直接核可或退件並留意見。');return out.join('\n');
-}
-function reminderRows(){const n=Number(STATE.settings.reminderDays||45);return allEvents().filter(e=>!e.completed&&e.days<=n).slice(0,30)}
-function tgReminderText(lang){
-  const rows=reminderRows(),n=STATE.settings.reminderDays;
-  const out=lang==='en'?[`🔔 <b>${n}-DAY DOCUMENT EXPIRY REMINDER</b>`,`━━━━━━━━━━━━━━━━`,`📌 Items not completed or approved early │ ${rows.length}`]:lang==='km'?[`🔔 <b>សេចក្តីរំលឹកឯកសារជិតផុតកំណត់ ${n} ថ្ងៃ</b>`,`━━━━━━━━━━━━━━━━`,`📌 ឯកសារដែលមិនទាន់បញ្ចប់ ឬអនុម័ត │ ${rows.length}`]:[`🔔 <b>文件到期前 ${n} 天提醒</b>`,`━━━━━━━━━━━━━━━━`,`📌 尚未提前完成或核可 │ ${rows.length} 項`];
-  rows.forEach((e,i)=>{out.push(`┌ <b>#${i+1} ${e.name||'—'}</b>`,`├ ${lang==='en'?'Date':'日期 / Date'} │ ${e.date||'—'}`,`├ ${lang==='en'?'Type':'類型 / Type'} │ ${typeLabel(e.type)}`,`└ ${lang==='en'?'Status':'狀態 / Status'} │ ${e.days<0?(lang==='en'?Math.abs(e.days)+' days overdue':'逾期 '+Math.abs(e.days)+' 天'):(lang==='en'?e.days+' days left':'剩 '+e.days+' 天')}`)});
-  out.push(lang==='en'?'Please apply, renew or submit for approval before the due date.':lang==='km'?'សូមដាក់ពាក្យ បន្តសុពលភាព ឬស្នើសុំការអនុម័តមុនថ្ងៃកំណត់។':'請在期限前辦理申請、續期或送核。');return out.join('\n');
-}
+function eventsForMode(mode){return certificatePeriodEvents(mode)}
+function reminderRows(){return allEvents().filter(e=>!e.completed&&e.days<=Number(STATE.settings.reminderDays||45))}
 function certificateTgAttachments(type,mode){
   if(!window.HRATelegramEvidence)return [];
   const rows=[],seen=new Set();
-  function addCert(c,ym,label){if(!c||seen.has(c.id+'|'+ym))return;seen.add(c.id+'|'+ym);const v=certCurrentVersion(c,ym);rows.push({id:c.id,evidence:(v&&v.evidence)||c.evidence||[],name:label||c.name||c.category||c.id});}
+  function addCert(c,ym,label){if(!c||seen.has(c.id+'|'+ym))return;seen.add(c.id+'|'+ym);const v=c;rows.push({id:c.id,evidence:(v&&v.evidence)||c.evidence||[],name:label||c.name||c.category||c.id});}
   if(type==='approval'){
-    STATE.requests.filter(r=>r.status==='pending').forEach(r=>(r.items||[]).forEach(it=>{const c=STATE.certificates.find(x=>x.id===it.id);if(c)addCert(c,String(r.dueDate||new Date().toISOString()).slice(0,7),(r.number||'Approval')+' · '+(c.name||c.category||''));}));
+    STATE.requests.filter(r=>r.status==='pending').forEach(r=>(r.items||[]).forEach(it=>{const c=certificatesForMonth(r.period).find(x=>x.id===it.id);if(c)addCert(c,String(r.dueDate||new Date().toISOString()).slice(0,7),(r.number||'Approval')+' · '+(c.name||c.category||''));}));
   }else{
     const ev=type==='reminder'?reminderRows():eventsForMode(mode);
-    ev.forEach(e=>{if(e.kind!=='certificate')return;const c=STATE.certificates.find(x=>x.id===e.recordId);if(c)addCert(c,String(e.date||'').slice(0,7),(c.name||c.category||'Certificate')+' · '+(e.date||''));});
+    ev.forEach(e=>{if(e.kind!=='certificate')return;const c=certificatesForMonth(e.snapshotMonth).find(x=>x.id===e.recordId);if(c)addCert(c,String(e.date||'').slice(0,7),(c.name||c.category||'Certificate')+' · '+(e.date||''));});
   }
   return HRATelegramEvidence.collect(rows,{labelFn:r=>r.name||'Certificate'});
 }
 function buildTgText(){
   const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?tgReminderText(l):tgSummaryText(l,mode);
   if(lang==='both')return one('zh')+'\n\n────────────────\n\n'+one('en');
-  if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+(type==='reminder'?one('km'):tgReminderText('km'));
+  if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+one('km');
   return one(lang)
 }
 function refreshTgPreview(){document.getElementById('tgPreview').textContent=buildTgText()}
 function openTelegram(type='summary'){
-  setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');refreshTgPreview();openModal('telegramModal')
+  setVal('tgActor',localStorage.getItem('ac_hra_cert_tg_actor')||'');setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');refreshTgPreview();openModal('telegramModal')
 }
 async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
-async function sendTelegram(){
-  showLoading(LANG==='en'?'Sending manually…':'手動發送中…');try{const type=val('tgType'),mode=val('tgPeriod'),attachments=certificateTgAttachments(type,mode),actor=(document.getElementById('tgActor')?.value||'').trim(),period=(mode==='year'?String(ANCHOR.getFullYear()):`${ANCHOR.getFullYear()}-${String(ANCHOR.getMonth()+1).padStart(2,'0')}`);await postGas({action:'telegram',text:document.getElementById('tgPreview').textContent,recipient:val('tgRecipient'),tool:TOOL_ID,module:'certificate_visa',period:period,periodType:mode,messageType:type,attachments,applicant:actor,inspector:actor,checker:actor});toast(`✅ ${tr('telegramSent')}`);closeModal('telegramModal');if(window.HRAAutoSync)HRAAutoSync.schedule('certificate_visa',type==='approval'?'approval':'telegram',{},60);else scheduleCertSync('telegram')}catch(e){toast(`❌ ${e.message}`,5000)}finally{hideLoading()}
-}
+async function sendTelegram(){return sendCertificateTelegram()}
 
-/* ── Startup: local IndexedDB only. No automatic upload or download. ─── */
+/* ── Startup and automatic reconciliation. ─────────────────────────── */
 async function init(){
   showLoading(LANG==='en'?'Loading local data…':'載入本機資料…');STATE=await loadState();
-  STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});
-  setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId',STATE.settings.approverTelegramId||'5026942575');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
+  STATE.certificates=STATE.certificates||[];STATE.people=STATE.people||[];STATE.requests=STATE.requests||[];STATE.imports=STATE.imports||[];STATE.settings=Object.assign(defaultState().settings,STATE.settings||{});STATE.monthlySnapshots=STATE.monthlySnapshots||[];
+  finalizeLatestRoster();setVal('setReminderDays',STATE.settings.reminderDays);setVal('setApproverId',STATE.settings.approverTelegramId||'5026942575');setVal('setDefaultDept',STATE.settings.defaultDepartment);setVal('setGasUrl',gasUrl());
   applyLang();renderAll();hideLoading();if(!window.HRAAutoSync)setTimeout(()=>certAutoSync('startup'),350)
 }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
