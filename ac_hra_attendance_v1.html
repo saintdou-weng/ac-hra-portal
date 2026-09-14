@@ -717,6 +717,7 @@ function subtotalsForDate(d){return ensureDataIndex().subtotalsByDate.get(d)||[]
 // ═══════ ONLINE ATTENDANCE CRUD ═══════
 let ATT_EDIT_INDEX=-1;
 const ATT_NUM_FIELDS=['m','f','att','join','resign','ti','to','al','pl','sl','np','bus','fl','ml','idle'];
+function attendanceLeaveCount(r){return ['al','pl','sl','bus','fl','ml'].reduce((n,k)=>n+(Number(r?.[k])||0),0)}
 function attNormKey(v){return String(v==null?'':v).trim().toUpperCase().replace(/\s+/g,' ')}
 function attSemanticKey(r,idx){
   const kind=r&&r.isGrand?'GRAND':r&&r.isSubtotal?'SUB':'DETAIL';
@@ -808,7 +809,7 @@ function renderTab(name,force){
   const run=async()=>{
     try{
       if(name==='entry'){renderOnlineEntry();}
-      else if(name==='leave'){ensureEmployeeLeaveV55(false);}
+      // Employee Leave is loaded by its existing iframe; the v55 initializer was removed.
       else if(name==='daily'){populateDateSel('dsel');renderDaily();}
       else if(name==='weekly'){populateWeekSel();renderWeekly();}
       else if(name==='monthly'){populateMonthSel();renderMonthly();}
@@ -1330,6 +1331,10 @@ function buildTelegramSummary(mode,key,lang){
   const dates=periodDates(grain,key);
   const x=attendancePeriodMetrics(grain,key);
   const grands=dates.map(grandForDate).filter(Boolean);
+  const daily=mode==='daily',gender={m:grands.length?grands.reduce((n,g)=>n+(Number(g.m)||0),0)/grands.length:null,f:grands.length?grands.reduce((n,g)=>n+(Number(g.f)||0),0)/grands.length:null};
+  const countText=n=>n==null?tgLabel('未提供','Not provided',lang):Number(n.toFixed(1)).toString();
+  const genderText=(m,f)=>`${tgLabel('男','Male',lang)} ${countText(m)}／${tgLabel('女','Female',lang)} ${countText(f)}`;
+  const leaveTotal=grands.reduce((sum,r)=>sum+attendanceLeaveCount(r),0);
   const rateText=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';
   const title={
     daily:tgLabel('VRT 考勤日報','VRT Daily Attendance',lang),
@@ -1346,11 +1351,14 @@ function buildTelegramSummary(mode,key,lang){
   let text=`📊 <b>${title}</b>\n${sep}\n`;
   text+=`📌 <b>${tgLabel('總覽','Overview',lang)}</b>\n`;
   text+=`├ 📅 ${tgLabel('期間','Period',lang)} │ ${periodLabel}\n`;
+  const scopes=[...new Set(grands.map(g=>[g.dept,g.sect,g.line].filter(Boolean).join(' ')).filter(s=>/不含|不包括|排除|exclud/i.test(s)))];
+  if(scopes.length)text+=`├ ${tgLabel('統計範圍','Coverage',lang)} │ ${scopes.join('；').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}\n`;
   text+=`├ 📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)} │ ${rateText} ${telegramRateIcon(x.rate)}\n`;
-  text+=`├ 👥 ${tgLabel('平均在職','Average Headcount',lang)} │ ${Math.round(x.avgHC)}\n`;
-  text+=`├ ✅ ${tgLabel('平均出勤','Average Attendance',lang)} │ ${Math.round(x.avgAttendance)}\n`;
+  text+=`├ 👥 ${daily?tgLabel('全廠總人數','Factory Headcount',lang):tgLabel('日均全廠總人數','Average Daily Factory Headcount',lang)} │ ${countText(x.days?x.avgHC:null)}（${genderText(gender.m,gender.f)}）\n`;
+  text+=`├ ✅ ${daily?tgLabel('全廠出勤人數','Factory Attendance',lang):tgLabel('日均全廠出勤人數','Average Daily Factory Attendance',lang)} │ ${countText(x.days?x.avgAttendance:null)}\n`;
   text+=`├ 📅 ${tgLabel('資料天數','Days',lang)} │ ${x.days}\n`;
-  text+=`├ ⚠️ ${tgLabel('缺勤','Absence',lang)} │ ${x.absence}\n`;
+  text+=`├ 📋 ${daily?tgLabel('請假人數','On Leave',lang):tgLabel('累計請假人次','Leave Person-Days',lang)} │ ${x.days?leaveTotal:'—'}\n`;
+  text+=`├ ⚠️ ${daily?tgLabel('缺勤（含 NP）','Absence (incl. NP)',lang):tgLabel('累計缺勤人次（含 NP）','Absence Person-Days (incl. NP)',lang)} │ ${x.days?x.absence:'—'}\n`;
   text+=`├ 🟢 ${tgLabel('新進','Join',lang)} │ ${x.join}\n`;
   text+=`├ 🔴 ${tgLabel('離職','Resign',lang)} │ ${x.resign}\n`;
   text+=`└ 📉 ${tgLabel('流失率','Turnover',lang)} │ ${x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%'}\n`;
@@ -1378,8 +1386,8 @@ function buildTelegramSummary(mode,key,lang){
     text+=`${sep}\n📅 <b>${tgLabel('每日明細','Daily Detail',lang)}</b>\n`;
     dates.forEach((d,i)=>{
       const g=grandForDate(d);if(!g)return;
-      const c=calc(g),rp=c.rate==null?'—':(c.rate*100).toFixed(1)+'%';
-      text+=`┌ ${d}\n├ ${tgLabel('出勤率','Attendance Rate',lang)} │ ${telegramRateIcon(c.rate)} ${rp}\n└ ${tgLabel('出勤','Attendance',lang)} │ ${g.att||0}\n`;
+      const c=calc(g),rate=c.report>0?g.att/c.report:null,rp=rate==null?'—':(rate*100).toFixed(1)+'%';
+      text+=`┌ ${d}\n├ ${tgLabel('出勤率','Attendance Rate',lang)} │ ${telegramRateIcon(rate)} ${rp}\n├ ${tgLabel('總人數','Headcount',lang)} │ ${c.ttl}（${genderText(Number(g.m||0),Number(g.f||0))}）\n└ ${tgLabel('出勤人數','Attendance',lang)} │ ${g.att||0}\n`;
     });
   }
   if(mode==='yearly'){
@@ -1400,7 +1408,9 @@ function buildTelegramSummary(mode,key,lang){
       const rate=s.report?s.att/s.report:null;
       const dn=tgName(s.dept,lang),sn=tgName(s.name,lang);
       const label=s.dept&&s.dept!==s.name?(dn+' / '+sn):(sn||dn);
-      text+=`┌ ${telegramRateIcon(rate)} <b>${label}</b>\n`;
+      text+=`┌ ${telegramRateIcon(rate)} <b>${label.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>\n`;
+      text+=`├ ${daily?tgLabel('總人數','Headcount',lang):tgLabel('日均總人數','Avg Daily Headcount',lang)} │ ${countText(s.ttl/s.days)}　${daily?tgLabel('出勤人數','Attendance',lang):tgLabel('日均出勤人數','Avg Daily Attendance',lang)} │ ${countText(s.att/s.days)}\n`;
+      text+=`├ ${daily?tgLabel('請假人數','On Leave',lang):tgLabel('累計請假人次','Leave Person-Days',lang)} │ ${attendanceLeaveCount(s)}\n`;
       const leaveParts=[
         ['AL '+tgLabel('特休','Annual Leave',lang),Number(s.al||0)],
         ['PL '+tgLabel('事假','Personal Leave',lang),Number(s.pl||0)],
@@ -1411,8 +1421,7 @@ function buildTelegramSummary(mode,key,lang){
         ['ML '+tgLabel('產假','Maternity Leave',lang),Number(s.ml||0)],
         [tgLabel('停工','Idle',lang),Number(s.idle||0)]
       ].filter(r=>r[1]>0);
-      /* v58 compact department card: Rate is always shown; only non-zero leave
-         types are appended.  A department with no leave uses one line only. */
+      // Keep non-zero leave detail; headcount, attendance and leave total are always shown.
       const rateLine=`${tgLabel('出勤率','Attendance Rate',lang)} │ ${rate==null?'—':(rate*100).toFixed(1)+'%'}`;
       if(!leaveParts.length){
         text+=`└ ${rateLine}\n`;
@@ -1874,18 +1883,16 @@ function sectName(r){
 function aggregateSections(dates){
   const map={};
   dates.forEach(d=>{
-    subtotalsForDate(d).forEach(r=>{
+    attDedupeRows(subtotalsForDate(d)).forEach(r=>{
       const nm=sectName(r);
       const dept=(r.dept||'').replace(/小計|subtotal/gi,'').trim();
       const key=dept+'¦'+nm;
       if(!map[key])map[key]={name:nm,dept,att:0,ttl:0,report:0,m:0,f:0,al:0,pl:0,sl:0,np:0,bus:0,fl:0,ml:0,idle:0,join:0,resign:0,absent:0,days:0};
       const c=calc(r);
-      map[key].att+=r.att;
-      map[key].ttl+=(r.m+r.f);map[key].m+=r.m;map[key].f+=r.f;
+      map[key].att+=Number(r.att)||0;
+      map[key].ttl+=(Number(r.m)||0)+(Number(r.f)||0);map[key].m+=Number(r.m)||0;map[key].f+=Number(r.f)||0;
       map[key].report+=c.report;
-      map[key].al+=r.al;map[key].pl+=r.pl;map[key].sl+=r.sl;map[key].np+=r.np;
-      map[key].bus+=r.bus;map[key].fl+=r.fl;map[key].ml+=r.ml;map[key].idle+=(r.idle||0);
-      map[key].join+=r.join;map[key].resign+=r.resign;
+      for(const k of ['al','pl','sl','np','bus','fl','ml','idle','join','resign'])map[key][k]+=Number(r[k])||0;
       map[key].absent+=c.absent;
       map[key].days++;
     });
@@ -2288,6 +2295,10 @@ function attDateStats(rows){
   const out={};Object.keys(b).sort().forEach(d=>{const a=b[d].sort();out[d]={count:a.length,hash:attFnv1a(a.join('\x1e'))}});return out;
 }
 function attSameStat(a,b){return !!a&&!!b&&Number(a.count)===Number(b.count)&&String(a.hash||'')===String(b.hash||'')}
+function attVerifyPushedStats(dates,local,cloud){
+  const pending=dates.filter(d=>!attSameStat(local[d],cloud[d]));
+  if(pending.length)throw new Error(T(`雲端尚未確認 ${pending.length} 日的完整更新，資料仍保留在本機。`,`Cloud has not confirmed all updated fields for ${pending.length} day(s). Local data is retained.`));
+}
 function attLoadBaseline(){try{return JSON.parse(localStorage.getItem(ATT_AUTO_BASELINE_KEY)||'{}')||{}}catch(e){return{}}}
 function attSaveBaseline(v){try{localStorage.setItem(ATT_AUTO_BASELINE_KEY,JSON.stringify(v||{}))}catch(e){}}
 function attScheduleAutoSync(reason){if(_attApplyingCloud||!GAS_URL)return;if(window.HRAAutoSync){HRAAutoSync.schedule('attendance',reason||'change',{},900);return;}clearTimeout(_attAutoTimer);_attAutoTimer=setTimeout(()=>attAutoSync({source:reason||'local-change'}),1000)}
@@ -2337,9 +2348,10 @@ async function attAutoSync(options={}){
     // Refresh cloud meta once, then persist exact date hashes as the baseline.
     const finalLocal=attDateStats(DB), m2=await attPost({action:'attendanceDiff',dateStats:finalLocal,dates:[],metaOnly:true});
     const finalCloud=(m2&&m2.dateStats)||{};const bl={};Object.keys(finalLocal).forEach(d=>{if(attSameStat(finalLocal[d],finalCloud[d]))bl[d]=finalLocal[d]});attSaveBaseline(bl);
+    attVerifyPushedStats(p2,finalLocal,finalCloud);
     const msg=downloaded||uploaded?T(`自動同步完成：下載 ${downloaded} 筆／上傳 ${uploaded} 筆`,`Auto sync: ${downloaded} downloaded / ${uploaded} uploaded`,`សមកាលកម្មរួចរាល់`):T('已同步，沒有新變更','Synced; no new changes','បានធ្វើសមកាលកម្ម គ្មានការផ្លាស់ប្តូរ');
     setSyncStatus('synced',msg);return true;
-  }catch(e){console.warn('[Attendance auto sync]',e);setSyncStatus('offline',T('離線／稍後再同步','Offline / retry later','ក្រៅបណ្តាញ'));return false}
+  }catch(e){console.warn('[Attendance auto sync]',e);setSyncStatus(navigator.onLine?'failed':'offline',T('同步未完成：','Sync incomplete: ')+e.message);return false}
   finally{_attAutoBusy=false}
 }
 
@@ -2446,6 +2458,7 @@ async function pushCloud() {
     const finalCloud=(m2&&m2.dateStats)||{}, bl={};
     Object.keys(finalLocal).forEach(d=>{if(attSameStat(finalLocal[d],finalCloud[d]))bl[d]=finalLocal[d]});
     attSaveBaseline(bl);
+    attVerifyPushedStats(dates,finalLocal,finalCloud);
     setProgress(100,true);setSyncStatus('synced',T(`✅ 強制上傳完成 ${dates.length} 日 / ${uploaded} 筆`,`✅ Forced upload complete: ${dates.length} dates / ${uploaded} rows`,`✅ ផ្ទុកឡើងរួចរាល់`));
     toast(T(`✅ 上傳完成：${dates.length} 個日期／${uploaded} 筆`,`✅ Upload complete: ${dates.length} dates / ${uploaded} rows`,`✅ ផ្ទុកឡើងរួចរាល់`),'ok');
   }catch(e){
@@ -2503,38 +2516,58 @@ async function sendTgMsg(text) {
 }
 
 // ── Send via GAS (from Telegram modal) ──
+function splitAttendanceTelegram(html,limit=3400){
+  if(html.length<=limit)return[html];
+  const parts=[];let part='',bold=false;
+  const flush=()=>{if(part.replace(/<\/?b>/g,''))parts.push(part+(bold?'</b>':''));part=bold?'<b>':'';};
+  // Preserve entities, Unicode characters and the summary's inline bold tags.
+  const tokens=html.match(/<\/?b>|&(?:amp|lt|gt|quot|#\d+|#x[0-9a-f]+);|[\s\S]/giu)||[];
+  for(const token of tokens){
+    const nextBold=token==='<b>'?true:token==='</b>'?false:bold;
+    if(part.length+token.length+(nextBold?4:0)>limit)flush();
+    part+=token;bold=nextBold;
+    if(token==='\n'&&part.length>=limit-400)flush();
+  }
+  flush();return parts;
+}
+const ATT_TG_PROGRESS_KEY='vrt_att_telegram_progress_v70';
+let _attTgSending=false;
 async function sendViaTg() {
   const text = document.getElementById('tgContent')?.textContent;
   if (!text) { toast(T('無內容','No content','គ្មានខ្លឹមសារ'), 'err'); return; }
   if (!GAS_URL) { toast(T('請先設定 GAS URL','Configure the GAS URL first','សូមកំណត់ GAS URL'), 'err'); toggleCloudCfg(); return; }
+  if(_attTgSending)return;
+  _attTgSending=true;
   const btn = document.getElementById('btnTgSend');
   if (btn) { btn.disabled = true; btn.textContent = T('⏳ 傳送中…','⏳ Sending…','⏳ កំពុងផ្ញើ…'); }
   try {
-    const r = await fetch(GAS_URL, {
-      method: 'POST',
-      redirect: 'follow',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({
-        action:'telegram', tool:'attendance', module:'attendance', text:text,
-        period:document.getElementById('tgPeriod')?.value||'',
-        periodType:document.getElementById('tgMode')?.value||'monthly',
-        lang:document.getElementById('tgLanguage')?.value||'both', messageType:'summary'
-      }),
-    });
-    const d = await r.json();
-    const x = (d && d.data) ? d.data : (d || {});
-    const delivered = d && d.ok !== false && !!(x.sentToGroup || x.sent || x.messageId);
-    if (delivered) {
-      toast(T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'), 'ok');
-      if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','telegram',{},60); else attScheduleAutoSync('telegram');
-    } else {
-      const err=(x && x.error) || (d && d.error) || T('Telegram 未確認送達，請勿當作已送出','Telegram delivery was not confirmed','Telegram មិនទាន់បញ្ជាក់ការផ្ញើ');
-      toast(T('❌ 傳送失敗：','❌ Send failed: ','❌ ផ្ញើបរាជ័យ៖ ') + err, 'err');
+    const period=document.getElementById('tgPeriod')?.value||'',periodType=document.getElementById('tgMode')?.value||'monthly',lang=document.getElementById('tgLanguage')?.value||'both';
+    const parts=splitAttendanceTelegram(text),day=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Phnom_Penh'});
+    const signature=JSON.stringify([GAS_URL,day,period,periodType,lang,parts]);
+    let progress;try{progress=JSON.parse(localStorage.getItem(ATT_TG_PROGRESS_KEY)||'null')}catch(e){}
+    if(!progress||progress.signature!==signature||!Number.isInteger(progress.sent)||progress.sent<0||progress.sent>parts.length)progress={signature,sent:0};
+    const alreadyComplete=progress.sent===parts.length;
+    for(let i=progress.sent;i<parts.length;i++){
+      if(btn)btn.textContent=T(`⏳ 傳送 ${i+1}/${parts.length}…`,`⏳ Sending ${i+1}/${parts.length}…`);
+      const r=await fetch(GAS_URL,{
+        method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'telegram',tool:'attendance',module:'attendance',text:parts.length>1?`<b>📄 ${i+1}/${parts.length}</b>\n`+parts[i]:parts[i],period,periodType,lang,messageType:'summary',batchId:'attendance-'+attFnv1a(signature),chunkIndex:i+1,totalChunks:parts.length})
+      });
+      const d=await r.json(),x=d?.data||d||{};
+      const delivered=d&&d.ok!==false&&x.ok!==false&&!!(x.sentToGroup||x.sent||x.messageId||x.message_id||x.result?.message_id);
+      if(!delivered)throw new Error((x&&x.error)||(d&&d.error)||T('Telegram 未確認送達','Telegram delivery was not confirmed'));
+      progress.sent=i+1;
+      try{localStorage.setItem(ATT_TG_PROGRESS_KEY,JSON.stringify(progress))}catch(e){}
+      if(i<parts.length-1)await new Promise(resolve=>setTimeout(resolve,2500));
     }
+    toast(alreadyComplete?T('此摘要今天已發送完成','This summary was already sent today'):T('✅ 已發送到 Telegram 群組','✅ Sent to the Telegram group','✅ បានផ្ញើទៅក្រុម Telegram'),'ok');
+    if(window.HRAAutoSync)HRAAutoSync.schedule('attendance','telegram',{},60); else attScheduleAutoSync('telegram');
   } catch(e) {
-    toast(T('❌ 連線失敗：','❌ Connection failed: ','❌ ការតភ្ជាប់បរាជ័យ៖ ')+e.message, 'err');
+    toast(T('❌ 傳送未完成，重試會接續未完成部分：','❌ Send incomplete; retry resumes the remaining parts: ')+e.message, 'err');
+  } finally {
+    _attTgSending=false;
+    if (btn) { btn.disabled = false; btn.innerHTML = `<span data-zh="📤 發送至群組" data-en="📤 Send to Group" data-km="📤 ផ្ញើទៅក្រុម">${T('📤 發送至群組','📤 Send to Group','📤 ផ្ញើទៅក្រុម')}</span>`; }
   }
-  if (btn) { btn.disabled = false; btn.innerHTML = `<span data-zh="📤 發送至群組" data-en="📤 Send to Group" data-km="📤 ផ្ញើទៅក្រុម">${T('📤 發送至群組','📤 Send to Group','📤 ផ្ញើទៅក្រុម')}</span>`; }
 }
 
 // ── Cloud summary for push metadata ──
@@ -3044,7 +3077,6 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator
 }
 if(window.HRAAutoSync)HRAAutoSync.install({key:'attendance',push:function(o){return attAutoSync({source:(o&&o.reason)||'auto',silentConflict:true})},canSync:function(){return !!GAS_URL},startDelay:450,upId:'btnPush',downId:'btnPull'});
 
-window.addEventListener('pageshow',()=>ensureEmployeeLeaveV55(false));
 </script>
 </body>
 </html>
