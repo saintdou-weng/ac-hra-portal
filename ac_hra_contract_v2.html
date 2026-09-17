@@ -1,14 +1,15 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v67 Contract Telegram routing + 5% approval amount fix -->
+<!-- v73 Selected requests, revision history and batch sync -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=64"></script>
+<script src="shared/hra-smart-sync.js?v=73"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=64"></script>
 <script src="shared/hra-hr-governance.js?v=57"></script>
+<script src="shared/contract-model.js?v=73"></script>
 <!-- v56 Lifecycle Link: approved Join/Resign → Probation/Contract + editable lifecycle settings -->
 <title>AC HRA 合約管理 / Contract Tracker v2 · Lifecycle v56</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -245,7 +246,7 @@ table tbody tr:hover{background:#fbf9f0}
 <body>
 
 <header>
-  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v67</span></h1>
+  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v73</span></h1>
   <div class="lang-switch">
     <button data-lang="zh" class="active">繁中</button>
     <button data-lang="en">English</button>
@@ -625,7 +626,7 @@ table tbody tr:hover{background:#fbf9f0}
     <div class="form-grid">
       <div><label>廠內編號 Factory ID *</label><input type="text" id="dpFactoryId" required></div>
       <div><label>部門 Department *</label>
-        <select id="dpDept">
+        <input type="text" id="dpDept" list="dpDeptOptions"><datalist id="dpDeptOptions">
           <option>Line 1</option><option>Line 2</option><option>Line 3</option>
           <option>Line 4</option><option>Line 5</option><option>Line 6</option>
           <option>Line 7</option><option>Line 8</option><option>LINE 09</option>
@@ -633,11 +634,12 @@ table tbody tr:hover{background:#fbf9f0}
           <option>Packing</option><option>QC</option><option>Warehouse</option>
           <option>Maintenance</option><option>HR</option><option>Admin</option>
           <option>Management</option>
-        </select></div>
+        </datalist></div>
       <div><label>柬文姓 Khmer Surname</label><input type="text" id="dpKhSur" class="khmer"></div>
       <div><label>柬文名 Khmer Name</label><input type="text" id="dpKhName" class="khmer"></div>
       <div><label>入職日 Join Date *</label><input type="date" id="dpJoinDate" onchange="dpCalcEnd()"></div>
       <div><label>試用期到期 Probation End *</label><input type="date" id="dpEndDate"></div>
+      <div><label>組別 Section</label><input type="text" id="dpSection"></div><div><label>職位 Position</label><input type="text" id="dpPosition"></div><div><label>評估人 Evaluator</label><input type="text" id="dpEvaluator"></div>
       <div><label>評估日 Evaluation Date</label><input type="date" id="dpEvalDate"></div>
       <div><label>分數 Score</label><input type="number" id="dpScore" min="0" max="100"></div>
       <div><label>結果 Result</label>
@@ -1325,7 +1327,7 @@ function renderDashProb(){
   const resF=(document.getElementById("dashProbResult")?.value||"");
   let list=[...periodList];
   if(resF)list=list.filter(r=>normalizeProbResult(r)===resF);
-  if(search)list=list.filter(r=>(r.factoryId+r.khmerName+r.khmerSurname+r.dept||"").toLowerCase().includes(search));
+  if(search)list=list.filter(r=>[r.factoryId,HRAContractModel.name(r),r.dept,r.section].join(" ").toLowerCase().includes(search));
   list.sort((a,b)=>(getProbDate(b)||"").localeCompare(getProbDate(a)||""));
 
   const tbody=document.getElementById("dashProbBody");
@@ -1333,14 +1335,14 @@ function renderDashProb(){
   tbody.innerHTML=list.map((r,i)=>{
     const due=r.probEnd||"";
     const days=due?Math.round((new Date(due)-new Date(today))/(864e5)):null;
-    const rowCls=days!==null&&days<0?"row-danger":days!==null&&days<=7?"row-warning":"";
+    const rowCls=normalizeProbResult(r)==="pending"?(days!==null&&days<0?"row-danger":days!==null&&days<=7?"row-warning":""):"";
     const normResult=normalizeProbResult(r);
     const resBadge={passed:"active",failed:"expired",pending:"pending",extended:"warning"}[normResult]||"muted";
     return `<tr class="${rowCls}">
       <td class="cb-col"><input type="checkbox" class="prob-cb" data-id="${r.id}"></td>
       <td>${i+1}</td>
       <td>${escapeHtml(r.factoryId||"")}</td>
-      <td class="khmer">${escapeHtml((r.khmerSurname||"")+" "+(r.khmerName||""))}</td>
+      <td class="khmer">${escapeHtml(HRAContractModel.name(r))}</td>
       <td>${fmtDate(getProbJoinDate(r))}</td>
       <td>${fmtDate(r.probEnd)}</td>
       <td>${fmtDate(r.evalDate)}</td>
@@ -1401,7 +1403,7 @@ function renderDashCont(){
   if(!tbody)return;
   tbody.innerHTML=list.map((r,i)=>{
     const days=r.endDate&&r.contractType&&r.contractType!=="UDC"?Math.round((new Date(r.endDate)-new Date(today))/(864e5)):null;
-    const rowCls=days!==null&&days<0?"row-danger":days!==null&&days<=remDays?"row-warning":"";
+    const rowCls=["renewed","terminated"].includes(r.status)?"":days!==null&&days<0?"row-danger":days!==null&&days<=remDays?"row-warning":"";
     const daysCell=!r.contractType||r.contractType==="UDC"?"—":(days===null?"":days<0?`<span class="danger-text">${days}</span>`:days<=remDays?`<span class="warning-text">${days}</span>`:days);
     const stBadge={active:"active",expired:"expired",renewed:"info",terminated:"muted"}[r._computedStatus]||"muted";
     const stLabel={active:t("statusActiveContract"),expired:t("statusExpired"),renewed:t("statusRenewed"),terminated:t("statusTerminated")}[r._computedStatus]||r._computedStatus;
@@ -1474,14 +1476,15 @@ function openDashProbModal(id){
   const r=id?DASH_PROBS.find(x=>x.id===id):{};
   document.getElementById("dashProbModalTitle").textContent=id?"編輯試用期 / Edit Probation":"新增試用期 / Add Probation";
   document.getElementById("dpFactoryId").value=r.factoryId||"";
-  document.getElementById("dpDept").value=r.dept||"Line 1";
+  document.getElementById("dpDept").value=r.dept||"";
   document.getElementById("dpKhSur").value=r.khmerSurname||"";
-  document.getElementById("dpKhName").value=r.khmerName||"";
+  document.getElementById("dpKhName").value=r.khmerName||r.name||"";
   document.getElementById("dpJoinDate").value=r.joinDate||"";
   document.getElementById("dpEndDate").value=r.probEnd||"";
   document.getElementById("dpEvalDate").value=r.evalDate||"";
+  document.getElementById("dpSection").value=r.section||"";document.getElementById("dpPosition").value=r.position||"";document.getElementById("dpEvaluator").value=r.evaluator||"";
   document.getElementById("dpScore").value=r.score!=null?r.score:"";
-  document.getElementById("dpResult").value=normalizeProbResult(r);
+  const dpResult=document.getElementById("dpResult"),resultValue=normalizeProbResult(r);if(![...dpResult.options].some(o=>o.value===resultValue))dpResult.add(new Option(resultValue,resultValue));dpResult.value=resultValue;
   document.getElementById("dpRemarks").value=r.remarks||"";
   document.getElementById("dashProbModal")._editId=id||null;
   document.getElementById("dashProbModal").classList.add("show");
@@ -1495,13 +1498,14 @@ async function saveDashProb(){
   const fid=document.getElementById("dpFactoryId").value.trim();
   if(!fid){toast("廠內編號為必填","warning");return;}
   const id=document.getElementById("dashProbModal")._editId||uid("dp");
-  const r={id,factoryId:fid,
+  const r={...(DASH_PROBS.find(x=>x.id===id)||{}),id,factoryId:fid,
     dept:document.getElementById("dpDept").value,
     khmerSurname:document.getElementById("dpKhSur").value.trim(),
     khmerName:document.getElementById("dpKhName").value.trim(),
     joinDate:document.getElementById("dpJoinDate").value,
     probEnd:document.getElementById("dpEndDate").value,
     evalDate:document.getElementById("dpEvalDate").value,
+    section:document.getElementById("dpSection").value.trim(),position:document.getElementById("dpPosition").value.trim(),evaluator:document.getElementById("dpEvaluator").value.trim(),
     score:document.getElementById("dpScore").value!==""?Number(document.getElementById("dpScore").value):null,
     result:document.getElementById("dpResult").value,
     remarks:document.getElementById("dpRemarks").value.trim(),
@@ -1524,7 +1528,7 @@ function openDashContModal(id){
   document.getElementById("dcSection").value=r.section||"";
   document.getElementById("dcPosition").value=r.position||"";
   document.getElementById("dcEntry").value=r.entryDate||"";
-  document.getElementById("dcType").value=r.contractType||"FDC-6M";
+  const dcType=document.getElementById("dcType"),typeValue=id?(r.contractType||""):"FDC-6M";if(![...dcType.options].some(o=>o.value===typeValue))dcType.add(new Option(typeValue||"—",typeValue));dcType.value=typeValue;
   document.getElementById("dcEndDate").value=r.endDate||"";
   document.getElementById("dcStatus").value=r.status||"active";
   document.getElementById("dcNotes").value=r.notes||"";
@@ -1543,7 +1547,7 @@ async function saveDashCont(){
   const fid=document.getElementById("dcFactoryId").value.trim();
   if(!fid){toast("廠內編號為必填","warning");return;}
   const id=document.getElementById("dashContModal")._editId||uid("dc");
-  const r={id,factoryId:fid,
+  const r={...(DASH_CONTS.find(x=>x.id===id)||{}),id,factoryId:fid,
     dept:document.getElementById("dcDept").value.trim(),
     name:document.getElementById("dcName").value.trim(),
     section:document.getElementById("dcSection").value.trim(),
@@ -1617,7 +1621,7 @@ async function importProbDash(evt){
           const scoreRaw=idx.score>=0?String(row[idx.score]||"").trim():"";
           const score=scoreRaw!==""&&!isNaN(scoreRaw)?Number(scoreRaw):null;
           const resultRaw=idx.result>=0?String(row[idx.result]||"").toLowerCase().trim():"";
-          const result=/pass/.test(resultRaw)&&!/fail/.test(resultRaw)?"passed":/fail|not pass/.test(resultRaw)?"failed":/extend/.test(resultRaw)?"extended":"pending";
+          const result=HRAContractModel.result({result:resultRaw||"pending"});
           const dept=idx.dept>=0?String(row[idx.dept]||"").trim():"";
           const section=idx.section>=0?String(row[idx.section]||"").trim():"";
           const position=idx.position>=0?String(row[idx.position]||"").trim():"";
@@ -1642,7 +1646,7 @@ async function importProbDash(evt){
             position:position||(existing&&existing.position)||"",
             remarks:remarks||(existing&&existing.remarks)||"",source:'excel',sourceFile:f.name,importedAt:now,updatedAt:now,createdAt:existing?.createdAt||now};
           if(existing&&window.HRAHRGovernance){
-            rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'PROB|'+factoryId+'|'+(joinDate||''),employeeId:factoryId,sourceFile:f.name,approved:['passed','failed'].includes(normalizeProbResult(existing)),criticalFields:['joinDate','probEnd','evalDate','score','result']}).record;rec.id=existing.id;
+            rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'PROB|'+factoryId+'|'+(joinDate||''),employeeId:factoryId,sourceFile:f.name,approved:false,criticalFields:[]}).record;rec.id=existing.id;
           }
           await dbPut("dashProbs",rec);
           if(existing){const i=DASH_PROBS.findIndex(r=>r.id===existing.id);if(i>=0)DASH_PROBS[i]=rec;updated++;}else{DASH_PROBS.push(rec);added++;}
@@ -1657,13 +1661,13 @@ async function importProbDash(evt){
           if(!joinDate&&!probEnd&&!evalDate){skipped++;continue}
           const scoreRaw=String(row[7]||"").trim(),score=scoreRaw!==""&&!isNaN(scoreRaw)?Number(scoreRaw):null;
           const resultRaw=String(row[8]||"").toLowerCase().trim();
-          const result=/pass/.test(resultRaw)&&!/fail/.test(resultRaw)?"passed":/fail/.test(resultRaw)?"failed":/extend/.test(resultRaw)?"extended":"pending";
+          const result=HRAContractModel.result({result:resultRaw||"pending"});
           const depRaw=String(row[9]||"").trim();
           const dept=(depRaw && !/^\d+(\.\d+)?$/.test(depRaw))?depRaw:"";
           const remarks=[String(row[10]||"").trim(), depRaw&&dept===""?`Unmapped value ${depRaw}`:""].filter(Boolean).join(" · ");
           let existing=DASH_PROBS.find(r=>String(r.factoryId||"")===factoryId&&(joinDate?String(r.joinDate||"")===joinDate:true));
           const id=existing?.id||uid("dp"),now=new Date().toISOString();
-          const rec={...(existing||{}),id,factoryId,joinDate:joinDate||(existing&&existing.joinDate)||"",probEnd:probEnd||(existing&&existing.probEnd)||"",evalDate:evalDate||(existing&&existing.evalDate)||"",score:score!=null?score:(existing&&existing.score),result,dept:dept||(existing&&existing.dept)||"",remarks:remarks||(existing&&existing.remarks)||"",source:"excel",sourceFile:f.name,importedAt:now,updatedAt:now,createdAt:existing?.createdAt||now};
+          const rec={...(existing||{}),id,factoryId,khmerSurname:String(row[2]||""),khmerName:String(row[3]||""),joinDate:joinDate||(existing&&existing.joinDate)||"",probEnd:probEnd||(existing&&existing.probEnd)||"",evalDate:evalDate||(existing&&existing.evalDate)||"",score:score!=null?score:(existing&&existing.score),result,dept:dept||(existing&&existing.dept)||"",remarks:remarks||(existing&&existing.remarks)||"",source:"excel",sourceFile:f.name,importedAt:now,updatedAt:now,createdAt:existing?.createdAt||now};
           await dbPut("dashProbs",rec);
           if(existing){const i=DASH_PROBS.findIndex(r=>r.id===existing.id);if(i>=0)DASH_PROBS[i]=rec;updated++;}else{DASH_PROBS.push(rec);added++;}
         }
@@ -1799,9 +1803,9 @@ async function importContDash(evt){
         effectiveMonth:effectiveMonth||(existing&&existing.effectiveMonth)||'',needsPeriodReview,
         notes:[...new Set(noteParts.filter(Boolean))].join(' · '),source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()
       };
-      // 已核可/終止資料仍經 governance 保護，Excel 不直接覆蓋正式關鍵欄位。
+      // v73: imported changes retain the previous result in revision history and require a new confirmation.
       if(existing&&window.HRAHRGovernance){
-        rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'CONT|'+factoryId+'|'+(finalEntry||''),employeeId:factoryId,sourceFile:f.name,approved:existing.status==='renewed'||existing.status==='terminated',criticalFields:['entryDate','contractType','contractStart','endDate','status']}).record;rec.id=existing.id;
+        rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'CONT|'+factoryId+'|'+(finalEntry||''),employeeId:factoryId,sourceFile:f.name,approved:false,criticalFields:[]}).record;rec.id=existing.id;
       }
       await dbPut('dashConts',rec);
       if(existing){const i=DASH_CONTS.findIndex(r=>r.id===existing.id);if(i>=0)DASH_CONTS[i]=rec;updated++;}
@@ -2581,7 +2585,7 @@ async function contractMergeExactImportDuplicates(){
     if(mergedSettlements.length)keep.settlements=mergedSettlements;
     keep.updatedAt=new Date().toISOString();
     await dbPut('dashConts',keep);
-    for(let i=1;i<arr.length;i++){await dbDel('dashConts',arr[i].id);removed++;}
+    for(let i=1;i<arr.length;i++){await contractDeleteDuplicatePhysical('dashConts',arr[i].id);removed++;}
     const drop=new Set(arr.slice(1).map(x=>x.id));
     DASH_CONTS=DASH_CONTS.filter(x=>!drop.has(x.id));
     const ki=DASH_CONTS.findIndex(x=>x.id===keep.id); if(ki>=0)DASH_CONTS[ki]=keep;
@@ -2812,7 +2816,7 @@ function exportAllBackup(){
   const backup={
     version:2,exportedAt:new Date().toISOString(),
     employees:EMPLOYEES,probations:PROBATIONS,contracts:CONTRACTS,
-    dashProbations:DASH_PROBS,dashContracts:DASH_CONTS,settings:SETTINGS
+    dashProbations:DASH_PROBS.concat(ContractWorkflow.archive().filter(r=>HRAContractModel.kind(r)==='prob')),dashContracts:DASH_CONTS.concat(ContractWorkflow.archive().filter(r=>HRAContractModel.kind(r)==='cont')),settings:SETTINGS
   };
   const blob=new Blob([JSON.stringify(backup,null,2)],{type:"application/json"});
   const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;
@@ -3367,13 +3371,13 @@ async function init(){
   renderDashboard();renderLifecyclePanel();
   setInitialDashPivot('prob');setInitialDashPivot('cont');
   const ovDates=[...DASH_PROBS.map(getProbDate),...DASH_CONTS.map(getContDate)].filter(Boolean).sort();overviewPivot=ovDates.length?safePivotForMode(new Date(ovDates[ovDates.length-1]+'T00:00:00'),overviewMode):safePivotForMode(new Date(),overviewMode);rebuildOverviewPeriods();renderDashboard();
-  setTimeout(async()=>{try{await contractPullApprovedMovements();await applyApprovedLifecycle();contractPublishMirrors();refreshAll();}catch(e){console.warn('[lifecycle background init]',e)}},1800);
+  setTimeout(async()=>{try{await applyApprovedLifecycle(lifecycleLocalApproved());contractPublishMirrors();refreshAll();}catch(e){console.warn('[lifecycle background init]',e)}},1800);
   if(!window.HRAAutoSync)setTimeout(()=>contractAutoSync('startup'),350);
 }
 
 /* ── end GAS sync ── */
 
-init().catch(e=>{console.error(e);toast("初始化錯誤："+e.message,"danger")});
+/* Initialization follows contract-workflow.js. */
 
 /* Auto-sync retry on network recovery / app resume. */
 
@@ -3381,8 +3385,8 @@ if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>contractAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>contractAutoSync('resume'),180)});
 }
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)setTimeout(()=>refreshLifecycleNow(true).catch(()=>{}),250)});
-if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',pull:pullFromGas,push:syncToGas,canSync:function(){return !!contractGasUrl()&&typeof HRASmartSync!=='undefined'},startDelay:650});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)applyApprovedLifecycle(lifecycleLocalApproved()).catch(()=>{});});
+/* One serialized sync controller is installed by contract-workflow.js. */
 </script>
 
 <script>
@@ -3415,5 +3419,6 @@ function printProbationApplications(){if(!window.HRAHRGovernance)return window.p
 function printContractApplications(){if(!window.HRAHRGovernance)return window.print();HRAHRGovernance.openPrint({title:'VRT Employment Contract Application',subtitle:'Contract issue / renewal / termination',rows:_printContRows(),columns:[{label:'ID 工號',key:'factoryId'},{label:'Name 姓名',key:'name'},{label:'Dept 部門',key:'dept'},{label:'Section 組別',key:'section'},{label:'Position 職位',key:'position'},{label:'Join Date 入職日',key:'entryDate'},{label:'Contract Type 類型',key:'contractType'},{label:'Contract End 到期',key:'endDate'},{label:'Status 狀態',key:'status'},{label:'Application Date 申請日',key:'applicationDate'},{label:'Notes 備註',key:'notes'}]});}
 </script>
 
+<script src="shared/contract-workflow.js?v=73"></script>
 </body>
 </html>

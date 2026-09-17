@@ -323,6 +323,8 @@
     return mergeRows([], out);
   }
   function getManifest(url, tool) {
+    // Contract v73 uses the reliable POST path without a failed GET round trip.
+    if (canonicalTool(tool) === 'contract') return contractPost(url, { action:'smartManifest', tool:tool }).then(function(j){return dataOf(j);});
     var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartManifest&tool=' + enc(tool));
     function fallback(reason) {
       return { exists:false, legacy:true, compatibilityFallback:true,
@@ -412,6 +414,7 @@
     return tryCandidate(0, null);
   }
   function post(url, body) {
+    if(body&&canonicalTool(body.tool)==='contract')return contractPost(url,body).then(dataOf);
     return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) }).then(dataOf);
   }
   function smartBucketRead(url, tool, bucket, remoteIndex, expectedCount, onStatus) {
@@ -601,6 +604,27 @@
     return mergeRows(localRows, remoteRows);
   }
 
+  function contractPost(url, body) {
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function(){controller.abort();},45000) : null;
+    return jsonFetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),signal:controller&&controller.signal})
+      .finally(function(){if(timer)clearTimeout(timer);});
+  }
+  function contractPrefetch(url, tool, keys, remote) {
+    var groups=[],out={},cursor=0;
+    for(var i=0;i<keys.length;i+=8)groups.push(keys.slice(i,i+8));
+    function worker(){
+      var group=groups[cursor++];if(!group)return Promise.resolve();
+      var hashes={};group.forEach(function(k){hashes[k]=remote.hashes[k];});
+      return contractPost(url,{action:'contractBuckets',tool:tool,buckets:group,hashes:hashes}).then(function(j){
+        var d=dataOf(j)||{};group.forEach(function(k){var b=d.buckets&&d.buckets[k];if(!b||!Array.isArray(b.records)||b.hash!==hashes[k])throw new Error('Cloud changed during download; retry');out[k]=b;});
+      }).then(worker);
+    }
+    return Promise.all([worker(),worker(),worker()]).then(function(){return out;}).catch(function(e){
+      if(/unknown action|unsupported|not implemented/i.test(String(e.message||e)))return {};throw e;
+    });
+  }
+
   function compatibilityPull(opts, localRows, status, reason) {
     return legacyPull(text(opts.url).trim(), opts.tool, status).then(function (legacy) {
       var merged = mergeSnapshots(opts, localRows, legacy.records || []);
@@ -719,7 +743,7 @@
            automatically, then commit the union; only a real conflict asks
            the user for confirmation inside pull(). */
         if (!result || !result.needsPull || opts.autoMerge === false) return result;
-        return pull({ url:url, tool:tool, localRecords:records, mergeRecords:opts.mergeRecords, onStatus:status }).then(function (p) {
+        return pull(Object.assign({},opts,{ url:url, tool:tool, localRecords:records, mergeRecords:opts.mergeRecords, onStatus:status })).then(function (p) {
           if (!p || p.cancelled || !p.ok) return p;
           cacheRows = sortRows(p.records || records);
           return getManifest(url, tool).then(function (fresh) { return smartPushWithFallback(Object.assign({}, opts, { records:p.records }), p.records, fresh || {}, status, false); });
@@ -736,6 +760,7 @@
          back into the page.  Updating the cache also makes the next tap a
          true zero-transfer comparison. */
       var cacheTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
+      if (canonicalTool(tool)==='contract' && result && result.ok!==false && !result.cancelled && !result.needsPull) result.records=cacheRows;
       if (!cacheTool || !result || result.ok === false || result.cancelled || result.needsPull) return result;
       return fullCachePut(tool, { records:cacheRows, meta:opts.meta || {},
         sourceTools:[canonicalTool(tool)], savedAt:now() }).then(function () { return result; });
@@ -838,7 +863,10 @@
       var continueSmartPull = function () { return buildBuckets(localRows).then(function (local) {
         var last = readState(tool) || {}, lastH = last.hashes || {}, remoteH = remote.hashes || {}, out = {}, remoteRows = [], downloaded = 0, unchanged = 0, pending = 0, removed = 0, conflictKeys = [], keys = {};
         Object.keys(remoteH).concat(Object.keys(local)).forEach(function (k) { keys[k] = true; });
-        var list = Object.keys(keys).sort(), remoteOrder = Object.keys(remoteH).sort(), chain = Promise.resolve();
+        var list = Object.keys(keys).sort(), remoteOrder = Object.keys(remoteH).sort(), prefetched={};
+        var readKeys=list.filter(function(k){var lb=local[k],rh=remoteH[k]||'',bh=lastH[k]||'';return rh&&(!lb||lb.hash!==rh)&&!(lb&&bh&&lb.hash!==bh&&rh===bh);});
+        var chain = opts.readBatch && canonicalTool(tool)==='contract'
+          ? contractPrefetch(url,tool,readKeys,remote).then(function(value){prefetched=value;}) : Promise.resolve();
         list.forEach(function (k, idx) {
           chain = chain.then(function () {
             var lb = local[k], rh = remoteH[k] || '', bh = lastH[k] || '';
@@ -862,7 +890,7 @@
             if (lb && localChanged && remoteChanged && lb.hash !== rh) conflictKeys.push(k);
             if (!rh) return;
             callStatus(status, '下載變更 ' + (idx + 1) + '/' + list.length + ' · ' + k, 'busy');
-            return smartBucketRead(url, tool, k, remoteOrder.indexOf(k), Number((remote.counts || {})[k]) || 0, status).then(function (bj) {
+            return (prefetched[k]?Promise.resolve(prefetched[k]):smartBucketRead(url, tool, k, remoteOrder.indexOf(k), Number((remote.counts || {})[k]) || 0, status)).then(function (bj) {
               var bd = dataOf(bj) || {}, rows = bd.records || [];
               remoteRows = remoteRows.concat(rows);
               downloaded += rows.length;
