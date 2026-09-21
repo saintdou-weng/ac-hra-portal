@@ -1,7 +1,7 @@
-/* Certificate month views and explicit Telegram submission, v72. */
+/* Certificate month views and explicit Telegram submission and file receipts, v75. */
 var certificateExtraLabels={
-  zh:{mixedDecision:'已完成（含退件）',importScope:'匯入範圍',importComplete:'完整最新清單（當月起生效）',importPartial:'局部更新（其他項目保留）',currentList:'該月清單',historicalList:'該月已移出／舊項目',documentType:'證件類型',submittedReadOnly:'已送核的內容保留原版本；請在 Telegram 查看或處理。',telegramDecisionsOnly:'請使用 Telegram 的審查／核可按鈕。',refreshApproval:'更新核可結果',localWorkflowHint:'先儲存待核可申請，再送群組審查及核可。',historicalReadOnly:'歷史月份保留原資料；請切回本月新增或修改。',latestRule:'以匯入當月生效，往後沿用；前月資料保留。完整清單未列的人員／證書從當月移出。',dedupHint:'同項目更新、新增項目加入；保留前月及核可版本。',sendApproval:'送群組核可'},
-  en:{mixedDecision:'Completed (includes rejected)',importScope:'Import scope',importComplete:'Complete list (effective this month)',importPartial:'Partial update (keep other items)',currentList:'List for this month',historicalList:'Removed / older items',documentType:'Document type',submittedReadOnly:'Submitted details are frozen. View or decide in Telegram.',telegramDecisionsOnly:'Use the review / approval buttons in Telegram.',refreshApproval:'Refresh approval',localWorkflowHint:'Save a pending request, then send it for group review and approval.',historicalReadOnly:'Past months are retained. Switch to this month to add or edit.',latestRule:'Imports take effect this month and carry forward. Earlier months remain unchanged. Missing entries leave the current list.',dedupHint:'Update matching items and add new items. Earlier months and approval snapshots are retained.',sendApproval:'Send group approval'}
+  zh:{retryFiles:'補發未完成附件',mixedDecision:'已完成（含退件）',importScope:'匯入範圍',importComplete:'完整最新清單（當月起生效）',importPartial:'局部更新（其他項目保留）',currentList:'該月清單',historicalList:'該月已移出／舊項目',documentType:'證件類型',submittedReadOnly:'已送核的內容保留原版本；請在 Telegram 查看或處理。',telegramDecisionsOnly:'請使用 Telegram 的審查／核可按鈕。',refreshApproval:'更新核可結果',localWorkflowHint:'先儲存待核可申請，再送群組審查及核可。',historicalReadOnly:'歷史月份保留原資料；請切回本月新增或修改。',latestRule:'以匯入當月生效，往後沿用；前月資料保留。完整清單未列的人員／證書從當月移出。',dedupHint:'同項目更新、新增項目加入；保留前月及核可版本。',sendApproval:'送群組核可'},
+  en:{retryFiles:'Retry missing files',mixedDecision:'Completed (includes rejected)',importScope:'Import scope',importComplete:'Complete list (effective this month)',importPartial:'Partial update (keep other items)',currentList:'List for this month',historicalList:'Removed / older items',documentType:'Document type',submittedReadOnly:'Submitted details are frozen. View or decide in Telegram.',telegramDecisionsOnly:'Use the review / approval buttons in Telegram.',refreshApproval:'Refresh approval',localWorkflowHint:'Save a pending request, then send it for group review and approval.',historicalReadOnly:'Past months are retained. Switch to this month to add or edit.',latestRule:'Imports take effect this month and carry forward. Earlier months remain unchanged. Missing entries leave the current list.',dedupHint:'Update matching items and add new items. Earlier months and approval snapshots are retained.',sendApproval:'Send group approval'}
 };
 function certificateL(lang,zh,en,km){return lang==='en'?en:lang==='km'?(km||en):zh;}
 function certificateViewMonth(){return HRACertificateModel.monthAt(PERIOD_ANCHOR);}
@@ -59,8 +59,8 @@ function certificateRequestItem(item,due,documentType){
   const rec=(kind==='certificate'?certificatesForMonth():peopleForMonth()).find(x=>x.id===item.id);
   if(!rec||!HRACertificateModel.current(rec)||(kind==='person'&&rec.status!=='active'))throw new Error('Item is not in the selected month: '+item.name);
   const targetDate=due||(kind==='certificate'?certificateNextDate(rec):rec[type+'Expiry'])||todayISO();
-  const doc={schema:'certificate-request-v1',recordId:rec.id,documentType:type,effectiveMonth:certificateViewMonth(),name:kind==='certificate'?rec.name:[rec.nickname,rec.nameEn].filter(Boolean).join(' / '),category:rec.category||rec.department||'',employeeId:rec.employeeId||'',passport:kind==='person'?rec.passport||'':'',startDate:kind==='certificate'?rec.startDate||'':rec[type+'ReceivedDate']||'',expiryDate:kind==='certificate'?rec.expiryDate||'':rec[type+'Expiry']||'',renewalDate:kind==='certificate'?rec.renewalDate||'':'',targetDate,costText:kind==='certificate'?(rec.costText||String(rec.cost??'')):String(rec[type+'Expense']??''),costIsRate:!!rec.costIsRate,amount:rec.costIsRate?null:kind==='certificate'?rec.cost??null:rec[type+'Expense']??null,remark:rec.remark||'',sourceFile:rec.sourceFile||'',sourceSheet:rec.sourceSheet||'',sourceRow:rec.sourceRow||'',evidence:JSON.parse(JSON.stringify(rec.evidence||[]))};
-  return {kind,id:rec.id,name:doc.name,documentType:type,targetDate,approvalKey:'CV|'+HRACertificateModel.hash([rec.id,type,targetDate,doc.expiryDate,doc.renewalDate]),documentRequest:doc};
+  const doc={schema:'certificate-request-v1',recordId:rec.id,documentType:type,effectiveMonth:certificateViewMonth(),name:kind==='certificate'?rec.name:[rec.nickname,rec.nameEn].filter(Boolean).join(' / '),category:rec.category||rec.department||'',employeeId:rec.employeeId||'',passport:kind==='person'?rec.passport||'':'',startDate:kind==='certificate'?rec.startDate||'':rec[type+'ReceivedDate']||'',expiryDate:kind==='certificate'?rec.expiryDate||'':rec[type+'Expiry']||'',renewalDate:kind==='certificate'?rec.renewalDate||'':'',targetDate,costText:kind==='certificate'?(rec.costText||String(rec.cost??'')):String(rec[type+'Expense']??''),costIsRate:!!rec.costIsRate,amount:rec.costIsRate?null:kind==='certificate'?rec.cost??null:rec[type+'Expense']??null,remark:rec.remark||'',sourceFile:rec.sourceFile||'',sourceSheet:rec.sourceSheet||'',sourceRow:rec.sourceRow||'',evidence:JSON.parse(JSON.stringify(CertificateEvidence.evidence(rec).filter(a=>kind==='certificate'||!a.documentType||a.documentType===type)))};
+  return {kind,id:rec.id,name:doc.name,documentType:type,targetDate,approvalKey:'CV|'+HRACertificateModel.hash([rec.id,type,targetDate,doc.expiryDate,doc.renewalDate].concat(rec.evidenceRevisionAt||doc.evidence.length?[rec.evidenceRevisionAt||'',doc.evidence.map(a=>a.id||a.url||'')]:[])),documentRequest:doc};
 }
 function certificatePendingRequests(){return STATE.requests.filter(r=>r.status==='pending'&&(r.period||r.createdAt?.slice(0,7)||certificateViewMonth())===certificateViewMonth());}
 function certificateApprovalPayload(r,actor,lang){
@@ -72,7 +72,7 @@ function certificateApprovalPayload(r,actor,lang){
     return {key:i.approvalKey,name:d.name,empId:d.employeeId,dept:d.category,amount:d.costIsRate?0:Number(d.amount)||0,kind:d.documentType,period:r.period||d.effectiveMonth,info:r.remark||'',documentRequest:JSON.parse(JSON.stringify(d))};
   });
   const signature=HRACertificateModel.hash(items),period=r.period||items[0].documentRequest.effectiveMonth;
-  return {action:'approvalRequest',module:'certificate_visa',tool:'certificate_visa',scope:'document_request',reportKind:'certificate_request',schemaVersion:3,batch:'CV-'+period.replace('-','')+'-'+HRACertificateModel.hash(r.id)+'-'+signature,period,lang:lang||'both',route:'review',title:r.title,items,inspector:actor||r.applicant,checker:actor||r.applicant,requestedBy:r.applicant,idempotencyKey:'certificate-request|'+r.id+'|'+signature,attachments:items.flatMap(i=>i.documentRequest.evidence||[])};
+  return {action:'approvalRequest',module:'certificate_visa',tool:'certificate_visa',scope:'document_request',reportKind:'certificate_request',schemaVersion:3,batch:'CV-'+period.replace('-','')+'-'+HRACertificateModel.hash(r.id)+'-'+signature,period,lang:lang||'both',route:'review',title:r.title,items,inspector:actor||r.applicant,checker:actor||r.applicant,requestedBy:r.applicant,idempotencyKey:'certificate-request|'+r.id+'|'+signature,attachments:items.flatMap(i=>(i.documentRequest.evidence||[]).map(a=>({...a,fileName:a.originalName||a.fileName||a.name,label:i.documentRequest.name,recordKey:i.documentRequest.recordId})))};
 }
 async function refreshCertificateApprovals(options={}){
   if(!gasUrl()||!STATE.requests.some(r=>r.batchId||r.items?.some(i=>i.approvalKey)))return false;
@@ -90,7 +90,7 @@ var certificateSendBusy=false;
 var certificateApprovalBackendUrl='';
 async function ensureCertificateApprovalBackend(){
   if(certificateApprovalBackendUrl===gasUrl()&&gasUrl())return;
-  const versionError=()=>new Error(certificateL(LANG,'請先將共用 GAS 更新並部署為 v53，再送出證書核可。','Update and deploy the shared GAS v53 before sending certificate approvals.'));
+  const versionError=()=>new Error(certificateL(LANG,'請先將共用 GAS 更新並部署為 v56，再送出證書核可。','Update and deploy the shared GAS v56 before sending certificate approvals.'));
   let r;
   try{
     r=await postGas({action:'certificateCapabilities',module:TOOL_ID});
@@ -99,7 +99,12 @@ async function ensureCertificateApprovalBackend(){
   certificateApprovalBackendUrl=gasUrl();
 }
 async function submitCertificateRequest(r,actor,lang){
-  if(r.batchId){await refreshCertificateApprovals();return {reused:true,batchId:r.batchId};}
+  const expected=new Set((r.items||[]).flatMap(i=>(i.documentRequest?.evidence||[]).map(a=>a.id||a.fileId||a.url||a.downloadUrl))).size;
+  if(r.batchId){
+    if(expected){await ensureCertificateEvidenceBackend();const response=await postGas({action:'certificateApprovalEvidence',batchId:r.batchId}),d=response.data||response;r.evidenceStats=d.evidence;await persist('attachment-delivery');checkCertificateEvidence(d,expected);}
+    await refreshCertificateApprovals();return {reused:true,batchId:r.batchId};
+  }
+  if(expected)await ensureCertificateEvidenceBackend();
   await ensureCertificateApprovalBackend();
   const payload=certificateApprovalPayload(r,actor,lang);r.period=payload.period;
   // Persist the exact frozen request before the network call so retries use identical keys.
@@ -108,12 +113,12 @@ async function submitCertificateRequest(r,actor,lang){
   if(d.alreadyDecided){await refreshCertificateApprovals();if(r.status!=='pending')return d;throw new Error(certificateL(LANG,'此項目已有核可結果，請更新核可紀錄。','These items already have decisions. Refresh the approval records.'));}
   if(!d.batchId||!(d.messageId||d.alreadyPending&&d.sentToGroup))throw new Error('Telegram approval delivery was not confirmed');
   r.batchId=d.batchId;r.messageId=d.messageId||'';r.submittedAt=new Date().toISOString();r.updatedAt=r.submittedAt;r.status='pending';
-  await persist('approval-submitted');return d;
+  r.evidenceStats=d.evidence||null;await persist('approval-submitted');checkCertificateEvidence(d,expected);return d;
 }
 async function sendCertificateRequest(id){
   if(certificateSendBusy)return;const r=STATE.requests.find(r=>r.id===id);if(!r)return;
   certificateSendBusy=true;showLoading(tr('sendApproval'));
-  try{await submitCertificateRequest(r,localStorage.getItem('ac_hra_cert_tg_actor')||r.applicant,'both');renderAll();toast('✅ '+tr(r.batchId?'refreshApproval':'telegramSent'));}catch(e){toast('❌ '+e.message,6000);}finally{certificateSendBusy=false;hideLoading();}
+  try{const pendingFiles=r.evidenceStats?.pending,result=await submitCertificateRequest(r,localStorage.getItem('ac_hra_cert_tg_actor')||r.applicant,'both');renderAll();toast('✅ '+(pendingFiles?certificateL(LANG,'附件已完成補發','Missing files delivered','បានផ្ញើឯកសារដែលខ្វះ'):tr(result.reused?'refreshApproval':'telegramSent')));}catch(e){toast('❌ '+e.message,6000);}finally{certificateSendBusy=false;hideLoading();}
 }
 function certificateChangeText(lang){
   const month=certificateViewMonth(),snap=certificateMonthView(month),out=[];
@@ -136,7 +141,7 @@ function tgSummaryText(lang,mode){
   return out.join('\n');
 }
 function tgApprovalText(lang){
-  const requests=certificatePendingRequests(),out=['✅ '+certificateL(lang,'證書／證件核可申請','Certificate / Document Approval','សំណើអនុម័តឯកសារ'),certificateL(lang,'資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth()];
+  const requests=CertificateEvidence.requests(),out=['✅ '+certificateL(lang,'證書／證件核可申請','Certificate / Document Approval','សំណើអនុម័តឯកសារ'),certificateL(lang,'資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth()];
   requests.forEach(r=>{out.push(r.number+' | '+r.title,certificateL(lang,'申請人','Applicant','អ្នកស្នើសុំ')+'：'+r.applicant);(r.items||[]).forEach(i=>{const d=i.documentRequest||{};out.push('• '+i.name,certificateL(lang,'到期日','Expiry','ផុតកំណត់')+'：'+(d.expiryDate||'—')+' | '+certificateL(lang,'續期日','Renewal','បន្តសុពលភាព')+'：'+(d.renewalDate||'—'),certificateL(lang,'費用／單位','Fee / basis','ថ្លៃ / ឯកតា')+'：'+(d.costText||'—'));});});
   if(!requests.length)out.push(certificateL(lang,'請先勾選公司證書或外幹，儲存一筆「待核可」申請。','Select certificates or expats and save a pending request first.','សូមជ្រើសឯកសារ និងរក្សាទុកសំណើរង់ចាំអនុម័តជាមុន។'));
   return out.join('\n');
@@ -150,22 +155,39 @@ function certificateTextChunks(text,max=3000){
 }
 async function sendCertificateTelegram(){
   if(certificateSendBusy)return;const actor=val('tgActor');if(!actor){toast(certificateL(LANG,'請填寫發送人／檢查人','Enter the sender / inspector'));return;}
-  certificateSendBusy=true;showLoading(tr('manualSend'));
+  certificateSendBusy=true;document.getElementById('tgDeliveryStatus').textContent=certificateL(LANG,'正在發送…','Sending…','កំពុងផ្ញើ…');showLoading(tr('manualSend'));
   try{
-    const type=val('tgType'),lang=val('tgLang'),mode=val('tgPeriod');
+    const type=val('tgType'),lang=val('tgLang'),mode=val('tgPeriod');CertificateEvidence.assertSelection();
     if(type==='approval'){
-      const requests=certificatePendingRequests();if(!requests.length)throw new Error(certificateL(LANG,'請先建立待核可申請','Create a pending request first'));
+      const requests=CertificateEvidence.requests();if(!requests.length)throw new Error(certificateL(LANG,'請先建立待核可申請','Create a pending request first'));
       for(const r of requests)await submitCertificateRequest(r,actor,lang);
     }else{
-      const message=buildTgText(),chunks=certificateTextChunks(message),key='ac_hra_cert_send_'+HRACertificateModel.hash([todayISO(),type,mode,certificateViewMonth(),lang,actor,message]);
+      const message=buildTgText(),chunks=certificateTextChunks(message),files=certificateTgAttachments(type,mode),key='ac_hra_cert_send_'+HRACertificateModel.hash([todayISO(),type,mode,certificateViewMonth(),lang,actor,message,files]);
+      if(files.length)await ensureCertificateEvidenceBackend();
       let done=Number(localStorage.getItem(key)||0);
       for(let i=done;i<chunks.length;i++){
-        const attachments=i===chunks.length-1?certificateTgAttachments(type,mode):[];
-        const r=await postGas({action:'telegram',tool:TOOL_ID,module:TOOL_ID,text:esc(chunks[i])+(chunks.length>1?'\n'+(i+1)+'/'+chunks.length:''),period:certificateViewMonth(),periodType:mode,messageType:type,attachments,applicant:actor,inspector:actor,checker:actor}),d=r.data||r;
+        const attachments=i===chunks.length-1?files:[];
+        const r=await postGas({action:attachments.length?'certificateDispatch':'telegram',idempotencyKey:key+'|'+i,lang,tool:TOOL_ID,module:TOOL_ID,text:esc(chunks[i])+(chunks.length>1?'\n'+(i+1)+'/'+chunks.length:''),period:certificateViewMonth(),periodType:mode,messageType:type,attachments,applicant:actor,inspector:actor,checker:actor}),d=r.data||r;
         if(d.ok===false||!(d.messageId||d.message_id||d.sent===true||d.result?.message_id))throw new Error('Telegram delivery was not confirmed');
-        localStorage.setItem(key,String(i+1));if(i<chunks.length-1)await new Promise(resolve=>setTimeout(resolve,1500));
+        checkCertificateEvidence(d,attachments.length);localStorage.setItem(key,String(i+1));if(i<chunks.length-1)await new Promise(resolve=>setTimeout(resolve,1500));
       }
     }
     toast('✅ '+tr('telegramSent'));closeModal('telegramModal');renderAll();
-  }catch(e){toast('❌ '+e.message,6000);}finally{certificateSendBusy=false;hideLoading();}
+  }catch(e){document.getElementById('tgDeliveryStatus').textContent='❌ '+e.message;toast('❌ '+e.message,6000);}finally{certificateSendBusy=false;hideLoading();}
+}
+
+var certificateEvidenceBackendUrl='';
+async function ensureCertificateEvidenceBackend(){
+  if(certificateEvidenceBackendUrl===gasUrl()&&gasUrl())return;
+  const response=await postGas({action:'certificateCapabilities',module:TOOL_ID}),d=response.data||response;
+  if(Number(d.evidenceSchema)<56||!d.evidenceSchema)throw new Error(certificateL(LANG,'請將原 GAS 更新並重新部署為 v56，才能確認照片／PDF 送達。','Update and redeploy the existing GAS to v56 for photo / PDF delivery receipts.','សូមដំឡើង GAS v56 ដើម្បីផ្ញើរូបភាព / PDF។'));
+  certificateEvidenceBackendUrl=gasUrl();
+}
+function checkCertificateEvidence(result,expected){
+  if(!expected)return;
+  const s=result.evidence;
+  if(!s||s.requested!==expected||s.sent!==expected||s.failed||s.pending||s.complete===false){
+    const details=(s?.missing||[]).map(x=>x.name+(x.error?' · '+x.error:'')).join('; ');
+    throw new Error(certificateL(LANG,'文字已發出；附件 '+(s?.sent||0)+'/'+expected+'，請重試未完成的附件。','Text sent; files '+(s?.sent||0)+'/'+expected+'. Retry the missing files.','បានផ្ញើអត្ថបទ; ឯកសារ '+(s?.sent||0)+'/'+expected+'។ សូមព្យាយាមម្ដងទៀត។')+(details?' '+details:''));
+  }
 }

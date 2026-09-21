@@ -7,10 +7,13 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
-<script src="shared/certificate-model.js?v=72"></script>
-<script src="shared/certificate-workflow.js?v=72"></script>
+<script src="shared/certificate-model.js?v=75"></script>
+<script src="shared/certificate-workflow.js?v=75"></script>
+<script src="shared/hra-attachments.js?v=45"></script>
+<script src="shared/certificate-evidence.js?v=75"></script>
+<link rel="stylesheet" href="shared/certificate-evidence.css?v=75">
 <title>AC HRA Certificate &amp; Visa</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="shared/xlsx.full.min.js?v=0.18.5"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{
@@ -142,7 +145,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="brand-icon">🛂</div>
         <div class="brand">
           <h1 data-i18n="title">證書、簽證與工作證管理</h1>
-          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v72</p>
+          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v75</p>
         </div>
         <div class="grow"></div>
         <div class="lang">
@@ -258,9 +261,10 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <select class="control" id="certScope" onchange="renderCertificates()"><option value="current" data-i18n="currentList">目前清單</option><option value="history" data-i18n="historicalList">歷史／最新未列</option><option value="all" data-i18n="allStatuses">全部狀態</option></select><input class="control search" id="certSearch" data-i18n-placeholder="searchCert" placeholder="搜尋證書／分類／聯絡人" oninput="renderCertificates()">
           <select class="control" id="certDept" onchange="renderCertificates()"><option value="" data-i18n="allCategories">全部分類</option></select>
           <button class="btn" onclick="openCertForm()" data-i18n="onlineAdd">＋ 線上新增</button>
+          <button class="btn" onclick="CertificateEvidence.openSelected()" data-cv-text="selected">✈ 所選項目／附件 · Selected / Files</button>
           <button class="btn blue" onclick="createBatchRequest('certificate')" data-i18n="batchApply">批次申請核可</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('certificate',this.checked)"></th><th data-i18n="category">分類</th><th data-i18n="certificate">證書／項目</th><th data-i18n="department">部門</th><th data-i18n="startDate">開始日</th><th data-i18n="expiryDate">到期日</th><th data-i18n="renewalDate">續期日</th><th data-i18n="cost">費用</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="certBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('certificate',this.checked)"></th><th data-i18n="category">分類</th><th data-i18n="certificate">證書／項目</th><th data-i18n="department">部門</th><th data-i18n="startDate">開始日</th><th data-i18n="expiryDate">到期日</th><th data-i18n="renewalDate">續期日</th><th data-i18n="cost">費用</th><th data-i18n="status">狀態</th><th data-cv-text="files">📎 附件 / Files</th><th data-i18n="action">操作</th></tr></thead><tbody id="certBody"></tbody></table></div>
       </div>
     </section>
 
@@ -272,9 +276,10 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <select class="control" id="peopleDept" onchange="renderPeople()"><option value="" data-i18n="allDepartments">全部部門</option></select>
           <select class="control" id="peopleStatus" onchange="renderPeople()"><option value="active" selected data-i18n="active">在職／有效</option><option value="" data-i18n="allStatuses">全部狀態</option><option value="not_in_latest" data-i18n="notInLatest">最新名單未列</option><option value="resigned" data-i18n="resigned">離職</option></select>
           <button class="btn" onclick="openPersonForm()" data-i18n="onlineAdd">＋ 線上新增</button>
+          <button class="btn" onclick="CertificateEvidence.openSelected()" data-cv-text="selected">✈ 所選項目／附件 · Selected / Files</button>
           <button class="btn blue" onclick="createBatchRequest('person')" data-i18n="batchApply">批次申請核可</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="status">狀態</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="status">狀態</th><th data-cv-text="files">📎 附件 / Files</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
       </div>
     </section>
 
@@ -419,10 +424,13 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="field"><label data-i18n="language">語言</label><select id="tgLang" onchange="refreshTgPreview()"><option value="zh" data-i18n="chinese">中文</option><option value="en" data-i18n="english">English</option><option value="both" data-i18n="bilingual">中英雙語</option><option value="all3" data-i18n="trilingual">中英柬三語</option></select></div>
         <div class="field"><label data-i18n="recipient">核可者 ID</label><input id="tgRecipient" value="5026942575" readonly></div>
         <div class="field"><label>發送人 / Applicant · Inspector</label><input id="tgActor" placeholder="Phary / HRA" oninput="localStorage.setItem('ac_hra_cert_tg_actor',this.value);refreshTgPreview()"></div>
+        <div class="field full"><label>發送範圍 / Scope / វិសាលភាព</label><select id="tgScope" onchange="refreshTgPreview()"><option value="period">期間到期／提醒 · Due in period</option><option value="selected">表格所選項目 · Selected rows</option><option value="list">當月清單（不限到期日） · Month list (any expiry)</option></select></div>
+        <div class="field full"><label>選取項目 / Select items / ជ្រើសធាតុ</label><div id="tgRecords" class="cv-picks"></div></div>
+        <div class="field full"><label>隨附照片／PDF / Photos &amp; PDFs / រូបភាព និង PDF</label><p id="tgFileHelp" class="hint"></p><div id="tgFiles" class="cv-picks"></div><p id="tgSelectionCount" class="cv-selection" role="status"></p></div>
         <div class="field full"><label data-i18n="preview">預覽</label><div class="preview" id="tgPreview"></div></div>
       </div>
     </div>
-    <div class="dialog-foot"><button class="btn" onclick="copyTgText()" data-i18n="copy">複製</button><button class="btn blue" onclick="sendTelegram()" data-i18n="manualSend">手動發送</button></div>
+    <p id="tgDeliveryStatus" class="cv-delivery" role="status"></p><div class="dialog-foot"><button class="btn" onclick="copyTgText()" data-i18n="copy">複製</button><button class="btn blue" onclick="sendTelegram()" data-i18n="manualSend">手動發送</button></div>
   </div>
 </div>
 
@@ -544,7 +552,7 @@ async function loadState(){
 async function persist(reason){
   reason=reason||'persist';
   STATE.updatedAt=new Date().toISOString();
-  const db=await openDb();await new Promise((resolve,reject)=>{const q=db.transaction(DB_STORE,'readwrite').objectStore(DB_STORE).put(STATE,DB_KEY);q.onsuccess=resolve;q.onerror=()=>reject(q.error)});db.close();
+  const db=await openDb();try{await new Promise((resolve,reject)=>{const tx=db.transaction(DB_STORE,'readwrite');tx.objectStore(DB_STORE).put(STATE,DB_KEY);tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error||new Error('Local save failed'));});}finally{db.close();}
   const _current=certificateMonthView(HRACertificateModel.monthAt()),_certCount=_current.certificates.filter(HRACertificateModel.current).length,_peopleCount=_current.people.filter(p=>p.status==='active'&&!p.notInLatest).length;
   const meta={count:_certCount+_peopleCount+STATE.requests.length,certCount:_certCount,expatCount:_peopleCount,requestCount:STATE.requests.length,updatedAt:STATE.updatedAt};
   localStorage.setItem(META_KEY,JSON.stringify(meta));
@@ -554,7 +562,7 @@ function showLoading(text){document.getElementById('loadingText').textContent=te
 function hideLoading(){document.getElementById('loading').classList.remove('on')}
 function toast(msg,d=3000){const e=document.getElementById('toast');e.textContent=msg;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),d)}
 function openModal(id){document.getElementById(id).classList.add('open')}
-function closeModal(id){document.getElementById(id).classList.remove('open')}
+function closeModal(id){if((id==='certModal'||id==='cvGalleryModal')&&CertificateEvidence.isSaving())return;document.getElementById(id).classList.remove('open')}
 function setLang(l){
   LANG=l;localStorage.setItem(LANG_KEY,l);applyLang();renderAll()
 }
@@ -668,16 +676,16 @@ function jumpToPeriod(k){const a=k.split('-').map(Number);PERIOD_ANCHOR=new Date
 function renderCertificates(){
   const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;
   const rows=certificatesForMonth().filter(c=>certificateInView(c)&&(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).sort((a,b)=>String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
-  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr class="${c.highlighted?'source-highlight':''}"><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${esc(c.costText||money(c.cost))}</td><td>${badge(HRACertificateModel.current(c)?(c.status||'active'):'not_in_latest')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteCertificate('${c.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(10)
+  document.getElementById('certBody').innerHTML=rows.length?rows.map(c=>`<tr class="${c.highlighted?'source-highlight':''}"><td><input class="check" type="checkbox" ${selectedCerts.has(c.id)?'checked':''} onchange="selectItem('certificate','${c.id}',this.checked)"></td><td>${esc(c.category)}</td><td><b>${esc(c.name)}</b><br><span class="muted">${esc(c.contact||'')}</span></td><td>${esc(c.department||c.category||tr('unknown'))}</td><td>${fmtDate(c.startDate)}</td><td>${fmtDate(c.expiryDate)}</td><td>${fmtDate(c.renewalDate)}</td><td class="money">${esc(c.costText||money(c.cost))}</td><td>${badge(HRACertificateModel.current(c)?(c.status||'active'):'not_in_latest')}</td><td>${CertificateEvidence.cell(c,'certificate')}</td><td><button class="btn small" onclick="openCertForm('${c.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteCertificate('${c.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(11)
 }
 function renderPeople(){
   const q=norm(document.getElementById('peopleSearch').value),dep=document.getElementById('peopleDept').value,st=document.getElementById('peopleStatus').value;
   const rows=peopleForMonth().filter(p=>(!q||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(q))&&(!dep||p.department===dep)&&(!st||p.status===st)).sort((a,b)=>(a.status==='active'?0:1)-(b.status==='active'?0:1)||String(a.nameEn).localeCompare(String(b.nameEn)));
-  document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${badge(p.status||'active')}</td><td><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button><button class="btn small red" onclick="deletePerson('${p.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(10)
+  document.getElementById('peopleBody').innerHTML=rows.length?rows.map(p=>`<tr><td><input class="check" type="checkbox" ${selectedPeople.has(p.id)?'checked':''} onchange="selectItem('person','${p.id}',this.checked)"></td><td>${esc(p.employeeId||'—')}</td><td><b>${esc(p.nickname||p.nameEn||p.nameKh)}</b><br><span class="muted">${esc(p.nameEn||'')}</span></td><td>${esc(p.department||tr('unknown'))}</td><td>${esc(p.passport||'—')}</td><td>${fmtDate(p.passportExpiry)}</td><td>${fmtDate(p.visaExpiry)}</td><td>${fmtDate(p.workPermitExpiry)}</td><td>${badge(p.status||'active')}</td><td>${CertificateEvidence.cell(p,'person')}</td><td><button class="btn small" onclick="openPersonForm('${p.id}')">${tr('edit')}</button><button class="btn small red" onclick="deletePerson('${p.id}')">${tr('delete')}</button></td></tr>`).join(''):emptyRow(11)
 }
 function renderApprovals(){
   const rows=STATE.requests.filter(r=>(r.period||r.createdAt?.slice(0,7)||certificateViewMonth())===certificateViewMonth()).slice().sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteRequest('${r.id}')">${tr('delete')}</button>${r.status==='pending'?`<button class="btn small blue" onclick="sendCertificateRequest('${r.id}')">${tr(r.batchId?'refreshApproval':'sendApproval')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
+  document.getElementById('approvalBody').innerHTML=rows.length?rows.map(r=>`<tr><td><b>${esc(r.number)}</b></td><td>${esc(r.title)}<br><span class="muted">${esc(r.type||'')}</span></td><td>${r.items?.length||0}</td><td>${esc(r.applicant||'—')}</td><td>${fmtDate(r.dueDate)}</td><td>${badge(r.status)}</td><td>${esc(r.opinion||'—')}${r.evidenceStats?`<small class="cv-delivery-count">📎 ${r.evidenceStats.sent||0}/${r.evidenceStats.requested||0}</small>`:''}</td><td><div class="toolbar"><button class="btn small" onclick="openRequestForm('${r.id}')">${tr('edit')}</button><button class="btn small red" onclick="deleteRequest('${r.id}')">${tr('delete')}</button>${r.status==='pending'||r.evidenceStats?.pending?`<button class="btn small blue" onclick="sendCertificateRequest('${r.id}')">${tr(r.evidenceStats?.pending?'retryFiles':r.batchId?'refreshApproval':'sendApproval')}</button>`:''}</div></td></tr>`).join(''):emptyRow(8)
 }
 function renderAnalysis(){
   if(ACTIVE_TAB!=='analysis')return;const field=document.getElementById('analysisField').value;const ev=certificatePeriodEvents(PERIOD_MODE).filter(e=>field==='all'||e.type===field);
@@ -825,35 +833,14 @@ function certCurrentVersion(c,ym){
   const eligible=versions.filter(v=>!v.effectiveFrom||v.effectiveFrom<=ym).sort((a,b)=>String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||'')));
   return eligible.length?eligible[eligible.length-1]:versions.slice().sort((a,b)=>String(a.effectiveFrom||'').localeCompare(String(b.effectiveFrom||'')))[0];
 }
-function renderCertVersionUI(c){
-  const cur=certCurrentVersion(c||{}), ev=(cur.evidence||c?.evidence||[]);
-  document.getElementById('certEvidenceList').innerHTML=ev.length?ev.map(x=>`<a href="${esc(x.url||x.previewUrl||'#')}" target="_blank">📎 ${esc(x.fileName||x.name||'Evidence')}</a>`).join(' · '):'—';
-  const vv=(c&&c.versions)||[];
-  document.getElementById('certVersionHistory').innerHTML=vv.length?vv.slice().sort((a,b)=>String(b.effectiveFrom||'').localeCompare(String(a.effectiveFrom||''))).map(v=>`<div><b>${esc(v.effectiveFrom||'—')}</b> · ${esc(v.startDate||'—')} → ${esc(v.expiryDate||'—')} · ${(v.evidence||[]).length} file(s)</div>`).join(''):'—';
-}
-function previewCertEvidence(files){ CERT_PENDING_FILES=[...files]; document.getElementById('certEvidenceList').textContent=CERT_PENDING_FILES.length?CERT_PENDING_FILES.map(f=>f.name).join(' · '):'—'; }
-async function fileToDataUrl(f){return new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>ok(String(r.result||''));r.onerror=no;r.readAsDataURL(f)})}
-async function uploadCertEvidence(files,recordKey,period){
-  const out=[]; for(const f of files){
-    const data=await fileToDataUrl(f), base64=data.split(',')[1]||'';
-    const d=await postGas({action:'uploadAttachment',module:'certificate_visa',recordKey,period,fileName:f.name,mimeType:f.type||(/\.pdf$/i.test(f.name)?'application/pdf':'image/jpeg'),data:base64,base64});
-    out.push(d.data||d);
-  } return out;
-}
+function renderCertVersionUI(c){CertificateEvidence.startForm(c||{});}
+function previewCertEvidence(files){CertificateEvidence.add(files,'cert');document.getElementById('certEvidence').value='';document.getElementById('certCamera').value='';}
 function openCertForm(id=''){
   if(!certificateCanEdit())return;
-  document.getElementById('certForm').reset();CERT_PENDING_FILES=[];const c=STATE.certificates.find(x=>x.id===id)||{}, v=certCurrentVersion(c);
+  document.getElementById('certForm').reset();CERT_PENDING_FILES=[];const c=certificatesForMonth().find(x=>x.id===id)||{}, v=certCurrentVersion(c);
   setVal('certId',c.id);setVal('certCategory',c.category);setVal('certName',c.name);setVal('certDepartment',c.department);setVal('certCost',v.costText??c.costText??v.cost??c.cost);setVal('certStart',v.startDate||c.startDate);setVal('certExpiry',v.expiryDate||c.expiryDate);setVal('certRenewal',v.renewalDate||c.renewalDate);setVal('certEffectiveFrom',certificateViewMonth());setVal('certStatus',c.status||'active');setVal('certContact',c.contact);setVal('certCompletedFor',c.completedForDate);setVal('certRemark',v.remark??c.remark);renderCertVersionUI(c);openModal('certModal')
 }
-async function saveCertificate(e){
-  e.preventDefault();if(!certificateCanEdit())return;HRACertificateModel.baseline(STATE,new Date().toISOString());let c=STATE.certificates.find(x=>x.id===val('certId'));const fresh=!c;if(!c)c={id:uid('cert'),createdAt:new Date().toISOString(),source:'online',sourceFile:tr('online'),versions:[]};
-  c.versions=c.versions||[]; const effectiveFrom=val('certEffectiveFrom')||String(val('certStart')||new Date().toISOString()).slice(0,7);
-  let evidence=[]; try{ if(CERT_PENDING_FILES.length)evidence=await uploadCertEvidence(CERT_PENDING_FILES,c.id,effectiveFrom); }catch(err){toast('⚠ Evidence upload: '+err.message,5000);}
-  const prev=c.versions.find(v=>v.effectiveFrom===effectiveFrom); const v={effectiveFrom,startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),cost:certificateCost(val('certCost')).amount,costText:val('certCost'),costIsRate:certificateCost(val('certCost')).isRate,remark:val('certRemark'),evidence:evidence.length?evidence:((prev&&prev.evidence)||[]),updatedAt:new Date().toISOString()};
-  if(prev)Object.assign(prev,v);else c.versions.push(v);
-  Object.assign(c,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),startDate:v.startDate,expiryDate:v.expiryDate,renewalDate:v.renewalDate,cost:v.cost,costText:v.costText,costIsRate:v.costIsRate,cvSchema:72,cvRevisionAt:new Date().toISOString(),remark:v.remark,evidence:v.evidence,updatedAt:new Date().toISOString()});
-  if(fresh)STATE.certificates.push(c);saveCertificateRevision('Online certificate edit');await persist();closeModal('certModal');renderAll();toast(`✅ ${tr('saved')}`)
-}
+async function saveCertificate(e){return CertificateEvidence.saveCertificate(e);}
 async function deleteCertificate(id){if(!certificateCanEdit())return;HRACertificateModel.baseline(STATE,new Date().toISOString());if(!confirm(tr('confirmDelete')))return;STATE.certificates=STATE.certificates.filter(x=>x.id!==id);selectedCerts.delete(id);saveCertificateRevision('Certificate removed');await persist('record-deleted');renderAll();}
 function openPersonForm(id=''){
   if(!certificateCanEdit())return;
@@ -940,27 +927,16 @@ async function certAutoSync(reason){if(_certCloudBusy||!gasUrl()||!navigator.onL
 /* ── Telegram summaries (manual only; no bot token in the HTML) ─────── */
 function eventsForMode(mode){return certificatePeriodEvents(mode)}
 function reminderRows(){return allEvents().filter(e=>!e.completed&&e.days<=Number(STATE.settings.reminderDays||45))}
-function certificateTgAttachments(type,mode){
-  if(!window.HRATelegramEvidence)return [];
-  const rows=[],seen=new Set();
-  function addCert(c,ym,label){if(!c||seen.has(c.id+'|'+ym))return;seen.add(c.id+'|'+ym);const v=c;rows.push({id:c.id,evidence:(v&&v.evidence)||c.evidence||[],name:label||c.name||c.category||c.id});}
-  if(type==='approval'){
-    STATE.requests.filter(r=>r.status==='pending').forEach(r=>(r.items||[]).forEach(it=>{const c=certificatesForMonth(r.period).find(x=>x.id===it.id);if(c)addCert(c,String(r.dueDate||new Date().toISOString()).slice(0,7),(r.number||'Approval')+' · '+(c.name||c.category||''));}));
-  }else{
-    const ev=type==='reminder'?reminderRows():eventsForMode(mode);
-    ev.forEach(e=>{if(e.kind!=='certificate')return;const c=certificatesForMonth(e.snapshotMonth).find(x=>x.id===e.recordId);if(c)addCert(c,String(e.date||'').slice(0,7),(c.name||c.category||'Certificate')+' · '+(e.date||''));});
-  }
-  return HRATelegramEvidence.collect(rows,{labelFn:r=>r.name||'Certificate'});
-}
+function certificateTgAttachments(type,mode){return CertificateEvidence.attachments(type,mode);}
 function buildTgText(){
-  const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?tgReminderText(l):tgSummaryText(l,mode);
+  const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?CertificateEvidence.summary(l,mode,()=>tgReminderText(l)):CertificateEvidence.summary(l,mode,()=>tgSummaryText(l,mode));
   if(lang==='both')return one('zh')+'\n\n────────────────\n\n'+one('en');
   if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+one('km');
   return one(lang)
 }
-function refreshTgPreview(){document.getElementById('tgPreview').textContent=buildTgText()}
+function refreshTgPreview(){CertificateEvidence.renderPicker();document.getElementById('tgPreview').textContent=buildTgText()}
 function openTelegram(type='summary'){
-  setVal('tgActor',localStorage.getItem('ac_hra_cert_tg_actor')||'');setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');refreshTgPreview();openModal('telegramModal')
+  document.getElementById('tgDeliveryStatus').textContent='';setVal('tgActor',localStorage.getItem('ac_hra_cert_tg_actor')||'');setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');CertificateEvidence.resetPicker();refreshTgPreview();openModal('telegramModal')
 }
 async function copyTgText(){try{await navigator.clipboard.writeText(document.getElementById('tgPreview').textContent);toast(`✅ ${tr('copyDone')}`)}catch{toast('Copy unavailable')}}
 async function sendTelegram(){return sendCertificateTelegram()}
@@ -973,6 +949,7 @@ async function init(){
   applyLang();renderAll();hideLoading();if(!window.HRAAutoSync)setTimeout(()=>certAutoSync('startup'),350)
 }
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)closeModal(m.id)}));
+CertificateEvidence.install();
 init();
 
 /* Auto-sync retry on network recovery / app resume. */

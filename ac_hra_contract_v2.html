@@ -1,18 +1,18 @@
 <!DOCTYPE html>
 <html lang="zh-Hant">
 <head>
-<!-- v73 Selected requests, revision history and batch sync -->
+<!-- v74 Selected requests, revision history and batch sync -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=73"></script>
+<script src="shared/hra-smart-sync.js?v=74"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
-<script src="shared/hra-auto-sync.js?v=64"></script>
+<script src="shared/hra-auto-sync.js?v=74"></script>
 <script src="shared/hra-hr-governance.js?v=57"></script>
-<script src="shared/contract-model.js?v=73"></script>
+<script src="shared/contract-model.js?v=74"></script>
 <!-- v56 Lifecycle Link: approved Join/Resign → Probation/Contract + editable lifecycle settings -->
-<title>AC HRA 合約管理 / Contract Tracker v2 · Lifecycle v56</title>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<title>AC HRA 合約管理 / Contract & Probation v74</title>
+<script src="shared/xlsx.full.min.js?v=0.18.5"></script>
 <style>
 :root{
   --navy:#0A1E3F; --navy-2:#13305F; --gold:#D4AF37; --gold-light:#F5DEB3;
@@ -242,17 +242,41 @@ table tbody tr:hover{background:#fbf9f0}
 }
 
 </style>
+<link rel="stylesheet" href="shared/contract-ui.css?v=74">
 </head>
 <body>
 
-<header>
-  <h1>🏭 VRT <span data-i18n="appTitle">HR 合約與試用期追蹤系統</span> <span style="font-size:11px;opacity:.65">v73</span></h1>
-  <div class="lang-switch">
+<header class="ct-apphead">
+  <div class="ct-brand"><span class="ct-logo">VRT</span><div><h1 data-i18n="appTitle">合約與試用期管理</h1><p>AC HRA Portal · Vantage River Textiles <span class="ct-version">v74</span></p></div></div>
+  <div class="ct-headtools"><div class="contract-cloud-bar no-print" id="contractCloudBar">
+  <span class="contract-cloud-dot" id="contractCloudDot"></span>
+  <span id="hra-auto-sync-state-contract" role="status" aria-live="polite">☁ 自動同步</span>
+  <span class="contract-cloud-meta" id="contractCloudMeta">↑ --:-- · —　↓ --:-- · —</span>
+  <div class="contract-cloud-actions">
+    <button id="btn-cloud-up" class="contract-cloud-btn" onclick="contractManualPush()" title="上傳至雲端 / Push to cloud">☁↑ <span data-ct-label="upload">上傳</span></button>
+    <button id="btn-cloud-down" class="contract-cloud-btn" onclick="contractManualPull()" title="從雲端下載 / Pull from cloud">☁↓ <span data-ct-label="download">下載</span></button>
+    <button class="contract-cloud-btn cfg" onclick="openContractCloudSettings()" title="雲端設定 / Cloud settings">⚙</button>
+  </div>
+</div><button class="btn ct-telegram" onclick="sendTelegramSummary()">✈ Telegram</button><button class="btn ghost" onclick="exportAllBackup()" data-ct-label="backup">備份</button><div class="lang-switch">
     <button data-lang="zh" class="active">繁中</button>
     <button data-lang="en">English</button>
     <button data-lang="km">ខ្មែរ</button>
-  </div>
+  </div></div>
 </header>
+
+  <div class="panel smart-import-panel no-print" id="contractSmartImportPanel">
+    <div class="module-head">
+      <div>
+        <div class="module-title">📥 <span data-ct-label="smartImport">智慧匯入</span></div>
+        <div class="small-text" data-ct-label="importHelp">可同時選擇試用期、合約、5% 結算 Excel；依表頭辨識並合併。</div>
+      </div>
+      <div class="module-actions">
+        <button class="btn small" onclick="ContractImporter.open()" data-ct-label="chooseExcel">📂 選擇 Excel</button>
+        <input type="file" id="contractSmartFiles" accept=".xlsx,.xls" multiple style="display:none" onchange="smartImportContractFiles(event)">
+      </div>
+    </div>
+    <div id="contractSmartImportResult" class="small-text" data-ct-label="noFiles">尚未匯入</div>
+  </div>
 
 <nav>
   <button data-page="dashboard" class="active">📊 <span data-i18n="navDashboard">總表</span></button>
@@ -264,34 +288,11 @@ table tbody tr:hover{background:#fbf9f0}
   <button data-page="settings">⚙️ <span data-i18n="navSettings">設定</span></button>
 </nav>
 
-<div class="contract-cloud-bar no-print" id="contractCloudBar">
-  <span class="contract-cloud-dot" id="contractCloudDot"></span>
-  <span id="hra-auto-sync-state-contract" role="status" aria-live="polite">☁ 自動同步</span>
-  <span class="contract-cloud-meta" id="contractCloudMeta">↑ --:-- · —　↓ --:-- · —</span>
-  <div class="contract-cloud-actions">
-    <button id="btn-cloud-up" class="contract-cloud-btn" onclick="contractManualPush()" title="上傳至雲端 / Push to cloud">☁↑</button>
-    <button id="btn-cloud-down" class="contract-cloud-btn" onclick="contractManualPull()" title="從雲端下載 / Pull from cloud">☁↓</button>
-    <button class="contract-cloud-btn cfg" onclick="openContractCloudSettings()" title="雲端設定 / Cloud settings">⚙</button>
-  </div>
-</div>
 
 <main>
 
 <!-- Dashboard + Analytics (v66 integrated) -->
 <section class="page active" id="page-dashboard">
-  <div class="panel smart-import-panel no-print" id="contractSmartImportPanel">
-    <div class="module-head">
-      <div>
-        <div class="module-title">📥 <span>Smart Import / 智慧匯入</span></div>
-        <div class="small-text">Probation List · Contract Master · 5% Finish Contract，可同時選多個 Excel；依表頭辨識並安全合併。</div>
-      </div>
-      <div class="module-actions">
-        <button class="btn small" onclick="document.getElementById('contractSmartFiles').click()">📂 選擇 Excel / Select Files</button>
-        <input type="file" id="contractSmartFiles" accept=".xlsx,.xls" multiple style="display:none" onchange="smartImportContractFiles(event)">
-      </div>
-    </div>
-    <div id="contractSmartImportResult" class="small-text">尚未匯入 / No files imported</div>
-  </div>
   <div class="panel integrated-overview" id="integratedAnalytics">
     <div class="module-head">
       <div class="module-title">📊 <span data-i18n="navDashboard">總表</span> <span style="color:#94a3b8">×</span> 📈 <span data-i18n="navAnalytics">分析</span></div>
@@ -1803,7 +1804,7 @@ async function importContDash(evt){
         effectiveMonth:effectiveMonth||(existing&&existing.effectiveMonth)||'',needsPeriodReview,
         notes:[...new Set(noteParts.filter(Boolean))].join(' · '),source:'excel',sourceFile:f.name,importedAt:new Date().toISOString(),updatedAt:new Date().toISOString(),createdAt:existing?.createdAt||new Date().toISOString()
       };
-      // v73: imported changes retain the previous result in revision history and require a new confirmation.
+      // v74: imported changes retain the previous result in revision history and require a new confirmation.
       if(existing&&window.HRAHRGovernance){
         rec=HRAHRGovernance.safeMerge(existing,rec,{module:'contract',recordKey:'CONT|'+factoryId+'|'+(finalEntry||''),employeeId:factoryId,sourceFile:f.name,approved:false,criticalFields:[]}).record;rec.id=existing.id;
       }
@@ -2277,14 +2278,14 @@ document.querySelectorAll(".modal-bg").forEach(m=>{
  */
 function normalizeDate(d){
   if(!d)return"";
-  if(d instanceof Date)return d.toISOString().slice(0,10);
+  if(d instanceof Date)return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   if(typeof d==="number")return new Date((d-25569)*86400*1000).toISOString().slice(0,10);
   const s=String(d).trim();if(!s)return"";
   const m=s.match(/^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
   if(m)return`${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
   const m2=s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
   if(m2)return`${m2[3]}-${m2[2].padStart(2,"0")}-${m2[1].padStart(2,"0")}`;
-  const dt=new Date(s);if(!isNaN(dt))return dt.toISOString().slice(0,10);
+  const dt=new Date(s);if(!isNaN(dt))return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`;
   return"";
 }
 /** 員工唯一鍵 = vrtCode 大寫（大小寫容錯） */
@@ -3419,6 +3420,8 @@ function printProbationApplications(){if(!window.HRAHRGovernance)return window.p
 function printContractApplications(){if(!window.HRAHRGovernance)return window.print();HRAHRGovernance.openPrint({title:'VRT Employment Contract Application',subtitle:'Contract issue / renewal / termination',rows:_printContRows(),columns:[{label:'ID 工號',key:'factoryId'},{label:'Name 姓名',key:'name'},{label:'Dept 部門',key:'dept'},{label:'Section 組別',key:'section'},{label:'Position 職位',key:'position'},{label:'Join Date 入職日',key:'entryDate'},{label:'Contract Type 類型',key:'contractType'},{label:'Contract End 到期',key:'endDate'},{label:'Status 狀態',key:'status'},{label:'Application Date 申請日',key:'applicationDate'},{label:'Notes 備註',key:'notes'}]});}
 </script>
 
-<script src="shared/contract-workflow.js?v=73"></script>
+<script src="shared/contract-import.js?v=74"></script>
+<script src="shared/contract-sync.js?v=74"></script>
+<script src="shared/contract-workflow.js?v=74"></script>
 </body>
 </html>

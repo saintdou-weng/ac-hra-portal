@@ -1,9 +1,10 @@
-/* v73: selected Telegram requests, immutable revisions and deletion history. */
+/* v74: selected Telegram requests, immutable revisions and deletion history. */
 var contractDeleteDuplicatePhysical = dbDel;
 var ContractWorkflow = (function () {
   'use strict';
   const M=HRAContractModel, selected={prob:new Set(),cont:new Set()};
-  let archive=[],ledger={},modal=null,busy=false,syncTail=Promise.resolve(),ready=false,capUrl='';
+  let archive=[],ledger={},modal=null,busy=false,syncTail=Promise.resolve(),ready=false,capUrl='',batchDepth=0,batchDirty=false,ledgerJob=null,ledgerAt=0,ledgerUrl='';
+  const syncJobs={};
   const ACTOR='ac_hra_contract_actor_v73',OUTBOX='ac_hra_contract_outbox_v73';
   const el=id=>document.getElementById(id), esc=s=>escapeHtml(String(s==null?'':s));
   const L=(z,e,k)=>M.l(LANG,z,e,k), rows=k=>k==='prob'?DASH_PROBS:DASH_CONTS;
@@ -16,7 +17,7 @@ var ContractWorkflow = (function () {
     const k=storeKind(store);
     if(k){const old=obj.id?await dbGet(store,obj.id):null;Object.assign(obj,!old&&obj.source==='excel'&&M.historical(obj,k)?M.ensure(obj,k):M.edit(old,obj,k));}
     await rawPut(store,obj);
-    if(!_contractCloudApplying&&['employees','probations','contracts','dashProbs','dashConts'].includes(store))scheduleContractSync('save');
+    if(!_contractCloudApplying&&['employees','probations','contracts','dashProbs','dashConts'].includes(store)){if(batchDepth)batchDirty=true;else scheduleContractSync('save');}
   }
   async function remove(store,id){
     const k=storeKind(store);if(!k)return contractDeleteDuplicatePhysical(store,id);
@@ -57,19 +58,19 @@ var ContractWorkflow = (function () {
     DASH_PROBS=p.concat(archive.filter(r=>M.kind(r)==='prob'));DASH_CONTS=c.concat(archive.filter(r=>M.kind(r)==='cont'));
     const changed=oldReconcile();DASH_PROBS=DASH_PROBS.filter(r=>!r._deleted);DASH_CONTS=DASH_CONTS.filter(r=>!r._deleted);prepareLoaded();return changed;
   }
+  async function batch(fn){batchDepth++;try{return await fn();}finally{batchDepth--;if(!batchDepth&&batchDirty){batchDirty=false;scheduleContractSync('import');}}}
   function decorate(k){
     document.querySelectorAll('.'+k+'-cb').forEach(cb=>{cb.checked=selected[k].has(cb.dataset.id);const r=rows(k).find(x=>String(x.id)===cb.dataset.id);if(!r)return;
       const state=M.eligible(r,'approval',k,ledger),cell=cb.closest('tr').querySelector('.actions-cell');
-      if(cell){const tag=document.createElement('small');tag.className='ct-record-state';tag.textContent=reason(state.reason);cell.appendChild(tag);}
+      if(cell){cell.querySelectorAll('.ct-record-state').forEach(e=>e.remove());const tag=document.createElement('small');tag.className='ct-record-state';tag.textContent=state.reason?reason(state.reason):'';cell.appendChild(tag);}
     });const cbs=[...document.querySelectorAll('.'+k+'-cb')],all=el(k+'SelAll');
     if(all){all.checked=!!cbs.length&&cbs.every(c=>c.checked);all.indeterminate=cbs.some(c=>c.checked)&&!all.checked;}
   }
   function toggle(k,on){document.querySelectorAll('.'+k+'-cb').forEach(c=>{c.checked=on;on?selected[k].add(c.dataset.id):selected[k].delete(c.dataset.id);});decorate(k);}
   function installUI(){
-    const style=document.createElement('style');style.textContent=`.ct-record-state{display:block;max-width:180px;white-space:normal;color:#60708a;font-size:11px;margin-top:5px}.ct-tg .modal{width:min(840px,96vw);max-height:92dvh;display:flex;flex-direction:column;padding:0}.ct-tg h3,.ct-tg footer{margin:0;padding:18px 22px}.ct-tg main{padding:4px 22px 18px;overflow:auto}.ct-tg .ct-fields{display:grid;grid-template-columns:1fr 1fr;gap:14px}.ct-tg label{font-size:13px;display:block}.ct-tg select,.ct-tg input[type=text]{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:6px}.ct-tg .ct-wide{grid-column:1/-1}.ct-tg .ct-picker{max-height:230px;overflow:auto;border:1px solid #e2e8f0;border-radius:8px;margin:8px 0}.ct-tg .ct-pick{display:flex;align-items:flex-start;gap:10px;padding:9px;border-bottom:1px solid #eee}.ct-tg .ct-pick input{margin-top:4px}.ct-tg .ct-pick small{display:block;color:#63718c}.ct-tg pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f3f6fa;border-radius:8px;padding:14px;font:13px/1.6 system-ui}.ct-tg footer{display:flex;gap:10px;justify-content:flex-end;border-top:1px solid #ddd}.ct-tg .ct-info{color:#64748b;font-size:13px;margin:8px 0}@media(max-width:540px){.ct-tg .ct-fields{grid-template-columns:1fr}.ct-tg main{padding:4px 12px 12px}.ct-tg h3,.ct-tg footer{padding:12px}.ct-tg footer button{flex:1}}`;
-    document.head.appendChild(style);
-    const div=document.createElement('div');div.id='contractTelegramModal';div.className='modal-bg ct-tg';div.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="ctTitle"><h3 id="ctTitle">✈️ Telegram</h3><main><div class="ct-fields"><label><span id="ctModeLabel"></span><select id="ctMode"><option value="summary">📄 摘要 / Summary / សង្ខេប</option><option value="approval">✅ 核可 / Approval / អនុម័ត</option></select></label><label><span id="ctSourceLabel"></span><select id="ctScope"><option value="prob">📝 試用期 / Probation / សាកល្បង</option><option value="cont">📄 合約 / Contract / កិច្ចសន្យា</option><option value="both">兩者 / Both / ទាំងពីរ</option></select></label><label><span id="ctBasisLabel"></span><select id="ctBasis"><option value="end">到期日 / End date / ថ្ងៃបញ្ចប់</option><option value="join">加入日 / Join date / ថ្ងៃចូល</option><option value="change">異動日 / Change date / ថ្ងៃកែប្រែ</option><option value="settle">結算月份 / Settlement month / ខែទូទាត់</option></select></label><label><span id="ctTypeLabel"></span><select id="ctType"><option value="selected">已勾選 / Selected / បានជ្រើស</option><option value="all">全部期間 / All periods / គ្រប់ពេល</option><option value="day">日 / Day / ថ្ងៃ</option><option value="week">週 / Week / សប្ដាហ៍</option><option value="month">月 / Month / ខែ</option><option value="year">年 / Year / ឆ្នាំ</option></select></label><label><span id="ctPeriodLabel"></span><select id="ctPeriod"></select></label><label><span id="ctLangLabel"></span><select id="ctLang"><option value="both">中英 / 中文 + English</option><option value="zh">繁中</option><option value="en">English</option><option value="km">ខ្មែរ</option><option value="all3">中英柬 / 中文 + English + ខ្មែរ</option></select></label><label class="ct-wide"><span id="ctActorLabel"></span><input type="text" id="ctActor" maxlength="100" required autocomplete="name"></label></div><p id="ctHelp" class="ct-info"></p><label><input type="checkbox" id="ctSelectAll"> <span id="ctSelectLabel"></span></label><div id="ctPicker" class="ct-picker"></div><p id="ctCounts" class="ct-info" aria-live="polite"></p><h4 id="ctPreviewTitle"></h4><pre id="ctPreview"></pre><p id="ctResult" role="status"></p></main><footer><button class="btn ghost" id="ctCancel"></button><button class="btn gold" id="ctSend"></button></footer></div>`;
+    const div=document.createElement('div');div.id='contractTelegramModal';div.className='modal-bg ct-tg';div.innerHTML=`<div class="modal" role="dialog" aria-modal="true" aria-labelledby="ctTitle"><h3 id="ctTitle">✈️ Telegram</h3><main><div class="ct-fields"><label><span id="ctModeLabel"></span><select id="ctMode"><option value="summary">📄 摘要 / Summary / សង្ខេប</option><option value="approval">✅ 核可 / Approval / អនុម័ត</option></select></label><label><span id="ctSourceLabel"></span><select id="ctScope"><option value="prob">📝 試用期 / Probation / សាកល្បង</option><option value="cont">📄 合約 / Contract / កិច្ចសន្យា</option><option value="both">兩者 / Both / ទាំងពីរ</option></select></label><label><span id="ctBasisLabel"></span><select id="ctBasis"><option value="end">到期日 / End date / ថ្ងៃបញ្ចប់</option><option value="join">加入日 / Join date / ថ្ងៃចូល</option><option value="change">異動日 / Change date / ថ្ងៃកែប្រែ</option><option value="settle">結算月份 / Settlement month / ខែទូទាត់</option></select></label><label><span id="ctTypeLabel"></span><select id="ctType"><option value="selected">已勾選 / Selected / បានជ្រើស</option><option value="all">全部期間 / All periods / គ្រប់ពេល</option><option value="day">日 / Day / ថ្ងៃ</option><option value="week">週 / Week / សប្ដាហ៍</option><option value="month">月 / Month / ខែ</option><option value="year">年 / Year / ឆ្នាំ</option></select></label><label><span id="ctPeriodLabel"></span><select id="ctPeriod"></select></label><label><span id="ctLangLabel"></span><select id="ctLang"><option value="both">中英 / 中文 + English</option><option value="zh">繁中</option><option value="en">English</option><option value="km">ខ្មែរ</option><option value="all3">中英柬 / 中文 + English + ខ្មែរ</option></select></label><label class="ct-wide"><span id="ctActorLabel"></span><input type="text" id="ctActor" maxlength="100" required autocomplete="name"></label></div><p id="ctHelp" class="ct-info"></p><label><input type="checkbox" id="ctSelectAll"> <span id="ctSelectLabel"></span></label><div id="ctPicker" class="ct-picker"></div><p id="ctCounts" class="ct-info" aria-live="polite"></p><p id="ctValidation" role="status"></p><h4 id="ctPreviewTitle"></h4><pre id="ctPreview"></pre><p id="ctResult" role="status"></p></main><footer><button class="btn ghost" id="ctCancel"></button><button class="btn gold" id="ctSend"></button></footer></div>`;
     document.body.appendChild(div);
+    ['ctMode','ctScope','ctType'].forEach(id=>{const select=el(id),group=document.createElement('div');group.className='ct-segments';group.dataset.for=id;group.setAttribute('role','group');select.hidden=true;select.insertAdjacentElement('afterend',group);});
     ['ctMode','ctScope','ctBasis','ctType'].forEach(id=>el(id).onchange=()=>refill());el('ctPeriod').onchange=()=>pick(true);el('ctLang').onchange=preview;el('ctActor').oninput=preview;
     el('ctSelectAll').onchange=()=>{modal.chosen=new Set(el('ctSelectAll').checked?modal.candidates.filter(x=>x.state.ok).map(x=>x.token):[]);pick(false);};
     el('ctCancel').onclick=()=>{if(!busy){div.classList.remove('show');modal=null;}};el('ctSend').onclick=send;
@@ -79,6 +80,7 @@ var ContractWorkflow = (function () {
       const changes=document.createElement('button');changes.className='btn small ghost';changes.textContent='🕘 異動 / Changes';changes.onclick=()=>open(k,'approval',true);actions.appendChild(changes);
     });
   }
+  function syncSegments(){const names={ctMode:[['摘要','Summary','សង្ខេប'],['核可','Approval','អនុម័ត']],ctScope:[['試用期','Probation','សាកល្បង'],['合約','Contract','កិច្ចសន្យា'],['兩者','Both','ទាំងពីរ']],ctType:[['已勾選','Selected','បានជ្រើស'],['全部','All','ទាំងអស់'],['日','Day','ថ្ងៃ'],['週','Week','សប្ដាហ៍'],['月','Month','ខែ'],['年','Year','ឆ្នាំ']]};Object.keys(names).forEach(id=>{const sel=el(id),group=document.querySelector('.ct-segments[data-for="'+id+'"]');group.innerHTML='';Array.from(sel.options).forEach((o,i)=>{const b=document.createElement('button');b.type='button';b.textContent=L(...names[id][i]);b.className=o.value===sel.value?'active':'';b.setAttribute('aria-pressed',String(o.value===sel.value));b.disabled=busy;b.onclick=()=>{sel.value=o.value;refill();};group.appendChild(b);});});}
   function dateFor(x){const b=el('ctBasis').value,r=x.r;return b==='change'?(M.latest(r)?.at||'').slice(0,10):b==='join'?M.snapshot(r,x.k).joinDate:b==='settle'?(r.latestSettlementMonth||r.payoutMonth||r.period||'').slice(0,7)+'-01':M.snapshot(r,x.k).endDate;}
   function datesFor(x){if(el('ctBasis').value!=='settle')return [dateFor(x)];return [...new Set((x.r.settlements||[]).map(s=>s.payoutMonth).concat(x.r.latestSettlementMonth||x.r.payoutMonth||x.r.period||''))].filter(v=>/^\d{4}-\d{2}/.test(v||'')).map(v=>v.slice(0,7)+'-01');}
   function candidates(){const scope=el('ctScope').value,type=el('ctType').value,p=el('ctPeriod').value;
@@ -92,7 +94,7 @@ var ContractWorkflow = (function () {
   }
   function pick(reset){
     if(!modal)return;modal.candidates=candidates();if(reset)modal.chosen=new Set(modal.candidates.filter(x=>x.state.ok).map(x=>x.token));
-    const box=el('ctPicker');box.innerHTML='';modal.candidates.forEach(x=>{const label=document.createElement('label');label.className='ct-pick';const input=document.createElement('input');input.type='checkbox';input.disabled=!x.state.ok||busy;input.checked=modal.chosen.has(x.token)&&x.state.ok;input.onchange=()=>{input.checked?modal.chosen.add(x.token):modal.chosen.delete(x.token);preview();};const span=document.createElement('span');span.textContent=(x.k==='prob'?'📝 ':'📄 ')+(x.r.factoryId||'—')+' · '+(M.name(x.r)||'—');const small=document.createElement('small');small.textContent=[x.r.dept||'—',dateFor(x)||'—',reason(x.state.reason)].join(' · ');span.appendChild(small);label.append(input,span);box.appendChild(label);});preview();
+    const box=el('ctPicker');box.innerHTML='';modal.candidates.forEach(x=>{const label=document.createElement('label');label.className='ct-pick';const input=document.createElement('input');input.type='checkbox';input.disabled=!x.state.ok||busy;input.checked=modal.chosen.has(x.token)&&x.state.ok;input.onchange=()=>{input.checked?modal.chosen.add(x.token):modal.chosen.delete(x.token);preview();};const span=document.createElement('span');span.textContent=(x.k==='prob'?'📝 ':'📄 ')+(x.r.factoryId||'—')+' · '+(M.name(x.r)||'—');const small=document.createElement('small');small.textContent=[x.r.dept||'—',dateFor(x)||'—',reason(x.state.reason)].join(' · ');span.appendChild(small);label.append(input,span);if(x.state.reason==='incomplete'||x.state.reason==='invalid_result'){const edit=document.createElement('button');edit.type='button';edit.className='btn ghost small';edit.textContent=L('補資料','Edit','កែ');edit.onclick=e=>{e.preventDefault();el('contractTelegramModal').classList.remove('show');modal=null;(x.k==='prob'?openDashProbModal:openDashContModal)(x.r.id);};label.appendChild(edit);}box.appendChild(label);});preview();
   }
   function chosen(){return (modal?.candidates||[]).filter(x=>x.state.ok&&modal.chosen.has(x.token));}
   function requestFor(x){
@@ -109,7 +111,8 @@ var ContractWorkflow = (function () {
     if(mode==='approval')lines[0]=M.l(lang,'試用期／合約核可','Probation / Contract Approval','អនុម័តសាកល្បង / កិច្ចសន្យា');
     lines.push(L('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកត្រួតពិនិត្យ')+'：'+(el('ctActor').value.trim()||'—'));
     list.forEach((x,i)=>{const d=requestFor(x);lines.push('\n#'+(i+1)+' '+(x.k==='prob'?M.l(lang,'試用期','Probation','សាកល្បង'):M.l(lang,'合約','Contract','កិច្ចសន្យា')));M.pairs(d,lang).forEach(p=>lines.push(p.join('：')));});
-    el('ctPreview').textContent=lines.join('\n');el('ctSend').textContent=mode==='approval'?L('送出核可請求','Send for Approval','ផ្ញើសុំអនុម័ត'):L('傳送摘要','Send Summary','ផ្ញើសង្ខេប');el('ctSend').disabled=busy||!list.length||!el('ctActor').value.trim();
+    el('ctValidation').textContent=!list.length?L('沒有可發送的項目：請查看下方原因，或匯入最新 Excel 補齊姓名。','No eligible items. Check the reasons or import the latest Excel to complete names.','គ្មានធាតុផ្ញើ។ ពិនិត្យមូលហេតុ ឬនាំចូល Excel ដើម្បីបំពេញឈ្មោះ។'):!el('ctActor').value.trim()?L('請填寫申請人／檢查人後送出。','Enter the applicant / inspector to send.','បំពេញអ្នកស្នើ / អ្នកត្រួតពិនិត្យដើម្បីផ្ញើ។'):L('可發送 '+list.length+' 筆','Ready to send '+list.length+' records','អាចផ្ញើ '+list.length+' កំណត់ត្រា');
+    syncSegments();el('ctPreview').textContent=lines.join('\n');el('ctSend').textContent=mode==='approval'?L('送出核可請求','Send for Approval','ផ្ញើសុំអនុម័ត'):L('傳送摘要','Send Summary','ផ្ញើសង្ខេប');el('ctSend').disabled=busy||!list.length||!el('ctActor').value.trim();
     const available=modal.candidates.filter(x=>x.state.ok);el('ctSelectAll').checked=!!available.length&&list.length===available.length;el('ctSelectAll').indeterminate=list.length>0&&list.length<available.length;
   }
   function open(k,mode,changes){
@@ -121,9 +124,11 @@ var ContractWorkflow = (function () {
     el('ctResult').textContent='';el('contractTelegramModal').classList.add('show');refill();
     refreshLedger().then(()=>{if(modal&&!busy)pick(false);}).catch(e=>{if(modal)el('ctResult').textContent=e.message;});
   }
-  async function capabilities(){const url=contractGasUrl();if(capUrl===url)return;let r;try{r=await contractGasPost({action:'contractCapabilities'});}catch(e){if(!/unknown action|unsupported|not implemented/i.test(e.message))throw e;}if(!r||r.approvalSchema!=='contract-request-v1')throw new Error(L('請更新原 GAS 部署至 v54','Update the existing GAS deployment to v54','សូមដំឡើង GAS v54'));capUrl=url;}
-  async function refreshLedger(){
-    if(!contractGasUrl())return;const r=await contractGasPost({action:'approvalLedger',module:'contract'});ledger=r.decisions||{};let changed=false;
+  async function capabilities(){const url=contractGasUrl();if(capUrl===url)return;let r;try{r=await contractGasPost({action:'contractCapabilities'});}catch(e){if(!/unknown action|unsupported|not implemented/i.test(e.message))throw e;}if(!r||r.approvalSchema!=='contract-request-v1')throw new Error(L('請更新原 GAS 部署至 v55','Update the existing GAS deployment to v55','សូមដំឡើង GAS v55'));capUrl=url;}
+  async function refreshLedger(force){
+    if(!contractGasUrl())return;if(ledgerJob)return ledgerJob;if(!force&&ledgerUrl===contractGasUrl()&&Date.now()-ledgerAt<15000)return;ledgerJob=refreshLedgerNow();try{await ledgerJob;ledgerAt=Date.now();ledgerUrl=contractGasUrl();}finally{ledgerJob=null;}
+  }
+  async function refreshLedgerNow(){const r=await contractGasPost({action:'approvalLedger',module:'contract'});ledger=r.decisions||{};let changed=false;
     for(const x of allRows()){
       const receipts=x.r._wf?.receipts||[];let dirty=false;
       receipts.forEach(rec=>{const decision=ledger[rec.key];if(rec.mode==='approval'&&decision&&['approved','rejected'].includes(decision.s)&&rec.state!==decision.s){Object.assign(rec,{state:decision.s,decidedAt:decision.at||'',decidedBy:decision.by||'',batchId:decision.b||rec.batchId});dirty=true;}});
@@ -169,19 +174,21 @@ var ContractWorkflow = (function () {
     }catch(e){el('ctResult').textContent=L('發送未完成：','Send incomplete: ','ការផ្ញើមិនទាន់បញ្ចប់៖ ')+e.message;return false;}
     finally{lock(false);decorate('prob');decorate('cont');}
   }
+  function coalesce(kind,fn){if(syncJobs[kind])return syncJobs[kind];syncJobs[kind]=queue(fn).finally(()=>{delete syncJobs[kind];});return syncJobs[kind];}
   function queue(fn){const next=syncTail.then(fn,fn);syncTail=next.catch(()=>{});return next;}
   function progress(msg,type){const badge=el('hra-auto-sync-state-contract');if(badge)badge.textContent=msg;contractSetCloudDot(type==='ok'?'synced':type==='warn'?'retry':'syncing');}
-  async function push(options={}){return queue(async()=>{
+  async function push(options={}){return coalesce('push',async()=>{
     if(!ready||!contractGasUrl())return false;contractSetCloudDot('syncing');
-    try{const recs=flat(),r=await HRASmartSync.push({url:contractGasUrl(),tool:'contract',records:recs,recordCount:recs.length,allowDeletes:false,autoConfirmConflicts:true,mergeRecords:mergeFlat,readBatch:true,onStatus:progress,summary:{employees:EMPLOYEES.length,probation:DASH_PROBS.length,contracts:DASH_CONTS.length}});
+    try{const recs=flat(),r=await ContractFastSync.push({url:contractGasUrl(),tool:'contract',records:recs,recordCount:recs.length,allowDeletes:false,autoConfirmConflicts:true,mergeRecords:mergeFlat,readBatch:true,onStatus:progress,summary:{employees:EMPLOYEES.length,probation:DASH_PROBS.length,contracts:DASH_CONTS.length}});
       if(!r||r===false||r.ok===false||r.cancelled||r.needsPull)throw new Error('Cloud sync incomplete');
-      if(r.records){apply(r.records);await persist();refreshAll();}contractSyncMetaWrite('push',r.uploaded||0);return r;
+      const editedDuring=HRASmartSync.stable(flat())!==HRASmartSync.stable(recs);
+      if(r.records&&!r.skipped){apply(r.records);await persist();refreshAll();}if(editedDuring)setTimeout(()=>scheduleContractSync('changed-during-sync'),120);contractSyncMetaWrite('push',r.uploaded||0);return r;
     }catch(e){progress(L('同步未完成：','Sync incomplete: ','សមកាលកម្មមិនទាន់ចប់៖ ')+e.message,'warn');if(!options.silent)toast(e.message,'danger');return false;}
   });}
-  async function pull(options={}){return queue(async()=>{
+  async function pull(options={}){return coalesce('pull',async()=>{
     if(!ready||!contractGasUrl())return false;contractSetCloudDot('syncing');
-    try{const r=await HRASmartSync.pullReliable({url:contractGasUrl(),tool:'contract',localRecords:flat(),mergeRecords:mergeFlat,autoConfirmConflicts:true,readBatch:true,onStatus:progress});if(!r||r.ok===false||r.cancelled)throw new Error('Cloud download incomplete');
-      if(Array.isArray(r.records)){apply(r.records);reconcile();await persist();contractPublishMirrors();refreshAll();}await refreshLedger().catch(()=>{});contractSyncMetaWrite('pull',r.downloaded||0);progress(L('下載完成','Download complete','ទាញយករួច'),'ok');return r;
+    try{const r=await ContractFastSync.pull({url:contractGasUrl(),tool:'contract',localRecords:flat(),mergeRecords:mergeFlat,autoConfirmConflicts:true,readBatch:true,onStatus:progress});if(!r||r.ok===false||r.cancelled)throw new Error('Cloud download incomplete');
+      if(Array.isArray(r.records)&&(r.downloaded||r.removed||r.migrated||r.compatibilityFallback)){apply(r.records);reconcile();await persist();contractPublishMirrors();refreshAll();}if(allRows().some(x=>(x.r._wf?.receipts||[]).some(r=>r.mode==='approval'&&r.state==='pending')))refreshLedger(!!options.manual).catch(()=>{});contractSyncMetaWrite('pull',r.downloaded||0);progress(L('下載完成','Download complete','ទាញយករួច'),'ok');return r;
     }catch(e){progress(L('下載未完成：','Download incomplete: ','ទាញយកមិនទាន់ចប់៖ ')+e.message,'warn');if(!options.silent)toast(e.message,'danger');return false;}
   });}
   async function saveNow(){await persist();toast(L('本機已儲存，正在同步','Saved locally; syncing','បានរក្សាទុក; កំពុងធ្វើសមកាលកម្ម'),'success');return window.HRAAutoSync?HRAAutoSync.run('contract','save'):push({manual:true});}
@@ -191,9 +198,11 @@ var ContractWorkflow = (function () {
     const rp=renderDashProb,rc=renderDashCont;renderDashProb=()=>{rp();decorate('prob');};renderDashCont=()=>{rc();decorate('cont');};toggleSelect=toggle;
     sendContractPeriodSummary=k=>open(k,'summary');sendContractPeriodApproval=k=>open(k,'approval');sendTelegramSummary=()=>{open('prob','summary');el('ctScope').value='both';refill();};syncToGas=push;pullFromGas=pull;
     contractGasPost=async payload=>{const url=contractGasUrl();if(!url)throw new Error(L('請先設定 GAS 網址','Configure the GAS URL','សូមកំណត់ GAS URL'));const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);try{const response=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(payload),signal:controller.signal});const data=await response.json();if(!response.ok||data.ok===false)throw new Error(data.error||'GAS HTTP '+response.status);return data.data||data;}catch(e){if(e.name==='AbortError')throw new Error(L('連線逾時，可重試；不會標記為已送達','Connection timed out; retry. Delivery is unconfirmed.','ការតភ្ជាប់អស់ពេល; សូមព្យាយាមម្ដងទៀត'));throw e;}finally{clearTimeout(timer);}};
-    installUI();
+    installUI();ContractImporter.install();
+    const previousApplyLang=applyLang;
+    applyLang=()=>{previousApplyLang();ContractImporter.localize();if(modal)syncSegments();};
   }
-  async function start(){install();await init();ready=true;if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',push:async o=>{const startup=/startup|resume|pageshow|network-restored/.test(o.reason||'');if(startup){const r=await pull(o);if(r===false)return false;}return push(o);},canSync:()=>ready&&!!contractGasUrl()&&typeof HRASmartSync!=='undefined',startDelay:100});else scheduleContractSync('startup');}
-  return {start,open,send,refill,pick,preview,requestFor,save:saveNow,mergeFlat,prepareLoaded,refreshLedger,selected,archive:()=>archive,allRows,eligible:M.eligible};
+  async function start(){install();await init();ready=true;if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',push:async o=>{const startup=/startup|resume|pageshow|network-restored/.test(o.reason||'');if(startup){const r=await pull(o);if(r===false)return false;}return push(o);},canSync:()=>ready&&!batchDepth&&!!contractGasUrl()&&typeof HRASmartSync!=='undefined',startDelay:100,strictFailure:true,minResumeInterval:60000});else scheduleContractSync('startup');}
+  return {batch,start,open,send,refill,pick,preview,requestFor,save:saveNow,mergeFlat,prepareLoaded,refreshLedger,selected,archive:()=>archive,allRows,eligible:M.eligible};
 })();
 ContractWorkflow.start().catch(e=>{console.error(e);toast('初始化錯誤 / Initialization error: '+e.message,'danger');});

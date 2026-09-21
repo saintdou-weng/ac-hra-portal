@@ -40,6 +40,7 @@
     if(!newer.cvSchema)Object.keys(older).forEach(k=>{if((o[k]==null||o[k]==='')&&older[k]!=null)o[k]=older[k];});
     ['versions','history','importHistory','evidence'].forEach(k=>{
       if(!Array.isArray(a[k])&&!Array.isArray(b[k]))return;
+      if(k==='evidence'&&(a.evidenceRevisionAt||b.evidenceRevisionAt)){const revised=String(a.evidenceRevisionAt||'')>String(b.evidenceRevisionAt||'')?a:b;o.evidence=copy(revised.evidence||[]);o.evidenceRevisionAt=revised.evidenceRevisionAt;return;}
       const map=new Map();[].concat(older[k]||[],newer[k]||[]).forEach(v=>map.set(k==='versions'?(v.effectiveFrom||v.updatedAt||hash(v)):k==='evidence'?(v.id||v.url||hash(v)):hash(v),v));o[k]=[...map.values()];
     });
     return o;
@@ -130,7 +131,7 @@
   }
   function changes(before,after,kind){
     const active=r=>kind==='person'?r.status==='active'&&!r.notInLatest:current(r);
-    const keys=kind==='person'?personFields:fields;
+    const keys=(kind==='person'?personFields:fields).concat(['evidence']);
     const a=new Map(before.filter(active).map(r=>[r.id,r])),b=new Map(after.filter(active).map(r=>[r.id,r]));
     const label=r=>({id:r.id,name:kind==='person'?(r.nickname||r.nameEn):r.name,category:r.category||r.department||'',expiryDate:r.expiryDate||r.visaExpiry||'',renewalDate:r.renewalDate||''});
     return {added:[...b].filter(([id])=>!a.has(id)).map(([,r])=>label(r)),removed:[...a].filter(([id])=>!b.has(id)).map(([,r])=>label(r)),updated:[...b].filter(([id,r])=>a.has(id)&&hash(selected(r,keys.filter(k=>!/^source|highlight/.test(k))))!==hash(selected(a.get(id),keys.filter(k=>!/^source|highlight/.test(k))))).map(([id,r])=>Object.assign(label(r),{before:label(a.get(id))}))};

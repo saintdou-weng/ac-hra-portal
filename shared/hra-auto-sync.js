@@ -84,6 +84,7 @@
 
     async function run(reason,extra){
       reason=reason||'reconcile';extra=extra||{};
+      if(s.opts.minResumeInterval&&/^(resume|pageshow|network-restored)$/.test(reason)&&!read(key)&&s.lastSuccess&&Date.now()-s.lastSuccess<s.opts.minResumeInterval)return true;
       if(s.busy){s.queued={reason:reason,extra:mergeExtra(s.queued&&s.queued.extra,extra)};return false;}
       var priorPending=read(key);
       if(!online()||!canSync()){
@@ -101,8 +102,8 @@
           var po=mergeExtra({silent:true,auto:true,reason:reason},extra),r=await s.opts.push(po);
           ok=(r!==false);
         }
-        if(ok){clear(key);setState(s,'synced',hhmm());}
-        else if(!priorPending&&/^(startup-reconcile|reconcile|resume|pageshow|network-restored)$/.test(String(reason||''))){
+        if(ok){s.lastSuccess=Date.now();clear(key);setState(s,'synced',hhmm());}
+        else if(!s.opts.strictFailure&&!priorPending&&/^(startup-reconcile|reconcile|resume|pageshow|network-restored)$/.test(String(reason||''))){
           clear(key);setState(s,'checked',hhmm());
         }else{write(key,{reason:reason,extra:extra,at:Date.now()});setState(s,'retry');}
         return ok;
