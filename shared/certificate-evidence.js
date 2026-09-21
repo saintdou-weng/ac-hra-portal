@@ -7,10 +7,9 @@ var CertificateEvidence=(function(){
   const name=a=>a.originalName||a.fileName||a.name||'Evidence';
   const url=a=>safe(a.url||a.downloadUrl||a.previewUrl||a.src||'');
   function safe(s){return /^(https?:\/\/|blob:|data:image\/(png|jpeg|webp|gif);base64,)/i.test(String(s))?String(s):'';}
-  function evidence(r){
+  function evidence(r,month){
     if(!r)return [];
-    const src=Array.isArray(r.evidence)?r.evidence:certCurrentVersion(r,certificateViewMonth()).evidence||[];
-    return src.map(a=>typeof a==='string'?{url:a,mimeType:/\.pdf(?:[?#]|$)/i.test(a)?'application/pdf':'image/jpeg'}:a).filter(a=>a&&key(a));
+    return M.evidenceAt(r,month||certificateViewMonth());
   }
   function unique(xs){const out=new Map();xs.forEach(a=>out.set(key(a),a));return [...out.values()];}
   function image(a){return /^image\//i.test(a.mimeType||'');}
@@ -18,7 +17,7 @@ var CertificateEvidence=(function(){
   function record(kind,id,month){const view=certificateMonthView(month);return (kind==='person'?view.people:view.certificates).find(r=>r.id===id);}
   function title(r){return r.name||[r.nickname,r.nameEn||r.nameKh].filter(Boolean).join(' / ')||r.id;}
   function dispose(s){(s?.pending||[]).forEach(p=>{if(p.preview&&URL.revokeObjectURL)URL.revokeObjectURL(p.preview);});}
-  function session(slot,r,kind,month){dispose(sessions[slot]);return sessions[slot]={slot,id:r.id||uid('cert'),kind:kind||'certificate',month:month||certificateViewMonth(),items:clone(evidence(r)),pending:[],original:clone(evidence(r)),dirty:false};}
+  function session(slot,r,kind,month){dispose(sessions[slot]);return sessions[slot]={slot,id:r.id||uid('cert'),kind:kind||'certificate',month:month||certificateViewMonth(),items:clone(evidence(r,month)),pending:[],original:clone(evidence(r,month)),dirty:false};}
   function card(a,index,slot,removable){return `<div class="cv-file"><a href="${esc(url(a)||'#')}" target="_blank" rel="noopener">${thumbnail(a)}<span>${esc(name(a))}</span></a>${a.shareWarning?`<small>${esc(L('連結權限需確認；可由 GAS 發送原檔。','Check link permissions; GAS can send the file.','សូមពិនិត្យសិទ្ធិតំណ។'))}</small>`:''}${removable?`<button type="button" class="btn small red" data-cv-remove="${index}" data-slot="${slot}">${L('移除','Remove','ដកចេញ')}</button>`:''}</div>`;}
   function renderSession(slot){
     const s=sessions[slot],box=E(slot==='cert'?'certEvidenceList':'cvGalleryFiles');if(!s||!box)return;
@@ -47,15 +46,30 @@ var CertificateEvidence=(function(){
     const backup=clone(STATE);try{
       M.baseline(STATE,new Date().toISOString());const view=certificateMonthView(month);STATE.certificates=clone(view.certificates||[]);STATE.people=clone(view.people||[]);
       const list=kind==='person'?STATE.people:STATE.certificates,index=list.findIndex(r=>r.id===id),old=index>=0?list[index]:{},r={...old,...change,id,updatedAt:new Date().toISOString(),cvSchema:72,cvRevisionAt:new Date().toISOString()};
-      if(M.hash(evidence(old))!==M.hash(evidence(r)))r.evidenceRevisionAt=r.updatedAt;
+      if(M.hash(evidence(old))!==M.hash(M.fileList(change.evidence||[],month))){r.evidenceRevisionAt=r.updatedAt;r.evidenceEffectiveFrom=month;}
       if(kind==='certificate'){
-        r.versions=clone(old.versions||[]);const v={effectiveFrom:month,startDate:r.startDate||'',expiryDate:r.expiryDate||'',renewalDate:r.renewalDate||'',cost:r.cost,costText:r.costText,costIsRate:r.costIsRate,remark:r.remark||'',evidence:clone(r.evidence||[]),updatedAt:r.updatedAt};
+        r.versions=clone(old.versions||[]);const v={effectiveFrom:month,startDate:r.startDate||'',expiryDate:r.expiryDate||'',renewalDate:r.renewalDate||'',cost:r.cost,costText:r.costText,costIsRate:r.costIsRate,remark:r.remark||'',evidence:clone(r.evidence||[]),evidenceRevisionAt:r.evidenceRevisionAt||'',updatedAt:r.updatedAt};
         const prev=r.versions.find(x=>x.effectiveFrom===month&&x.source!=='excel');if(prev)Object.assign(prev,v);else r.versions.push(v);
       }
       if(index>=0)list[index]=r;else list.push(r);
       if(!r.createdAt)r.createdAt=r.updatedAt;if(!r.source)r.source='online';
       M.saveRevision(STATE,{month,file:reason});M.reconcile(STATE);await persist('file-change');return r;
     }catch(e){STATE=backup;throw e;}
+  }
+  async function confirmCloud(){
+    const result=window.HRAAutoSync?await HRAAutoSync.run('certificate_visa','file-change'):await cloudPush({silent:true});
+    toast(result?'✅ '+L('證書與附件已同步至雲端','Certificate and files synced to cloud','ឯកសារបានធ្វើសមកាលកម្មហើយ'):'⏳ '+L('已儲存在本機；雲端尚未確認，請看同步狀態並重試上傳','Saved on this device; cloud not yet confirmed. Check sync status and retry upload.','បានរក្សាទុកក្នុងឧបករណ៍; សូមពិនិត្យការធ្វើសមកាលកម្ម។'),6000);return !!result;
+  }
+  async function recoverUploaded(){
+    const s=sessions.gallery;if(!s||saving)return;
+    const button=E('cvRecover'),box=E('cvRecovered');button.disabled=true;box.textContent=L('搜尋已上傳附件…','Looking for uploaded files…','កំពុងស្វែងរកឯកសារ…');
+    try{
+      const response=await postGas({action:'certificateAttachmentHistory',recordKey:s.id,period:s.month}),data=response.data||response;
+      if(sessions.gallery!==s)return;
+      const files=M.fileList(data.files,s.month).filter(a=>!s.items.some(b=>key(a)===key(b)));
+      box.innerHTML=files.map((a,i)=>`<div class="cv-file-pick"><a href="${esc(url(a))}" target="_blank" rel="noopener">${esc(name(a))}</a><small>${esc(a.period||'')}</small>${s.readonly?'':`<button type="button" class="btn small" data-recover="${i}">${L('加入本月附件','Link to this month','ភ្ជាប់ក្នុងខែនេះ')}</button>`}</div>`).join('')||esc(L('此證書沒有其他已上傳附件。','No other uploaded files found for this record.','រកមិនឃើញឯកសារផ្សេងទៀត។'));
+      box.querySelectorAll('[data-recover]').forEach(b=>b.onclick=()=>{const a=files[Number(b.dataset.recover)];if(!s.items.some(x=>key(x)===key(a)))s.items.push(a);s.dirty=true;b.disabled=true;renderSession('gallery');toast(L('已加入，請按儲存','Added; press Save','បានបន្ថែម; សូមរក្សាទុក'));});
+    }catch(e){box.textContent=L('無法取得附件清單：','Unable to load uploaded files: ','មិនអាចទាញបញ្ជី៖ ')+e.message;}finally{button.disabled=false;}
   }
   async function saveCertificate(event){
     event.preventDefault();if(saving||!certificateCanEdit())return false;
@@ -65,21 +79,21 @@ var CertificateEvidence=(function(){
     try{
       const files=await upload(s,month),cost=certificateCost(val('certCost'));
       await commit('certificate',s.id,month,{category:val('certCategory'),name:val('certName'),department:val('certDepartment'),status:val('certStatus'),contact:val('certContact'),completedForDate:val('certCompletedFor'),startDate:val('certStart'),expiryDate:val('certExpiry'),renewalDate:val('certRenewal'),cost:cost.amount,costText:cost.text,costIsRate:cost.isRate,remark:val('certRemark'),evidence:files},'Certificate and attachments updated');
-      dispose(s);delete sessions.cert;CERT_PENDING_FILES=[];saving=false;closeModal('certModal');renderAll();toast('✅ '+L('證書及附件已儲存，正在同步','Certificate and files saved; syncing','បានរក្សាទុក និងកំពុងធ្វើសមកាលកម្ម'));return true;
+      dispose(s);delete sessions.cert;CERT_PENDING_FILES=[];saving=false;closeModal('certModal');renderAll();hideLoading();await confirmCloud();return true;
     }catch(e){toast('❌ '+L('未完成儲存，請重試：','Save incomplete; retry: ','រក្សាទុកមិនទាន់ចប់៖ ')+e.message,7000);return false;}finally{saving=false;hideLoading();renderSession('cert');}
   }
   function cell(r,kind){const files=evidence(r);return `<div class="cv-cell"><button class="btn small" type="button" data-cv-gallery="${esc(r.id)}" data-kind="${kind}">📎 ${L('附件','Files','ឯកសារ')} ${files.length}</button>${files.length?`<div class="cv-thumbs">${files.slice(0,2).map(a=>`<a href="${esc(url(a)||'#')}" target="_blank" rel="noopener" title="${esc(name(a))}">${thumbnail(a)}</a>`).join('')}</div>`:''}</div>`;}
   function openGallery(kind,id){
     const month=certificateViewMonth(),r=record(kind,id,month);if(!r)return;const s=session('gallery',r,kind,month);s.readonly=month<M.monthAt();
     E('cvGalleryTitle').textContent=title(r)+' · '+month;E('cvGalleryHelp').textContent=s.readonly?L('歷史附件可查看及發送；修改請切回本月。','View or send historical files; edit from the current month.','អាចមើល ឬផ្ញើឯកសារចាស់។'):L('新增照片會加入此月份，往後沿用；移除不影響之前月份。選檔後請按儲存。','Files carry forward from this month. Removing a file keeps earlier months. Save after choosing files.','ឯកសារបន្តពីខែនេះ; ខែមុននៅដដែល។ សូមចុចរក្សាទុក។');
-    E('cvGalleryEdit').hidden=s.readonly;E('cvGallerySave').hidden=s.readonly;E('cvDocumentLabel').hidden=kind!=='person';E('cvDocumentType').value='visa';renderSession('gallery');openModal('cvGalleryModal');
+    E('cvGalleryEdit').hidden=s.readonly;E('cvGallerySave').hidden=s.readonly;E('cvDocumentLabel').hidden=kind!=='person';E('cvDocumentType').value='visa';E('cvRecovered').textContent='';renderSession('gallery');openModal('cvGalleryModal');
   }
-  async function saveGallery(){const s=sessions.gallery;if(!s||saving||s.readonly)return;saving=true;showLoading(L('儲存附件…','Saving files…','កំពុងរក្សាទុកឯកសារ…'));try{const files=await upload(s,s.month);await commit(s.kind,s.id,s.month,{evidence:files},'Attachments updated');session('gallery',record(s.kind,s.id,s.month),s.kind,s.month);renderSession('gallery');renderAll();toast('✅ '+L('附件已儲存，正在同步','Files saved; syncing','បានរក្សាទុក; កំពុងធ្វើសមកាលកម្ម'));return true;}catch(e){toast('❌ '+e.message,7000);return false;}finally{saving=false;hideLoading();renderSession('gallery');}}
+  async function saveGallery(){const s=sessions.gallery;if(!s||saving||s.readonly)return;saving=true;showLoading(L('儲存附件…','Saving files…','កំពុងរក្សាទុកឯកសារ…'));try{const files=await upload(s,s.month);await commit(s.kind,s.id,s.month,{evidence:files},'Attachments updated');session('gallery',record(s.kind,s.id,s.month),s.kind,s.month);renderSession('gallery');renderAll();hideLoading();await confirmCloud();return true;}catch(e){toast('❌ '+e.message,7000);return false;}finally{saving=false;hideLoading();renderSession('gallery');}}
   function sendGallery(){const s=sessions.gallery;if(!s)return;if(s.dirty){toast(L('請先儲存附件再發送','Save the files before sending','សូមរក្សាទុកមុនផ្ញើ'));return;}selectedCerts.clear();selectedPeople.clear();(s.kind==='person'?selectedPeople:selectedCerts).add(s.id);closeModal('cvGalleryModal');openSelected();}
   function openSelected(){if(!selectedCerts.size&&!selectedPeople.size){toast(tr('selectItems'));return;}openTelegram('summary');E('tgScope').value='selected';picker=null;refreshTgPreview();}
   function candidates(type,mode,scope){
     if(type==='approval')return certificatePendingRequests().map(r=>({token:'request:'+r.id,request:r,name:r.number+' · '+r.title,files:unique((r.items||[]).flatMap(i=>(i.documentRequest?.evidence||[]).map(a=>({...a,label:i.name,recordKey:i.id}))))}));
-    const out=new Map();function add(r,kind,month){if(!r)return;const token=kind+':'+r.id+':'+month;out.set(token,{token,r,kind,month,name:title(r),files:evidence(r).map(a=>({...a,label:title(r)+' · '+month,recordKey:r.id}))});}
+    const out=new Map();function add(r,kind,month){if(!r)return;const token=kind+':'+r.id+':'+month;out.set(token,{token,r,kind,month,name:title(r),files:evidence(r,month).map(a=>({...a,label:title(r)+' · '+month,recordKey:r.id}))});}
     if(scope==='period'){
       (type==='reminder'?reminderRows():eventsForMode(mode)).forEach(e=>{const kind=e.kind==='certificate'?'certificate':'person',month=e.snapshotMonth||certificateViewMonth();add(record(kind,e.recordId,month),kind,month);});
     }else{
@@ -106,13 +120,13 @@ var CertificateEvidence=(function(){
     const out=whole?[base()]:['📄 '+ll('證書／證件及附件','Certificates / Documents and Files','វិញ្ញាបនបត្រ / ឯកសារ'),ll('資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth(),ll('選取項目','Selected items','ធាតុបានជ្រើស')+'：'+list.length,ll('檢查人','Inspector','អ្នកត្រួតពិនិត្យ')+'：'+val('tgActor')];
     list.forEach((x,i)=>{if(!x.r)return;const r=x.r;out.push('\n#'+(i+1)+' '+x.name,ll('分類／部門','Category / Department','ប្រភេទ / ផ្នែក')+'：'+(r.category||r.department||'—'));
       const fields=x.kind==='certificate'?[['開始日','Start','ចាប់ផ្ដើម',r.startDate],['到期日','Expiry','ផុតកំណត់',r.expiryDate],['續期日','Renewal','បន្ត',r.renewalDate]]:[['護照到期','Passport expiry','លិខិតឆ្លងដែន',r.passportExpiry],['簽證到期','Visa expiry','ទិដ្ឋាការ',r.visaExpiry],['工作證到期','Work permit expiry','ប័ណ្ណការងារ',r.workPermitExpiry]];
-      fields.forEach(f=>out.push(ll(...f.slice(0,3))+'：'+(f[3]||'—')));const files=x.files.filter(a=>!picker?.omitted.has(key(a)));out.push(ll('附件','Files','ឯកសារ')+'：'+files.length+(files.length?' · '+files.map(name).join(' / '):''));if(r.remark)out.push(r.remark);
+      fields.forEach(f=>out.push(ll(...f.slice(0,3))+'：'+(f[3]||'—')+(/Expiry|expiry/.test(f[1])&&f[3]&&f[3]<certificateReferenceDate(x.month)?' ⚠ '+ll('已過期','Expired','ផុតកំណត់'):'')));const files=x.files.filter(a=>!picker?.omitted.has(key(a)));out.push(ll('附件','Files','ឯកសារ')+'：'+files.length+(files.length?' · '+files.map(name).join(' / '):''));if(r.remark)out.push(r.remark);
     });return out.join('\n');
   }
   function resetPicker(){picker=null;E('tgScope').value=selectedCerts.size||selectedPeople.size?'selected':'period';}
   function assertSelection(){if(picker&&val('tgScope')!=='period'&&!selected(val('tgType'),val('tgPeriod')).length)throw new Error(tr('selectItems'));}
   function localize(){
-    const labels={cvChoose:['📎 照片／PDF','📎 Photo / PDF','📎 រូបភាព / PDF'],cvCamera:['📷 拍照','📷 Camera','📷 ថតរូប'],cvGallerySave:['儲存','Save','រក្សាទុក']};
+    const labels={cvChoose:['📎 照片／PDF','📎 Photo / PDF','📎 រូបភាព / PDF'],cvCamera:['📷 拍照','📷 Camera','📷 ថតរូប'],cvGallerySave:['儲存','Save','រក្សាទុក'],cvRecover:['找回已上傳附件','Find uploaded files','ស្វែងរកឯកសារដែលបានផ្ទុក']};
     Object.entries(labels).forEach(([id,text])=>{if(E(id))E(id).textContent=L(...text);});
     const options=[['期間到期／提醒','Due / reminder in period','ផុតកំណត់ក្នុងរយៈពេល'],['表格所選項目','Selected table rows','ជួរដែលបានជ្រើស'],['當月清單（不限到期日）','Month list (any expiry)','បញ្ជីខែ (គ្រប់ថ្ងៃផុតកំណត់)']];
     if(E('tgScope'))Array.from(E('tgScope').options).forEach((o,i)=>o.textContent=L(...options[i]));
@@ -122,10 +136,10 @@ var CertificateEvidence=(function(){
     const close=E('cvGalleryModal')?.querySelector('.dialog-foot button:last-child');if(close)close.textContent=L('關閉','Close','បិទ');
   }
   function install(){
-    const modal=document.createElement('div');modal.id='cvGalleryModal';modal.className='modal';modal.innerHTML=`<div class="dialog"><div class="dialog-head"><h3 id="cvGalleryTitle"></h3><button class="x" onclick="closeModal('cvGalleryModal')">×</button></div><div class="dialog-body"><p id="cvGalleryHelp"></p><div id="cvGalleryEdit" class="toolbar"><label id="cvDocumentLabel">${L('證件類型','Document type','ប្រភេទឯកសារ')} <select id="cvDocumentType"><option value="passport">Passport</option><option value="visa">Visa</option><option value="workPermit">Work Permit</option><option value="residence">Residence</option></select></label><button type="button" class="btn" id="cvChoose">📎 ${L('照片／PDF','Photo / PDF','រូបភាព / PDF')}</button><button type="button" class="btn" id="cvCamera">📷 ${L('拍照','Camera','ថតរូប')}</button><input id="cvFiles" type="file" accept="image/*,.pdf" multiple hidden><input id="cvCameraFiles" type="file" accept="image/*" capture="environment" hidden></div><div id="cvGalleryFiles"></div></div><div class="dialog-foot"><button class="btn blue" id="cvGallerySave">${L('儲存','Save','រក្សាទុក')}</button><button class="btn" id="cvGallerySend">✈ Telegram</button><button class="btn" onclick="closeModal('cvGalleryModal')">${L('關閉','Close','បិទ')}</button></div></div>`;document.body.appendChild(modal);
-    E('cvChoose').onclick=()=>E('cvFiles').click();E('cvCamera').onclick=()=>E('cvCameraFiles').click();['cvFiles','cvCameraFiles'].forEach(id=>E(id).onchange=e=>{add(e.target.files,'gallery');e.target.value='';});E('cvGallerySave').onclick=saveGallery;E('cvGallerySend').onclick=sendGallery;
+    const modal=document.createElement('div');modal.id='cvGalleryModal';modal.className='modal';modal.innerHTML=`<div class="dialog"><div class="dialog-head"><h3 id="cvGalleryTitle"></h3><button class="x" onclick="closeModal('cvGalleryModal')">×</button></div><div class="dialog-body"><p id="cvGalleryHelp"></p><div id="cvGalleryEdit" class="toolbar"><label id="cvDocumentLabel">${L('證件類型','Document type','ប្រភេទឯកសារ')} <select id="cvDocumentType"><option value="passport">Passport</option><option value="visa">Visa</option><option value="workPermit">Work Permit</option><option value="residence">Residence</option></select></label><button type="button" class="btn" id="cvChoose">📎 ${L('照片／PDF','Photo / PDF','រូបភាព / PDF')}</button><button type="button" class="btn" id="cvCamera">📷 ${L('拍照','Camera','ថតរូប')}</button><input id="cvFiles" type="file" accept="image/*,.pdf" multiple hidden><input id="cvCameraFiles" type="file" accept="image/*" capture="environment" hidden></div><button class="btn" type="button" id="cvRecover">${L('找回已上傳附件','Find uploaded files','ស្វែងរកឯកសារដែលបានផ្ទុក')}</button><div id="cvRecovered"></div><div id="cvGalleryFiles"></div></div><div class="dialog-foot"><button class="btn blue" id="cvGallerySave">${L('儲存','Save','រក្សាទុក')}</button><button class="btn" id="cvGallerySend">✈ Telegram</button><button class="btn" onclick="closeModal('cvGalleryModal')">${L('關閉','Close','បិទ')}</button></div></div>`;document.body.appendChild(modal);
+    E('cvChoose').onclick=()=>E('cvFiles').click();E('cvCamera').onclick=()=>E('cvCameraFiles').click();['cvFiles','cvCameraFiles'].forEach(id=>E(id).onchange=e=>{add(e.target.files,'gallery');e.target.value='';});E('cvRecover').onclick=recoverUploaded;E('cvGallerySave').onclick=saveGallery;E('cvGallerySend').onclick=sendGallery;
     document.addEventListener('click',e=>{const b=e.target.closest('[data-cv-gallery]');if(b)openGallery(b.dataset.kind,b.dataset.cvGallery);});
     const originalApplyLang=applyLang;applyLang=()=>{originalApplyLang();localize();};
   }
-  return {evidence,cell,startForm,add,saveCertificate,openGallery,saveGallery,sendGallery,openSelected,renderPicker,resetPicker,attachments,requests,summary,assertSelection,install,isSaving:()=>saving};
+  return {evidence,cell,startForm,add,saveCertificate,openGallery,saveGallery,sendGallery,openSelected,renderPicker,resetPicker,attachments,requests,summary,assertSelection,install,recoverUploaded,isSaving:()=>saving};
 })();

@@ -33,7 +33,8 @@ function certificateParseFlatPeople(rows,file,sheet){
   });
   return {file,sheet,year,rank,records};
 }
-function certificateNextDate(c){return [c.renewalDate,c.expiryDate].filter(Boolean).sort()[0]||'';}
+function certificateReferenceDate(month){return month&&month!==HRACertificateModel.monthAt()?month+'-01':HRACertificateModel.monthAt()+'-'+String(new Date().getDate()).padStart(2,'0');}
+function certificateNextDate(c,month){if(c.expiryDate&&c.expiryDate<certificateReferenceDate(month))return c.expiryDate;return [c.renewalDate,c.expiryDate].filter(Boolean).sort()[0]||'';}
 function certificateEventLabel(e,lang){
   if(e.kind==='certificate'&&e.renewalDate===e.date&&(!e.expiryDate||e.date<e.expiryDate))return certificateL(lang,e.days<0?'續期日已過':'續期提醒',e.days<0?'Renewal overdue':'Renewal reminder','រំលឹកការបន្តសុពលភាព');
   return certificateL(lang,e.days<0?'已過期':'到期提醒',e.days<0?'Expired':'Expiry reminder','រំលឹកថ្ងៃផុតកំណត់');

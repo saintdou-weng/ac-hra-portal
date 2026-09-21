@@ -13,6 +13,44 @@
   const certIdentity=x=>norm(x.category)+'|'+norm(x.name);
   const certAlias=x=>english(x.category)+'|'+english(x.name);
   const personIdentity=x=>norm(x.employeeId)||norm(x.passport)||(norm(x.nameEn)+'|'+String(x.dob||''));
+  function fileKey(a){return String(a&& (a.id||a.fileId||a.driveId||a.url||a.downloadUrl||a.src)||'');}
+  function fileList(value,month){
+    const out=new Map();(Array.isArray(value)?value:[]).forEach(raw=>{
+      const a=typeof raw==='string'?{url:raw}:raw;if(!a||!fileKey(a))return;
+      const effective=String(a.period||a.effectiveFrom||a.uploadedAt||'').slice(0,7);
+      if(month&&/^20\d{2}-\d{2}$/.test(effective)&&effective>month)return;
+      const id=a.id||a.fileId||a.driveId||'',name=a.originalName||a.fileName||a.name||'Evidence';
+      out.set(fileKey(a),Object.assign({},a,{id:id,originalName:name,mimeType:a.mimeType||(/\.pdf(?:[?#]|$)/i.test(name+' '+(a.url||''))?'application/pdf':'image/jpeg'),url:a.url||a.downloadUrl||a.src||(id?'https://drive.google.com/file/d/'+encodeURIComponent(id)+'/view':'')}));
+    });return [...out.values()];
+  }
+  function evidenceStateAt(r,month){
+    r=r||{};month=month||monthAt();
+    const result=(files,decision)=>({files,revisionAt:decision&&decision.evidenceRevisionAt||'',effectiveFrom:decision&&decision.evidenceEffectiveFrom||decision&&decision.effectiveFrom||''});
+    const effective=String(r.evidenceEffectiveFrom||r.evidenceRevisionAt||'').slice(0,7);
+    if(r.evidenceRevisionAt&&(!effective||effective<=month))return result(fileList(r.evidence,month),r);
+    const direct=fileList(r.evidence,month);if(direct.length&&!r.evidenceRevisionAt)return result(direct);
+    const versions=(r.versions||[]).filter(v=>(v.effectiveFrom||'0000-01')<=month).slice().sort((a,b)=>String(b.effectiveFrom||'').localeCompare(String(a.effectiveFrom||''))||String(b.updatedAt||'').localeCompare(String(a.updatedAt||'')));
+    for(const v of versions){if(v.evidenceRevisionAt)return result(fileList(v.evidence,month),v);const files=fileList(v.evidence,month);if(files.length)return result(files);}
+    return result(fileList([].concat(r.attachments||[],r.photos||[],r.documents||[]),month));
+  }
+  function evidenceAt(r,month){return evidenceStateAt(r,month).files;}
+  function carryEvidence(state,snap,month){
+    const result=Object.assign({},snap),prior=(state.monthlySnapshots||[]).filter(x=>x.effectiveFrom<=month).slice().sort((a,b)=>String(b.effectiveFrom).localeCompare(String(a.effectiveFrom))||String(b.at).localeCompare(String(a.at))||Number(b.revisionSequence||0)-Number(a.revisionSequence||0));
+    ['certificates','people'].forEach(kind=>{result[kind]=(snap[kind]||[]).map(r=>{
+      let chosen=evidenceStateAt(r,month);if(!chosen.files.length&&!chosen.revisionAt)for(const s of prior){
+        const old=(s[kind]||[]).find(x=>x.id===r.id);if(!old)continue;
+        chosen=evidenceStateAt(old,month);if(chosen.files.length||chosen.revisionAt)break;
+      }
+      // Older clients sometimes saved uploads only on the live row, outside the month snapshot.
+      const live=(state[kind]||[]).find(x=>x.id===r.id),liveFiles=evidenceAt(live,month);
+      if(live&&live!==r){
+        const at=String(live.evidenceRevisionAt||''),effective=String(live.evidenceEffectiveFrom||at).slice(0,7);
+        if(at&&effective<=month&&at>String(snap.at||'')&&at>chosen.revisionAt)chosen={files:liveFiles,revisionAt:at,effectiveFrom:effective};
+        else if(!chosen.files.length&&!chosen.revisionAt&&!at)chosen.files=liveFiles.filter(a=>/^20\d{2}-\d{2}/.test(a.period||a.uploadedAt||'')&&String(a.period||a.uploadedAt).slice(0,7)<=month);
+      }
+      return Object.assign({},r,{evidence:copy(chosen.files)},chosen.revisionAt?{evidenceRevisionAt:chosen.revisionAt,evidenceEffectiveFrom:chosen.effectiveFrom||chosen.revisionAt.slice(0,7)}:{});
+    });});return result;
+  }
   const fields=['category','name','department','cost','costText','costIsRate','startDate','expiryDate','renewalDate','remark','contact','status','completedForDate','sourceFile','sourceSheet','sourceYear','sourceRank','sourceRow','highlighted','source','certificateManaged'];
   const personFields=['nameEn','nameKh','nickname','sex','dob','nationality','passport','passportExpiry','visaExpiry','joinDate','phone','visaApplyDate','visaReceivedDate','visaNumber','visaExpense','workPermitApplyDate','workPermitReceivedDate','workPermitNumber','workPermitExpense','residenceApplyDate','residenceReceivedDate','residenceExpense','residenceCertificateApplyDate','residenceCertificateExpense','status','remark','sourceFile','sourceSheet','sourceYear','sourceRank','rosterManaged','source'];
   function hash(x){let h=2166136261;for(const c of JSON.stringify(x)){h^=c.codePointAt(0);h=Math.imul(h,16777619);}return (h>>>0).toString(16);}
@@ -40,7 +78,7 @@
     if(!newer.cvSchema)Object.keys(older).forEach(k=>{if((o[k]==null||o[k]==='')&&older[k]!=null)o[k]=older[k];});
     ['versions','history','importHistory','evidence'].forEach(k=>{
       if(!Array.isArray(a[k])&&!Array.isArray(b[k]))return;
-      if(k==='evidence'&&(a.evidenceRevisionAt||b.evidenceRevisionAt)){const revised=String(a.evidenceRevisionAt||'')>String(b.evidenceRevisionAt||'')?a:b;o.evidence=copy(revised.evidence||[]);o.evidenceRevisionAt=revised.evidenceRevisionAt;return;}
+      if(k==='evidence'&&(a.evidenceRevisionAt||b.evidenceRevisionAt)){const revised=String(a.evidenceRevisionAt||'')>String(b.evidenceRevisionAt||'')?a:b;o.evidence=copy(revised.evidence||[]);o.evidenceRevisionAt=revised.evidenceRevisionAt;o.evidenceEffectiveFrom=revised.evidenceEffectiveFrom||revised.evidenceRevisionAt.slice(0,7);return;}
       const map=new Map();[].concat(older[k]||[],newer[k]||[]).forEach(v=>map.set(k==='versions'?(v.effectiveFrom||v.updatedAt||hash(v)):k==='evidence'?(v.id||v.url||hash(v)):hash(v),v));o[k]=[...map.values()];
     });
     return o;
@@ -122,7 +160,7 @@
   function monthAt(d){d=d||new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');}
   function asOf(state,month){
     const snaps=(state.monthlySnapshots||[]).filter(s=>s.effectiveFrom<=month).sort((a,b)=>String(a.effectiveFrom).localeCompare(String(b.effectiveFrom))||String(a.at).localeCompare(String(b.at))||Number(a.revisionSequence||0)-Number(b.revisionSequence||0)||String(a.id).localeCompare(String(b.id)));
-    return snaps.length?snaps[snaps.length-1]:state;
+    return snaps.length?carryEvidence(state,snaps[snaps.length-1],month):carryEvidence(state,state,month);
   }
   function baseline(state,at){
     state.monthlySnapshots=state.monthlySnapshots||[];
@@ -162,5 +200,5 @@
     stat.effectiveFrom=month;stat.revisionId=revision.id;
     reconcile(state);return stat;
   }
-  return {hash,certIdentity,certAlias,personIdentity,pickCertificate,pickPerson,mergeRow,mergeSettings,reconcile,apply,current,asOf,saveRevision,baseline,monthAt};
+  return {hash,certIdentity,certAlias,personIdentity,pickCertificate,pickPerson,mergeRow,mergeSettings,reconcile,apply,current,asOf,saveRevision,baseline,monthAt,evidenceAt,fileList};
 });

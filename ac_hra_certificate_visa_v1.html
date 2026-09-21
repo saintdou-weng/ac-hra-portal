@@ -7,11 +7,11 @@
 <script src="shared/hra-smart-sync.js?v=43"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
-<script src="shared/certificate-model.js?v=75"></script>
-<script src="shared/certificate-workflow.js?v=75"></script>
+<script src="shared/certificate-model.js?v=76"></script>
+<script src="shared/certificate-workflow.js?v=76"></script>
 <script src="shared/hra-attachments.js?v=45"></script>
-<script src="shared/certificate-evidence.js?v=75"></script>
-<link rel="stylesheet" href="shared/certificate-evidence.css?v=75">
+<script src="shared/certificate-evidence.js?v=76"></script>
+<link rel="stylesheet" href="shared/certificate-evidence.css?v=76">
 <title>AC HRA Certificate &amp; Visa</title>
 <script src="shared/xlsx.full.min.js?v=0.18.5"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -145,7 +145,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="brand-icon">🛂</div>
         <div class="brand">
           <h1 data-i18n="title">證書、簽證與工作證管理</h1>
-          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v75</p>
+          <p>AC HRA · VRT · CERTIFICATE &amp; VISA v76</p>
         </div>
         <div class="grow"></div>
         <div class="lang">
@@ -612,12 +612,14 @@ function isEventCompleted(e){
   const rec=e.kind==='certificate'?certificatesForMonth(e.snapshotMonth).find(x=>x.id===e.recordId):peopleForMonth(e.snapshotMonth).find(x=>x.id===e.recordId);
   if(!rec)return false;
   if(['stopped','resigned','not_in_latest'].includes(rec.status))return true;
+  const expiry=e.kind==='certificate'?rec.expiryDate:rec[e.type+'Expiry'];
+  if(expiry&&expiry<certificateReferenceDate(e.snapshotMonth))return false;
   if(rec.completedForDate&&rec.completedForDate===e.date)return true;
   return STATE.requests.some(r=>(!r.period||!e.snapshotMonth||r.period<=e.snapshotMonth)&&(r.items||[]).some(i=>i.id===e.recordId&&(!i.documentType||i.documentType===e.type)&&i.targetDate===e.date&&(i.approvalStatus==='approved'||r.status==='approved')&&(!i.documentRequest||i.documentRequest.expiryDate===(e.kind==='certificate'?rec.expiryDate:rec[e.type+'Expiry']))))
 }
 function allEvents(month=certificateViewMonth()){
   const out=[];
-  certificatesForMonth(month).filter(c=>HRACertificateModel.current(c)&&c.status!=='stopped').forEach(c=>{const d=certificateNextDate(c);if(d)out.push({id:`certificate:${c.id}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:c.costIsRate?0:num(c.cost),expiryDate:c.expiryDate,renewalDate:c.renewalDate})});
+  certificatesForMonth(month).filter(c=>HRACertificateModel.current(c)&&c.status!=='stopped').forEach(c=>{const d=certificateNextDate(c,month);if(d)out.push({id:`certificate:${c.id}:${d}`,kind:'certificate',recordId:c.id,type:'certificate',date:d,name:c.name||c.category,department:c.department||c.category||tr('unknown'),source:c.sourceFile||tr('sourceCertificate'),cost:c.costIsRate?0:num(c.cost),expiryDate:c.expiryDate,renewalDate:c.renewalDate})});
   peopleForMonth(month).filter(p=>p.status==='active'&&!p.notInLatest).forEach(p=>{
     [['passport','passportExpiry'],['visa','visaExpiry'],['workPermit','workPermitExpiry'],['residence','residenceExpiry']].forEach(([type,key])=>{if(p[key])out.push({id:`${type}:${p.id}:${p[key]}`,kind:'person',recordId:p.id,type,date:p[key],name:p.nickname||p.nameEn||p.nameKh,department:p.department||tr('unknown'),source:p.sourceFile||tr('sourceVisa'),cost:type==='visa'?num(p.visaExpense):type==='workPermit'?num(p.workPermitExpense):0})})
   });
@@ -958,7 +960,7 @@ if(!window.HRAAutoSync){
 window.addEventListener('online',()=>setTimeout(()=>certAutoSync('network-restored'),150));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&navigator.onLine)setTimeout(()=>certAutoSync('resume'),180)});
 }
-if(window.HRAAutoSync)HRAAutoSync.install({key:'certificate_visa',pull:cloudPull,push:cloudPush,canSync:function(){return !!gasUrl()},startDelay:450});
+if(window.HRAAutoSync)HRAAutoSync.install({key:'certificate_visa',strictFailure:true,pull:cloudPull,push:cloudPush,canSync:function(){return !!gasUrl()},startDelay:450});
 </script>
 </body>
 </html>

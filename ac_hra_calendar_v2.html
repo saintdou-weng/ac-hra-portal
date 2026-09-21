@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🇰🇭 柬埔寨假日行事曆管理系統</title>
 <script src="shared/cloud-guard.js"></script>
-<script src="shared/calendar-model.js?v=69"></script>
+<script src="shared/calendar-model.js?v=76"></script>
+<script src="shared/calendar-source-v76.js?v=76"></script>
+<script src="shared/calendar-update-v76.js?v=76"></script>
 <script src="shared/hra-smart-sync.js?v=39"></script>
 <script src="shared/telegram-evidence.js?v=45"></script>
 <script src="shared/hra-auto-sync.js?v=49"></script>
@@ -245,7 +247,7 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
     <div class="header-logo">🇰🇭</div>
     <div>
       <div class="header-title" id="hdr-title">柬埔寨假日行事曆管理系統</div>
-      <div class="header-sub">CAMBODIA HOLIDAY MANAGEMENT • ប្រតិទិនថ្ងៃឈប់</div>
+      <div class="header-sub">CAMBODIA HOLIDAY MANAGEMENT v76 • ប្រតិទិនថ្ងៃឈប់</div>
     </div>
     <div class="header-controls">
       <select class="hdr-sel" id="yearSel" onchange="changeYear(this.value)"></select>
@@ -613,6 +615,8 @@ select.hdr-sel{background:rgba(255,255,255,.92);border:none;color:var(--green);p
 <script>
 // ═══════════════════ DATA ═══════════════════
 const TYPE_CFG = {
+  history:{zh:'歷史說明',en:'Historical note',km:'កំណត់ត្រាចាស់',icon:'📋',bg:'#f1f5f9',border:'#cbd5e1',text:'#475569',dot:'#64748b'},
+  payday:{zh:'發薪日',en:'Salary day',km:'ថ្ងៃបើកប្រាក់ខែ',icon:'💰',bg:'#e0f2fe',border:'#38bdf8',text:'#075985',dot:'#0284c7'},
   legal:     { zh:'法定假日', en:'Legal Holiday',    km:'ថ្ងៃឈប់ច្បាប់',    icon:'🔴', bg:'#ffebee', border:'#ef9a9a', text:'#c62828', dot:'#c62828' },
   regular:   { zh:'例假日',   en:'Regular Off',      km:'ថ្ងៃឈប់ធម្មតា',   icon:'🔵', bg:'#e8eaf6', border:'#9fa8da', text:'#283593', dot:'#3949ab' },
   substitute:{ zh:'調換假日', en:'Substitute Day',   km:'ថ្ងៃជំនួស',        icon:'🟠', bg:'#fff3e0', border:'#ffcc80', text:'#e65100', dot:'#f57c00' },
@@ -628,10 +632,10 @@ const TYPE_CFG = {
 
 const TYPE_HINTS = {
   legal:     '法定假日：政府公告的法定放假日，全國適用',
-  regular:   '例假日：週六/週日或固定休息日',
-  substitute:'調換假日：因假日碰到非工作日，調整至其他日期補休',
+  regular:   '例假日：工廠每週日或另行核定的固定休息日',
+  substitute:'調換假日：工廠確認將原假日與另一工作日交換，須填明對應日期',
   annual:    '年假：員工年度帶薪休假',
-  makeup:    '補假：因調換而需要補回的工作日',
+  makeup:    '補假：經確認安排的補休日；上班日請選正常上班',
   workday:   '新增上班日：原本放假但調整為需要上班的日期',
   halfpay:   '停工半薪：因特殊情況停工，員工領取半薪',
   cancelled: '取消假日：原定假日被取消，需正常上班',
@@ -878,6 +882,7 @@ const LUNAR_FESTIVALS={
 };
 
 function getLunarDate(ds){
+  if(ds.startsWith("2027-"))return calendarLunar2027(ds);
   const yr = +ds.slice(0,4);
   // Find the CNY closest to or before this date
   let cnyYr = yr;
@@ -953,7 +958,7 @@ function lunarCellHtml(ds){
   const isCNY=(l.mon===1&&l.day===1);
   const isFest=!!l.fest;
   const col=isCNY?'#e53935':isFest?'#e91e63':'#e91e63';
-  const txt=isFest?l.fest:l.dayName;
+  const txt=[isFest?l.fest:l.dayName,l.term].filter(Boolean).join(' · ');
   return `<div class="lunar-txt" style="color:${col}">${txt}</div>`;
 }
 
@@ -998,7 +1003,7 @@ let DB = {
   2026: [
     hol('26-01','2026-01-01','','元旦',"New Year's Day",'ទិវាចូលឆ្នាំ','legal',1,''),
     hol('26-02','2026-01-07','','勝利紀念日','Victory Day','ទិវាជ័យជំនះ','legal',1,''),
-    hol('26-03','2026-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,'Sun → Mon補假'),
+    hol('26-03','2026-03-08','','婦女節',"Women's Day",'ទិវានារី','legal',1,'依工廠核定安排；不自動推定週一補假'),
     hol('26-04','2026-04-14','2026-04-16','柬埔寨新年','Khmer New Year','ចូលឆ្នាំខ្មែរ','legal',3,''),
     hol('26-05','2026-05-01','','國際勞動節+比薩寶焦節','Labor Day & Visak Bochea','ទិវាពលកម្ម+វិសាខបូជា','legal',1,'合併假日'),
     hol('26-06','2026-05-05','','禦耕節','Royal Ploughing Ceremony','ច្រត់ព្រះនង្គ័ល','legal',1,''),
@@ -1296,6 +1301,7 @@ function saveDB(track=true,reason){
   reason=reason||'calendar-updated';
   try{
     if(track)logDbDiff(LAST_SAVED_DB,DB);LAST_SAVED_DB=clone(DB);
+    CAL_SETTINGS.sourceCalendarRemoved76=[...new Set([...(CAL_SETTINGS.sourceCalendarRemoved76||[]),...CHANGE_LOG.filter(x=>x.action==='delete').map(x=>x.recordId)])];
     const flat=flatDB();localStorage.setItem(CAL_DB_KEY,JSON.stringify(DB));localStorage.setItem(CAL_FLAT_KEY,JSON.stringify(flat));localStorage.setItem(CAL_CHANGE_KEY,JSON.stringify(CHANGE_LOG));localStorage.setItem(CAL_SETTINGS_KEY,JSON.stringify(CAL_SETTINGS));
     let meta={};try{meta=JSON.parse(localStorage.getItem(CAL_META_KEY)||'{}')}catch{}localStorage.setItem(CAL_META_KEY,JSON.stringify({...meta,localUpdatedAt:Date.now(),count:flat.length,changeCount:CHANGE_LOG.length}));
     if(track)scheduleCalendarCloudUpload(reason);
@@ -1307,7 +1313,7 @@ function loadDB(){
     CHANGE_LOG=JSON.parse(localStorage.getItem(CAL_CHANGE_KEY)||'[]')||[];CAL_SETTINGS=Object.assign(CAL_SETTINGS,JSON.parse(localStorage.getItem(CAL_SETTINGS_KEY)||'{}'));LAST_SAVED_DB=clone(DB)
   }catch(e){console.warn('Calendar load failed',e);LAST_SAVED_DB=clone(DB)}
 }
-function countByType(list,type){const ds=new Set(list.filter(h=>h.type===type).flatMap(HRACalendarModel.recordDays));if(HRACalendarModel.offTypes.has(type))list.filter(h=>h.type==='workday').flatMap(HRACalendarModel.recordDays).forEach(d=>ds.delete(d));return ds.size;}
+function countByType(list,type){const ds=new Set(list.filter(h=>h.type===type&&h.countsAsHoliday!==false&&h.appliesTo!=='partial').flatMap(HRACalendarModel.recordDays));if(HRACalendarModel.offTypes.has(type))list.filter(h=>['workday','cancelled','postponed'].includes(h.type)).flatMap(HRACalendarModel.recordDays).forEach(d=>ds.delete(d));return ds.size;}
 function rangeDates(start,end){const out=[];for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1))out.push(ymd(d));return out}
 function periodBounds(mode=analysisMode,anchor=analysisAnchor){
   const a=new Date(anchor);a.setHours(0,0,0,0);let start=new Date(a),end=new Date(a);
@@ -1321,7 +1327,8 @@ function datesOfRecord(h,start,end){const a=parseDate(h.date),b=parseDate(h.endd
 function periodStats(mode=analysisMode,anchor=analysisAnchor){
   const bounds=periodBounds(mode,anchor),dates=rangeDates(bounds.start,bounds.end),records=recordsForRange(bounds.start,bounds.end),holiday=new Set(),legal=new Set(),moved=new Set(),cancelled=new Set(),added=new Set(),extraWork=new Set();
   const activeOff=new Set(['legal','regular','substitute','annual','makeup','halfpay','vrt','stopwork']);
-  records.forEach(h=>{const ds=datesOfRecord(h,bounds.start,bounds.end);if(activeOff.has(h.type))ds.forEach(x=>holiday.add(x));if(h.type==='legal')ds.forEach(x=>legal.add(x));if(h.type==='substitute'||h.type==='postponed')ds.forEach(x=>moved.add(x));if(h.type==='cancelled')ds.forEach(x=>cancelled.add(x));if(h.type==='makeup'||h.type==='vrt')ds.forEach(x=>added.add(x));if(h.type==='workday')ds.forEach(x=>extraWork.add(x))});
+  records.forEach(h=>{const ds=datesOfRecord(h,bounds.start,bounds.end);if(activeOff.has(h.type)&&h.countsAsHoliday!==false&&h.appliesTo!=='partial')ds.forEach(x=>holiday.add(x));if(h.type==='legal')ds.forEach(x=>legal.add(x));if(h.type==='substitute'||h.type==='postponed')ds.forEach(x=>moved.add(x));if(h.type==='cancelled')ds.forEach(x=>cancelled.add(x));if(h.type==='makeup'||h.type==='vrt')ds.forEach(x=>added.add(x));if(h.type==='workday')ds.forEach(x=>extraWork.add(x))});
+  records.filter(h=>['cancelled','postponed'].includes(h.type)).flatMap(h=>datesOfRecord(h,bounds.start,bounds.end)).forEach(d=>{holiday.delete(d);legal.delete(d);});
   const sundays=new Set(dates.filter(x=>parseDate(x).getDay()===0)),saturdays=new Set(dates.filter(x=>parseDate(x).getDay()===6)),off=new Set([...sundays,...holiday]);extraWork.forEach(x=>{off.delete(x);holiday.delete(x);legal.delete(x);});
   const rangeChanges=CHANGE_LOG.filter(x=>{const d=x.date||x.after?.date||x.before?.date||'';return d>=bounds.keyStart&&d<=bounds.keyEnd});
   rangeChanges.filter(x=>x.action==='add'&&x.after&&activeOff.has(x.after.type)).forEach(x=>datesOfRecord(x.after,bounds.start,bounds.end).forEach(d=>added.add(d)));
@@ -1338,6 +1345,7 @@ function repairCalendarData(){
 }
 // ═══════════════════ INIT ═══════════════════
 loadDB();
+const CAL_SOURCE_CHANGED=applyCalendarSource76();
 const CAL_REPAIRED_ON_LOAD=repairCalendarData();
 
 
@@ -1462,6 +1470,7 @@ function setCalView(v){
 }
 
 function renderCalendar(){
+  renderCalendarSourceNote76();
   if(calView==='year') renderYearCal();
   else if(calView==='month') renderMonthCal();
   else if(calView==='week') renderWeekCal();
@@ -1773,7 +1782,7 @@ function renderDayPanel(ds){
   if(EXT_LAYERS.tw.enabled&&twEvts.length) extItems.push(`<div style="background:#e3f2fd;border-left:3px solid #1565c0;padding:4px 8px;border-radius:4px">🇹🇼 台灣：${twEvts.map(e=>e.zh).join('、')}</div>`);
   if(EXT_LAYERS.my.enabled&&myEvts.length) extItems.push(`<div style="background:#fff8e1;border-left:3px solid #e65100;padding:4px 8px;border-radius:4px">🇲🇾 馬來西亞：${myEvts.map(e=>e.zh).join('、')}</div>`);
   if(EXT_LAYERS.school.enabled&&scEvts.length) extItems.push(`<div style="background:#f3e5f5;border-left:3px solid #7b1fa2;padding:4px 8px;border-radius:4px">📚 東馬學校：${scEvts.map(e=>e.zh).join('、')}</div>`);
-  if(EXT_LAYERS.lunar.enabled&&lunarD) extItems.push(`<div style="background:#fce4ec;border-left:3px solid #e91e63;padding:4px 8px;border-radius:4px">🌙 農曆：${lunarD.yn}（${lunarD.za}年）${lunarD.str}${lunarD.fest?' '+lunarD.fest:''}</div>`);
+  if(EXT_LAYERS.lunar.enabled&&lunarD) extItems.push(`<div style="background:#fce4ec;border-left:3px solid #e91e63;padding:4px 8px;border-radius:4px">🌙 農曆：${lunarD.yn}（${lunarD.za}年）${lunarD.str}${lunarD.fest?' '+lunarD.fest:''}${lunarD.term?' · '+lunarD.term:''}</div>`);
   const swapLinks=(swapMP[ds]||[]);
   if(swapLinks.length) extItems.push(swapLinks.map(lk=>`<div style="background:#fff8e1;border-left:3px solid #f57f17;padding:4px 8px;border-radius:4px;cursor:pointer" onclick="dayClick('${lk.date}')">🔗 調換連結：${lk.reverse?'↩換至':'↪換自'} <strong>${lk.date}</strong>（${lk.zh}）</div>`).join(''));
 
@@ -2925,10 +2934,10 @@ init();
       var recs = res.records || [];
       var snap=Array.isArray(recs)?recs.find(function(x){return x&&x.kind==='calendarSnapshot'}):null;
       CAL_SYNC_APPLY=true;
-      if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:CHANGE_LOG;CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{});}
+      if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:CHANGE_LOG;const removed76=[...new Set([...(CAL_SETTINGS.sourceCalendarRemoved76||[]),...(snap.settings?.sourceCalendarRemoved76||[])])];CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{},{sourceCalendarRemoved76:removed76});}
       else if(Array.isArray(recs)&&recs.length){DB=dbFromFlat(recs);}
       else throw new Error(lang==='en'?'No calendar snapshot found':'雲端沒有可用的日曆資料');
-      const repaired=repairCalendarData();LAST_SAVED_DB=clone(DB);saveDB(false);init();if(repaired)setTimeout(()=>scheduleCalendarCloudUpload('calendar-swap-repaired'),0);
+      const sourced=applyCalendarSource76(),repaired=repairCalendarData()||sourced;LAST_SAVED_DB=clone(DB);saveDB(false);init();if(repaired)setTimeout(()=>scheduleCalendarCloudUpload('calendar-swap-repaired'),0);
       HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
       var count=flatDB().length,meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
       localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),smartDownloadedAt:new Date().toISOString(),count:count,changeCount:CHANGE_LOG.length})));
@@ -2941,7 +2950,7 @@ init();
   // Init
   document.addEventListener('DOMContentLoaded', calShowStatus);
 })();
-if(CAL_REPAIRED_ON_LOAD)setTimeout(()=>scheduleCalendarCloudUpload('calendar-swap-repaired'),1200);
+if(CAL_REPAIRED_ON_LOAD||CAL_SOURCE_CHANGED)setTimeout(()=>scheduleCalendarCloudUpload('calendar-swap-repaired'),1200);
 if(window.HRAAutoSync)HRAAutoSync.install({key:'calendar',pull:function(o){return window.calPull?window.calPull(o):false},push:function(o){return window.calPush?window.calPush(o):false},canSync:function(){return !!gasUrl()},startDelay:450,upId:'calPushBtn',downId:'calPullBtn'});
 </script>
 </body>

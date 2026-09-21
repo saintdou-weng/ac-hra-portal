@@ -27,8 +27,8 @@
   function holidayDates(rows) {
     var off=new Set(), work=new Set();
     (rows||[]).forEach(function(r){
-      if(offTypes.has(r.type))recordDays(r).forEach(function(d){off.add(d);});
-      if(r.type==='workday')recordDays(r).forEach(function(d){work.add(d);});
+      if(r.countsAsHoliday!==false&&r.appliesTo!=='partial'&&offTypes.has(r.type))recordDays(r).forEach(function(d){off.add(d);});
+      if(r.type==='workday'||r.type==='cancelled'||r.type==='postponed')recordDays(r).forEach(function(d){work.add(d);});
     });
     work.forEach(function(d){off.delete(d);});
     return off;
