@@ -1561,6 +1561,7 @@ function parseSheet(data,dateStr){
 
 // Fast date check: uses SHEET NAME as day + Date: cell for year/month
 // This avoids timezone issues: sheet name "06" is always day 6 regardless of timezone
+function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
 function quickDateCheck(wb,sheetName){
   const ws=wb.Sheets[sheetName];if(!ws)return null;
 
@@ -1568,13 +1569,14 @@ function quickDateCheck(wb,sheetName){
   // Always use the DATE: cell for YEAR+MONTH, sheet name for DAY
   function excelDateToYearMonth(nv){
     if(nv instanceof Date){
-      // Use UTC components (XLSX cellDates:true stores as UTC midnight of that date)
-      // But some timezones shift this - so try both UTC and local, prefer UTC
-      const utcY=nv.getUTCFullYear(),utcM=nv.getUTCMonth()+1,utcD=nv.getUTCDate();
-      const locY=nv.getFullYear(),locM=nv.getMonth()+1,locD=nv.getDate();
-      // If UTC and local differ by 1 day, local is likely correct (cellDates stores local midnight)
-      // Return ONLY year+month (day will come from sheet name)
-      if(utcY>=2000) return {y:locY,m:locM}; // use local year+month
+      // v72 fix: SheetJS 0.18.5 + cellDates in Asia/Phnom_Penh returns local 23:59:56 of the
+      // PREVIOUS day (LMT seconds offset). Day 1 of a month then reads as the previous month
+      // (2026-10-01 → 2026-09-01) and is wrongly skipped as "already imported".
+      // Round to the nearest calendar day (+12h) before reading local year/month.
+      if(isNaN(nv.getTime()))return null;
+      const r=new Date(nv.getTime()+12*3600*1000);
+      const locY=r.getFullYear(),locM=r.getMonth()+1;
+      if(locY>=2000) return {y:locY,m:locM};
       return null;
     }
     if(typeof nv==='number'&&nv>40000&&nv<60000){
@@ -1662,7 +1664,8 @@ async function parseWorkbook(wb, progressFn, overwrite){
   // 找最多票的年月（排除很舊的年份，如 template sheet 的 2020-03）
   let _consensusYM=null,_maxVote=0;
   for(const[ym,cnt] of Object.entries(_ymMap)){
-    if(cnt>_maxVote){_consensusYM=ym;_maxVote=cnt;}
+    // v72: tie → prefer the newer month (a daily file with sheets 01+02 must not be pulled back to last month)
+    if(cnt>_maxVote||(cnt===_maxVote&&_consensusYM&&ym>_consensusYM)){_consensusYM=ym;_maxVote=cnt;}
   }
 
   // Phase 1: Quick scan all sheets for dates (fast — only reads cells directly, no full decode)
@@ -2800,6 +2803,7 @@ async function renderSewCmp() {
     const toDateStr = d => {
       if (!d) return '';
       if (d instanceof Date) {
+        d=_xlSnap(d);
         const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
         return `${y}-${m}-${dd}`;
       }

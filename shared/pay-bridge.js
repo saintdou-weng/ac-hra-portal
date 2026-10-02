@@ -38,7 +38,9 @@
   }
   function str(o,names){const v=val(o,names);return v==null?'':String(v).trim()}
   function round(v){return Math.round(Number(v||0)*100)/100}
+  function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
   function month(v){
+    if(v instanceof Date&&!isNaN(v))v=_xlSnap(v);
     if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}`;
     const s=String(v==null?'':v).trim();if(!s)return '';
     let m=s.match(/(20\d{2})\D{0,3}(0?[1-9]|1[0-2])(?:\D|$)/);if(m)return `${m[1]}-${String(+m[2]).padStart(2,'0')}`;
@@ -47,6 +49,7 @@
     return '';
   }
   function dateKey(v){
+    if(v instanceof Date&&!isNaN(v))v=_xlSnap(v);
     if(v instanceof Date&&!isNaN(v))return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`;
     const s=String(v==null?'':v).trim();if(!s)return '';
     let m=s.match(/(20\d{2})[\/\-.](0?[1-9]|1[0-2])[\/\-.](0?[1-9]|[12]\d|3[01])/);

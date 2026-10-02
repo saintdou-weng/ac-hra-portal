@@ -45,12 +45,13 @@
   function p2(n) { return n < 10 ? '0' + n : String(n); }
   function localDate(d) { return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
   function nowIso() { return new Date().toISOString(); }
+  function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
   function parseDate(v) {
     if (!v && v !== 0) return '';
     if (typeof v === 'number' && isFinite(v) && g.XLSX && XLSX.SSF && XLSX.SSF.parse_date_code) {
       var dc = XLSX.SSF.parse_date_code(v); if (dc) return dc.y + '-' + p2(dc.m) + '-' + p2(dc.d);
     }
-    if (v instanceof Date && !isNaN(v)) return localDate(v);
+    if (v instanceof Date && !isNaN(v)) return localDate(_xlSnap(v));
     var s = String(v).trim(), m = s.match(/(20\d{2})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
     if (m) return m[1] + '-' + p2(+m[2]) + '-' + p2(+m[3]);
     m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})/);

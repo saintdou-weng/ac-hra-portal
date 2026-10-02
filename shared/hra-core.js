@@ -227,6 +227,7 @@ function empIdOf(r) {
 
 /* ═══════════ ③ 期間工具（各模組共用） ═══════════ */
 function p2(n) { return (n < 10 ? '0' : '') + n; }
+function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
 function lds(d) { return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()); }
 function addMonths(d, n) {
   var y = d.getFullYear(), m = d.getMonth() + n, day = d.getDate();
@@ -241,7 +242,7 @@ function xdate(v) {
     var d = new Date(Date.UTC(1899, 11, 30) + Math.round(v) * 86400000);
     return d.getUTCFullYear() + '-' + p2(d.getUTCMonth() + 1) + '-' + p2(d.getUTCDate());
   }
-  if (v instanceof Date) return isNaN(v.getTime()) ? '' : lds(v);
+  if (v instanceof Date) return isNaN(v.getTime()) ? '' : lds(_xlSnap(v));
   var s = String(v).trim(); if (!s || /^#/.test(s)) return '';
   var m = s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
   if (m) return m[1] + '-' + p2(+m[2]) + '-' + p2(+m[3]);

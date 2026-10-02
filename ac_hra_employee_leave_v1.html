@@ -1413,8 +1413,9 @@ function _payVal(o,names){
   for(const n of names){const k=low[String(n).toLowerCase()];if(k!=null&&o[k]!=null&&String(o[k]).trim()!=="")return o[k];}
   return "";
 }
+function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
 function _dateText(v){
-  if(!v)return ""; if(v instanceof Date)return v.toISOString().slice(0,10);
+  if(!v)return ""; if(v instanceof Date)return isNaN(v)?"":(function(x){return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')})(_xlSnap(v));
   if(typeof v==='number'&&v>20000&&v<80000)return xlDate(v);
   const s=String(v).trim();
   const m=s.match(/^(20\d\d|19\d\d)[\/-](\d{1,2})[\/-](\d{1,2})/);if(m)return `${m[1]}-${padHM(m[2])}-${padHM(m[3])}`;

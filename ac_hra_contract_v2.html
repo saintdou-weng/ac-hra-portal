@@ -1261,8 +1261,9 @@ function renderDashboard(){
    pivot itself, so they work even when the destination contains zero rows. */
 let probMode='month', probPivot=new Date(), probPeriodIdx=0, probPeriods=[];
 let contMode='month', contPivot=new Date(), contPeriodIdx=0, contPeriods=[];
+function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
 function firstValidDate(){
-  for(const v of arguments){if(v instanceof Date&&!isNaN(v))return v.toISOString().slice(0,10);const x=String(v||'').trim(),m=x.match(/(20\d{2})[-\/.](\d{1,2})(?:[-\/.](\d{1,2}))?/);if(m)return m[1]+'-'+String(+m[2]).padStart(2,'0')+(m[3]?'-'+String(+m[3]).padStart(2,'0'):'-01')}return'';
+  for(const v of arguments){if(v instanceof Date&&!isNaN(v))return (function(x){return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0')})(_xlSnap(v));const x=String(v||'').trim(),m=x.match(/(20\d{2})[-\/.](\d{1,2})(?:[-\/.](\d{1,2}))?/);if(m)return m[1]+'-'+String(+m[2]).padStart(2,'0')+(m[3]?'-'+String(+m[3]).padStart(2,'0'):'-01')}return'';
 }
 function dashEmpFor(r){const fid=String(r&&(r.factoryId||r.vrtCode||r.employeeId||r.empId)||'').trim();if(!fid||!Array.isArray(EMPLOYEES))return null;return EMPLOYEES.find(e=>String(e.factoryId||e.vrtCode||e.idNumber||e.employeeId||'').trim()===fid)||null}
 function getProbJoinDate(r){const e=dashEmpFor(r);return firstValidDate(r&&r.joinDate,r&&r.startDate,r&&r.probStart,e&&e.joinDate)}
@@ -2278,6 +2279,7 @@ document.querySelectorAll(".modal-bg").forEach(m=>{
  */
 function normalizeDate(d){
   if(!d)return"";
+  if(d instanceof Date)d=_xlSnap(d);
   if(d instanceof Date)return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
   if(typeof d==="number")return new Date((d-25569)*86400*1000).toISOString().slice(0,10);
   const s=String(d).trim();if(!s)return"";

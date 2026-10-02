@@ -671,6 +671,7 @@ function el(id){return document.getElementById(id);}
 function setTxt(id,v){ var n=el(id); if(n)n.textContent=v; return !!n; }
 function setHtml(id,v){ var n=el(id); if(n)n.innerHTML=v; return !!n; }
 function p2(n){return(n<10?'0':'')+n;}
+function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
 function lds(d){return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());}
 function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 function maternityEvidenceLinks(items){var a=window.HRAAttachments?HRAAttachments.links(items||[]):[];return a.length?a.map(function(u,i){return '<a href="'+esc(u)+'" target="_blank" rel="noopener" title="Evidence">📎'+(i+1)+'</a>';}).join(' '):'';}
@@ -778,7 +779,7 @@ function xdate(v){
     var ms=Date.UTC(1899,11,30)+Math.round(v)*86400000, d=new Date(ms);
     return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());
   }
-  if(v instanceof Date){ if(isNaN(v.getTime()))return ''; return lds(v); }
+  if(v instanceof Date){ if(isNaN(v.getTime()))return ''; return lds(_xlSnap(v)); }
   var s=String(v).trim(); if(!s)return '';
   if(/^#(REF|N\/A|VALUE|NAME|DIV)/i.test(s))return '';
   var m=s.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/);
@@ -791,7 +792,7 @@ function xdate(v){
 }
 function cs(v){
   if(v===null||v===undefined)return '';
-  if(v instanceof Date)return lds(v);
+  if(v instanceof Date)return isNaN(v.getTime())?'':lds(_xlSnap(v));
   var s=String(v).trim();
   if(/^#(REF|N\/A|VALUE|NAME|DIV)/i.test(s))return '';
   return s.replace(/\s+/g,' ');

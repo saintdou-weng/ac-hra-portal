@@ -520,9 +520,10 @@ function num(v){
   const s=String(v??'').replace(/[$,\s]/g,'');
   const m=s.match(/-?\d+(?:\.\d+)?/);return m?Number(m[0]):0
 }
+function _xlSnap(d){/* v72: SheetJS cellDates in Asia/Phnom_Penh gives 23:59:5x of the previous day → snap to next midnight */var s=d.getHours()*3600+d.getMinutes()*60+d.getSeconds();return s>=86280?new Date(d.getTime()+(86400-s)*1000):d}
 function isoDate(v){
   if(!v&&v!==0)return '';
-  if(v instanceof Date&&!isNaN(v)){return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`}
+  if(v instanceof Date&&!isNaN(v)){v=_xlSnap(v);return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,'0')}-${String(v.getDate()).padStart(2,'0')}`}
   if(typeof v==='number'&&v>20000&&window.XLSX){
     const d=XLSX.SSF.parse_date_code(v);if(d)return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`
   }
