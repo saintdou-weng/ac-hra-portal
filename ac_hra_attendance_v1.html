@@ -2646,44 +2646,144 @@ let SC_PERIODS = [];       // list of period keys
 // ── Save sewing meta when loaded from cloud ──────────────────
 function saveSewMeta(updatedAt){LS.set('sewMeta',{updatedAt});}
 
+// v73: three sources, in order —
+//   1. the sewing app's own IndexedDB (VRT_SewingProduction / daily_records) when sewing_v5 has
+//      been opened in this browser;  2. our own cloud cache from a previous pull;
+//   3. the vrt-prod GAS (read-only action=pull&tool=sewing), then cached locally.
+// Nothing here writes to the sewing app's database or to any HRA cloud/Telegram path.
+const SEW_CACHE_DB='AC_HRA_SewCache', SEW_CACHE_STORE='records', SEW_CACHE_META='ac_hra_sew_cache_meta';
+const SEW_GAS_DEFAULT='https://script.google.com/macros/s/AKfycbxKAEMe1Y2bYH2qQkCQclJQljA8-nxgmE-lbbpqbmByzconjC5IjcJJwS8INVytEtvv/exec';   // vrt-prod GAS (read-only pull of tool=sewing)
+function sewGasUrl(){
+  const ok=v=>/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec/.test(String(v||'').trim());
+  const keys=['ac_hra_sew_gas_url','vrt_portal_gas_url','vrt_prod_gas_url','vrt_gas_url'];
+  for(const k of keys){try{const v=localStorage.getItem(k);if(ok(v))return String(v).trim();}catch(_){}}
+  return ok(SEW_GAS_DEFAULT)?SEW_GAS_DEFAULT:'';
+}
+function idbReadAll(dbName, store){
+  return new Promise(res => {
+    let req; try{ req = indexedDB.open(dbName); }catch(_){ res([]); return; }
+    req.onerror = () => res([]);
+    req.onblocked = () => res([]);
+    req.onsuccess = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(store)) { d.close(); res([]); return; }
+      const all = [];
+      try {
+        const cur = d.transaction(store,'readonly').objectStore(store).openCursor();
+        cur.onsuccess = ev => {
+          if (ev.target.result) { all.push(ev.target.result.value); ev.target.result.continue(); }
+          else { d.close(); res(all); }
+        };
+        cur.onerror = () => { d.close(); res([]); };
+      } catch(ex) { d.close(); res([]); }
+    };
+  });
+}
+function sewCacheWrite(rows){
+  return new Promise(res => {
+    let req; try{ req = indexedDB.open(SEW_CACHE_DB, 1); }catch(_){ res(false); return; }
+    req.onupgradeneeded = e => { const d=e.target.result; if(!d.objectStoreNames.contains(SEW_CACHE_STORE)) d.createObjectStore(SEW_CACHE_STORE,{keyPath:'_k'}); };
+    req.onerror = () => res(false);
+    req.onsuccess = e => {
+      const d = e.target.result;
+      try {
+        const tx = d.transaction(SEW_CACHE_STORE,'readwrite'), os = tx.objectStore(SEW_CACHE_STORE);
+        os.clear();
+        rows.forEach((r,i) => { try{ os.put(Object.assign({}, r, {_k: String(r.id||r._k||(String(r.date||'')+'|'+String(r.lineNo||r.line||'')+'|'+i))})); }catch(_){} });
+        tx.oncomplete = () => { d.close(); try{localStorage.setItem(SEW_CACHE_META,JSON.stringify({at:new Date().toISOString(),n:rows.length}));}catch(_){} res(true); };
+        tx.onerror = () => { d.close(); res(false); };
+      } catch(ex) { d.close(); res(false); }
+    };
+  });
+}
+async function sewFetchJson(url, timeoutMs){
+  const ctl = typeof AbortController!=='undefined' ? new AbortController() : null;
+  const t = ctl ? setTimeout(()=>ctl.abort(), timeoutMs||45000) : null;
+  try {
+    const r = await fetch(url, {redirect:'follow', signal: ctl?ctl.signal:undefined});
+    const txt = await r.text();
+    return JSON.parse(txt);
+  } finally { if(t) clearTimeout(t); }
+}
+// Read-only pull, same wire format the sewing app itself uses for its baseline pull.
+async function sewCloudPull(onStatus){
+  const url = sewGasUrl();
+  if (!url) throw new Error('no-url');
+  const q = s => url + (url.includes('?')?'&':'?') + s;
+  const mj = await sewFetchJson(q('action=pull&meta=1&tool=sewing'));
+  const env = mj && mj.data; if (!env) return [];
+  let records = [];
+  if (env.chunked && env.meta) {
+    const tc = Number(env.meta.totalChunks)||0;
+    for (let i=0;i<tc;i++) {
+      onStatus && onStatus(`雲端讀取 ${i+1}/${tc}`);
+      const cj = await sewFetchJson(q('action=pull&tool=sewing&chunk='+i+(env.meta.uploadId?'&uploadId='+encodeURIComponent(env.meta.uploadId):'')));
+      if (!cj.data || !Array.isArray(cj.data.records)) throw new Error('chunk '+(i+1)+' incomplete');
+      records = records.concat(cj.data.records);
+    }
+  } else {
+    const p = env.data || env;
+    records = (p && p.records) || (p && p.idbStore && p.idbStore.records) || [];
+  }
+  return Array.isArray(records) ? records : [];
+}
+function sewIsUsable(rows){ return rows.some(r => r && r.date && (r.lineNo!=null || r.line!=null) && (+r.workers>0 || +r.pieces>0)); }
 async function loadSewingIDB(force) {
   if (SEW_IDB_DATA !== null && !force) return SEW_IDB_DATA;
+  const el = document.getElementById('sc-status');
+  const st = m => { if (el) el.textContent = m; };
+  // 1. Sewing app's own IndexedDB (current name first, old names kept for safety)
   const attempts = [
-    {db:'SewingCloudProd', store:'cloud_records'},
-    {db:'SewingProd',      store:'cloud_records'},
-    {db:'SewingProd',      store:'records'},
+    {db:'VRT_SewingProduction', store:'daily_records'},
+    {db:'SewingCloudProd',      store:'cloud_records'},
+    {db:'SewingProd',           store:'cloud_records'},
+    {db:'SewingProd',           store:'records'},
   ];
   for (const {db, store} of attempts) {
     try {
-      const rows = await new Promise(res => {
-        const req = indexedDB.open(db);
-        req.onerror = () => res([]);
-        req.onsuccess = e => {
-          const d = e.target.result;
-          if (!d.objectStoreNames.contains(store)) { d.close(); res([]); return; }
-          const all = [];
-          try {
-            const cur = d.transaction(store,'readonly').objectStore(store).openCursor();
-            cur.onsuccess = ev => {
-              if (ev.target.result) { all.push(ev.target.result.value); ev.target.result.continue(); }
-              else { d.close(); res(all); }
-            };
-            cur.onerror = () => { d.close(); res([]); };
-          } catch(ex) { d.close(); res([]); }
-        };
-      });
-      if (rows.length) {
+      const rows = await idbReadAll(db, store);
+      if (rows.length && sewIsUsable(rows)) {
         SEW_IDB_DATA = rows;
-        const el = document.getElementById('sc-status');
-        if (el) el.textContent = `車縫 ${rows.length} 筆已讀取`;
+        st(`車縫 ${rows.length} 筆（本機車縫系統）`);
         return rows;
       }
     } catch(e) {}
   }
-  SEW_IDB_DATA = [];
-  const el = document.getElementById('sc-status');
-  if (el) el.textContent = '車縫 IDB 無資料';
-  return [];
+  // 2. Our own cache from a previous cloud pull (unless the user pressed reload)
+  if (!force) {
+    try {
+      const cached = await idbReadAll(SEW_CACHE_DB, SEW_CACHE_STORE);
+      if (cached.length && sewIsUsable(cached)) {
+        let when=''; try{ const m=JSON.parse(localStorage.getItem(SEW_CACHE_META)||'{}'); when=m.at?' · '+String(m.at).slice(0,10):''; }catch(_){}
+        SEW_IDB_DATA = cached;
+        st(`車縫 ${cached.length} 筆（雲端快取${when}）`);
+        return cached;
+      }
+    } catch(e) {}
+  }
+  // 3. Cloud (read-only)
+  if (!sewGasUrl()) {
+    SEW_IDB_DATA = [];
+    st('車縫無資料：此瀏覽器未開過車縫系統，且未設定車縫雲端網址');
+    return [];
+  }
+  try {
+    st('車縫雲端讀取中…');
+    const rows = await sewCloudPull(st);
+    if (rows.length && sewIsUsable(rows)) {
+      SEW_IDB_DATA = rows;
+      sewCacheWrite(rows).catch(()=>{});
+      st(`車縫 ${rows.length} 筆（雲端）`);
+      return rows;
+    }
+    SEW_IDB_DATA = [];
+    st('車縫雲端無資料');
+    return [];
+  } catch(e) {
+    SEW_IDB_DATA = [];
+    st('車縫雲端讀取失敗：' + (e && e.message==='no-url' ? '未設定網址' : (e && e.message) || e));
+    return [];
+  }
 }
 
 // ── Normalise line name ──────────────────────────────────

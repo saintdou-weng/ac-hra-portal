@@ -1792,7 +1792,8 @@ async function importContDash(evt){
       const needsPeriodReview=finalType!=='UDC'&&!finalEnd;
       if(needsPeriodReview)pendingDates++;
       const noteParts=[];
-      if(existing&&existing.notes)noteParts.push(existing.notes);
+      // v73: split the stored note before de-duplicating, otherwise every re-import appends the same two sentences again
+      if(existing&&existing.notes)String(existing.notes).split(/\s*·\s*/).forEach(p=>{if(p&&!/^Import reference \d{4}-\d{2}$/.test(p))noteParts.push(p)});
       if(effectiveMonth)noteParts.push(`Import reference ${effectiveMonth}`);
       if(needsPeriodReview)noteParts.push('Contract start/end not provided in Excel; please confirm period');
       const id=existing?.id||uid('dc');
