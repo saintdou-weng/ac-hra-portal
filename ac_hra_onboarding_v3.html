@@ -1191,12 +1191,19 @@ function parseSettleSheet(rows,sheetName){
       (M.cAmt>=0?(' · '+L('金額','Amount')+'='+colL(M.cAmt)):'')+
       (M.cDate>=0?(' · '+L('日期','Date')+'='+colL(M.cDate)):'')+'）');
   }
+  /* v73: 標題「Salary Resigned on Oct-2026」決定本檔月份；HR 的 Summery 常留著上個月的舊區塊
+     （#REF!／#N/A 名字、金額 0、或日期是別的月份）。這些不匯入，但在報告裡列出來。 */
+  var titleYM='', MON={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+  for(var ti=0;ti<Math.min(rows.length,6);ti++){ var tj=(rows[ti]||[]).map(function(c){return cs(c);}).join(' '); var tm=tj.match(/resigned\s*on\s*([a-z]{3})[a-z]*[\s\-\/]*(\d{4})/i); if(tm&&MON[tm[1].toLowerCase()]){titleYM=tm[2]+'-'+MON[tm[1].toLowerCase()];break;} }
+  var skippedBad=[], skippedStale=[];
   for(var i=start;i<rows.length;i++){
     var row=rows[i]||[];
     var nm=cs(row[M.cName]);
     if(/^(total|合計|approved by|check by|prepared by|hr manager)$/i.test(nm))continue;  /* 跳過 Total / 簽核列 */
     var empId=empIdOf(row[M.cId]); if(!empId)continue;                                   /* 跳過 #N/A、空白、非數字 */
     var dt=M.cDate>=0?xdate(row[M.cDate]):'';
+    if(!nm||/^#(ref|n\/a|value)/i.test(nm)){ skippedBad.push(empId); continue; }
+    if(titleYM&&dt&&dt.slice(0,7)!==titleYM){ skippedStale.push(empId+' '+nm+' ('+dt+')'); continue; }
     var rmk=M.cRmk>=0?cs(row[M.cRmk]):'';
     var isResign = !rmk || /resign|辭|離職/i.test(rmk);
     out.push({ _k:'S|'+empId+'|'+(dt||'-'), id:'s_'+uid(), empId:empId, name:nm,
@@ -1205,9 +1212,66 @@ function parseSettleSheet(rows,sheetName){
       remarks:rmk, position:M.cPos>=0?cs(row[M.cPos]):'', dept:M.cDept>=0?cs(row[M.cDept]):'',
       isResign:isResign, matchedTo:'', srcSheet:sheetName });
   }
+  if(skippedBad.length) warn.push('['+sheetName+'] '+L('略過無姓名／#REF! 列','skipped rows with no name / #REF!')+'：'+skippedBad.join(', '));
+  if(skippedStale.length) warn.push('['+sheetName+'] '+L('略過非本月（'+titleYM+'）的舊區塊','skipped stale blocks outside '+titleYM)+'：'+skippedStale.join('、'));
   if(!out.length) warn.push('['+sheetName+'] '+L('認得表頭但沒有讀到任何有效工號列','header found but no valid ID rows'));
   return {rows:out,warn:warn};
 }
+
+/* ═══════════ v73: 結算工作簿的「月薪明細」分頁（Oct／Sep…）═══════════
+   Summery 只有總額。每個人的計算都在月份分頁的區塊裡：
+     表頭列（有 Grand Total）→ 到職日列（ថ្ងៃចូលធ្វើការ）→ 第 1 列（工號／高棉名／性別／底薪／標準天）
+     → 第 2 列（英文名／實際天／Salary Pay／Meal／Annual pay／預支／交通／全勤／OT／小計／NSSF／稅／Grand Total）
+     → 下方「The Salary … Average =」平均薪資。
+   讀出來後逐筆重算，和 Grand Total 對得上才標 verified，核可卡片才能寫「金額已核算正確」。 */
+function parseSettleDetailSheet(rows,sheetName){
+  var out={}, n=rows.length;
+  function num(v){ return (v===null||v===undefined||v==='')?null:(isFinite(+v)?+v:N(v)); }
+  function H(row){ return hdrMap(row); }
+  for(var i=0;i<n;i++){
+    var hdr=H(rows[i]||[]);
+    var cGrand=cIdx(hdr,/grand\s*total/); if(cGrand<0)continue;
+    var cId=cIdx(hdr,/^id$/,/^id\b/), cName=cIdx(hdr,/នាម|name/), cSex=cIdx(hdr,/ភេទ|^sex$|gender/),
+        cBasic=cIdx(hdr,/ប្រាក់ប្រចាំខែ|basic/), cWd=cIdx(hdr,/working\s*day/), cPay=cIdx(hdr,/salary\s*pay/), cMeal=cIdx(hdr,/meal/),
+        cAnnDay=cIdx(hdr,/annual\s*day/), cAnnPay=cIdx(hdr,/annual\s*pay/), cAdv=cIdx(hdr,/ប្រាក់បុរេប្រទាន|advance/),
+        cTravel=cIdx(hdr,/travel/), cAtt=cIdx(hdr,/attend/), cNight=cIdx(hdr,/night\s*shift\s*work/), cHoli=cIdx(hdr,/holiday\s*work/),
+        cOtTot=cIdx(hdr,/total\s*work\s*overtime/), cGood=cIdx(hdr,/good\s*working/), cNoOt=cIdx(hdr,/total\s*without\s*ot/),
+        cNssf=cIdx(hdr,/បង់វិភាគទាន|nssf|ប ស ស/), cTax=cIdx(hdr,/salary\s*tax/), cLeave=cIdx(hdr,/take\s*leave/), cAbs=cIdx(hdr,/absent/);
+    if(cId<0||cPay<0)continue;
+    var r1=rows[i+2]||[], r2=rows[i+3]||[], jr=rows[i+1]||[];
+    var empId=empIdOf(r1[cId]); if(!empId){ r1=rows[i+1]||[]; r2=rows[i+2]||[]; jr=[]; empId=empIdOf(r1[cId]); if(!empId)continue; }
+    var joinDate=''; for(var c=0;c<Math.min(jr.length,8);c++){ var d=xdate(jr[c]); if(d){joinDate=d;break;} }
+    var sexRaw=cs(r1[cSex]).toLowerCase(), gender=/^(ស|s|f|female|ស្រី)/.test(sexRaw)?'F':(/^(ប|b|m|male|ប្រុស)/.test(sexRaw)?'M':'');
+    var d={ sheet:sheetName, joinDate:joinDate, nameKh:cs(r1[cName]), nameEn:cs(r2[cName]), gender:gender,
+      basic:num(r1[cBasic]), stdDays:num(r1[cWd]), workDays:num(r2[cWd]), salaryPay:num(r2[cPay]), meal:num(r2[cMeal]),
+      annualBalance:num(r1[cAnnDay]), annualUsed:cAnnDay>=0?num(r1[cAnnDay+1]):null, annualDays:num(r2[cAnnDay]), annualPay:num(r2[cAnnPay]),
+      advance:num(r2[cAdv]), travel:num(r2[cTravel]), attBonus:num(r2[cAtt]), nightShift:num(r2[cNight]), holiday:num(r2[cHoli]),
+      otTotal:num(r2[cOtTot]), goodWorking:num(r2[cGood]), totalNoOt:num(r2[cNoOt]), nssf:num(r2[cNssf]), tax:num(r2[cTax]),
+      leave:num(r2[cLeave]), absent:num(r2[cAbs]), grandTotal:num(r2[cGrand]), avgSalary:null, tenure:'', probation:'' };
+    /* 右側延伸欄：年資文字、試用結果 */
+    r2.forEach(function(v){ var s=cs(v); if(/\d+\s*years?\s*\d+\s*months?\s*\d+\s*days?/i.test(s))d.tenure=s; else if(/^(pass|fail)/i.test(s))d.probation=s; });
+    /* 下方「Average =」 */
+    for(var k=i+4;k<Math.min(n,i+24);k++){ var rk=rows[k]||[]; var hk=H(rk); if(cIdx(hk,/grand\s*total/)>=0)break; var ai=hk.indexOf('average'); if(ai>=0){ for(var c2=ai+1;c2<rk.length;c2++){ if(rk[c2]!==null&&rk[c2]!==''&&isFinite(+rk[c2])){d.avgSalary=+rk[c2];break;} } break; } }
+    /* 重算：薪資＋餐費＋年假＋交通＋全勤＋夜班＋假日＋OT＋good working ＝ 小計；小計 − 預支 ＋ NSSF（負數）− 稅 ＝ 應付 */
+    var plus=[d.salaryPay,d.meal,d.annualPay,d.travel,d.attBonus,d.nightShift,d.holiday,d.otTotal,d.goodWorking].map(function(v){return +v||0;});
+    var gross=plus.reduce(function(a,b){return a+b;},0);
+    var ded=(+d.advance||0)+Math.abs(+d.leave||0)+Math.abs(+d.absent||0);
+    var nssf=+d.nssf||0, tax=+d.tax||0;
+    var net=gross-ded+(nssf<0?nssf:-nssf)-Math.abs(tax);
+    d.recomputed=Math.round(net*100)/100;
+    d.verified=(d.grandTotal!==null&&Math.abs(d.recomputed-d.grandTotal)<=0.05)&&(d.totalNoOt===null||Math.abs((gross-(+d.otTotal||0)-(+d.goodWorking||0))-d.totalNoOt)<=0.05);
+    var f=function(v){return (Math.round((+v||0)*100)/100).toString();};
+    var parts=[f(d.salaryPay)]; if(d.meal)parts.push(f(d.meal)+' '+L('餐','meal','អាហារ')); if(d.annualPay)parts.push(f(d.annualPay)+' '+L('年假','AL','ឈប់')+(d.annualDays?' '+f(d.annualDays)+'d':'')); if(d.travel)parts.push(f(d.travel)+' '+L('交通','travel','ធ្វើដំណើរ')); if(d.attBonus)parts.push(f(d.attBonus)+' '+L('全勤','attend.','វត្តមាន')); if(d.otTotal)parts.push(f(d.otTotal)+' OT'); if(d.nightShift)parts.push(f(d.nightShift)+' '+L('夜班','night','យប់')); if(d.holiday)parts.push(f(d.holiday)+' '+L('假日','holiday','បុណ្យ'));
+    var calc=parts.join(' + ')+' = '+f(gross); if(d.advance)calc+=' − '+f(d.advance)+' '+L('預支','advance','បុរេប្រទាន'); if(nssf)calc+=' − '+f(Math.abs(nssf))+' NSSF'; if(tax)calc+=' − '+f(Math.abs(tax))+' '+L('稅','tax','ពន្ធ'); if(d.leave||d.absent)calc+=' − '+f(Math.abs(+d.leave||0)+Math.abs(+d.absent||0))+' '+L('缺勤','absent','អវត្តមាន');
+    calc+=' = '+f(d.recomputed)+(d.verified?' ✔':' ≠ '+f(d.grandTotal));
+    if(d.workDays!==null&&d.stdDays!==null)calc+=' · '+f(d.workDays)+'/'+f(d.stdDays)+'d';
+    if(d.avgSalary!==null)calc+=' · '+L('平均','avg','មធ្យម')+' '+f(d.avgSalary);
+    d.calc=calc;
+    out[empId]=d;
+  }
+  return out;
+}
+
 /* 欄索引 → Excel 欄名（給匯入報告看的） */
 function colL(n){
   if(n<0||n==null) return '?';
@@ -1269,6 +1333,24 @@ function mergeInto(target,incoming){
   return { arr:order.map(function(k){return map[k];}), added:added, updated:updated, dupEvent:dupEvent };
 }
 
+function fillFromJoin(r){
+  try{
+    var js=(typeof JOINS!=='undefined'?JOINS:[]).filter(function(j){return String(j.empId||'')===String(r.empId||'')&&(!r.resignDate||String(j.joinDate||'')<=String(r.resignDate||''));}).sort(function(a,b){return String(b.joinDate||'').localeCompare(String(a.joinDate||''));});
+    var j=js[0];
+    if(j){
+      if(!r.position&&j.position)r.position=j.position;
+      if(!r.joinDate&&j.joinDate)r.joinDate=j.joinDate;
+      if(!r.gender&&j.gender)r.gender=j.gender;
+      if(!r.dob&&j.dob)r.dob=j.dob;
+      if((!r.age||r.age==='')&&j.age)r.age=j.age;
+      if((!r.section||r.section===r.dept)&&j.section)r.section=j.section;
+    }
+  }catch(e){}
+  try{ if(!(+r.workingDays>0)&&r.joinDate&&r.resignDate){ var dd=dayDiff(r.joinDate,r.resignDate); if(dd>0)r.workingDays=dd; } }catch(e){}
+  /* 結算單只給線別時，用線別推職稱（車縫線 → 車工、QC → 檢驗員） */
+  if(!r.position&&r.section){ if(/sewing\s*line|^line\s*\d/i.test(r.section))r.position='Sewing Operator'; else if(/^qc\b/i.test(r.section))r.position='QC Inspector'; else if(/cutting/i.test(r.section))r.position='Cutter'; else if(/packing/i.test(r.section))r.position='Packing Worker'; }
+}
+function isLineLike(v){ return /\bline\b|^qc\b|^cutting|^packing|^warehouse|^sewing\s*line|^finishing|^training/i.test(String(v||'').trim()); }
 /* ═══════════ ③ 結算單 → 離職記錄 合併（不新增第二筆） ═══════════ */
 function attachSettlements(resigns,setts){
   var merged=0, created=0, settleOnly=0, farMatch=[];
@@ -1292,8 +1374,15 @@ function attachSettlements(resigns,setts){
       best.amount=s.amount; best.settleSalary=s.settleSalary; best.meals=s.meals;
       best.annualLeave=s.annualLeave; best.transport=s.transport;
       best.settleDate=s.settleDate; best.settleRemarks=s.remarks;
-      if(!best.position&&s.position)best.position=s.position;
-      if(!best.dept&&s.dept){best.dept=s.dept;best.section=s.dept;}
+      /* v73: Summery 的 Position 欄其實多半是線別（Sewing Line 5 / QC A）→ 放組別，不當職稱 */
+      if(s.position){ if(isLineLike(s.position)){ if(!best.section||best.section===best.dept)best.section=s.position; } else if(!best.position)best.position=s.position; }
+      if(!best.dept&&s.dept){best.dept=s.dept;if(!best.section)best.section=s.dept;}
+      if(!best.joinDate&&s.joinDate)best.joinDate=s.joinDate;
+      if(!best.gender&&s.gender)best.gender=s.gender;
+      if(s.detail){ best.settleDetail=s.detail; best.settleCalc=s.calc||''; best.settleVerified=!!s.verified; }
+      /* 舊資料：職稱欄曾被填成線別 → 搬到組別；職稱、到職日、性別、生日再從入職紀錄補 */
+      if(isLineLike(best.position)){ if(!best.section||best.section===best.dept)best.section=best.position; best.position=''; }
+      fillFromJoin(best);
       best.hasSettlement=true;
       s.matchedTo=best._k; s.matchedDate=best.resignDate||''; s.matchGap=bd; merged++;
       /* ★ 結算日與離職日差太多 → 記下來，匯入報告要講，不能默默吃掉 */
@@ -1302,9 +1391,10 @@ function attachSettlements(resigns,setts){
       if(bd>0) farMatch.push({id:s.empId,name:s.name,settle:s.settleDate,resign:best.resignDate,gap:bd});
     }else if(s.isResign){
       var nr={ _k:'R|'+s.empId, id:'r_'+uid(), empId:s.empId, name:s.name,
-        resignDate:s.settleDate||'', joinDate:'',
-        dept:s.dept||'', section:s.dept||'', position:s.position||'',
-        gender:'', dob:'', age:'',
+        resignDate:s.settleDate||'', joinDate:s.joinDate||'',
+        dept:s.dept||'', section:(s.position&&isLineLike(s.position))?s.position:(s.dept||''), position:(s.position&&!isLineLike(s.position))?s.position:'',
+        gender:s.gender||'', dob:'', age:'',
+        settleDetail:s.detail||null, settleCalc:s.calc||'', settleVerified:!!s.verified,
         resignType:'resign', workingDays:0,
         reasonCat:reasonCatOf(s.remarks), reason:s.remarks||'',
         remark:'', amount:s.amount, settleSalary:s.settleSalary, meals:s.meals,
@@ -1312,6 +1402,7 @@ function attachSettlements(resigns,setts){
         settleDate:s.settleDate, settleRemarks:s.remarks, hasSettlement:true,
         source:'settlement', srcSheet:s.srcSheet };
       if(!nr.resignDate){ s.matchedTo=''; settleOnly++; return; }
+      fillFromJoin(nr);
       var res=mergeInto(resigns,[nr]);
       resigns.length=0; Array.prototype.push.apply(resigns,res.arr);
       byId={}; resigns.forEach(function(r){ (byId[r.empId]=byId[r.empId]||[]).push(r); });
@@ -1379,13 +1470,22 @@ function readOne(file){
           detail.push(L('入職','Join')+' '+inJ.length+' ('+L('新增','new')+' '+mj.added+' / '+L('更新','upd')+' '+mj.updated+')');
           detail.push(L('離職','Resign')+' '+inR.length+' ('+L('新增','new')+' '+mr.added+' / '+L('更新','upd')+' '+mr.updated+')');
         }else{
-          var inS=[];
+          var inS=[], detailMap={};
           wb.SheetNames.forEach(function(sn){
-            if(!/^summ?ery$|^summary$/i.test(sn))return;   /* 只讀 Summery，其餘薪資考勤雜訊忽略 */
+            var isSum=/^summ?ery$|^summary$/i.test(sn);
+            /* v73: Summery 給總額；月份分頁（Oct／Sep…）給到職日、性別與逐項計算。Attendance／Special OT 等大分頁跳過。 */
+            if(!isSum&&!/^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|sheet\d*|\d{1,2}月|salary|payroll)/i.test(sn))return;
             var rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null,raw:true});
-            var a=parseSettleSheet(rows,sn); inS=inS.concat(a.rows); warns=warns.concat(a.warn);
+            if(isSum){ var a=parseSettleSheet(rows,sn); inS=inS.concat(a.rows); warns=warns.concat(a.warn); }
+            else { try{ var dm=parseSettleDetailSheet(rows,sn); Object.keys(dm).forEach(function(k){ if(!detailMap[k])detailMap[k]=dm[k]; }); }catch(e){ console.warn('[settle detail]',sn,e); } }
           });
-          inS.forEach(function(r){r.source='excel';r.sourceFile=file.name;r.importedAt=nowStamp();});
+          var nDetail=0, nVerified=0;
+          inS.forEach(function(r){r.source='excel';r.sourceFile=file.name;r.importedAt=nowStamp();
+            var d=detailMap[r.empId]; if(!d)return; nDetail++;
+            r.joinDate=d.joinDate||''; r.gender=d.gender||''; r.detail=d; r.calc=d.calc; r.verified=!!d.verified; if(d.verified)nVerified++;
+            if(d.grandTotal!==null&&r.amount&&Math.abs(d.grandTotal-r.amount)>0.05){ r.verified=false; r.calc+=' · '+L('Summery 金額 ','Summery amount ')+r.amount+' ≠ '+d.grandTotal; }
+          });
+          if(inS.length)detail.push('🧮 '+L('月份分頁明細','Payroll detail')+' '+nDetail+'/'+inS.length+' · '+L('重算吻合','recomputed OK')+' '+nVerified+(nDetail>nVerified?' · ⚠️ '+L('不符','mismatch')+' '+(nDetail-nVerified):''));
           var ms=mergeInto(SETTLES,inS); SETTLES=ms.arr;
           var at=attachSettlements(RESIGNS,inS);
           ns=inS.length;
@@ -1775,7 +1875,7 @@ function renderResign(){
       '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
     if(!rows.length)h+='<tr><td colspan="14" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
     rows.forEach(function(r){
-      var amt=r.hasSettlement?('💵 '+fmt(r.amount)):'<span class="text-slate-300">—</span>';
+      var amt=r.hasSettlement?('<span title="'+esc(r.settleCalc||'')+'">💵 '+fmt(r.amount)+(r.settleVerified===true?' <span class="text-emerald-600" title="'+esc(r.settleCalc||'')+'">✔</span>':(r.settleCalc?' <span class="text-rose-600">❗</span>':''))+'</span>'):'<span class="text-slate-300">—</span>';
       var rea=r.reasonCat?('<span class="pill bg-slate-100 text-slate-600">'+esc(L(REASON_ZH[r.reasonCat]||r.reasonCat,r.reasonCat))+'</span> <span class="text-slate-400 text-[10px]">'+esc(r.reason||'')+'</span>')
                          :esc(r.reason||'—');
       h+='<tr><td class="jmono">'+esc(r.empId)+(r.source==='settlement'?' <span class="pill bg-amber-50 text-amber-700">S</span>':'')+'</td>'+
@@ -2320,6 +2420,8 @@ function buildApprovalItems(p,scope){
             +(r.settleDate&&String(r.settleDate).slice(0,10)!==String(r.resignDate).slice(0,10)
               ?(' · '+L('結算 Settled ','Settled ')+String(r.settleDate).slice(0,10)):'')),
       reason:r.reasonCat||r.reason, amount:+r.amount||0,
+      /* v73: 結算金額逐筆重算結果，群組卡片據此寫「金額已核算正確」 */
+      verified:(+r.amount>0)?!!r.settleVerified:undefined, calc:r.settleCalc||'',
       decision:x.d||'',note:x.note||''});
   });
   if(scope!=='resign') d.J.forEach(function(r){
