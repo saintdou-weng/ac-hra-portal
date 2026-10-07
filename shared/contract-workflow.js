@@ -1,4 +1,4 @@
-/* v74: selected Telegram requests, immutable revisions and deletion history. */
+/* v75: probation and contract approvals always sent as separate Telegram cards; items carry gender / age / salary and probation policy checks for the card statistics. Based on v74: selected Telegram requests, immutable revisions and deletion history. */
 var contractDeleteDuplicatePhysical = dbDel;
 var ContractWorkflow = (function () {
   'use strict';
@@ -97,6 +97,32 @@ var ContractWorkflow = (function () {
     const box=el('ctPicker');box.innerHTML='';modal.candidates.forEach(x=>{const label=document.createElement('label');label.className='ct-pick';const input=document.createElement('input');input.type='checkbox';input.disabled=!x.state.ok||busy;input.checked=modal.chosen.has(x.token)&&x.state.ok;input.onchange=()=>{input.checked?modal.chosen.add(x.token):modal.chosen.delete(x.token);preview();};const span=document.createElement('span');span.textContent=(x.k==='prob'?'📝 ':'📄 ')+(x.r.factoryId||'—')+' · '+(M.name(x.r)||'—');const small=document.createElement('small');small.textContent=[x.r.dept||'—',dateFor(x)||'—',reason(x.state.reason)].join(' · ');span.appendChild(small);label.append(input,span);if(x.state.reason==='incomplete'||x.state.reason==='invalid_result'){const edit=document.createElement('button');edit.type='button';edit.className='btn ghost small';edit.textContent=L('補資料','Edit','កែ');edit.onclick=e=>{e.preventDefault();el('contractTelegramModal').classList.remove('show');modal=null;(x.k==='prob'?openDashProbModal:openDashContModal)(x.r.id);};label.appendChild(edit);}box.appendChild(label);});preview();
   }
   function chosen(){return (modal?.candidates||[]).filter(x=>x.state.ok&&modal.chosen.has(x.token));}
+  /* v75: 核可卡片統計用的人員資料——性別／年齡（員工主檔、入職名單）、薪資（員工主檔），以及試用期規範檢查 */
+  function profileFor(code){
+    code=String(code||'').replace(/\s+/g,'');if(!code)return {};
+    const same=v=>String(v||'').replace(/\s+/g,'')===code||String(v||'').replace(/^0+(?=\d)/,'').replace(/\s+/g,'')===code.replace(/^0+(?=\d)/,'');
+    const emp=(typeof EMPLOYEES!=='undefined'?EMPLOYEES:[]).find(e=>[e.factoryId,e.vrtCode,e.idNo,e.employeeId,e.idNumber].some(same))||null;
+    let join=null;try{join=(JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[]).filter(r=>[r.empId,r.factoryId,r.vrtCode,r.idNo,r.employeeId].some(same)).sort((a,b)=>String(b.joinDate||'').localeCompare(String(a.joinDate||'')))[0]||null;}catch(_){}
+    const birth=(emp&&emp.birthDate)||(join&&(join.dob||join.birthDate))||'';
+    let age=Number(join&&join.age)||0;
+    if(!age&&/^\d{4}-\d{2}-\d{2}/.test(birth)){const b=new Date(birth),n=new Date();age=n.getFullYear()-b.getFullYear()-((n.getMonth()<b.getMonth()||(n.getMonth()===b.getMonth()&&n.getDate()<b.getDate()))?1:0);}
+    const gender=String((emp&&emp.gender)||(join&&join.gender)||'').trim().charAt(0).toUpperCase();
+    return {emp,join,gender:/^[MF]$/.test(gender)?gender:'',age:age>=15&&age<=70?age:'',salary:Number(emp&&emp.salary)||Number(join&&(join.salary||join.basicSalary))||0};
+  }
+  function enrich(d){
+    const s=d.after||{},p=profileFor(s.employeeId),out={gender:p.gender,age:p.age,salary:p.salary};
+    if(d.kind==='prob'&&!s.deleted){
+      const rec={position:s.position,positionCategory:p.emp&&p.emp.positionCategory},category=typeof lifePosCategory==='function'?lifePosCategory(p.emp,rec):'worker';
+      const months=typeof getProbationMonthsFor==='function'?getProbationMonthsFor(category):0,expected=months&&s.joinDate&&typeof addMonths==='function'?addMonths(s.joinDate,months):'';
+      const diff=expected&&s.endDate?Math.abs(Math.round((new Date(s.endDate)-new Date(expected))/86400000)):null;
+      const decided=/^(passed|failed)$/.test(s.result);
+      out.check={policyMonths:months,category:{worker:'普工',technical:'技術',management:'管理'}[category]||category,expectedEnd:expected,
+        endOk:diff===null?null:diff<=3,
+        evalOk:decided?!!(s.evaluationDate&&(s.score!==null&&s.score!==undefined&&s.score!==''||s.evaluator)):null,
+        note:expected&&diff!==null&&diff>3?'到期應為 '+expected:''};
+    }
+    return out;
+  }
   function requestFor(x){
     const type=el('ctType').value,period=type==='all'||type==='selected'?'ALL':el('ctPeriod').value;
     let st=null;
@@ -108,7 +134,7 @@ var ContractWorkflow = (function () {
     if(!modal)return;const list=chosen(),lang=el('ctLang').value,mode=el('ctMode').value;
     el('ctCounts').textContent=L('選取','Selected','បានជ្រើស')+' '+list.length+' / '+modal.candidates.length+' · '+L('已略過','Excluded','បានរំលង')+' '+modal.candidates.filter(x=>!x.state.ok).length;
     const requests=list.map(requestFor),lines=M.summaryHeader(requests,requests[0]?.period||el('ctPeriod').value,lang);
-    if(mode==='approval')lines[0]=M.l(lang,'試用期／合約核可','Probation / Contract Approval','អនុម័តសាកល្បង / កិច្ចសន្យា');
+    if(mode==='approval'){const hasP=requests.some(d=>d.kind==='prob'),hasC=requests.some(d=>d.kind!=='prob');lines[0]=hasP&&hasC?M.l(lang,'試用期核可＋合約核可（分兩張卡片送出）','Probation Approval + Contract Approval (sent as two cards)','អនុម័តសាកល្បង + កិច្ចសន្យា (ពីរកាត)'):hasC?M.l(lang,'合約核可','Contract Approval','អនុម័តកិច្ចសន្យា'):M.l(lang,'試用期核可','Probation Approval','អនុម័តសាកល្បង');}
     lines.push(L('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកត្រួតពិនិត្យ')+'：'+(el('ctActor').value.trim()||'—'));
     list.forEach((x,i)=>{const d=requestFor(x);lines.push('\n#'+(i+1)+' '+(x.k==='prob'?M.l(lang,'試用期','Probation','សាកល្បង'):M.l(lang,'合約','Contract','កិច្ចសន្យា')));M.pairs(d,lang).forEach(p=>lines.push(p.join('：')));});
     el('ctValidation').textContent=!list.length?L('沒有可發送的項目：請查看下方原因，或匯入最新 Excel 補齊姓名。','No eligible items. Check the reasons or import the latest Excel to complete names.','គ្មានធាតុផ្ញើ។ ពិនិត្យមូលហេតុ ឬនាំចូល Excel ដើម្បីបំពេញឈ្មោះ។'):!el('ctActor').value.trim()?L('請填寫申請人／檢查人後送出。','Enter the applicant / inspector to send.','បំពេញអ្នកស្នើ / អ្នកត្រួតពិនិត្យដើម្បីផ្ញើ។'):L('可發送 '+list.length+' 筆','Ready to send '+list.length+' records','អាចផ្ញើ '+list.length+' កំណត់ត្រា');
@@ -150,11 +176,19 @@ var ContractWorkflow = (function () {
     try{
       await capabilities();
       if(mode==='approval'){
-        const items=docs.map(d=>({key:d.key,empId:d.after.employeeId,name:d.after.name,dept:d.after.department,group:d.after.section,position:d.after.position,period:d.period,kind:d.kind==='prob'?'probation':'contract_record',amount:d.settlement&&d.settlement.netPay!=null?Number(d.settlement.netPay):0,contractRequest:d}));
-        const result=await contractGasPost({action:'approvalRequest',module:'contract',scope:el('ctScope').value,contractSchema:73,period,title:M.l(lang,'試用期／合約確認','Probation / Contract Review','ពិនិត្យសាកល្បង / កិច្ចសន្យា'),route:'review',lang,items,inspector:actor,requestedBy:actor,idempotencyKey:'ct73-'+M.hash(items.map(x=>x.key).sort()),batch:'CT73-'+M.hash(items.map(x=>x.key).sort())});
-        if(!result.messageId&&!result.alreadyDecided&&!result.closed)throw new Error(L('Telegram 尚未確認送達，請重試','Telegram delivery not confirmed; retry','Telegram មិនទាន់បញ្ជាក់ការផ្ញើ; សូមព្យាយាមម្ដងទៀត'));
-        for(const d of docs){const state=(result.itemStates||{})[d.key];if(state)await receipt(d,mode,state);}
-        el('ctResult').textContent=result.alreadyDecided?L('所選版本已結案，沒有重送','Selected versions already completed; no resend','កំណែដែលជ្រើសបានបញ្ចប់; មិនផ្ញើឡើងវិញ'):L('核可請求已送達；待審查／核可','Approval request delivered; awaiting review / approval','បានផ្ញើសំណើ; រង់ចាំពិនិត្យ / អនុម័ត');
+        /* v75: 試用期與合約永遠分開送核（兩張卡片），每筆附性別／年齡／薪資與試用期規範檢查 */
+        const groups=[['prob',docs.filter(d=>d.kind==='prob')],['cont',docs.filter(d=>d.kind!=='prob')]].filter(g=>g[1].length),notes=[];
+        for(const [gk,gdocs] of groups){
+          const items=gdocs.map(d=>Object.assign({key:d.key,empId:d.after.employeeId,name:d.after.name,dept:d.after.department,group:d.after.section,position:d.after.position,period:d.period,kind:d.kind==='prob'?'probation':'contract_record',amount:d.settlement&&d.settlement.netPay!=null?Number(d.settlement.netPay):0,contractRequest:d},enrich(d)));
+          const sig=M.hash(items.map(x=>x.key).sort()),title=gk==='prob'?M.l(lang,'試用期核可','Probation Approval','អនុម័តសាកល្បង'):M.l(lang,'合約核可','Contract Approval','អនុម័តកិច្ចសន្យា');
+          el('ctResult').textContent=L('正在發送','Sending','កំពុងផ្ញើ')+' '+title+' · '+items.length;
+          const result=await contractGasPost({action:'approvalRequest',module:'contract',scope:gk==='prob'?'probation':'contract',contractSchema:73,period,title,route:'review',lang,items,inspector:actor,requestedBy:actor,idempotencyKey:'ct75-'+gk+'-'+sig,batch:(gk==='prob'?'PB75-':'CT75-')+sig});
+          if(!result.messageId&&!result.alreadyDecided&&!result.closed)throw new Error(title+'：'+L('Telegram 尚未確認送達，請重試','Telegram delivery not confirmed; retry','Telegram មិនទាន់បញ្ជាក់ការផ្ញើ; សូមព្យាយាមម្ដងទៀត'));
+          for(const d of gdocs){const state=(result.itemStates||{})[d.key];if(state)await receipt(d,mode,state);}
+          notes.push(title+' '+items.length+'：'+(result.alreadyDecided?L('已結案，沒有重送','already completed; no resend','បានបញ្ចប់'):result.reused?L('已在待核，原訊息已刷新','already pending; message refreshed','កំពុងរង់ចាំ'):L('已送達，待審查／核可','delivered; awaiting review / approval','បានផ្ញើ; រង់ចាំអនុម័ត')));
+          if(groups.length>1)await new Promise(resolve=>setTimeout(resolve,900));
+        }
+        el('ctResult').textContent=notes.join('　');
       }else{
         const key='summary-'+M.hash([docs.map(d=>d.key).sort(),lang,actor]),saved=JSON.parse(localStorage.getItem(OUTBOX)||'{}');
         let job=saved[key];
