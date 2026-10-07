@@ -424,6 +424,9 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="field"><label data-i18n="language">語言</label><select id="tgLang" onchange="refreshTgPreview()"><option value="zh" data-i18n="chinese">中文</option><option value="en" data-i18n="english">English</option><option value="both" data-i18n="bilingual">中英雙語</option><option value="all3" data-i18n="trilingual">中英柬三語</option></select></div>
         <div class="field"><label data-i18n="recipient">核可者 ID</label><input id="tgRecipient" value="5026942575" readonly></div>
         <div class="field"><label>發送人 / Applicant · Inspector</label><input id="tgActor" placeholder="Phary / HRA" oninput="localStorage.setItem('ac_hra_cert_tg_actor',this.value);refreshTgPreview()"></div>
+        <div class="field full" id="tgApprovalHelp" style="display:none"><div class="notice">✅ 核可申請：勾選表格項目 → 填原因 → 送出，直接到 Paul 的群組卡片核可，不必先建申請單。提早、延後或補申請都可以，寫清楚原因即可。<br>Approval: tick rows → reason → send. Goes straight to Paul; early, late or catch-up requests are all fine — just state the reason.</div></div>
+        <div class="field" id="tgReasonField" style="display:none"><label>申請原因 / Reason</label><div style="display:flex;gap:6px"><select id="tgReasonPick" onchange="if(this.value){document.getElementById('tgReason').value=this.value;refreshTgPreview()}" style="max-width:46%"><option value="">— 快選 —</option><option value="到期續期 Renewal before expiry">到期續期 Renewal</option><option value="提前申請（避開假期／流程長） Early renewal">提前申請 Early</option><option value="延後申請（補辦） Late / catch-up">延後補辦 Late</option><option value="新辦 New application">新辦 New</option><option value="資料變更重辦 Re-issue after change">變更重辦 Re-issue</option></select><input id="tgReason" placeholder="例：11/1 開始辦，避開年底假期" oninput="refreshTgPreview()"></div></div>
+        <div class="field" id="tgTargetField" style="display:none"><label>預計辦理日 / Target date</label><input type="date" id="tgTarget" onchange="refreshTgPreview()"></div>
         <div class="field full"><label>發送範圍 / Scope / វិសាលភាព</label><select id="tgScope" onchange="refreshTgPreview()"><option value="period">期間到期／提醒 · Due in period</option><option value="selected">表格所選項目 · Selected rows</option><option value="list">當月清單（不限到期日） · Month list (any expiry)</option></select></div>
         <div class="field full"><label>選取項目 / Select items / ជ្រើសធាតុ</label><div id="tgRecords" class="cv-picks"></div></div>
         <div class="field full"><label>隨附照片／PDF / Photos &amp; PDFs / រូបភាព និង PDF</label><p id="tgFileHelp" class="hint"></p><div id="tgFiles" class="cv-picks"></div><p id="tgSelectionCount" class="cv-selection" role="status"></p></div>
@@ -937,7 +940,29 @@ function buildTgText(){
   if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+one('km');
   return one(lang)
 }
-function refreshTgPreview(){CertificateEvidence.renderPicker();document.getElementById('tgPreview').textContent=buildTgText()}
+function refreshTgPreview(){const appr=val('tgType')==='approval';['tgApprovalHelp','tgReasonField','tgTargetField'].forEach(id=>{const e=document.getElementById(id);if(e)e.style.display=appr?'':'none'});CertificateEvidence.renderPicker();document.getElementById('tgPreview').textContent=buildTgText()}
+/* v73: 一步送核 — 沒有既有申請單時，直接用表格勾選的項目（或範圍內的項目）組一張申請單 */
+function quickRequestCandidates(){
+  const month=certificateViewMonth(),scope=val('tgScope')||'selected',out=[];
+  const certs=certificatesForMonth(),people=peopleForMonth();
+  if(scope==='selected'||selectedCerts.size||selectedPeople.size){
+    certs.filter(r=>selectedCerts.has(r.id)).forEach(r=>out.push({kind:'certificate',id:r.id,name:r.name}));
+    people.filter(r=>selectedPeople.has(r.id)).forEach(r=>out.push({kind:'person',id:r.id,name:[r.nickname,r.nameEn].filter(Boolean).join(' / ')}));
+  }else{
+    eventsForMode(val('tgPeriod')||PERIOD_MODE).forEach(e=>{const kind=e.kind==='certificate'?'certificate':'person';if(!out.some(x=>x.id===e.recordId))out.push({kind,id:e.recordId,name:e.name||e.title||''})});
+  }
+  return out;
+}
+function buildQuickRequest(actor,dry){
+  const picks=quickRequestCandidates();if(!picks.length)return null;
+  const due=val('tgTarget')||'',reason=val('tgReason')||'';
+  const items=picks.map(x=>{try{return certificateRequestItem(x,due||undefined,x.kind==='person'?'visa':'certificate')}catch(e){console.warn(e);return null}}).filter(Boolean);
+  if(!items.length)return null;
+  const r={id:uid('req'),number:dry?'(auto)':nextRequestNo(),createdAt:new Date().toISOString(),opinion:'',reviewerTelegramId:STATE.settings.approverTelegramId,
+    title:(certificateL(LANG,'證件申請','Document request','សំណើឯកសារ'))+' · '+items.map(i=>i.name).slice(0,3).join('、')+(items.length>3?' +'+(items.length-3):''),
+    type:/新辦|new/i.test(reason)?'new':'renewal',applicant:actor||val('tgActor')||'',dueDate:due,cost:items.reduce((s,i)=>s+(Number(i.documentRequest?.amount)||0),0),status:'pending',period:certificateViewMonth(),remark:reason,items,updatedAt:new Date().toISOString(),quick:true};
+  return r;
+}
 function openTelegram(type='summary'){
   document.getElementById('tgDeliveryStatus').textContent='';setVal('tgActor',localStorage.getItem('ac_hra_cert_tg_actor')||'');setVal('tgType',type);setVal('tgPeriod',PERIOD_MODE);setVal('tgRecipient',STATE.settings.approverTelegramId||'5026942575');setVal('tgLang',type==='reminder'?'all3':'both');CertificateEvidence.resetPicker();refreshTgPreview();openModal('telegramModal')
 }

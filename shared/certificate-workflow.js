@@ -73,7 +73,7 @@ function certificateApprovalPayload(r,actor,lang){
     return {key:i.approvalKey,name:d.name,empId:d.employeeId,dept:d.category,amount:d.costIsRate?0:Number(d.amount)||0,kind:d.documentType,period:r.period||d.effectiveMonth,info:r.remark||'',documentRequest:JSON.parse(JSON.stringify(d))};
   });
   const signature=HRACertificateModel.hash(items),period=r.period||items[0].documentRequest.effectiveMonth;
-  return {action:'approvalRequest',module:'certificate_visa',tool:'certificate_visa',scope:'document_request',reportKind:'certificate_request',schemaVersion:3,batch:'CV-'+period.replace('-','')+'-'+HRACertificateModel.hash(r.id)+'-'+signature,period,lang:lang||'both',route:'review',title:r.title,items,inspector:actor||r.applicant,checker:actor||r.applicant,requestedBy:r.applicant,idempotencyKey:'certificate-request|'+r.id+'|'+signature,attachments:items.flatMap(i=>(i.documentRequest.evidence||[]).map(a=>({...a,fileName:a.originalName||a.fileName||a.name,label:i.documentRequest.name,recordKey:i.documentRequest.recordId})))};
+  return {action:'approvalRequest',module:'certificate_visa',tool:'certificate_visa',scope:'document_request',reportKind:'certificate_request',schemaVersion:3,batch:'CV-'+period.replace('-','')+'-'+HRACertificateModel.hash(r.id)+'-'+signature,period,lang:lang||'both',route:'direct',/* v73: 證書／簽證由 Paul 直接核可，不經群組審查 */title:r.title,items,inspector:actor||r.applicant,checker:actor||r.applicant,requestedBy:r.applicant,idempotencyKey:'certificate-request|'+r.id+'|'+signature,attachments:items.flatMap(i=>(i.documentRequest.evidence||[]).map(a=>({...a,fileName:a.originalName||a.fileName||a.name,label:i.documentRequest.name,recordKey:i.documentRequest.recordId})))};
 }
 async function refreshCertificateApprovals(options={}){
   if(!gasUrl()||!STATE.requests.some(r=>r.batchId||r.items?.some(i=>i.approvalKey)))return false;
@@ -144,7 +144,12 @@ function tgSummaryText(lang,mode){
 function tgApprovalText(lang){
   const requests=CertificateEvidence.requests(),out=['✅ '+certificateL(lang,'證書／證件核可申請','Certificate / Document Approval','សំណើអនុម័តឯកសារ'),certificateL(lang,'資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth()];
   requests.forEach(r=>{out.push(r.number+' | '+r.title,certificateL(lang,'申請人','Applicant','អ្នកស្នើសុំ')+'：'+r.applicant);(r.items||[]).forEach(i=>{const d=i.documentRequest||{};out.push('• '+i.name,certificateL(lang,'到期日','Expiry','ផុតកំណត់')+'：'+(d.expiryDate||'—')+' | '+certificateL(lang,'續期日','Renewal','បន្តសុពលភាព')+'：'+(d.renewalDate||'—'),certificateL(lang,'費用／單位','Fee / basis','ថ្លៃ / ឯកតា')+'：'+(d.costText||'—'));});});
-  if(!requests.length)out.push(certificateL(lang,'請先勾選公司證書或外幹，儲存一筆「待核可」申請。','Select certificates or expats and save a pending request first.','សូមជ្រើសឯកសារ និងរក្សាទុកសំណើរង់ចាំអនុម័តជាមុន។'));
+  if(!requests.length){
+    const q=typeof buildQuickRequest==='function'?buildQuickRequest(val('tgActor'),true):null;
+    if(q){out.push(certificateL(lang,'（送出時自動建立申請單）','(request is created automatically on send)','(បង្កើតសំណើដោយស្វ័យប្រវត្តិ)'),q.title,certificateL(lang,'申請人','Applicant','អ្នកស្នើសុំ')+'：'+(q.applicant||'—')+(q.dueDate?' | '+certificateL(lang,'預計辦理','Target','កាលបរិច្ឆេទ')+'：'+q.dueDate:''),certificateL(lang,'原因','Reason','ហេតុផល')+'：'+(q.remark||'⚠️ '+certificateL(lang,'請填寫','required','ត្រូវការ')));
+      q.items.forEach(i=>{const d=i.documentRequest||{};out.push('• '+i.name,certificateL(lang,'到期日','Expiry','ផុតកំណត់')+'：'+(d.expiryDate||'—')+' | '+certificateL(lang,'續期日','Renewal','បន្តសុពលភាព')+'：'+(d.renewalDate||'—'),certificateL(lang,'費用／單位','Fee / basis','ថ្លៃ / ឯកតា')+'：'+(d.costText||'—'));});}
+    else out.push(certificateL(lang,'請先在表格勾選公司證書或外幹，再按「送出」。','Tick certificates or expats in the table, then Send.','សូមជ្រើសធាតុក្នុងតារាង រួចផ្ញើ។'));
+  }
   return out.join('\n');
 }
 function tgReminderText(lang){
@@ -158,9 +163,18 @@ async function sendCertificateTelegram(){
   if(certificateSendBusy)return;const actor=val('tgActor');if(!actor){toast(certificateL(LANG,'請填寫發送人／檢查人','Enter the sender / inspector'));return;}
   certificateSendBusy=true;document.getElementById('tgDeliveryStatus').textContent=certificateL(LANG,'正在發送…','Sending…','កំពុងផ្ញើ…');showLoading(tr('manualSend'));
   try{
-    const type=val('tgType'),lang=val('tgLang'),mode=val('tgPeriod');CertificateEvidence.assertSelection();
+    const type=val('tgType'),lang=val('tgLang'),mode=val('tgPeriod');
+    if(type!=='approval')CertificateEvidence.assertSelection();
     if(type==='approval'){
-      const requests=CertificateEvidence.requests();if(!requests.length)throw new Error(certificateL(LANG,'請先建立待核可申請','Create a pending request first'));
+      let requests=CertificateEvidence.requests();
+      if(!requests.length&&typeof buildQuickRequest==='function'){
+        /* v73: 沒有既有申請單 → 直接以勾選項目建一張並送出 */
+        const q=buildQuickRequest(actor,false);
+        if(!q)throw new Error(certificateL(LANG,'請先在表格勾選要申請的證書／外幹','Tick the certificates / expats to request first','សូមជ្រើសធាតុជាមុន'));
+        if(!q.remark)throw new Error(certificateL(LANG,'請填申請原因（到期續期／提前／延後補辦／新辦）','Enter the reason (renewal / early / late / new)','សូមបំពេញហេតុផល'));
+        q.submittedAt=new Date().toISOString();STATE.requests.push(q);await persist('approval-request');requests=[q];
+      }
+      if(!requests.length)throw new Error(certificateL(LANG,'請先建立待核可申請','Create a pending request first'));
       for(const r of requests)await submitCertificateRequest(r,actor,lang);
     }else{
       const message=buildTgText(),chunks=certificateTextChunks(message),files=certificateTgAttachments(type,mode),key='ac_hra_cert_send_'+HRACertificateModel.hash([todayISO(),type,mode,certificateViewMonth(),lang,actor,message,files]);
