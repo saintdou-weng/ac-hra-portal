@@ -1,6 +1,9 @@
-/* AC HRA Cloud Guard v1.0
+/* AC HRA Cloud Guard v1.1 (2026-10-09)
  * Every module uses the same server response when a smaller/older local
  * snapshot would replace a more complete cloud snapshot.
+ * v1.1: the "last uploaded" state keeps a 16-character hash per record instead of the whole record text
+ *       (ac_hra_cloud_state_* was 600–700K each). Old full-text states still compare correctly and are
+ *       compacted on the next save. With shared/ac-storage.js the state itself lives in IndexedDB.
  */
 (function (w) {
   'use strict';
@@ -44,6 +47,22 @@
     return v;
   }
   function fingerprint(v) { return JSON.stringify(stableValue(v)); }
+  // two FNV-1a 32-bit passes → 16 hex chars; enough to detect a changed record
+  function h16(str) {
+    var a = 0x811c9dc5, b = 0x01000193 ^ 0x9e3779b9;
+    for (var i = 0; i < str.length; i++) {
+      var c = str.charCodeAt(i);
+      a ^= c; a = Math.imul(a, 0x01000193) >>> 0;
+      b ^= c; b = Math.imul(b, 0x01000193) >>> 0; b ^= b >>> 13;
+    }
+    return ('0000000' + a.toString(16)).slice(-8) + ('0000000' + (b >>> 0).toString(16)).slice(-8);
+  }
+  function compact(v) { return 'h:' + h16(fingerprint(v)); }
+  function same(stored, v) {               // stored = new compact hash or an old full fingerprint
+    if (stored == null) return false;
+    stored = String(stored);
+    return stored.indexOf('h:') === 0 && stored.length === 18 ? stored === compact(v) : stored === fingerprint(v);
+  }
   function stateKey(key) { return 'ac_hra_cloud_state_' + String(key || 'default'); }
   function readState(key) {
     try { return JSON.parse(localStorage.getItem(stateKey(key)) || '{}') || {}; } catch (e) { return {}; }
@@ -52,6 +71,8 @@
     try { localStorage.setItem(stateKey(key), JSON.stringify(value)); } catch (e) {}
   }
   function recordId(r) { return String((r && (r._k || r.key || r.id || r.employeeId || r.empId || r.idNo)) || JSON.stringify(r || {})); }
+  function shortId(id) { id = String(id); return id.length > 64 ? 'j:' + h16(id) : id; }      // v1.1: no whole records as keys
+  function lookup(map, r) { var id = recordId(r); return Object.prototype.hasOwnProperty.call(map, id) ? map[id] : map[shortId(id)]; }
 
   w.HRACloudGuard = {
     coverage(records, source) {
@@ -75,17 +96,22 @@
       return {firstDate:dates[0]||'', latestDate:dates[dates.length-1]||'', source:source||'web'};
     },
     fingerprint: fingerprint,
-    stateChanged(key, value) { return readState(key).fingerprint !== fingerprint(value); },
-    markState(key, value) { writeState(key, { fingerprint:fingerprint(value), updatedAt:new Date().toISOString() }); },
+    stateChanged(key, value) { return !same(readState(key).fingerprint, value); },
+    markState(key, value) { writeState(key, { fingerprint:compact(value), updatedAt:new Date().toISOString() }); },
     deltaRecords(key, records) {
       var old = readState(key), map = old.records || {};
-      return (records || []).filter(function (r) { return map[recordId(r)] !== fingerprint(r); });
+      return (records || []).filter(function (r) { return !same(lookup(map, r), r); });
     },
     markRecords(key, records) {
-      var old = readState(key), map = old.records || {};
-      (records || []).forEach(function (r) { map[recordId(r)] = fingerprint(r); });
-      writeState(key, { records:map, updatedAt:new Date().toISOString() });
+      var old = readState(key), map = old.records || {}, out = {};
+      Object.keys(map).forEach(function (id) {   // compact old full-text entries (keep their meaning: "uploaded as this text")
+        var v = String(map[id] == null ? '' : map[id]);
+        out[shortId(id)] = (v.indexOf('h:') === 0 && v.length === 18) ? v : 'h:' + h16(v);
+      });
+      (records || []).forEach(function (r) { out[shortId(recordId(r))] = compact(r); });
+      writeState(key, { records:out, updatedAt:new Date().toISOString() });
     },
+    hash: h16,
     /* send(payload) must return the parsed GAS JSON response. */
     async push(payload, send, lang) {
       var result = await send(payload);

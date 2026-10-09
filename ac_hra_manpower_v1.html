@@ -4,13 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AC HRA Manpower v3.1</title>
-<script src="shared/cloud-guard.js"></script>
-<script src="shared/hra-smart-sync.js?v=39"></script>
-<script src="shared/telegram-evidence.js?v=45"></script>
-<script src="shared/hra-auto-sync.js?v=49"></script>
-<script src="shared/hra-hr-governance.js?v=57"></script>
-<script src="shared/inspector.js"></script>
-<script src="shared/portal-actionbar.js" defer></script>
+<script src="shared/ac-storage.js?v=1" data-offload="ac_hra_cloud_state_*,ac_hra_manpower_cloud_manifest_v2,ac_hra_smart_sync_v2_*,vrt_nursing_fees_v2,ac_hra_joins,ac_hra_resigns,vrt_dashProbs"></script>
+<link rel="preload" as="script" href="shared/cloud-guard.js?v=2">
+<link rel="preload" as="script" href="shared/hra-smart-sync.js?v=39">
+<link rel="preload" as="script" href="shared/telegram-evidence.js?v=45">
+<link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
+<link rel="preload" as="script" href="shared/hra-hr-governance.js?v=57">
+<link rel="preload" as="script" href="shared/inspector.js">
+<link rel="preload" as="script" href="shared/portal-actionbar.js">
+<script type="text/x-ac-after-storage" src="shared/cloud-guard.js?v=2"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=39"></script>
+<script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-hr-governance.js?v=57"></script>
+<script type="text/x-ac-after-storage" src="shared/inspector.js"></script>
+<script type="text/x-ac-after-storage" src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -665,7 +673,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 
 <div id="toasts"></div>
 
-<script>
+<script type="text/x-ac-after-storage">
 'use strict';
 
 // ─────────────────────────────────────────────────────────────
@@ -2831,13 +2839,19 @@ function cloudRecordId(r){return `${r?._kind||'record'}|${r?._k||r?.id||r?.date|
 function cloudManifest(){
   try{return JSON.parse(lsGet(CLOUD_MANIFEST_KEY)||'{}')||{}}catch(e){return{}}
 }
+/* 2026-10-09: manifest keeps a 16-char hash per record (was the whole record text, ~425K).
+   Old full-text entries still compare correctly and are compacted on the next save. */
+function cloudHash(t){return (window.HRACloudGuard&&HRACloudGuard.hash)?'h:'+HRACloudGuard.hash(String(t)):String(t)}
+function cloudShortId(id){id=String(id);return id.length>64&&window.HRACloudGuard&&HRACloudGuard.hash?'j:'+HRACloudGuard.hash(id):id}
+function cloudSame(stored,r){if(stored==null)return false;stored=String(stored);const t=stableRecord(r);return(stored.indexOf('h:')===0&&stored.length===18)?stored===cloudHash(t):stored===t}
 function cloudDeltaRecords(records){
   const old=cloudManifest();
-  return records.filter(r=>old[cloudRecordId(r)]!==stableRecord(r));
+  return records.filter(r=>{const id=cloudRecordId(r);return !cloudSame(Object.prototype.hasOwnProperty.call(old,id)?old[id]:old[cloudShortId(id)],r)});
 }
 function markCloudManifest(records){
-  const m=cloudManifest();
-  records.forEach(r=>{m[cloudRecordId(r)]=stableRecord(r)});
+  const prev=cloudManifest(),m={};
+  Object.keys(prev).forEach(k=>{const v=String(prev[k]==null?'':prev[k]);m[cloudShortId(k)]=(v.indexOf('h:')===0&&v.length===18)?v:cloudHash(v)});
+  records.forEach(r=>{m[cloudShortId(cloudRecordId(r))]=cloudHash(stableRecord(r))});
   const keys=Object.keys(m);if(keys.length>30000)keys.slice(0,keys.length-30000).forEach(k=>delete m[k]);
   lsSet(CLOUD_MANIFEST_KEY,JSON.stringify(m));
 }
