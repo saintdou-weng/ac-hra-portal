@@ -1,4 +1,4 @@
-/* Home Cloud Sync v1.0 (2026-10-15) — shared by AC-HRA-PAY (index.html) and AC HRA Portal (hra_portal_v2.html)
+/* Home Cloud Sync v1.1 (2026-10-16) — shared by AC-HRA-PAY (index.html) and AC HRA Portal (hra_portal_v2.html)
  * 首頁「全部同步／勾選同步」：每個模組用它自己的頁面（隱藏 iframe）跑一次雙向智慧同步，
  * 規則完全和模組頁的自動同步一樣（先下載合併、再只上傳變更、不會亂刪），只是從首頁一次做完。
  *
@@ -7,6 +7,8 @@
  *     lang:()=> 'tc'|'en'|'km', theme:'light'|'dark', storeKey:'…'
  *   });
  *   HomeSync.runAll() / HomeSync.runSelected() / HomeSync.refreshLang()
+ * v1.1: a module that keeps re-syncing by itself (e.g. 員工請假) counts as done once it stays in a
+ *       finished state for 1.5 s, instead of waiting for the same run to stay put.
  */
 (function (w) {
   'use strict';
@@ -149,7 +151,7 @@
         var st = probe(cw, m);
         if (!st) { if (Date.now() - t0 > 60000) end('fail'); return; }
         if (!st.final) { sig = ''; setRow(m.id, 'run', tx('sync') + (st.detail && st.state === 'syncing' ? ' · ' + st.detail : '…')); return; }
-        var now = st.state + '|' + st.lastRun;
+        var now = st.state;
         if (now !== sig) { sig = now; since = Date.now(); return; }
         if (Date.now() - since >= SETTLE) end(st.state, st.detail);
       }, 400);
@@ -178,7 +180,7 @@
     return !bad;
   }
   var api = {
-    version: '1.0',
+    version: '1.1',
     mount: function (el, opt) { OPT = opt; OPT.storeKey = OPT.storeKey || 'home-sync'; ROOT = el; css(); el.className = 'hs ' + (opt.theme || 'light'); render(); return api; },
     runAll: function () { return run(OPT.modules.slice()); },
     runSelected: function () { var s = store('sel') || {}; return run(OPT.modules.filter(function (m) { return s[m.id] !== false; })); },
