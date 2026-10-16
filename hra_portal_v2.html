@@ -15,6 +15,7 @@
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/inspector.js"></script>
 <script type="text/x-ac-after-storage" src="shared/portal-actionbar.js" defer></script>
+<script type="text/x-ac-after-storage" src="shared/hra-home-sync.js?v=1"></script>
 <style>
 :root{
   --g1:#1b6b3a;--g2:#2d8f55;--g3:#24a35e;
@@ -327,6 +328,9 @@ body::before{
 
   </div>
 
+  <!-- 2026-10-15 首頁雲端同步：全部同步／勾選同步 -->
+  <div id="home-sync"></div>
+
   <!-- Cloud status -->
   <div class="cloud-bar" onclick="toggleGasPanel()">
     <div class="c-dot" id="cDot"></div>
@@ -340,8 +344,8 @@ body::before{
     <input id="gasInput" type="text" placeholder="https://script.google.com/macros/s/…/exec">
     <div class="gas-row">
       <button class="gbtn gbtn-save" id="btnSaveGas" onclick="saveGas()">💾 儲存</button>
-      <button class="gbtn gbtn-push" id="btnPush" onclick="pushAll()" disabled>☁ Push All</button>
-      <button class="gbtn gbtn-pull" id="btnPull" onclick="pullAll()" disabled>⬇ Pull All</button>
+      <button class="gbtn gbtn-push" id="btnPush" onclick="pushAll()" disabled>☁ 全部同步</button>
+      <button class="gbtn gbtn-pull" id="btnPull" onclick="pullAll()" disabled>☑ 同步勾選</button>
     </div>
     <div class="gas-row" style="margin-top:5px;flex-wrap:wrap;gap:5px">
       <button class="gbtn" id="btnFixWebhook" style="flex:1;background:#f59e0b;color:#1e3a5f;font-weight:700" onclick="fixWebhookGAS()">🔧 重設 Webhook</button>
@@ -401,7 +405,7 @@ const TXT = {
     push_ok:'✅ 全部推送完成', pull_ok:'✅ 全部拉取完成',
     push_err:'❌ 推送失敗', pull_err:'❌ 拉取失敗',
     no_gas:'請先設定 GAS URL', gas_fail:'GAS 連線失敗', gas_reset:'⚙ 點此重設',
-    save_gas:'💾 儲存', push_all:'☁ 手動上傳全部', pull_all:'⬇ 手動下載全部',
+    save_gas:'💾 儲存', push_all:'☁ 全部同步', pull_all:'☑ 同步勾選',
     fix_webhook:'🔧 重設 Webhook', test_menu:'📱 測試選單', webhook_status:'🔍 Webhook 狀態',
     ready:'AC HRA Portal v3 就緒',
   },
@@ -423,7 +427,7 @@ const TXT = {
     push_ok:'✅ Push complete', pull_ok:'✅ Pull complete',
     push_err:'❌ Push failed', pull_err:'❌ Pull failed',
     no_gas:'Please set GAS URL first', gas_fail:'GAS connection failed', gas_reset:'⚙ Tap to reset',
-    save_gas:'💾 Save', push_all:'☁ Manual Upload All', pull_all:'⬇ Manual Download All',
+    save_gas:'💾 Save', push_all:'☁ Sync all', pull_all:'☑ Sync selected',
     fix_webhook:'🔧 Reset Webhook', test_menu:'📱 Test Menu', webhook_status:'🔍 Webhook Status',
     ready:'AC HRA Portal v3 ready',
   },
@@ -445,7 +449,7 @@ const TXT = {
     push_ok:'✅ Push រួច', pull_ok:'✅ Pull រួច',
     push_err:'❌ Push ទ្រេត', pull_err:'❌ Pull ទ្រេត',
     no_gas:'សូមកំណត់ GAS URL ជាមុន', gas_fail:'GAS មិនអាចភ្ជាប់', gas_reset:'⚙ កំណត់ឡើងវិញ',
-    save_gas:'💾 រក្សាទុក', push_all:'☁ Upload', pull_all:'⬇ Download',
+    save_gas:'💾 រក្សាទុក', push_all:'☁ ទាំងអស់', pull_all:'☑ ដែលបានជ្រើស',
     fix_webhook:'🔧 Reset Webhook', test_menu:'📱 Test Menu', webhook_status:'🔍 Webhook',
     ready:'AC HRA Portal v3 រួចរាល់',
   },
@@ -458,6 +462,7 @@ function setLang(l) {
   localStorage.setItem(LANG_KEY, l);
   document.querySelectorAll('.lb').forEach((b,i) => b.classList.toggle('on', ['zh','en','km'][i]===l));
   applyLang();
+  if (window.HomeSync) HomeSync.refreshLang();
 }
 
 function applyLang() {
@@ -465,7 +470,9 @@ function applyLang() {
   const mainKeys= ['att','con','ob','mat','cal','mp','cv','ws','ana'];
   // Update main label (mb-zh) based on lang
   document.querySelectorAll('.mb-zh').forEach((el, i) => {
-    if (i < mainKeys.length) el.textContent = t(mainKeys[i]);
+    // 2026-10-15: use each card's own data-zh/en/km (the index list skipped Salary, so its card showed 整合分析)
+    const own = el.dataset[LANG==='en'?'en':LANG==='km'?'km':'zh'];
+    if (own) el.textContent = own; else if (i < mainKeys.length) el.textContent = t(mainKeys[i]);
   });
   // Map subId → i18n key explicitly to avoid index mismatches
   const subMap = {
@@ -626,64 +633,16 @@ async function fetchStatus() {
   }
 }
 
-// ── Push ALL ─────────────────────────
+// ── 2026-10-15：首頁同步改為「每個模組用自己的頁面跑雙向智慧同步」 ──
+// 舊的 Push All / Pull All 直接拿 localStorage 原始資料上傳、下載後直接覆寫 key，
+// 格式和各模組頁不一致（例如產假、護理費），可能把模組資料蓋壞，所以停用，改用 HomeSync。
 async function pushAll() {
   if (!GAS_URL) { toast(t('no_gas')); return; }
-  const btn = document.getElementById('btnPush');
-  btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
-  let ok = 0, fail = 0;
-  for (const m of MODS) {
-    if (m.metaOnly || m.id === 'attendance') continue; // large/specialized modules sync from their own smart buttons
-    try {
-      let records = [];
-      const raw = localStorage.getItem(m.lsKey);
-      if (raw) {
-        const d = JSON.parse(raw);
-        records = Array.isArray(d) ? d : (d?.employees || d?.records || []);
-      }
-      if (m.extra) {
-        const r2 = localStorage.getItem(m.extra);
-        if (r2) records = records.concat(JSON.parse(r2)||[]);
-      }
-      if (!records.length) continue;
-      const dd = await HRASmartSync.push({url:GAS_URL,tool:m.id,records,recordCount:records.length,
-        meta:{coverage:HRACloudGuard.coverage(records,m.id)},onStatus:s=>log(`${m.id}: ${s}`,'info')});
-      if (dd && dd.ok && !dd.cancelled) { ok++; log(`✓ ${m.id} (${records.length} 筆，僅變更)`, 'ok'); }
-      else { fail++; log(`⚠ ${m.id}: ${dd&&dd.cancelled?'已取消覆蓋':(dd&&dd.error||'上傳失敗')}`, 'err'); }
-    } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
-  }
-  const meta = { ts: new Date().toISOString() };
-  localStorage.setItem('ac_hra_portal_meta', JSON.stringify(meta));
-  updateCloudLabel(true);
-  updateStats(null);
-  toast(fail === 0 ? t('push_ok') + ` (${ok})` : `⚠️ ${ok} / ${fail}`);
-  btn.disabled = false; btn.textContent = t('push_all');
+  if (window.HomeSync) { await HomeSync.runAll(); updateStats(null); }
 }
-
-// ── Pull ALL ─────────────────────────
 async function pullAll() {
   if (!GAS_URL) { toast(t('no_gas')); return; }
-  const btn = document.getElementById('btnPull');
-  btn.disabled = true; btn.innerHTML = '<span class="spin">⏳</span>';
-  let ok = 0, fail = 0;
-  for (const m of MODS) {
-    if (m.metaOnly || m.id === 'attendance') continue; // module owns its snapshot/date-diff sync
-    try {
-      let localData=null,localRecords=[];
-      try{const raw=localStorage.getItem(m.lsKey);localData=raw?JSON.parse(raw):null;localRecords=Array.isArray(localData)?localData:(localData?.records||localData?.employees||[]);}catch(e){}
-      const res=await HRASmartSync.pull({url:GAS_URL,tool:m.id,localRecords,onStatus:s=>log(`${m.id}: ${s}`,'info')});
-      if(!res||res.noCloud)continue;
-      const records=res.records||[];
-      if(m.id==='onboarding'){
-        localStorage.setItem(m.lsKey,JSON.stringify(records.filter(r=>r._kind==='join'||r.joinDate&&!r.resignDate)));
-        if(m.extra)localStorage.setItem(m.extra,JSON.stringify(records.filter(r=>r._kind==='resign'||r.resignDate)));
-      }else localStorage.setItem(m.lsKey,JSON.stringify(records));
-      ok++; log(`✓ ${m.id} 拉取變更 ${res.downloaded||0} 筆`, 'ok');
-    } catch(e) { fail++; log(`✗ ${m.id}: ${e.message}`, 'err'); }
-  }
-  updateStats(null);
-  toast(fail === 0 ? t('pull_ok') + ` (${ok})` : `⚠️ ${ok} / ${fail}`);
-  btn.disabled = false; btn.textContent = t('pull_all');
+  if (window.HomeSync) { await HomeSync.runSelected(); updateStats(null); }
 }
 
 // ── Telegram Menu ─────────────────────
@@ -761,6 +720,23 @@ function toast(msg, dur) {
   );
   applyLang();
   updateStats(null);
+  if (window.HomeSync) HomeSync.mount(document.getElementById('home-sync'), {
+    theme:'dark', storeKey:'ac_hra_homesync',
+    lang:()=> LANG==='en' ? 'en' : LANG==='km' ? 'km' : 'tc',
+    onLog:m=>{ try{ log(m,'ok'); }catch(_){} },
+    onDone:()=>{ try{ localStorage.setItem('ac_hra_portal_meta', JSON.stringify({ ts:new Date().toISOString() })); updateCloudLabel(true); updateStats(null); }catch(_){} },
+    modules:[
+      {id:'attendance', page:'ac_hra_attendance_v1.html', kind:'hra', key:'attendance', name:{tc:'🕐 出勤系統 Attendance',en:'🕐 Attendance',km:'🕐 វត្តមាន'}},
+      {id:'contract', page:'ac_hra_contract_v2.html', kind:'hra', key:'contract', name:{tc:'📋 合約管理 Contract',en:'📋 Contract',km:'📋 កិច្ចសន្យា'}},
+      {id:'onboarding', page:'ac_hra_onboarding_v3.html', kind:'hra', key:'onboarding', name:{tc:'🚪 入離職 Onboarding',en:'🚪 Onboarding',km:'🚪 ចូល/ចេញការងារ'}},
+      {id:'maternity', page:'ac_hra_maternity_v1.html', kind:'hra', key:'maternity', name:{tc:'🤱 產假護理 Maternity',en:'🤱 Maternity',km:'🤱 មាតុភាព'}},
+      {id:'calendar', page:'ac_hra_calendar_v2.html', kind:'hra', key:'calendar', name:{tc:'📅 行事曆 Calendar',en:'📅 Calendar',km:'📅 ប្រតិទិន'}},
+      {id:'manpower', page:'ac_hra_manpower_v1.html', kind:'hra', key:'manpower', name:{tc:'👷 人力規劃 Manpower',en:'👷 Manpower',km:'👷 កម្លាំងពលកម្ម'}},
+      {id:'certificate_visa', page:'ac_hra_certificate_visa_v1.html', kind:'hra', key:'certificate_visa', name:{tc:'🛂 證書／簽證 Certificate',en:'🛂 Certificate & Visa',km:'🛂 វិញ្ញាបនបត្រ'}},
+      {id:'salary', page:'ac_hra_salary_v1.html', kind:'hra', key:'salary', name:{tc:'💰 薪資架構／職等 Salary',en:'💰 Salary / Grades',km:'💰 រចនាសម្ព័ន្ធប្រាក់ខែ'}},
+      {id:'welfare', page:'ac_hra_welfare_suggestion_v1.html', kind:'hra', key:'welfare', name:{tc:'🤝 福利／意見箱 Welfare',en:'🤝 Welfare',km:'🤝 សុខុមាលភាព'}}
+    ]
+  });
 })();
 </script>
 </body>
