@@ -1,4 +1,6 @@
-/* AC HRA Portal — 參考報告（Word）v1.0 · 2026-10-21
+/* AC HRA Portal — 參考報告（Word）v1.1 · 2026-10-22
+ * v1.1：手機版按鈕一定看得到（錨點被隱藏時改用浮動鈕）；產生後顯示「下載／分享／用 Chrome 開啟」，
+ *       Telegram 等 App 內建瀏覽器不能下載檔案時也有路可走；首頁可選模組直接開報告（?report=1）。
  * 每個模組頁多一顆「📄 報告」：把目前畫面的期間、重點數字、表格、圖表整理成 .docx 下載。
  * 只給人看、存檔用，不發 Telegram、不上傳雲端。語言：中英 ／ 英柬 ／ 目前語言。
  * 做法：依序切換頁面語言 → 擷取畫面（.kpi、可見表格、Chart 畫布）→ 還原語言 → docx（shared/docx.iife.js）。
@@ -7,6 +9,7 @@
   'use strict';
   if (g.HRAReport) return;
   var doc = g.document; if (!doc) return;
+  var MODULE_NAMES = {};
   var MODULE = (function () {
     var p = (location.pathname.split('/').pop() || '').replace(/\.html.*$/, '');
     var map = { ac_hra_attendance_v1:['出勤','Attendance','វត្តមាន'], ac_hra_employee_leave_v1:['員工請假','Employee Leave','ច្បាប់ឈប់សម្រាក'],
@@ -15,7 +18,8 @@
       ac_hra_manpower_v1:['人力規劃','Manpower & Recruitment','កម្លាំងពលកម្ម'], ac_hra_certificate_visa_v1:['證書／簽證','Certificate & Visa','វិញ្ញាបនបត្រ / ទិដ្ឋាការ'],
       ac_hra_welfare_suggestion_v1:['福利／意見箱','Welfare & Suggestion','សុខុមាលភាព'], ac_hra_salary_v1:['薪資架構／職等','Salary Structure & Grades','រចនាសម្ព័ន្ធប្រាក់ខែ'],
       ac_hra_complete_v2:['整合分析','Integrated Analytics','វិភាគរួម'] };
-    return { id: p, name: map[p] || [doc.title, doc.title, doc.title] };
+    MODULE_NAMES = map;
+    return { id: p, portal: /^(hra_portal_v\d+|index)$/.test(p) || !p, name: map[p] || [doc.title, doc.title, doc.title] };
   })();
   var L = function (lang, zh, en, km) { return lang === 'en' ? en : lang === 'km' ? (km || en) : zh; };
   function now() { var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; }; return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
@@ -169,8 +173,31 @@
     var today = now().slice(0, 10);
     var per = opts.period && safe(opts.period) !== today ? '_' + safe(opts.period) : '';
     var name = 'VRT_' + safe(MODULE.name[1]) + per + '_' + today + '.docx';
-    var a = doc.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; doc.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 800);
-    return name;
+    if (!opts.noDownload) saveBlob(blob, name);
+    return { name: name, blob: blob };
+  }
+  /* App 內建瀏覽器（Telegram、LINE、FB…）多半不能下載檔案 */
+  function inAppBrowser() { var ua = navigator.userAgent || ''; return /; wv\)|Telegram|FBAN|FBAV|Line\/|MicroMessenger|Instagram|KAKAOTALK/i.test(ua); }
+  function isAndroid() { return /Android/i.test(navigator.userAgent || ''); }
+  function saveBlob(blob, name) {
+    try {
+      if (navigator.msSaveOrOpenBlob) { navigator.msSaveOrOpenBlob(blob, name); return true; }
+      var a = doc.createElement('a'), u = URL.createObjectURL(blob); a.href = u; a.download = name; a.rel = 'noopener'; doc.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(u); a.remove(); }, 60000); return true;
+    } catch (_) { return false; }
+  }
+  function shareFile(blob, name) {
+    try {
+      var f = new File([blob], name, { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) return navigator.share({ files: [f], title: name }).then(function () { return true; }, function (e) { if (e && e.name === 'AbortError') return true; throw e; });
+    } catch (e) { return Promise.reject(e); }
+    return Promise.reject(new Error('share-unsupported'));
+  }
+  function canShareFiles() { try { return !!(navigator.canShare && navigator.canShare({ files: [new File(['x'], 'x.docx', { type: 'application/octet-stream' })] })); } catch (_) { return false; } }
+  function chromeUrl(extra) {
+    var href = location.href.split('#')[0]; if (extra && href.indexOf(extra) < 0) href += (href.indexOf('?') < 0 ? '?' : '&') + extra;
+    if (isAndroid()) return 'intent://' + href.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(href) + ';end';
+    return href;
   }
   var docxLoading = null;
   function ensureDocx() {
@@ -189,8 +216,20 @@
     '.hrr-b{padding:14px 16px;display:grid;gap:10px}.hrr-f{display:grid;gap:4px}.hrr-f label{font-size:12px;font-weight:800;color:#4d5f70}.hrr-f input,.hrr-f select,.hrr-f textarea{border:1px solid #b9cad4;border-radius:8px;padding:8px 10px;font:inherit}' +
     '.hrr-row{display:flex;gap:14px;flex-wrap:wrap;font-size:13px}.hrr-row label{display:flex;gap:5px;align-items:center;cursor:pointer}.hrr-note{font-size:12px;color:#285d69;background:#eefafb;border:1px solid #b8dde3;border-radius:9px;padding:8px 10px}' +
     '.hrr-ft{display:flex;gap:8px;justify-content:flex-end;padding:12px 16px;border-top:1px solid #d8e3ec}.hrr-btn{border:1px solid #aec1cc;border-radius:9px;background:#fff;padding:8px 14px;font-weight:800;cursor:pointer}.hrr-btn.p{background:#0b7b7b;border-color:#0b7b7b;color:#fff}.hrr-btn:disabled{opacity:.5;cursor:wait}' +
-    '.hrr-st{font-size:12px;color:#6d7d8f;flex:1;align-self:center}' +
+    '.hrr-st{font-size:12px;color:#6d7d8f;flex:1;align-self:center;min-width:0;overflow-wrap:anywhere}' +
+    '.hrr-dlg{max-height:calc(100dvh - 32px);display:flex;flex-direction:column}.hrr-b{overflow:auto;min-height:0}' +
+    '#hrr-res{display:grid;gap:8px;border-top:1px dashed #c7d6df;padding-top:10px}.hrr-ok{font-size:13px;color:#14532d;overflow-wrap:anywhere}.hrr-acts{display:flex;gap:8px;flex-wrap:wrap}.hrr-acts .hrr-btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}.hrr-acts .hrr-btn.p{color:#fff}' +
+    '.hrr-warn{font-size:12px;color:#7c2d12;background:#fff7ed;border:1px solid #fed7aa;border-radius:9px;padding:8px 10px}' +
+    '.hrr-pick{display:grid;grid-template-columns:1fr 1fr;gap:8px}.hrr-pick a{display:block;text-decoration:none;color:#17283b;border:1px solid #c7d6df;border-radius:10px;padding:10px;font-weight:800;font-size:13px;background:#f7fafc}.hrr-pick a small{display:block;font-weight:500;color:#6d7d8f;font-size:11px}' +
     '#hrr-fab{position:fixed;right:14px;bottom:72px;z-index:800;border:0;border-radius:999px;background:#173c60;color:#fff;font:800 13px Inter,"Noto Sans TC",system-ui,sans-serif;padding:10px 14px;box-shadow:0 6px 18px rgba(0,0,0,.25);cursor:pointer}';
+  function fitOverlay(ov) {
+    var vv = g.visualViewport; if (!vv) return;
+    var fit = function () { if (!ov.isConnected) { vv.removeEventListener('resize', fit); vv.removeEventListener('scroll', fit); return; }
+      var lw = doc.documentElement.clientWidth, lh = g.innerHeight;
+      if (Math.abs(vv.width - lw) < 2 && Math.abs(vv.height - lh) < 2 && vv.offsetLeft < 1 && vv.offsetTop < 1) { ov.style.left = ov.style.top = ov.style.width = ov.style.height = ''; ov.style.inset = ''; return; }
+      ov.style.inset = 'auto'; ov.style.left = vv.offsetLeft + 'px'; ov.style.top = vv.offsetTop + 'px'; ov.style.width = vv.width + 'px'; ov.style.height = vv.height + 'px'; };
+    fit(); vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+  }
   function injectCss() { if (doc.getElementById('hrr-css')) return; var s = doc.createElement('style'); s.id = 'hrr-css'; s.textContent = CSS; doc.head.appendChild(s); }
   function open() {
     injectCss(); var lang = currentLang();
@@ -202,9 +241,9 @@
       '<div class="hrr-f"><label>' + L(lang, '期間（可改）', 'Period (editable)', 'រយៈពេល') + '</label><input id="hrr-period" value="' + String(periodGuess || '').replace(/"/g, '&quot;') + '" placeholder="2026-10 / 2026-10-13 ~ 10-19"></div>' +
       '<div class="hrr-f"><label>' + L(lang, '語言', 'Languages', 'ភាសា') + '</label><select id="hrr-lang"><option value="zh,en">中文 + English</option><option value="en,km">English + ខ្មែរ</option><option value="zh,en,km">中文 + English + ខ្មែរ</option><option value="cur">' + L(lang, '只用目前語言', 'Current language only', 'ភាសាបច្ចុប្បន្ន') + '</option></select></div>' +
       '<div class="hrr-row"><label><input type="checkbox" id="hrr-kpi" checked> ' + L(lang, '重點數字', 'Key figures', 'តួលេខ') + '</label><label><input type="checkbox" id="hrr-charts" checked> ' + L(lang, '圖表', 'Charts', 'ក្រាហ្វ') + '</label><label><input type="checkbox" id="hrr-tables" checked> ' + L(lang, '明細表', 'Tables', 'តារាង') + '</label></div>' +
-      '<div class="hrr-f"><label>' + L(lang, '說明／備註（選填）', 'Notes (optional)', 'កំណត់ចំណាំ') + '</label><textarea id="hrr-notes" rows="3" placeholder="' + L(lang, '例：10 月第 2 週；假期影響出勤', 'e.g. Week 2 of October; holiday impact on attendance', '') + '"></textarea></div></div>' +
+      '<div class="hrr-f"><label>' + L(lang, '說明／備註（選填）', 'Notes (optional)', 'កំណត់ចំណាំ') + '</label><textarea id="hrr-notes" rows="3" placeholder="' + L(lang, '例：10 月第 2 週；假期影響出勤', 'e.g. Week 2 of October; holiday impact on attendance', '') + '"></textarea></div><div id="hrr-res" style="display:none"></div></div>' +
       '<div class="hrr-ft"><span class="hrr-st" id="hrr-st"></span><button class="hrr-btn" type="button" id="hrr-cancel">' + L(lang, '取消', 'Cancel', 'បោះបង់') + '</button><button class="hrr-btn p" type="button" id="hrr-go">📄 ' + L(lang, '產生並下載', 'Generate & download', 'បង្កើត') + '</button></div></div>';
-    doc.body.appendChild(ov);
+    doc.body.appendChild(ov); fitOverlay(ov);
     var close = function () { ov.remove(); };
     ov.querySelector('.hrr-x').onclick = close; ov.querySelector('#hrr-cancel').onclick = close; ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
     try { var pref = localStorage.getItem('ac_hra_report_lang'); if (pref) ov.querySelector('#hrr-lang').value = pref; } catch (_) {}
@@ -215,26 +254,79 @@
       try {
         st.textContent = L(lang, '載入元件…', 'Loading…', 'កំពុងផ្ទុក…'); await ensureDocx();
         st.textContent = L(lang, '擷取畫面中（會短暫切換語言）…', 'Capturing (language will switch briefly)…', 'កំពុងចាប់យក…');
-        var name = await generate({ title: ov.querySelector('#hrr-title').value.trim(), period: ov.querySelector('#hrr-period').value.trim(), langs: langs, kpi: ov.querySelector('#hrr-kpi').checked, charts: ov.querySelector('#hrr-charts').checked, tables: ov.querySelector('#hrr-tables').checked, notes: ov.querySelector('#hrr-notes').value.trim() });
-        st.textContent = '✅ ' + name; setTimeout(close, 1200);
+        var res = await generate({ noDownload: inAppBrowser(), title: ov.querySelector('#hrr-title').value.trim(), period: ov.querySelector('#hrr-period').value.trim(), langs: langs, kpi: ov.querySelector('#hrr-kpi').checked, charts: ov.querySelector('#hrr-charts').checked, tables: ov.querySelector('#hrr-tables').checked, notes: ov.querySelector('#hrr-notes').value.trim() });
+        st.textContent = '✅ ' + res.name; showResult(ov, lang, res); btn.disabled = false;
       } catch (e) { st.textContent = '❌ ' + (e && e.message || e); btn.disabled = false; }
     };
   }
-  var mountTries = 0;
-  function mountButton() {
-    if (doc.getElementById('hrr-btn') || doc.getElementById('hrr-fab')) return;
-    /* 模組腳本可能在 ac-storage 之後才載入：找不到錨點就等一下再試，最多 8 秒 */
-    var anchorNow = doc.querySelector('button[onclick*="exportExcel"], button[onclick*="exportXlsx"], button[onclick*="cloudPull"], button[onclick*="pullCloud"], button[onclick*="cloudPush"], button[onclick*="pushCloud"], button[onclick*="syncToGas"]');
-    if (!anchorNow && mountTries++ < 16) { setTimeout(mountButton, 500); return; }
-    var anchor = doc.querySelector('button[onclick*="exportExcel"], button[onclick*="exportXlsx"], button[onclick*="cloudPull"], button[onclick*="pullCloud"], button[onclick*="cloudPush"], button[onclick*="pushCloud"], button[onclick*="syncToGas"]');
-    var lang = currentLang(), label = '📄 ' + L(lang, '報告', 'Report', 'របាយការណ៍');
-    if (anchor && anchor.parentNode) {
-      var b = anchor.cloneNode(false); b.id = 'hrr-btn'; b.removeAttribute('onclick'); b.removeAttribute('disabled'); b.removeAttribute('id'); b.id = 'hrr-btn'; b.title = L(lang, '產生參考報告（Word）', 'Generate reference report (Word)', 'បង្កើតរបាយការណ៍');
-      b.innerHTML = anchor.querySelector('span,b') ? '<span>📄</span><b>' + L(lang, '報告', 'Report', 'របាយការណ៍') + '</b>' : label;
-      b.onclick = open; anchor.parentNode.insertBefore(b, anchor.nextSibling); return;
-    }
-    var fab = doc.createElement('button'); fab.id = 'hrr-fab'; fab.type = 'button'; fab.textContent = label; fab.onclick = open; injectCss(); doc.body.appendChild(fab);
+  function showResult(ov, lang, res) {
+    var box = ov.querySelector('#hrr-res'); if (!box) return;
+    var app = inAppBrowser(), share = canShareFiles();
+    var h = '<div class="hrr-ok">✅ ' + L(lang, '報告已產生', 'Report ready', 'របាយការណ៍រួចរាល់') + '：<b>' + res.name + '</b> · ' + Math.max(1, Math.round(res.blob.size / 1024)) + ' KB</div><div class="hrr-acts">';
+    h += '<button type="button" class="hrr-btn p" data-a="dl">⬇ ' + L(lang, app ? '下載' : '再下載一次', app ? 'Download' : 'Download again', 'ទាញយក') + '</button>';
+    if (share) h += '<button type="button" class="hrr-btn" data-a="share">📤 ' + L(lang, '分享／存到檔案', 'Share / Save to Files', 'ចែករំលែក') + '</button>';
+    if (app) h += '<a class="hrr-btn" data-a="chrome" href="' + chromeUrl('report=1').replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">🌐 ' + L(lang, '用 Chrome 開啟', 'Open in Chrome', 'បើកក្នុង Chrome') + '</a>';
+    h += '</div>';
+    if (app) h += '<div class="hrr-warn">' + L(lang, 'Telegram 等 App 內建的瀏覽器通常不能下載檔案。若按「下載」沒有反應：' + (share ? '按「分享／存到檔案」，或' : '') + '按「用 Chrome 開啟」（或右上角 ⋮ →「在瀏覽器中開啟」），在 Chrome 會自動打開報告視窗，再按一次產生即可。',
+      'In-app browsers (Telegram etc.) usually cannot download files. If Download does nothing, ' + (share ? 'use Share, or ' : '') + 'tap Open in Chrome (or ⋮ → Open in browser); the report dialog opens there automatically.', 'កម្មវិធីរុករកក្នុង App មិនអាចទាញយកបានទេ — សូមបើកក្នុង Chrome។') + '</div>';
+    box.innerHTML = h; box.style.display = '';
+    box.querySelector('[data-a="dl"]').onclick = function () { saveBlob(res.blob, res.name); };
+    var sb = box.querySelector('[data-a="share"]'); if (sb) sb.onclick = function () { shareFile(res.blob, res.name).catch(function (e) { ov.querySelector('#hrr-st').textContent = '❌ ' + L(lang, '此瀏覽器不支援分享檔案', 'Sharing files is not supported here', 'មិនគាំទ្រ') + (e && e.message && e.message !== 'share-unsupported' ? '：' + e.message : ''); }); };
   }
-  g.HRAReport = { version: '1.0', open: open, capture: capture, generate: generate, module: MODULE };
+  var mountTries = 0;
+  var ANCHOR_SEL = 'button[onclick*="exportExcel"], button[onclick*="exportXlsx"], button[onclick*="cloudPull"], button[onclick*="pullCloud"], button[onclick*="cloudPush"], button[onclick*="pushCloud"], button[onclick*="syncToGas"], button[onclick*="export" i], button[onclick*="cloud" i]';
+  function shown(el) { if (!el || !el.isConnected) return false; var r = el.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return false; var cs = g.getComputedStyle(el); return cs.visibility !== 'hidden' && cs.display !== 'none' && +cs.opacity > 0.05; }
+  function makeFab(lang) {
+    var fab = doc.getElementById('hrr-fab'); if (fab) return fab;
+    injectCss(); fab = doc.createElement('button'); fab.id = 'hrr-fab'; fab.type = 'button'; fab.textContent = '📄 ' + L(lang, '報告', 'Report', 'របាយការណ៍'); fab.onclick = open; doc.body.appendChild(fab); return fab;
+  }
+  /* 按鈕若被隱藏（手機版工具列收起、切分頁、轉向），就顯示右下角浮動鈕；看得到就收起浮動鈕 */
+  function ensureVisible() {
+    var b = doc.getElementById('hrr-btn'), ok = b && shown(b), fab = doc.getElementById('hrr-fab');
+    if (ok) { if (fab) fab.style.display = 'none'; return; }
+    fab = makeFab(currentLang()); fab.style.display = '';
+  }
+  function insertBtn(anchor) {
+    var lang = currentLang(), b = anchor.cloneNode(false);
+    b.removeAttribute('onclick'); b.removeAttribute('disabled'); b.removeAttribute('id'); b.id = 'hrr-btn'; b.type = 'button'; b.title = L(lang, '產生參考報告（Word）', 'Generate reference report (Word)', 'បង្កើតរបាយការណ៍');
+    b.innerHTML = anchor.querySelector('span,b') ? '<span>📄</span><b>' + L(lang, '報告', 'Report', 'របាយការណ៍') + '</b>' : '📄 ' + L(lang, '報告', 'Report', 'របាយការណ៍');
+    b.onclick = open; anchor.parentNode.insertBefore(b, anchor.nextSibling);
+  }
+  var mounted = false;
+  function mountButton() {
+    if (MODULE.portal) return mountPortal();
+    if (!mounted) {
+      mounted = true;
+      g.addEventListener('resize', function () { clearTimeout(ensureVisible._t); ensureVisible._t = setTimeout(ensureVisible, 250); });
+      [3000, 6000, 10000].forEach(function (t) { setTimeout(ensureVisible, t); });   /* 3 秒內找不到放按鈕的位置 → 右下角浮動鈕 */
+      if (/[?&]report=1\b/.test(location.search)) setTimeout(function () { if (!doc.querySelector('.hrr-ov')) open(); }, 2500);
+    }
+    if (doc.getElementById('hrr-btn')) return ensureVisible();
+    /* 模組腳本可能在 ac-storage 之後才載入：找「看得到的」匯出／雲端按鈕當位置，最多找 10 秒 */
+    var anchor = Array.prototype.slice.call(doc.querySelectorAll(ANCHOR_SEL)).filter(shown)[0];
+    if (anchor && anchor.parentNode) { insertBtn(anchor); ensureVisible(); return; }
+    if (mountTries++ < 20) setTimeout(mountButton, 500);
+  }
+  /* 首頁：選模組 → 開該模組並自動打開報告視窗 */
+  var PICK = [['ac_hra_attendance_v1', '🕐'], ['ac_hra_employee_leave_v1', '📝'], ['ac_hra_contract_v2', '📋'], ['ac_hra_onboarding_v3', '🚪'], ['ac_hra_maternity_v1', '🤱'], ['ac_hra_calendar_v2', '📅'], ['ac_hra_manpower_v1', '👷'], ['ac_hra_certificate_visa_v1', '🛂'], ['ac_hra_welfare_suggestion_v1', '🤝'], ['ac_hra_salary_v1', '💵'], ['ac_hra_complete_v2', '📊']];
+  function chooser() {
+    injectCss(); var lang = currentLang(), ov = doc.createElement('div'); ov.className = 'hrr-ov';
+    ov.innerHTML = '<div class="hrr-dlg" role="dialog"><div class="hrr-h">📄 <span>' + L(lang, '產生參考報告 — 選模組', 'Reference report — pick a module', 'ជ្រើសម៉ូឌុល') + '</span><button class="hrr-x" type="button">×</button></div><div class="hrr-b"><div class="hrr-note">' +
+      L(lang, '點模組 → 開啟該頁並自動跳出報告視窗；在頁面上可先切好月份／分頁再按產生。只下載，不發送。', 'Tap a module: it opens with the report dialog ready. Download only, nothing is sent.', 'ចុចម៉ូឌុល') + '</div><div class="hrr-pick">' +
+      PICK.map(function (m) { var n = MODULE_NAMES[m[0]]; return '<a href="' + m[0] + '.html?report=1">' + m[1] + ' ' + L(lang, n[0], n[1], n[2]) + '<small>' + (lang === 'zh' ? n[1] : n[0]) + '</small></a>'; }).join('') + '</div></div></div>';
+    doc.body.appendChild(ov); fitOverlay(ov);
+    ov.querySelector('.hrr-x').onclick = function () { ov.remove(); }; ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); });
+  }
+  function mountPortal() {
+    if (doc.getElementById('hrr-home')) return;
+    var grid = doc.querySelector('.mod-grid'); if (!grid) return;
+    var a = doc.createElement('a'); a.id = 'hrr-home'; a.className = 'mod-btn'; a.href = '#';
+    var lang = currentLang();
+    a.innerHTML = '<div class="mb-icon">📄</div><div class="mb-text"><div class="mb-zh" data-zh="參考報告" data-en="Reports" data-km="របាយការណ៍">' + L(lang, '參考報告', 'Reports', 'របាយការណ៍') + '</div><div class="mb-en">Word · 中英 / EN-KM · ' + L(lang, '各模組手動產生', 'per module, manual', 'ម៉ូឌុល') + '</div></div><div class="mb-arr">↗</div>';
+    a.onclick = function (e) { e.preventDefault(); chooser(); };
+    var ana = grid.querySelector('a.mod-btn.full[href*="complete"]');
+    if (ana) grid.insertBefore(a, ana); else grid.appendChild(a);
+  }
+  g.HRAReport = { version: '1.1', chooser: chooser, open: open, capture: capture, generate: generate, module: MODULE };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', function () { setTimeout(mountButton, 300); }); else setTimeout(mountButton, 300);
 })(window);
