@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head>
+<head><script src="shared/hra-gate.js?v=1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>AC HRA Manpower v3.1</title>
 <script src="shared/ac-storage.js?v=1" data-offload="ac_hra_cloud_state_*,ac_hra_manpower_cloud_manifest_v2,ac_hra_smart_sync_v2_*,vrt_nursing_fees_v2,ac_hra_joins,ac_hra_resigns,vrt_dashProbs"></script>
 <link rel="preload" as="script" href="shared/cloud-guard.js?v=2">
-<link rel="preload" as="script" href="shared/hra-smart-sync.js?v=39">
+<link rel="preload" as="script" href="shared/hra-smart-sync.js?v=48">
 <link rel="preload" as="script" href="shared/telegram-evidence.js?v=45">
 <link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
 <link rel="preload" as="script" href="shared/hra-hr-governance.js?v=57">
 <link rel="preload" as="script" href="shared/inspector.js">
 <link rel="preload" as="script" href="shared/portal-actionbar.js">
 <script type="text/x-ac-after-storage" src="shared/cloud-guard.js?v=2"></script>
-<script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=39"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=48"></script>
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-hr-governance.js?v=57"></script>
@@ -2898,7 +2898,8 @@ async function cloudUpload(options={}){
       if(md?.cancelled){toast(L('已取消入離職覆蓋，雲端資料已保留','Movement overwrite cancelled; cloud data was kept','បានបោះបង់ការជំនួស movement; Cloud ត្រូវបានរក្សាទុក'),'warn');return}
       if(md?.ok===false)throw new Error(md.error||'Onboarding movement sync failed');
     }
-    const md=await HRASmartSync.push({url,tool:'onboarding',records:movement,recordCount:movement.length,summary:{source:'manpower',joins:DB.joins.length,resigns:DB.resigns.length},meta:{coverage:HRACloudGuard.coverage(movement,'onboarding')},allowDeletes:false,autoConfirmConflicts:!!options.auto});
+    /* 2026-10-24：只把入離職台帳「還沒有」的列補上去（movement_state 為本頁自有，可更新）；不再整區覆蓋 Onboarding 的資料、meta 與審核決定，也不會和入離職頁互相重複上傳 */
+    const md=await HRASmartSync.appendMissing({url,tool:'onboarding',records:movement,ownKinds:['movement_state'],onStatus:s=>setCloudState('',s)});
     if(md?.cancelled){toast(L('已取消入離職上傳，雲端資料已保留','Join/resign upload cancelled; cloud data was kept','បានបោះបង់ការផ្ទុក ចូល/ចេញ; ទិន្នន័យ Cloud ត្រូវបានរក្សាទុក'),'warn');return}
     if(md?.needsPull)throw new Error(L('入離職雲端有新資料，已保留；請先下載合併','Cloud movement data is newer and was kept','ទិន្នន័យ movement ថ្មីជាង; បានរក្សាទុក សូមទាញយក/បញ្ចូលគ្នា'));
     markCloudManifest(allRecords);
@@ -3048,7 +3049,7 @@ async function cloudDownload(options={}){
   if(btn){btn.classList.add('busy');btn.disabled=true}setCloudState('',L('下載中…','Downloading…','កំពុងទាញយក…'));
   try{
     const mainRes=await HRASmartSync.pullReliable({url,tool:'manpower',localRecords:flatCloudRecords().filter(r=>r._kind!=='join'&&r._kind!=='resign'),onStatus:s=>setCloudState('',s)});
-    let moveRes={records:[]};try{moveRes=await HRASmartSync.pullReliable({url,tool:'onboarding',localRecords:[...flatCloudRecords().filter(r=>r._kind==='join'||r._kind==='resign'),...movementStateCloudRecords()],onStatus:s=>setCloudState('',s)})}catch(e){console.warn('Onboarding movement pull:',e)}
+    let moveRes={records:[]};try{moveRes=await HRASmartSync.pullReliable({url,tool:'onboarding',readOnly:true,localRecords:[],onStatus:s=>setCloudState('',s)})}catch(e){console.warn('Onboarding movement pull:',e)}
     if(mainRes?.meta?.decisions&&typeof mainRes.meta.decisions==='object'){
       MP_DEC={...mainRes.meta.decisions,...MP_DEC};saveMpDec();
     }
@@ -3058,7 +3059,7 @@ async function cloudDownload(options={}){
          only when cloud does not have them yet. */
       obDec={...obDec,...moveRes.meta.decisions};lsSet('ac_hra_ob_decisions',JSON.stringify(obDec));
     }
-    const rawMain=arrayValue(mainRes?.records),rawMovement=arrayValue(moveRes?.records);
+    const rawMain=arrayValue(mainRes?.records),rawMovement=arrayValue(moveRes?.records).filter(r=>r&&(!r._kind||r._kind==='join'||r._kind==='resign'||r._kind==='movement_state'));/* 2026-10-24：入離職台帳裡的離職結算（settle）列也有 joinDate，舊版會被當成「入職」再寫回台帳 */
     const movementStates=rawMovement.filter(r=>r&&r._kind==='movement_state');
     if(movementStates.length)mergeMovementStates(movementStates);
     const records=normalizeManpowerCloudRows(rawMain),movement=normalizeManpowerCloudRows(rawMovement.filter(r=>!r||r._kind!=='movement_state')).filter(r=>r&&((r._kind==='join'||r._kind==='resign')||r.joinDate||r.resignDate));

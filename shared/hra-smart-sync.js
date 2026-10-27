@@ -1,4 +1,11 @@
-/* AC HRA Portal Smart Sync v1.7
+/* AC HRA Portal Smart Sync v1.8
+ * v1.8 (2026-10-24): a page that only READS another module's cloud data (Contract/Maternity read Onboarding,
+ *   Maternity reads Contract, Manpower reads Onboarding) now uses a read-only mirror (readOnly:true).  Before,
+ *   those reads overwrote the owner's three-way baseline in localStorage, so the owner page could mistake an old
+ *   local copy for a "local change" and upload it over newer cloud data, and every read re-downloaded all buckets.
+ *   Manpower no longer pushes its re-shaped copy of Join/Resign rows to the Onboarding ledger (which replaced
+ *   Onboarding's buckets and meta/decisions and made the two pages re-upload each other forever): it appends only
+ *   rows the ledger does not have yet (appendMissing), keeping the owner's rows, meta and baseline untouched.
  * Bucket-level incremental sync for the HRA Portal.
  *
  * The existing attendance page has its own date-shard protocol and keeps using
@@ -12,7 +19,7 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.7';
+  var VERSION = '1.8';
   var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
   var FULL_CACHE_DB = 'AC_HRA_FullCloudCache_v1', FULL_CACHE_STORE = 'snapshots';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
@@ -531,6 +538,7 @@
 
   function pullReliable(opts) {
     opts = opts || {};
+    if (opts.readOnly) return readRemote(opts);
     var tool = opts.tool, isRecoveryTool = ['welfare','certificate_visa','manpower','maternity'].indexOf(canonicalTool(tool)) >= 0;
     if (!isRecoveryTool) return pull(opts);
 
@@ -596,6 +604,9 @@
   }
   function conflictConfirm(tool, buckets, opts) {
     if (opts && opts.autoConfirmConflicts) return true;
+    /* v1.8: inside the home page's background sync / smart import there is nobody looking at this page —
+       merge (keeps both sides, newer field wins) instead of a dialog that would stall the whole run. */
+    try { if (/[?&](homesync|hubImport)=/.test(g.location.search)) return true; } catch (_) {}
     if (!buckets.length || typeof g.confirm !== 'function') return true;
     return g.confirm('雲端與本機同時有變更：' + buckets.join(', ') + '\n\n先合併較新的欄位並保留雙方資料？');
   }
@@ -827,6 +838,7 @@
 
   function pull(opts) {
     opts = opts || {};
+    if (opts.readOnly) return readRemote(opts);
     var url = text(opts.url).trim(), tool = opts.tool, localRows = sortRows(opts.localRecords || []), status = opts.onStatus;
     if (!url) return Promise.reject(new Error('GAS URL missing'));
     callStatus(status, '智慧拉取：比對雲端差異…', 'busy');
@@ -957,7 +969,99 @@
     });
   }
 
-  g.HRASmartSync = { version:VERSION, push:push, pull:pull, pullReliable:pullReliable, pullDirect:directPull,
+  /* ── v1.8 read-only mirror of another module's cloud data ──
+     Kept in its own IndexedDB entry (<tool>@remote) and never touches the owner's baseline.  Only buckets whose
+     cloud hash changed since the last read are downloaded; the rest come from the mirror. */
+  function readRemote(opts) {
+    opts = opts || {};
+    var url = text(opts.url).trim(), tool = opts.tool, status = opts.onStatus, cacheKey = canonicalTool(tool) + '@remote';
+    if (!url) return Promise.reject(new Error('GAS URL missing'));
+    callStatus(status, '讀取 ' + canonicalTool(tool) + ' 雲端資料（唯讀）…', 'busy');
+    return Promise.all([getManifest(url, tool), fullCacheGet(cacheKey)]).then(function (parts) {
+      var remote = parts[0] || {}, cache = parts[1] || {}, cb = cache.buckets || {}, ch = cache.hashes || {};
+      if (remote.compatibilityFallback || (!remote.exists && remote.legacy)) {
+        return legacyPull(url, tool, status).then(function (legacy) {
+          var rows = legacy.records || [];
+          return { ok:true, readOnly:true, records:rows, meta:legacy.meta || {}, remote:remote, buckets:null, downloaded:rows.length, unchanged:0, remoteRecordCount:rows.length };
+        });
+      }
+      if (!remote.exists) return { ok:true, readOnly:true, noCloud:true, records:[], meta:{}, remote:remote, buckets:{}, downloaded:0, unchanged:0, remoteRecordCount:0 };
+      var remoteH = remote.hashes || {}, keys = Object.keys(remoteH).sort(), buckets = {}, downloaded = 0, unchanged = 0, fetched = 0, chain = Promise.resolve();
+      keys.forEach(function (k, idx) {
+        chain = chain.then(function () {
+          if (ch[k] && ch[k] === remoteH[k] && Array.isArray(cb[k])) { buckets[k] = cb[k]; unchanged += cb[k].length; return; }
+          callStatus(status, '下載變更 ' + (idx + 1) + '/' + keys.length + ' · ' + k, 'busy');
+          return smartBucketRead(url, tool, k, idx, Number((remote.counts || {})[k]) || 0, status).then(function (bj) {
+            var rows = (dataOf(bj) || {}).records || []; buckets[k] = rows; downloaded += rows.length; fetched++;
+          });
+        });
+      });
+      return chain.then(function () {
+        var rows = keys.reduce(function (a, k) { return a.concat(buckets[k] || []); }, []);
+        var dirty = fetched || keys.length !== Object.keys(ch).length;
+        return (dirty ? fullCachePut(cacheKey, { hashes:remoteH, buckets:buckets, savedAt:now() }) : Promise.resolve()).then(function () {
+          callStatus(status, '完成｜唯讀下載 ' + downloaded.toLocaleString() + '｜未變 ' + unchanged.toLocaleString(), 'ok');
+          return { ok:true, readOnly:true, records:rows, meta:remote.meta || {}, remote:remote, buckets:buckets, downloaded:downloaded, unchanged:unchanged, remoteRecordCount:rows.length };
+        });
+      });
+    });
+  }
+  /* ── v1.8 add rows another page owns, without replacing anything ──
+     Rows whose semantic key (_k first) already exists in the cloud ledger are left exactly as the owner stored
+     them; only missing rows are added.  Rows of opts.ownKinds (e.g. Manpower's movement_state markers) belong to
+     the caller and are updated when they differ.  The owner's meta, summary and baseline are preserved. */
+  function appendMissing(opts) {
+    opts = opts || {};
+    var url = text(opts.url).trim(), tool = opts.tool, own = opts.ownKinds || [], status = opts.onStatus;
+    var incoming = (opts.records || []).filter(function (r) { return r && typeof r === 'object'; });
+    if (!url) return Promise.reject(new Error('GAS URL missing'));
+    if (!incoming.length) return Promise.resolve({ ok:true, skipped:true, added:0, updated:0, uploaded:0 });
+    return readRemote({ url:url, tool:tool, onStatus:status }).then(function (rr) {
+      var remote = rr.remote || {};
+      if (!remote.exists) {
+        if (rr.noCloud) return push({ url:url, tool:tool, records:incoming, recordCount:incoming.length, meta:opts.meta || {}, summary:opts.summary || {}, allowDeletes:false, autoConfirmConflicts:true, onStatus:status });
+        return { ok:true, skipped:true, legacy:true, added:0, updated:0, uploaded:0 };
+      }
+      var byBucket = rr.buckets || {}, index = {}, touched = {}, added = 0, updated = 0;
+      Object.keys(byBucket).forEach(function (k) { (byBucket[k] || []).forEach(function (r, i) { index[semanticKey(r)] = { k:k, i:i }; }); });
+      incoming.forEach(function (r) {
+        var sk = semanticKey(r), hit = index[sk];
+        if (!hit) {
+          var k = bucketKey(r); (touched[k] || (touched[k] = (byBucket[k] || []).slice())).push(r);
+          index[sk] = { k:k, i:-1 }; added++; return;
+        }
+        if (hit.i >= 0 && own.indexOf(text(r._kind)) >= 0 && stable(byBucket[hit.k][hit.i]) !== stable(r)) {
+          (touched[hit.k] || (touched[hit.k] = byBucket[hit.k].slice()))[hit.i] = r; updated++;
+        }
+      });
+      var tk = Object.keys(touched).sort();
+      if (!tk.length) { callStatus(status, '雲端已有這些資料，不重複上傳', 'ok'); return { ok:true, skipped:true, added:0, updated:0, uploaded:0 }; }
+      var uploadId = 'hra_ap_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8), hashes = Object.assign({}, remote.hashes || {}), counts = Object.assign({}, remote.counts || {}), sent = 0, chain = Promise.resolve();
+      tk.forEach(function (k, idx) {
+        chain = chain.then(function () {
+          var rows = sortRows(touched[k]);
+          return hash(stable(rows)).then(function (h) {
+            callStatus(status, '補上缺少的資料 ' + (idx + 1) + '/' + tk.length + ' · ' + k, 'busy');
+            return post(url, { action:'smartBucket', tool:tool, uploadId:uploadId, bucket:k, hash:h, count:rows.length, records:rows }).then(function () {
+              hashes[k] = h; counts[k] = rows.length; byBucket[k] = rows; sent += rows.length;
+            });
+          });
+        });
+      });
+      return chain.then(function () {
+        var recordCount = Object.keys(counts).reduce(function (n, k) { return n + (Number(counts[k]) || 0); }, 0);
+        return post(url, { action:'smartCommit', tool:tool, uploadId:uploadId, hashes:hashes, counts:counts, recordCount:recordCount,
+          meta:remote.meta || {}, metaHash:remote.metaHash || '', summary:remote.summary || {} });
+      }).then(function () {
+        return fullCachePut(canonicalTool(tool) + '@remote', { hashes:hashes, buckets:byBucket, savedAt:now() }).then(function () {
+          callStatus(status, '完成｜新增 ' + added + '｜更新 ' + updated, 'ok');
+          return { ok:true, added:added, updated:updated, uploaded:added + updated, changedBuckets:tk.length };
+        });
+      });
+    });
+  }
+
+  g.HRASmartSync = { version:VERSION, push:push, pull:pull, pullReliable:pullReliable, pullDirect:directPull, readRemote:readRemote, appendMissing:appendMissing,
     fullCacheGet:fullCacheGet, fullCachePut:fullCachePut,
     buildBuckets:buildBuckets, mergeRows:mergeRows, semanticKey:semanticKey, bucketKey:bucketKey, stable:stable };
 })(window);

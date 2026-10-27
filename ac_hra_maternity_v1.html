@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head>
+<head><script src="shared/hra-gate.js?v=1"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
 <script src="shared/ac-storage.js?v=1" data-offload="ac_hra_cloud_state_*,ac_hra_manpower_cloud_manifest_v2,ac_hra_smart_sync_v2_*,vrt_nursing_fees_v2,ac_hra_joins,ac_hra_resigns,vrt_dashProbs"></script>
 <link rel="preload" as="script" href="shared/cloud-guard.js?v=2">
-<link rel="preload" as="script" href="shared/hra-smart-sync.js?v=39">
+<link rel="preload" as="script" href="shared/hra-smart-sync.js?v=48">
 <link rel="preload" as="script" href="shared/telegram-evidence.js?v=45">
 <link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
 <link rel="preload" as="script" href="shared/hra-hr-governance.js?v=57">
@@ -15,7 +15,7 @@
 <link rel="preload" as="script" href="shared/hra-attachments.js?v=43">
 <link rel="preload" as="script" href="shared/portal-actionbar.js">
 <script type="text/x-ac-after-storage" src="shared/cloud-guard.js?v=2"></script>
-<script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=39"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=48"></script>
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-hr-governance.js?v=57"></script>
@@ -2050,12 +2050,12 @@ async function refreshEmploymentContextCloud(silent){
   var c=lifeReadLocal(),url=gasUrl();
   if(url&&typeof HRASmartSync!=='undefined'){
     try{
-      var ob=await HRASmartSync.pullReliable({url:url,tool:'onboarding',localRecords:[]}),dec=Object.assign({},c.decisions,(ob&&ob.meta&&ob.meta.decisions)||{}),jr=[],rr=[];
+      var ob=await HRASmartSync.pullReliable({url:url,tool:'onboarding',localRecords:[],readOnly:true}),dec=Object.assign({},c.decisions,(ob&&ob.meta&&ob.meta.decisions)||{}),jr=[],rr=[];
       (ob&&Array.isArray(ob.records)?ob.records:[]).forEach(function(r){var k=String(r&&r._kind||'').toLowerCase();if(k==='movement_state')return;if(k==='join'||r.joinDate!==undefined){if(lifeDecisionOkM('join',r,dec))jr.push(r);}else if(k==='resign'||r.resignDate!==undefined){if(lifeDecisionOkM('resign',r,dec))rr.push(r);}});
       if(jr.length||rr.length){c.joins=jr;c.resigns=rr;c.decisions=dec;}
     }catch(e){if(!silent)console.warn('[health onboarding context]',e)}
     try{
-      var cr=await HRASmartSync.pullReliable({url:url,tool:'contract',localRecords:[]}),rows=(cr&&Array.isArray(cr.records)?cr.records:[]);
+      var cr=await HRASmartSync.pullReliable({url:url,tool:'contract',localRecords:[],readOnly:true}),rows=(cr&&Array.isArray(cr.records)?cr.records:[]);
       var pc=[],cc=[],ee=[];rows.forEach(function(r){var k=String(r&&r._kind||'').toLowerCase();if(k==='dash_probation'||k==='probation'||k==='prob')pc.push(r);else if(k==='dash_contract'||k==='contract'||k==='cont')cc.push(r);else if(k==='employee')ee.push(r);});
       if(pc.length)c.probations=pc;if(cc.length)c.contracts=cc;if(ee.length)c.employees=ee;
     }catch(e){if(!silent)console.warn('[health contract context]',e)}

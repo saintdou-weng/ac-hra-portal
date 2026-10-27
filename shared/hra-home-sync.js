@@ -1,4 +1,4 @@
-/* Home Cloud Sync v1.1 (2026-10-16) — shared by AC-HRA-PAY (index.html) and AC HRA Portal (hra_portal_v2.html)
+/* Home Cloud Sync v1.2 (2026-10-24) — shared by AC-HRA-PAY (index.html) and AC HRA Portal (hra_portal_v2.html)
  * 首頁「全部同步／勾選同步」：每個模組用它自己的頁面（隱藏 iframe）跑一次雙向智慧同步，
  * 規則完全和模組頁的自動同步一樣（先下載合併、再只上傳變更、不會亂刪），只是從首頁一次做完。
  *
@@ -9,12 +9,16 @@
  *   HomeSync.runAll() / HomeSync.runSelected() / HomeSync.refreshLang()
  * v1.1: a module that keeps re-syncing by itself (e.g. 員工請假) counts as done once it stays in a
  *       finished state for 1.5 s, instead of waiting for the same run to stay put.
+ * v1.2: time out only when a module shows no progress for 4 min (45 min hard cap) instead of 8 min total;
+ *       a module with a queued upload (pending) is not "done" yet; slow phones get 2 min to open a module;
+ *       modules that timed out / did not open are retried once automatically at the end of the run;
+ *       warns when the page is in the background (browsers pause background timers).
  */
 (function (w) {
   'use strict';
   if (w.HomeSync) return;
   var doc = w.document, OPT = null, ROOT = null, RUNNING = false, STOP = false;
-  var TIMEOUT = 8 * 60 * 1000, SETTLE = 1500;
+  var TIMEOUT = 45 * 60 * 1000, IDLE = 4 * 60 * 1000, OPEN_LIMIT = 120000, SETTLE = 1500;
   var T = {
     title: ['☁ 雲端同步', '☁ Cloud Sync', '☁ សមកាលកម្មពពក'],
     hint: ['雙向智慧同步：先下載雲端新資料合併，再上傳本機變更；只傳有變的部分，不會刪掉雲端資料。',
@@ -39,7 +43,9 @@
     fail: ['⚠ 無法開啟模組', '⚠ Module did not open', '⚠ មិនអាចបើក'],
     done: ['同步完成：{ok} 個成功', 'Sync finished: {ok} OK', 'រួចរាល់៖ {ok}'],
     doneBad: ['同步完成：{ok} 個成功、{bad} 個需注意（看紅字）', 'Finished: {ok} OK, {bad} need attention', 'រួចរាល់៖ {ok} / {bad}'],
-    last: ['上次', 'Last', 'ចុងក្រោយ']
+    last: ['上次', 'Last', 'ចុងក្រោយ'],
+    retrying: ['🔁 自動重試', '🔁 Retrying', '🔁 ព្យាយាមម្តងទៀត'],
+    hidden: ['⚠ 同步進行中：請讓這一頁保持在畫面上，切到別的 App／分頁時瀏覽器會暫停同步', '⚠ Sync running: keep this page on screen — the browser pauses sync in the background', '⚠ សូមទុកទំព័រនេះនៅលើអេក្រង់']
   };
   var OK_STATES = { synced: 1, checked: 1, empty: 1 };
   function li() { var l = OPT && OPT.lang ? OPT.lang() : 'tc'; return l === 'en' ? 1 : l === 'km' ? 2 : 0; }
@@ -127,12 +133,13 @@
       }
       var A = m.kind === 'hra' ? cw.HRAAutoSync : cw.HRPayAutoSync; if (!A || !A.state) return null;
       var s = A.state(m.key); if (!s) return null;
-      return { state: s.state, detail: s.detail || '', lastRun: s.lastRun || 0, final: s.lastRun > 0 && /^(synced|checked|retry|offline)$/.test(s.state) };
+      var pend = false; try { pend = !!(A.pending && A.pending(m.key)) && /^(synced|checked)$/.test(s.state); } catch (_) {}
+      return { state: pend ? 'syncing' : s.state, detail: s.detail || '', lastRun: s.lastRun || 0, pending: pend, final: !pend && s.lastRun > 0 && /^(synced|checked|retry|offline)$/.test(s.state) };
     } catch (_) { return null; }
   }
   function runOne(m) {
     return new Promise(function (res) {
-      var f = doc.createElement('iframe'), t0 = Date.now(), sig = '', since = 0, timer = null, ended = false;
+      var f = doc.createElement('iframe'), t0 = Date.now(), sig = '', since = 0, timer = null, ended = false, act = Date.now(), actSig = '';
       f.setAttribute('aria-hidden', 'true'); f.setAttribute('tabindex', '-1'); f.title = 'sync ' + m.id;
       f.style.cssText = 'position:fixed;left:-20000px;top:0;width:1280px;height:900px;border:0;opacity:0;pointer-events:none';
       f.src = m.page + (m.page.indexOf('?') >= 0 ? '&' : '?') + 'homesync=' + Date.now();
@@ -145,13 +152,14 @@
       doc.body.appendChild(f);
       timer = setInterval(function () {
         if (STOP) return end('stopped');
-        if (Date.now() - t0 > TIMEOUT) return end('timeout');
+        if (Date.now() - t0 > TIMEOUT || Date.now() - act > IDLE) return end('timeout');
         var cw = null; try { cw = f.contentWindow; } catch (_) {}
         if (!cw) return;
         var st = probe(cw, m);
-        if (!st) { if (Date.now() - t0 > 60000) end('fail'); return; }
+        if (st) { var a2 = st.state + '|' + st.detail + '|' + st.lastRun + '|' + (st.pending ? 1 : 0); if (a2 !== actSig) { actSig = a2; act = Date.now(); } }
+        if (!st) { if (Date.now() - t0 > OPEN_LIMIT) end('fail'); return; }
         if (!st.final) { sig = ''; setRow(m.id, 'run', tx('sync') + (st.detail && st.state === 'syncing' ? ' · ' + st.detail : '…')); return; }
-        var now = st.state;
+        var now = st.state + '|' + st.lastRun;
         if (now !== sig) { sig = now; since = Date.now(); return; }
         if (Date.now() - since >= SETTLE) end(st.state, st.detail);
       }, 400);
@@ -162,25 +170,33 @@
     if (!list.length) { say(tx('none')); return false; }
     RUNNING = true; STOP = false; busyUi(true); say('');
     list.forEach(function (m) { setRow(m.id, '', tx('wait')); });
-    var last = store('last') || {}, ok = 0, bad = 0;
-    for (var i = 0; i < list.length; i++) {
-      var m = list[i];
-      if (STOP) { setRow(m.id, 'bad', tx('stopped')); continue; }
+    var last = store('last') || {}, ok = 0, bad = 0, again = [];
+    var onVis = function () { if (doc.hidden) say(tx('hidden')); else say(''); };
+    doc.addEventListener('visibilitychange', onVis);
+    async function one(m, isRetry) {
+      if (STOP) { setRow(m.id, 'bad', tx('stopped')); bad++; return; }
+      if (isRetry) setRow(m.id, 'run', tx('retrying'));
       var r = await runOne(m);
       var good = !!OK_STATES[r.state];
+      /* 逾時／打不開：最後自動再試一次（模組會從上次進度續傳，不會重複上傳已完成的部分） */
+      if (!good && !isRetry && /^(timeout|fail)$/.test(r.state) && !STOP) { again.push(m); setRow(m.id, 'bad', tx(r.state) + ' · ' + tx('retrying')); return; }
       if (good) ok++; else bad++;
       var label = tx(r.state) + (r.state === 'synced' && r.detail ? '' : (r.detail && !good ? ' · ' + r.detail : ''));
       setRow(m.id, good ? 'ok' : 'bad', label + ' ' + hhmm().slice(6));
       last[m.id] = { s: r.state, t: hhmm() }; store('last', last);
       if (OPT.onModuleDone) try { OPT.onModuleDone(m, r); } catch (_) {}
     }
+    try {
+      for (var i = 0; i < list.length; i++) await one(list[i], false);
+      for (var j = 0; j < again.length; j++) await one(again[j], true);
+    } finally { doc.removeEventListener('visibilitychange', onVis); }
     RUNNING = false; busyUi(false);
     say(bad ? tx('doneBad', { ok: ok, bad: bad }) : tx('done', { ok: ok }));
     if (OPT.onDone) try { OPT.onDone({ ok: ok, bad: bad }); } catch (_) {}
     return !bad;
   }
   var api = {
-    version: '1.1',
+    version: '1.2',
     mount: function (el, opt) { OPT = opt; OPT.storeKey = OPT.storeKey || 'home-sync'; ROOT = el; css(); el.className = 'hs ' + (opt.theme || 'light'); render(); return api; },
     runAll: function () { return run(OPT.modules.slice()); },
     runSelected: function () { var s = store('sel') || {}; return run(OPT.modules.filter(function (m) { return s[m.id] !== false; })); },
