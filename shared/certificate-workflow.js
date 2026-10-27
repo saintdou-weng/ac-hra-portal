@@ -63,6 +63,16 @@ function certificateRequestItem(item,due,documentType){
   const doc={schema:'certificate-request-v1',recordId:rec.id,documentType:type,effectiveMonth:certificateViewMonth(),name:kind==='certificate'?rec.name:[rec.nickname,rec.nameEn].filter(Boolean).join(' / '),category:rec.category||rec.department||'',employeeId:rec.employeeId||'',passport:kind==='person'?rec.passport||'':'',startDate:kind==='certificate'?rec.startDate||'':rec[type+'ReceivedDate']||'',expiryDate:kind==='certificate'?rec.expiryDate||'':rec[type+'Expiry']||'',renewalDate:kind==='certificate'?rec.renewalDate||'':'',targetDate,costText:kind==='certificate'?(rec.costText||String(rec.cost??'')):String(rec[type+'Expense']??''),costIsRate:!!rec.costIsRate,amount:rec.costIsRate?null:kind==='certificate'?rec.cost??null:rec[type+'Expense']??null,remark:rec.remark||'',sourceFile:rec.sourceFile||'',sourceSheet:rec.sourceSheet||'',sourceRow:rec.sourceRow||'',evidence:JSON.parse(JSON.stringify(CertificateEvidence.evidence(rec).filter(a=>kind==='certificate'||!a.documentType||a.documentType===type)))};
   return {kind,id:rec.id,name:doc.name,documentType:type,targetDate,approvalKey:'CV|'+HRACertificateModel.hash([rec.id,type,targetDate,doc.expiryDate,doc.renewalDate].concat(rec.evidenceRevisionAt||doc.evidence.length?[rec.evidenceRevisionAt||'',doc.evidence.map(a=>a.id||a.url||'')]:[])),documentRequest:doc};
 }
+/* 2026-10-27 核可卡逐筆算式：證書／證件費用沒有另外的公式，重算「來源表費用欄」的數字，和送核金額相符就標 verified。
+   費用寫成單價（例如 $30/person）時不當總額送核（amount 0），只附來源文字、不標 verified。 */
+function certificateFeeCalc(d,lang){
+  if(!d)return {};
+  const f=v=>'$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),src=String(d.costText??'').trim(),l=(z,e,k)=>lang==='both'||lang==='all3'?z+' / '+e:certificateL(lang,z,e,k);
+  if(d.costIsRate)return src?{calc:(l('費用為單價','Fee is a unit rate','ថ្លៃក្នុងមួយឯកតា')+'「'+src+'」'+l('，未列總額',', no total','')).slice(0,220)}:{};
+  const amt=Number(d.amount)||0;if(!(amt>0))return {};
+  const re=Math.round(num(src)*100)/100,ok=!!src&&Math.abs(re-amt)<=0.005;
+  return {calc:(l('費用','Fee','ថ្លៃ')+' '+f(amt)+(src?' ← '+l('來源','source','ប្រភព')+'「'+src+'」= '+f(re):' ← '+l('線上填寫','entered online','បញ្ចូលអនឡាញ'))+(src?(ok?' ✔':' ≠'):'')).slice(0,220),verified:src?ok:undefined};
+}
 function certificatePendingRequests(){return STATE.requests.filter(r=>r.status==='pending'&&(r.period||r.createdAt?.slice(0,7)||certificateViewMonth())===certificateViewMonth());}
 function certificateApprovalPayload(r,actor,lang){
   if(!r.items?.length)throw new Error(tr('selectItems'));
@@ -73,7 +83,8 @@ function certificateApprovalPayload(r,actor,lang){
     return {key:i.approvalKey,name:d.name,empId:d.employeeId,dept:d.category,amount:d.costIsRate?0:Number(d.amount)||0,kind:d.documentType,period:r.period||d.effectiveMonth,info:r.remark||'',documentRequest:JSON.parse(JSON.stringify(d))};
   });
   const signature=HRACertificateModel.hash(items),period=r.period||items[0].documentRequest.effectiveMonth;
-  return {action:'approvalRequest',module:'certificate_visa',tool:'certificate_visa',scope:'document_request',reportKind:'certificate_request',schemaVersion:3,batch:'CV-'+period.replace('-','')+'-'+HRACertificateModel.hash(r.id)+'-'+signature,period,lang:lang||'both',route:'direct',/* v73: 證書／簽證由 Paul 直接核可，不經群組審查 */title:r.title,items,inspector:actor||r.applicant,checker:actor||r.applicant,requestedBy:r.applicant,idempotencyKey:'certificate-request|'+r.id+'|'+signature,attachments:items.flatMap(i=>(i.documentRequest.evidence||[]).map(a=>({...a,fileName:a.originalName||a.fileName||a.name,label:i.documentRequest.name,recordKey:i.documentRequest.recordId})))};
+  items.forEach(it=>Object.assign(it,certificateFeeCalc(it.documentRequest,lang)));/* 2026-10-27：算式在 signature 之後才加，批次編號／idempotency 不變 */
+  return {action:'approvalRequest',module:'certificate_visa',tool:'certificate_visa',scope:'document_request',reportKind:'certificate_request',schemaVersion:3,batch:'CV-'+period.replace('-','')+'-'+HRACertificateModel.hash(r.id)+'-'+signature,period,lang:lang||'both',route:'direct',/* v73: 證書／簽證由 Paul 直接核可，不經群組審查 */title:r.title,items,stats:typeof certificateFeeStatsLines==='function'?certificateFeeStatsLines(lang==='en'?'en':lang==='km'?'km':'zh'):[],/* 2026-10-27 GAS v61 印在卡片 */inspector:actor||r.applicant,checker:actor||r.applicant,requestedBy:r.applicant,idempotencyKey:'certificate-request|'+r.id+'|'+signature,attachments:items.flatMap(i=>(i.documentRequest.evidence||[]).map(a=>({...a,fileName:a.originalName||a.fileName||a.name,label:i.documentRequest.name,recordKey:i.documentRequest.recordId})))};
 }
 async function refreshCertificateApprovals(options={}){
   if(!gasUrl()||!STATE.requests.some(r=>r.batchId||r.items?.some(i=>i.approvalKey)))return false;

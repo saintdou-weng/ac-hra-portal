@@ -170,6 +170,8 @@ tbody tr:hover{background:#f8fafc}
     <div class="kpi anim"><p class="l" data-t="k_medamt">💊 醫療採購 Medical Purchase</p><p class="v text-cyan-600" id="k-medamt">$0</p></div>
     <div class="kpi anim"><p class="l" data-t="k_total">👥 名冊總數 Total</p><p class="v text-slate-700" id="k-total">0</p></div>
   </div>
+  <!-- 2026-10-27 各費用當月／當年累計（人數、金額） -->
+  <div id="ov-feecum"></div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div class="sect"><h3>📈 <span data-t="c_trend">孕婦登記 / 護理費趨勢 Trend</span></h3>
       <div class="p-3"><div class="ch260"><canvas id="ch-trend"></canvas></div></div></div>
@@ -1236,8 +1238,11 @@ function matPayDetailMap(wb){
     }
     /* Some Excel editors remove cached formula results.  Recreate the exact
        workbook calculation: average of the available monthly total payroll,
-       divided by 26 workdays, paid for 90 days at 50%. */
-    if(!amount){
+       divided by 26 workdays, paid for 90 days at 50%.
+       2026-10-27: the monthly totals are always kept (calcTotals) so the approval
+       card can show the formula and mark the amount as recomputed / verified. */
+    var totals=[];
+    {
       var ph=-1,monthCol=-1,salaryCol=-1,otCol=-1,mealCol=-1,totalCol=-1;
       for(var hi=0;hi<rows.length;hi++){
         var hh=hdrMap(rows[hi]||[]);
@@ -1246,7 +1251,6 @@ function matPayDetailMap(wb){
         }
       }
       if(ph>=0){
-        var totals=[];
         for(var pi=ph+1;pi<rows.length;pi++){
           var pr=rows[pi]||[], label=pr.map(function(v){return cs(v);}).join(' ');
           if(/subtotal|average|maternity\s*(?:fee|period)/i.test(label))continue;
@@ -1255,12 +1259,12 @@ function matPayDetailMap(wb){
           if(!tv)tv=(salaryCol>=0?matMoneyCell(pr[salaryCol]):0)+(otCol>=0?matMoneyCell(pr[otCol]):0)+(mealCol>=0?matMoneyCell(pr[mealCol]):0);
           if(tv>0&&tv<10000)totals.push(tv);
         }
-        if(totals.length){var avg=totals.reduce(function(s,n){return s+n;},0)/totals.length;amount=avg/26*90/2;}
+        if(totals.length&&!amount){var avg=totals.reduce(function(s,n){return s+n;},0)/totals.length;amount=avg/26*90/2;}
       }
     }
     if(!id)return;
     var priority=String(sn).trim()===id?2:(String(sn).trim()==='0'?0:1);
-    if(!out[id]||priority>=out[id].priority)out[id]={start:start,end:end,amount:Math.round(amount*100)/100,name:name,priority:priority,sheet:String(sn)};
+    if(!out[id]||priority>=out[id].priority)out[id]={start:start,end:end,amount:Math.round(amount*100)/100,name:name,priority:priority,sheet:String(sn),calcTotals:totals.map(function(n){return Math.round(n*100)/100;})};
   });
   return out;
 }
@@ -1294,6 +1298,8 @@ function parseMatPay(wb){
       matAmount:Math.round(amt*100)/100,totalDays:90,
       remark:cRemark>=0?(cs(row[cRemark])||'Maternity payment'):'Maternity payment',
       source:'matpay',srcSheet:sn};
+    /* 2026-10-27: 個人表的每月總薪資 → 核可卡重算「平均 ÷ 26 × 90 × 50%」 */
+    if(detail.calcTotals&&detail.calcTotals.length)rec.matCalc={totals:detail.calcTotals,sheet:detail.sheet||''};
     /* 只在有值時帶入，避免覆蓋登記表既有欄位 */
     if(detail.start){
       if(mdate&&mdate!==detail.start)warn.push(idNo+' '+nm+'：'+L('摘要日期 '+mdate+' 已依個人表修正為 '+detail.start,'Summary date '+mdate+' corrected from employee sheet to '+detail.start));
@@ -1804,9 +1810,55 @@ function monthsWithData(){
 function yearsWithData(){ var s={}; monthsWithData().forEach(function(m){s[m.slice(0,4)]=1;}); return Object.keys(s).sort(); }
 
 /* ═══════════ 總覽 ═══════════ */
+/* ═══════════ 2026-10-27 各費用當月／當年累計（人數、金額） ═══════════
+   每個月用本模組自己的 periodData() 取資料再加總，口徑和頁面、摘要完全相同。
+   當月＝所選期間的月份（年度＝該年最後有費用的月份）；當年累計＝該年 1 月到當月。
+   用在：總覽頁、Telegram 摘要與核可卡（送給 GAS v61 的 stats）。 */
+var FEE_CATS=[
+  {k:'mat',sc:'mat',ico:'🍼',zh:'產假給付',en:'Maternity pay',km:'ប្រាក់មាតុភាព',u:['人','ppl','នាក់'],rows:function(d){return d.M.filter(function(r){return (+r.matAmount||0)>0;});},amt:function(r){return +r.matAmount||0;}},
+  {k:'nur',sc:'nur',ico:'💊',zh:'護理費',en:'Nursing fee',km:'ថ្លៃថែទាំ',u:['人次','pay','ដង'],rows:function(d){return d.Nr.filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
+  {k:'health',sc:'health',ico:'🏥',zh:'健檢費',en:'Health fee',km:'ថ្លៃពិនិត្យ',u:['人','ppl','នាក់'],rows:function(d){return d.H.filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
+  {k:'med',sc:'med',ico:'💊',zh:'醫療採購',en:'Medical purchase',km:'ទិញថ្នាំ',u:['項','items','មុខ'],rows:function(d){return d.D.filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
+  {k:'clinic',sc:'clinic',ico:'🩺',zh:'診所醫療費',en:'Clinic fee',km:'ថ្លៃគ្លីនិក',u:['人次','visits','ដង'],rows:function(d){return d.C.filter(function(r){return r.type==='clinic_summary'&&(+r.medicalFee||0)>0;});},amt:function(r){return +r.medicalFee||0;},cnt:function(r){return N(r.visitCount||r.total)||0;}}
+];
+function feeCumRef(p){
+  var s=String(p||'');
+  if(isRangeKey(s))return rangeOf(s).e.slice(0,7);
+  if(/^\d{4}$/.test(s)){var last='';for(var i=12;i>=1&&!last;i--){var d=periodData(s+'-'+p2(i));if(FEE_CATS.some(function(c){return c.rows(d).length;}))last=s+'-'+p2(i);}return last||s+'-12';}
+  return s.slice(0,7);
+}
+function feeCum(ref,scope){
+  var cats=FEE_CATS.filter(function(c){return !scope||scope==='all'||c.sc===scope;}), y=ref.slice(0,4), mm=+ref.slice(5,7), out={};
+  cats.forEach(function(c){out[c.k]={c:c,m:{n:0,amt:0},y:{n:0,amt:0}};});
+  for(var i=1;i<=mm;i++){
+    var d=periodData(y+'-'+p2(i));
+    cats.forEach(function(c){var rows=c.rows(d),n=c.cnt?rows.reduce(function(a,r){return a+c.cnt(r);},0):rows.length,a=rows.reduce(function(t,r){return t+c.amt(r);},0),o=out[c.k];o.y.n+=n;o.y.amt+=a;if(i===mm){o.m.n+=n;o.m.amt+=a;}});
+  }
+  return cats.map(function(c){return out[c.k];});
+}
+function feeStatsLines(p,scope){
+  if(scope==='preg')return [];
+  var ref=feeCumRef(p); if(!/^\d{4}-\d{2}$/.test(ref))return [];
+  var y=ref.slice(0,4), rows=feeCum(ref,scope).filter(function(x){return x.y.amt>0;});
+  if(!rows.length)return [];
+  var out=[L('期間：本月 '+ref+'；今年累計 '+y+'-01～'+ref.slice(5),'Period: this month '+ref+'; year to date '+y+'-01~'+ref.slice(5),'ខែ '+ref+'; ឆ្នាំ '+y)];
+  rows.forEach(function(x){var c=x.c,u=L(c.u[0],c.u[1],c.u[2]);out.push(c.ico+' '+L(c.zh,c.en,c.km)+'：'+L('本月','month','ខែ')+' $'+fmt(x.m.amt)+'（'+fmt0(x.m.n)+' '+u+'）· '+L('今年','YTD','ឆ្នាំ')+' $'+fmt(x.y.amt)+'（'+fmt0(x.y.n)+' '+u+'）');});
+  return out.slice(0,8);
+}
+function renderFeeCum(st){
+  var box=el('ov-feecum'); if(!box)return;
+  var b=pBounds(st), ref=b?b.e.slice(0,7):feeCumRef(String(new Date().getFullYear()));
+  var rows=feeCum(ref,'all'), y=ref.slice(0,4);
+  if(!rows.some(function(x){return x.y.amt>0;})){box.innerHTML='';return;}
+  box.innerHTML='<div class="sect"><h3>📊 '+esc(L('費用累計','Fee totals','សរុបថ្លៃ'))+' <span class="ml-auto text-[11px] font-normal text-slate-400">'+esc(L('本月 '+ref+' · 今年 '+y+'-01～'+ref.slice(5),'Month '+ref+' · YTD '+y+'-01~'+ref.slice(5),ref))+'</span></h3>'+
+    '<div class="tbl-wrap"><table><thead><tr><th>'+esc(L('費用','Fee','ថ្លៃ'))+'</th><th class="text-right">'+esc(L('本月人數','Month count','ចំនួនខែ'))+'</th><th class="text-right">'+esc(L('本月金額','Month amount','ទឹកប្រាក់ខែ'))+'</th><th class="text-right">'+esc(L('今年人數','YTD count','ចំនួនឆ្នាំ'))+'</th><th class="text-right">'+esc(L('今年金額','YTD amount','ទឹកប្រាក់ឆ្នាំ'))+'</th></tr></thead><tbody>'+
+    rows.map(function(x){var c=x.c,u=L(c.u[0],c.u[1],c.u[2]);return '<tr><td>'+c.ico+' '+esc(L(c.zh,c.en,c.km))+'</td><td class="text-right jmono">'+fmt0(x.m.n)+' '+esc(u)+'</td><td class="text-right jmono font-semibold">$'+fmt(x.m.amt)+'</td><td class="text-right jmono">'+fmt0(x.y.n)+' '+esc(u)+'</td><td class="text-right jmono font-semibold">$'+fmt(x.y.amt)+'</td></tr>';}).join('')+
+    '</tbody></table></div></div>';
+}
 function renderOv(){
   try{
     var st=NAV.ov, E=empIn(st), Nr=nurIn(st), Hr=healthIn(st), Mr=medIn(st);
+    try{renderFeeCum(st);}catch(e){console.warn('[fee cum]',e);}
     var preg=E.filter(function(r){return r.status==='pregnant';}).length;
     var mat=E.filter(function(r){return r.status==='maternity';}).length;
     var today=lds(new Date());
@@ -2654,6 +2706,51 @@ function buildSummaryText(p,bi,scope){
   if(scope==='all'){t+='├ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ <b>'+d.P.length+'</b>\n';t+='├ 🍼 '+esc(BL('產假','Maternity',bi))+' │ <b>'+d.M.length+'</b>\n';t+='├ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+' · $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+' · $'+fmt(d.H.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+' · $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR;t+=pregBlock(d.P,bi)+HR+matBlock(d.M,bi)+HR+nurBlock(d.Nr,bi)+HR+healthBlock(d.H,bi)+HR+medicalBlock(d.D,bi)+HR+clinicBlock(d.C,bi);}else if(scope==='preg'){t+='└ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ '+d.P.length+'\n'+HR+pregBlock(d.P,bi);}else if(scope==='mat'){t+='└ 🍼 '+esc(BL('產假','Maternity',bi))+' │ '+d.M.length+'\n'+HR+matBlock(d.M,bi);}else if(scope==='nur'){t+='└ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+'\n'+HR+nurBlock(d.Nr,bi);}else if(scope==='health'){t+='└ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+'\n'+HR+healthBlock(d.H,bi);}else if(scope==='med'){t+='└ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+'\n'+HR+medicalBlock(d.D,bi);}else{t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR+clinicBlock(d.C,bi);}
   t+=summaryAmountAuditBlock(d,scope);var st=apprStats(p,scope);t+=HR+'✅ <b>'+esc(BL('核可狀態','Approval Status','ស្ថានភាពអនុម័ត',bi))+'</b>\n├ ✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' │ '+st.ok+'\n├ ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' │ '+st.no+'\n└ ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' │ '+st.pend+'\n';t+='<i>'+esc(nowStamp())+' · AC HRA '+esc(tgScopeLabel(scope,bi))+'</i>';return {text:t};
 }
+/* ═══════════ 2026-10-27 費用核可：逐筆算式＋「已核算正確」 ═══════════
+   GAS v60 起每筆核可項目可帶 calc（算式，≤220 字）與 verified（true 相符／false 不符）。
+   每種費用用本模組自己的規則重算：
+   · 產假給付 = 個人表每月總薪資平均 ÷ 26 × 90 天 × 50%（匯入給付表時保留的 matCalc.totals）
+   · 護理費 = 每月固定設定值（SETS.nurFee，預設 $15）
+   · 健檢費 = 來源表金額，並核對入職資格（Paul 10/27 決定）
+   · 醫療採購 = 數量 × 單價
+   · 診所月結 = 來源表醫療費，並核對「各部門人數加總 = 總人數」
+   沒有可重算的明細時只寫來源，不標 verified（卡片不會誤判為不符）。 */
+function feeMoney(n){return '$'+fmt(n);}
+function feeCalcOf(it,r){
+  var amt=+it.amount||0, k=it.kind;
+  if(k==='maternity'&&amt>0){
+    var t=(r.matCalc&&Array.isArray(r.matCalc.totals))?r.matCalc.totals.filter(function(v){return +v>0;}):[];
+    if(!t.length)return {calc:L('依產假給付表 ','Per payment sheet ','តាមតារាង ')+feeMoney(amt)+L('（沒有每月薪資明細可重算，重新匯入給付表即可補上）',' (no monthly payroll detail to recompute; re-import the payment file)',' (គ្មានព័ត៌មានលម្អិត)')};
+    var avg=t.reduce(function(a,b){return a+(+b);},0)/t.length, re=Math.round(avg/26*90/2*100)/100, ok=Math.abs(re-amt)<=0.05;
+    return {verified:ok,calc:L('平均','Avg','មធ្យម')+' ('+t.map(fmt).join('+')+')/'+t.length+' = '+fmt(avg)+' ÷ 26 × 90 × 50% = '+feeMoney(re)+(ok?' ✔':' ≠ '+feeMoney(amt))};
+  }
+  if(k==='nursing'&&amt>0){
+    var rate=+(SETS&&SETS.nurFee!==undefined&&SETS.nurFee!==''?SETS.nurFee:15)||15, okN=Math.abs(rate-amt)<=0.005;
+    return {verified:okN,calc:L('護理費每月 ','Nursing fee per month ','ថ្លៃថែទាំ ')+feeMoney(rate)+' × 1 = '+feeMoney(rate)+(okN?' ✔':' ≠ '+feeMoney(amt))+(r.monthNo?' · '+L('第 '+r.monthNo+' 個月','month '+r.monthNo,'ខែ '+r.monthNo):'')};
+  }
+  if(k==='health'&&amt>0){
+    var cx=empContextM(r.idNo||r.empId,r.period)||{}, el2=cx.eligible===true, jd=r.joinDate||cx.joinDate||'', ten=cx.tenureDays||0;
+    if(!ten&&jd&&/^\d{4}-\d{2}/.test(String(r.period||''))){var pe=String(r.period).slice(0,7).split('-');ten=Math.max(0,dayDiff(jd,lds(new Date(+pe[0],+pe[1],0)))||0);}
+    return {verified:el2,calc:L('健檢費 ','Health fee ','ថ្លៃពិនិត្យ ')+feeMoney(amt)+L('（來源表）',' (source sheet)','')+' · '+L('入職','Join','ចូល')+' '+(jd||'—')+' · '+L('年資','Tenure','អាយុកាល')+' '+fmt0(ten)+L('天','d','ថ្ងៃ')+' · '+(el2?'✔ ':'✖ ')+(cx.eligibilityReason||L('資格未確認','Eligibility unknown','មិនទាន់ដឹង'))};
+  }
+  if(k==='medical_purchase'&&amt>0){
+    var q=N(r.quantity), pr=N(r.unitPrice);
+    if(!(q>0&&pr>0))return {calc:L('依採購表 ','Per purchase sheet ','តាមតារាង ')+feeMoney(amt)+L('（沒有數量／單價）',' (no qty / unit price)','')};
+    var reM=Math.round(q*pr*100)/100, okM=Math.abs(reM-amt)<=0.05;
+    return {verified:okM,calc:fmt(q)+' × '+feeMoney(pr)+' = '+feeMoney(reM)+(okM?' ✔':' ≠ '+feeMoney(amt))};
+  }
+  if(k==='clinic'&&(amt>0||r.type==='clinic_summary')){
+    var dc=r.departmentCounts||{}, keys=Object.keys(dc).filter(function(x){return N(dc[x]);}), tot=N(r.visitCount||r.total);
+    var fee=(amt>0?feeMoney(amt):'—')+L('（來源表）',' (source sheet)','');
+    if(!keys.length)return {calc:L('看診 ','Visits ','ពិនិត្យ ')+fmt0(tot)+L(' 人次 · 醫療費 ',' · fee ',' · ថ្លៃ ')+fee};
+    var sum=keys.reduce(function(a,x){return a+N(dc[x]);},0), okC=Math.abs(sum-tot)<0.5;
+    return {verified:amt>0?okC:undefined,calc:keys.map(function(x){return x+' '+fmt0(dc[x]);}).join(' + ')+' = '+fmt0(sum)+(okC?' = ':' ≠ ')+L('總人數 ','total ','សរុប ')+fmt0(tot)+(okC?' ✔':'')+' · '+L('醫療費 ','fee ','ថ្លៃ ')+fee};
+  }
+  return null;
+}
+function feeCalcAttach(it,r){
+  try{var c=feeCalcOf(it,r||{});if(!c)return;it.calc=String(c.calc||'').slice(0,220);if(c.verified===true||c.verified===false)it.verified=c.verified;}catch(e){console.warn('[fee calc]',e);}
+}
 function buildApprovalItems(p,scope){
   scope=scope||_tgScope||'all';
   var d=periodData(p), items=[];
@@ -2677,7 +2774,7 @@ function buildApprovalItems(p,scope){
       info:kd==='maternity'
         ? (L('產假','Maternity','មាតុភាព')+' '+(r.totalDays||90)+L('天','d','ថ្ងៃ')+(r.returnDate?(' · '+L('回歸','ret','ត្រឡប់')+' '+r.returnDate):''))
         : (r.edd?(L('預產','EDD','សម្រាល')+' '+r.edd):''),
-      decision:x.d||'',note:x.note||''});
+      decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
   }
   if(scope==='all'||scope==='preg')d.P.forEach(function(r){pushE(r,'pregnant');});
   if(scope==='all'||scope==='mat')d.M.forEach(function(r){pushE(r,'maternity');});
@@ -2696,18 +2793,18 @@ function buildApprovalItems(p,scope){
       info:(r.monthNo?(L('第','Month ','ខែទី')+r.monthNo+L('個月','','')+' · '):'')+
            (r.babyDob?(L('寶寶','Baby','ទារក')+' '+r.babyDob+
              (babyMo!=null&&babyMo>=0?('（'+babyMo+L('個月大','mo','ខែ')+'）'):'')):''),
-      decision:x.d||'',note:x.note||''});
+      decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
   });
   if(scope==='all'||scope==='health')d.H.forEach(function(r){
     var x=DEC[r._k]||{}, emp=EMP.filter(function(e){return e.idNo===(r.idNo||r.empId);})[0]||{}, pr=probationRows().filter(function(q){return probationId(q)===(r.idNo||r.empId);})[0]||{}, rs=linkedResign(r,r.period);
     var cx=empContextM(r.idNo||r.empId,r.period);
     items.push({key:r._k,kind:'health',id:r.idNo||r.empId,name:r.name||cx.name||emp.name||'',dept:r.dept||cx.dept||emp.dept||'',group:cx.section||emp.group||'',position:cx.position||r.position||emp.position||'',gender:r.gender||emp.gender||'',age:saneAge(emp.age)||'',days:cx.tenureDays||0,joinDate:r.joinDate||cx.joinDate||'',employmentStatus:cx.employmentStatus,probationStatus:cx.probationStatus,contractEnd:cx.contractEnd,eligibility:cx.eligible?'eligible':'check',region:'',period:r.period,amount:+r.amount||0,
-      info:(L('健檢費','Health Fee','ថ្លៃពិនិត្យសុខភាព')+' $'+fmt(r.amount))+' · '+L('入職','Join','ចូល')+' '+(r.joinDate||cx.joinDate||'—')+' · '+L('年資','Tenure','អាយុកាល')+' '+fmt0(cx.tenureDays)+L('天','d','ថ្ងៃ')+' · '+L('資格','Eligibility','សិទ្ធិ')+' '+(cx.eligible?'✅':'⚠️')+(cx.probationStatus?' · '+L('試用','Probation','សាកល្បង')+' '+cx.probationStatus:'')+(cx.contractEnd?' · '+L('合約到期','Contract End','ផុតកិច្ចសន្យា')+' '+cx.contractEnd:'')+(rs?' · '+L('已離職','Resigned','បានចាកចេញ')+' '+(rs._statusDate||''):''),decision:x.d||'',note:x.note||''});
+      info:(L('健檢費','Health Fee','ថ្លៃពិនិត្យសុខភាព')+' $'+fmt(r.amount))+' · '+L('入職','Join','ចូល')+' '+(r.joinDate||cx.joinDate||'—')+' · '+L('年資','Tenure','អាយុកាល')+' '+fmt0(cx.tenureDays)+L('天','d','ថ្ងៃ')+' · '+L('資格','Eligibility','សិទ្ធិ')+' '+(cx.eligible?'✅':'⚠️')+(cx.probationStatus?' · '+L('試用','Probation','សាកល្បង')+' '+cx.probationStatus:'')+(cx.contractEnd?' · '+L('合約到期','Contract End','ផុតកិច្ចសន្យា')+' '+cx.contractEnd:'')+(rs?' · '+L('已離職','Resigned','បានចាកចេញ')+' '+(rs._statusDate||''):''),decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
   });
   if(scope==='all'||scope==='med')d.D.forEach(function(r){
     var x=DEC[r._k]||{};
     items.push({key:r._k,kind:'medical_purchase',id:r.item||r.productName||r.id,name:r.item||r.productName||'',dept:r.department||r.dept||'',group:'',position:r.productName||'',gender:'',age:'',days:0,region:'',period:r.period,amount:+r.amount||0,
-      info:'藥品費 / Medicine Fee · '+(r.productName||r.item||'')+' · '+L('數量','Qty','ចំនួន')+' '+fmt(r.quantity||0),decision:x.d||'',note:x.note||''});
+      info:'藥品費 / Medicine Fee · '+(r.productName||r.item||'')+' · '+L('數量','Qty','ចំនួន')+' '+fmt(r.quantity||0),decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
   });
   if(scope==='all'||scope==='clinic')d.C.forEach(function(r){
     var x=DEC[r._k]||{}, dt=clinicDateOf(r)||r.period||'';
@@ -2717,7 +2814,7 @@ function buildApprovalItems(p,scope){
       : r.type==='clinic_diagnosis'
         ? (L('診斷統計','Diagnosis Summary','សរុបរោគវិនិច្ឆ័យ')+' · '+(r.diagnosis||'—')+' · '+fmt0(r.visitCount||0))
         : (L('診所月結','Clinic Summary','សរុបគ្លីនិក')+' · '+L('看診','Visits','ពិនិត្យ')+' '+fmt0(r.visitCount||r.total||0));
-    items.push({key:r._k,kind:'clinic',id:r.idNo||r.employeeId||r.id,name:nm,dept:r.dept||r.department||'',group:r.group||'',position:r.position||'',gender:r.gender||'',age:'',days:0,region:'',period:dt,amount:+r.medicalFee||0,info:inf,decision:x.d||'',note:x.note||''});
+    items.push({key:r._k,kind:'clinic',id:r.idNo||r.employeeId||r.id,name:nm,dept:r.dept||r.department||'',group:r.group||'',position:r.position||'',gender:r.gender||'',age:'',days:0,region:'',period:dt,amount:+r.medicalFee||0,info:inf,decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
   });
   return items;
 }
@@ -2796,9 +2893,10 @@ function previewTg(){
   var r=buildSummaryText(p,bi,_tgScope), pv=el('tg-preview'), btn=el('tg-send');
   if(r.err){ pv.textContent='⚠️ '+r.err; btn.disabled=true; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-slate-200 text-slate-400 cursor-not-allowed'; setTxt('tg-note', ''); return; }
   var extra='';
+  var fl=feeStatsLines(p,_tgScope);if(fl.length)extra+='\n\n📊 '+L('累計','Cumulative','សរុបបូក')+'\n'+fl.map(function(x){return '• '+x;}).join('\n');
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,_tgScope), sTag=_tgScope==='preg'?'P':_tgScope==='mat'?'M':_tgScope==='nur'?'N':_tgScope==='health'?'H':_tgScope==='med'?'D':'A';
-    extra='\n\n— — — —\n'+L('核可批次','Batch')+'：MAT-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
+    extra+='\n\n— — — —\n'+L('核可批次','Batch')+'：MAT-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
     setTxt('tg-note', L('核可請求會送到 GAS，待五模組統一的按鈕核可引擎上線後即可在 Telegram 直接按鈕核可。','Approval request posts to GAS; inline-button approval activates with the unified engine.'));
   }else{ setTxt('tg-note', L('摘要會傳送到群組。','Summary will be sent to the group.')); }
   pv.textContent=(r.text+extra).replace(/<[^>]+>/g,'');
@@ -2821,11 +2919,12 @@ function confirmTg(){
       payload={action:'approvalRequest',type:'approvalRequest',module:'maternity',scope:scope,
         batch:'MAT-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
         period:p, lang:LANG, route:_tgRoute, count:items.length, items:items, text:r.text,
+        stats:feeStatsLines(p,scope),   /* 2026-10-27 GAS v61 印在核可卡 KPI 下方 */
         idempotencyKey:['maternity',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
         attachments:attachments, requestedBy:'maternity_v2', requestedAt:nowStamp()};
     }else{
-      payload={action:'telegram',type:'notify',tool:TOOL,module:'maternity',scope:scope,period:p,messageType:'summary',text:r.text,attachments:attachments};
+      payload={action:'telegram',type:'notify',tool:TOOL,module:'maternity',scope:scope,period:p,messageType:'summary',text:r.text,stats:feeStatsLines(p,scope),attachments:attachments};
     }
   }catch(e){
     console.error('[confirmTg build]', e);

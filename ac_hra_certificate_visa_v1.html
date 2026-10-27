@@ -9,7 +9,7 @@
 <link rel="preload" as="script" href="shared/telegram-evidence.js?v=45">
 <link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
 <link rel="preload" as="script" href="shared/certificate-model.js?v=76">
-<link rel="preload" as="script" href="shared/certificate-workflow.js?v=76">
+<link rel="preload" as="script" href="shared/certificate-workflow.js?v=77">
 <link rel="preload" as="script" href="shared/hra-attachments.js?v=45">
 <link rel="preload" as="script" href="shared/certificate-evidence.js?v=76">
 <link rel="preload" as="script" href="shared/xlsx.full.min.js?v=0.18.5">
@@ -18,7 +18,7 @@
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
 <script type="text/x-ac-after-storage" src="shared/certificate-model.js?v=76"></script>
-<script type="text/x-ac-after-storage" src="shared/certificate-workflow.js?v=76"></script>
+<script type="text/x-ac-after-storage" src="shared/certificate-workflow.js?v=77"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-attachments.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/certificate-evidence.js?v=76"></script>
 <link rel="stylesheet" href="shared/certificate-evidence.css?v=76">
@@ -218,6 +218,8 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
         <div class="kpi amber"><div class="label" data-i18n="kpiDue">45 天內到期</div><div class="value" id="kDue">0</div><div class="sub" data-i18n="kpiDueSub">尚未提前完成</div></div>
         <div class="kpi red"><div class="label" data-i18n="kpiExpired">已逾期</div><div class="value" id="kExpired">0</div><div class="sub" data-i18n="kpiExpiredSub">需處理項目</div></div>
         <div class="kpi green"><div class="label" data-i18n="kpiPending">待核可</div><div class="value" id="kPending">0</div><div class="sub" data-i18n="kpiPendingSub">批次申請</div></div>
+        <!-- 2026-10-27 證書／證件費用 當月＋今年累計 -->
+        <div class="kpi"><div class="label" id="kFeeLabel">本月費用</div><div class="value" id="kFee">$0</div><div class="sub" id="kFeeSub">—</div></div>
       </div>
       <div class="grid2">
         <div class="panel">
@@ -658,6 +660,7 @@ function renderDashboard(){
   document.getElementById('kDue').textContent=ev.filter(e=>!e.completed&&e.days>=0&&e.days<=rem).length;
   document.getElementById('kExpired').textContent=ev.filter(e=>!e.completed&&e.days<0).length;
   document.getElementById('kPending').textContent=certificatePendingRequests().length;
+  try{const fr=certificateViewMonth(),fc=certificateFeeCum(fr),fm=v=>'$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});document.getElementById('kFeeLabel').textContent=(LANG==='en'?'Fees this month ':LANG==='km'?'ថ្លៃខែនេះ ':'本月費用 ')+fr;document.getElementById('kFee').textContent=fm(fc.m.amt);document.getElementById('kFeeSub').textContent=(LANG==='en'?'YTD ':LANG==='km'?'ឆ្នាំ ':'今年累計 ')+fm(fc.y.amt)+' · '+fc.y.n+(LANG==='en'?' items':LANG==='km'?' មុខ':' 項');}catch(e){console.warn('[cert fee]',e);}
   const reminder=ev.filter(e=>!e.completed&&e.days<=rem).slice(0,80);
   document.getElementById('reminderBody').innerHTML=reminder.length?reminder.map(e=>`<tr><td>${fmtDate(e.date)}</td><td>${typeLabel(e.type)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.department)}</td><td>${e.days<0?esc(tr('daysOverdue',{n:Math.abs(e.days)})):e.days===0?tr('today'):esc(tr('daysLeft',{n:e.days}))}</td><td>${badge(eventState(e),e.completed?tr('statusComplete'):certificateEventLabel(e,LANG))}</td></tr>`).join(''):emptyRow(6,'noEvents');
   const latestYear=peopleForMonth().filter(p=>p.status==='active').reduce((y,p)=>Math.max(y,p.sourceYear||0),0)||STATE.settings.latestRosterYear,missing=peopleForMonth().filter(p=>p.status==='not_in_latest').length;
@@ -945,8 +948,27 @@ async function certAutoSync(reason){if(_certCloudBusy||!gasUrl()||!navigator.onL
 function eventsForMode(mode){return certificatePeriodEvents(mode)}
 function reminderRows(){return allEvents().filter(e=>!e.completed&&e.days<=Number(STATE.settings.reminderDays||45))}
 function certificateTgAttachments(type,mode){return CertificateEvidence.attachments(type,mode);}
+/* 2026-10-27 證書／證件費用 當月／當年累計（項數、金額）
+   以送核申請為準：期間＝申請單的資料月份，不含退回／取消的項目，費用寫成單價（/person 等）者不算總額。
+   當月＝目前檢視的資料月份；當年累計＝該年 1 月到當月。用在總覽卡片、Telegram 摘要與核可卡（GAS v61 stats）。 */
+function certificateFeeCum(ref){
+  const acc={m:{n:0,amt:0},y:{n:0,amt:0}};if(!/^\d{4}-\d{2}$/.test(ref||''))return acc;const y=ref.slice(0,4);
+  (STATE.requests||[]).forEach(r=>{
+    if(/^(rejected|cancelled|canceled|deleted)$/.test(String(r.status||'')))return;
+    const per=String(r.period||r.createdAt||'').slice(0,7);if(per.slice(0,4)!==y||per>ref)return;
+    (r.items||[]).forEach(i=>{if(i.approvalStatus==='rejected')return;const d=i.documentRequest||{};if(d.costIsRate)return;const a=Number(d.amount)||0;if(!(a>0))return;acc.y.n++;acc.y.amt+=a;if(per===ref){acc.m.n++;acc.m.amt+=a;}});
+  });
+  return acc;
+}
+function certificateFeeStatsLines(lang){
+  const ref=certificateViewMonth(),c=certificateFeeCum(ref);if(!c.y.n)return [];
+  const l=(z,e,k)=>lang==='en'?e:lang==='km'?(k||e):z,f=v=>'$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),y=ref.slice(0,4);
+  return [l('證書／證件費用 本月 '+ref+'：'+f(c.m.amt)+'（'+c.m.n+' 項）','Document fees this month '+ref+': '+f(c.m.amt)+' ('+c.m.n+')','ថ្លៃឯកសារ ខែ '+ref+': '+f(c.m.amt)+' ('+c.m.n+')'),
+    l('證書／證件費用 今年累計 '+y+'-01～'+ref.slice(5)+'：'+f(c.y.amt)+'（'+c.y.n+' 項）','Document fees year to date '+y+'-01~'+ref.slice(5)+': '+f(c.y.amt)+' ('+c.y.n+')','ថ្លៃឯកសារ ឆ្នាំ '+y+': '+f(c.y.amt)+' ('+c.y.n+')')];
+}
+function certificateFeeStatsText(lang){const x=certificateFeeStatsLines(lang);return x.length?'\n\n📊 '+(lang==='en'?'Cumulative':lang==='km'?'សរុបបូក':'累計')+'\n'+x.map(t=>'• '+t).join('\n'):'';}
 function buildTgText(){
-  const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>type==='approval'?tgApprovalText(l):type==='reminder'?CertificateEvidence.summary(l,mode,()=>tgReminderText(l)):CertificateEvidence.summary(l,mode,()=>tgSummaryText(l,mode));
+  const type=val('tgType'),mode=val('tgPeriod'),lang=val('tgLang'),one=l=>(type==='approval'?tgApprovalText(l):type==='reminder'?CertificateEvidence.summary(l,mode,()=>tgReminderText(l)):CertificateEvidence.summary(l,mode,()=>tgSummaryText(l,mode)))+(type==='reminder'?'':certificateFeeStatsText(l));
   if(lang==='both')return one('zh')+'\n\n────────────────\n\n'+one('en');
   if(lang==='all3')return one('zh')+'\n\n────────────────\n\n'+one('en')+'\n\n────────────────\n\n'+one('km');
   return one(lang)

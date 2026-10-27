@@ -862,6 +862,23 @@ function rateBadge(r){if(r==null)return'—';const p=(r*100).toFixed(1)+'%';retu
 
 // ── 車縫組統計 helper ─────────────────────────
 // dates: string (single day) or array of date strings
+/* 2026-10-27 男女比例、人車比（車工 : 非車工）
+   車工＝在車縫線上的人（isSewingLine 那幾列，和入離職頁「車縫離職」同一標準；Paul 10/27 選定）。
+   非車工＝全廠總人數 − 車工。多天期間用「有車縫線資料的日子」的日平均。 */
+function genderSewMix(dates){
+  const ds=Array.isArray(dates)?dates:[dates];let n=0,m=0,f=0,sn=0,st=0,ss=0;
+  ds.forEach(d=>{const g=grandForDate(d);if(!g)return;n++;m+=Number(g.m)||0;f+=Number(g.f)||0;
+    const rows=rowsForDate(d).filter(isSewingLine);if(!rows.length)return;sn++;st+=(Number(g.m)||0)+(Number(g.f)||0);ss+=rows.reduce((s,r)=>s+(r.m||0)+(r.f||0),0);});
+  const M=n?m/n:0,F=n?f/n:0,TT=M+F,S=sn?ss/sn:0,ST=sn?st/sn:0,NS=Math.max(0,ST-S);
+  return{days:n,m:M,f:F,total:TT,mPct:TT>0?M/TT*100:null,fPct:TT>0?F/TT*100:null,sew:S,non:NS,sewPct:ST>0?S/ST*100:null,nonPct:ST>0?NS/ST*100:null,sewDays:sn};
+}
+function mixRatio(a,b){if(!(a>0)||!(b>0))return '';return a>=b?(a/b).toFixed(2)+' : 1':'1 : '+(b/a).toFixed(2);}
+function mixKpis(dates){
+  const x=genderSewMix(dates),r0=v=>Math.round(v),p1=v=>v==null?'—':v.toFixed(1)+'%';
+  if(!x.days)return '';
+  return kpiHtml(T('男女比例','Male : Female','ប្រុស : ស្រី'),`${p1(x.mPct)} : ${p1(x.fPct)}`,`${T('男','M','ប')} ${r0(x.m)} / ${T('女','F','ស')} ${r0(x.f)}`)+
+    kpiHtml(T('車工 : 非車工','Sewing : Non-sewing','ដេរ : មិនដេរ'),x.sewDays?`${r0(x.sew)} : ${r0(x.non)}`:'—',x.sewDays?`${p1(x.sewPct)} : ${p1(x.nonPct)}`+(mixRatio(x.sew,x.non)?' · '+mixRatio(x.sew,x.non):''):T('沒有車縫線資料','No sewing-line rows','គ្មានទិន្នន័យ'));
+}
 function sewStats(dates) {
   const ds = Array.isArray(dates) ? dates : [dates];
   let hcSum=0, joinSum=0, resignSum=0, absSum=0, dayCount=0;
@@ -898,7 +915,7 @@ function renderDaily(){
     kpiHtml(T('缺勤','Absence','អវត្តមាន'),absent,`ML:${g?g.ml:0}`+(_sw.absSum>0?` ${T('車縫','Sewing','ដេរ')}:${_sw.absSum}`:''))+
     kpiHtml(T('新進','Join','ចូលថ្មី'),g?g.join:0,_sw.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_sw.joinSum}`:'')+
     kpiHtml(T('離職','Resign','លាឈប់'),g?g.resign:0,(g&&ttl>0?T('流失率:','Turnover:','អត្រាចាកចេញ:')+(g.resign/ttl*100).toFixed(2)+'%':'')+(_sw.resignSum>0?` ${T('車縫','Sewing','ដេរ')}:`+_sw.resignSum:''))+
-    kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0);
+    kpiHtml(T('停工','Idle','ផ្អាក'),g?g.idle:0)+mixKpis(d);
 
   // Leave pie — smaller with person count labels
   if(g){
@@ -944,7 +961,7 @@ function renderWeekly(){
     kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—',`${T('總出勤','Total Attendance','វត្តមានសរុប')}:${totalAtt}`,rateClass(avgRate||0))+
     kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swW.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.joinSum}`:'',totalJoin>0?'good':'')+
     kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swW.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swW.resignSum}`:'',totalResign>0?'bad':'')+
-    kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—');
+    kpiHtml(T('平均流失率','Average Turnover','អត្រាចាកចេញ'),avgTtl>0?(totalResign/avgTtl*100).toFixed(2)+'%':'—')+mixKpis(dates);
 
   // Trend
   mk('cWeekTrend',{type:'line',data:{labels:dates.map(d=>d.slice(5)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',backgroundColor:'rgba(26,110,92,.08)',tension:.4,fill:true,pointRadius:5,pointBackgroundColor:'#1a6e5c'}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -982,7 +999,7 @@ function renderMonthly(){
     kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),avgRate!=null?(avgRate*100).toFixed(1)+'%':'—','',rateClass(avgRate||0))+
     kpiHtml(T('總新進','Total Join','ចូលថ្មីសរុប'),totalJoin,_swM.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.joinSum}`:'')+
     kpiHtml(T('總離職','Total Resign','លាឈប់សរុប'),totalResign,_swM.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swM.resignSum}`:'',totalResign>0?'bad':'')+
-    kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%');
+    kpiHtml(T('月均流失率','Average Monthly Turnover','អត្រាចាកចេញ'),avgTurnover+'%')+mixKpis(dates);
 
   // Daily rate trend
   mk('cMonthTrend',{type:'line',data:{labels:dates.map(d=>d.slice(8)),datasets:[{label:T('出勤率%','Attendance Rate%','អត្រាវត្តមាន%'),data:grands.map(g=>{const c=calc(g);return c.rate!=null?(c.rate*100).toFixed(1):null;}),borderColor:'#1a6e5c',tension:.3,fill:true,backgroundColor:'rgba(26,110,92,.06)',pointRadius:4,pointBackgroundColor:'#1a6e5c'},{label:T('目標92%','Target 92%','គោលដៅ 92%'),data:dates.map(()=>92),borderColor:'#ef4444',borderDash:[5,3],pointRadius:0,borderWidth:1.5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:10}}}},scales:{y:{min:80,max:102,ticks:{callback:v=>v+'%'}},x:{ticks:{font:{size:10}}}}}});
@@ -1211,7 +1228,7 @@ function renderYearly(){
     kpiHtml(T('加權出勤率','Weighted Attendance Rate','អត្រាវត្តមាន'),yRate!=null?(yRate*100).toFixed(1)+'%':'—','',rateClass(yRate||0))+
     kpiHtml(T('年度新進','Year Join','ចូលថ្មីប្រចាំឆ្នាំ'),yJ,_swY.joinSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.joinSum}`:'',yJ>0?'good':'')+
     kpiHtml(T('年度離職','Year Resign','លាឈប់ប្រចាំឆ្នាំ'),yR,_swY.resignSum>0?`${T('車縫','Sewing','ដេរ')}:${_swY.resignSum}`:'',yR>0?'bad':'')+
-    kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%');
+    kpiHtml(T('日均流失率','Average Daily Turnover','អត្រាចាកចេញ'),yTurnover.toFixed(3)+'%')+mixKpis(periodDates('year',yr));
 
   // Monthly rate trend
   mk('cYearRate',{type:'line',data:{labels:months.map(m=>m.slice(5)),datasets:[
@@ -1359,6 +1376,9 @@ function buildTelegramSummary(mode,key,lang){
   if(scopes.length)text+=`├ ${tgLabel('統計範圍','Coverage',lang)} │ ${scopes.join('；').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}\n`;
   text+=`├ 📈 ${tgLabel('加權出勤率','Weighted Attendance Rate',lang)} │ ${rateText} ${telegramRateIcon(x.rate)}\n`;
   text+=`├ 👥 ${daily?tgLabel('全廠總人數','Factory Headcount',lang):tgLabel('日均全廠總人數','Average Daily Factory Headcount',lang)} │ ${countText(x.days?x.avgHC:null)}（${genderText(gender.m,gender.f)}）\n`;
+  const mix=genderSewMix(dates),pc=v=>v==null?'—':v.toFixed(1)+'%';
+  if(mix.days)text+=`├ ⚖️ ${tgLabel('男女比例','Male : Female',lang)} │ ${tgLabel('男','M',lang)} ${pc(mix.mPct)} : ${tgLabel('女','F',lang)} ${pc(mix.fPct)}\n`;
+  if(mix.sewDays)text+=`├ 🧵 ${tgLabel('車工 : 非車工','Sewing : Non-sewing',lang)} │ ${countText(mix.sew)} : ${countText(mix.non)}（${pc(mix.sewPct)} : ${pc(mix.nonPct)}）\n`;
   text+=`├ ✅ ${daily?tgLabel('全廠出勤人數','Factory Attendance',lang):tgLabel('日均全廠出勤人數','Average Daily Factory Attendance',lang)} │ ${countText(x.days?x.avgAttendance:null)}\n`;
   text+=`├ 📅 ${tgLabel('資料天數','Days',lang)} │ ${x.days}\n`;
   text+=`├ 📋 ${daily?tgLabel('請假人數','On Leave',lang):tgLabel('累計請假人次','Leave Person-Days',lang)} │ ${x.days?leaveTotal:'—'}\n`;

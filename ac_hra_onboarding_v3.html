@@ -156,6 +156,8 @@ tbody tr:hover{background:#f8fafc}
     <div class="kpi anim"><p class="l" data-t="k_to">流動率 Turnover</p><p class="v text-amber-600" id="k-to">—</p></div>
     <div class="kpi anim"><p class="l" data-t="k_ten">平均在職天數 Avg Days</p><p class="v text-sky-600" id="k-ten">—</p></div>
   </div>
+  <!-- 2026-10-27 離職當月／當年累計（車工・其他）＋結算金額累計 -->
+  <div id="ov-cum"></div>
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <div class="sect"><h3>📈 <span data-t="c_trend">入離職趨勢 Join / Resign Trend</span></h3>
       <div class="p-3"><div class="ch260"><canvas id="ch-trend"></canvas></div></div></div>
@@ -1674,9 +1676,49 @@ function periodReportHTML(key){
 }
 
 /* ═══════════ 總覽 ═══════════ */
+/* ═══════════ 2026-10-27 離職當月／當年累計（車工・其他）＋結算金額累計 ═══════════
+   車工＝離職時在車縫線（isSewLine，與「車縫離職」同一標準，Paul 10/27 選定）；其他＝其餘所有人。
+   當月＝所選期間的月份（年度＝該年最後有資料的月份；結算日基準＝結算日的月份）；當年累計＝該年 1 月到當月。
+   用在：總覽頁、Telegram 摘要與核可卡（送給 GAS v61 的 stats）。 */
+function cumRefMonth(p){
+  var s=String(p||''); if(s.indexOf('S:')===0)s=s.slice(2);
+  if(isRangeKey(s))return rangeOf(s).e.slice(0,7);
+  if(/^\d{4}$/.test(s)){var ms=RESIGNS.map(function(r){return String(r.resignDate||'').slice(0,7);}).filter(function(m){return m.slice(0,4)===s;}).sort();return ms.length?ms[ms.length-1]:s+'-12';}
+  return s.slice(0,7);
+}
+function resignCum(ref){
+  function bucket(list){
+    var sew=list.filter(function(r){return isSewLine(normalizeGroup(r.section||r.dept));}).length, paid=list.filter(function(r){return (+r.amount||0)>0;});
+    return {n:list.length,sew:sew,other:list.length-sew,amt:paid.reduce(function(a,r){return a+(+r.amount||0);},0),nAmt:paid.length};
+  }
+  var y=String(ref).slice(0,4);
+  return {ref:ref,m:bucket(RESIGNS.filter(function(r){return String(r.resignDate||'').slice(0,7)===ref;})),
+    y:bucket(RESIGNS.filter(function(r){var m=String(r.resignDate||'').slice(0,7);return m.slice(0,4)===y&&m<=ref;}))};
+}
+function resignStatsLines(p){
+  var ref=cumRefMonth(p); if(!/^\d{4}-\d{2}$/.test(ref))return [];
+  var c=resignCum(ref), y=ref.slice(0,4), out=[];
+  out.push(L('本月 '+ref+' 離職 '+c.m.n+' 人：車工 '+c.m.sew+'・其他 '+c.m.other,'This month '+ref+': '+c.m.n+' resigned — sewing '+c.m.sew+' · other '+c.m.other,'ខែនេះ '+ref+': '+c.m.n+' នាក់ — ដេរ '+c.m.sew+' · ផ្សេងៗ '+c.m.other));
+  out.push(L('今年累計 '+y+'-01～'+ref.slice(5)+' 離職 '+c.y.n+' 人：車工 '+c.y.sew+'・其他 '+c.y.other,'Year to date '+y+'-01~'+ref.slice(5)+': '+c.y.n+' resigned — sewing '+c.y.sew+' · other '+c.y.other,'ឆ្នាំនេះ: '+c.y.n+' នាក់ — ដេរ '+c.y.sew+' · ផ្សេងៗ '+c.y.other));
+  if(c.m.amt>0||c.y.amt>0)out.push(L('離職結算金額 本月 $'+fmt(c.m.amt)+'（'+c.m.nAmt+' 人）· 今年累計 $'+fmt(c.y.amt)+'（'+c.y.nAmt+' 人）','Settlement paid: this month $'+fmt(c.m.amt)+' ('+c.m.nAmt+') · year to date $'+fmt(c.y.amt)+' ('+c.y.nAmt+')','ប្រាក់ទូទាត់: ខែនេះ $'+fmt(c.m.amt)+' · ឆ្នាំនេះ $'+fmt(c.y.amt)));
+  return out;
+}
+function renderOvCum(st){
+  var box=el('ov-cum'); if(!box)return;
+  var b=pBounds(st), ref=b?b.e.slice(0,7):(RESIGNS.map(function(r){return String(r.resignDate||'').slice(0,7);}).filter(Boolean).sort().slice(-1)[0]||lds(new Date()).slice(0,7));
+  var c=resignCum(ref), y=ref.slice(0,4);
+  function card(title,x){
+    return '<div class="kpi anim"><p class="l">'+esc(title)+'</p><p class="v text-rose-600">'+fmt0(x.n)+'</p>'+
+      '<p class="text-[11px] text-slate-500 mt-1">'+esc(L('車工','Sewing','ដេរ'))+' <b class="text-amber-600">'+fmt0(x.sew)+'</b> · '+esc(L('其他','Other','ផ្សេងៗ'))+' <b>'+fmt0(x.other)+'</b>'+
+      (x.amt>0?'<br>💵 $'+fmt(x.amt)+' · '+fmt0(x.nAmt)+' '+esc(L('人','paid','នាក់')):'')+'</p></div>';
+  }
+  box.className='grid grid-cols-2 gap-3';
+  box.innerHTML=card(L('本月離職 ','Resigned this month ','ចេញខែនេះ ')+ref,c.m)+card(L('今年累計離職 ','Resigned year to date ','ចេញឆ្នាំនេះ ')+y+'-01～'+ref.slice(5),c.y);
+}
 function renderOv(){
   try{
     var st=NAV.ov, J=joinsIn(st), R=resignsIn(st), b=pBounds(st);
+    try{renderOvCum(st);}catch(e){console.warn('[ov cum]',e);}
     setTxt('k-join', fmt0(J.length));
     setTxt('k-resign', fmt0(R.length));
     var net=J.length-R.length;
@@ -2451,10 +2493,11 @@ function previewTg(){
     return;
   }
   var extra='';
+  if(_tgScope!=='join'){var cl=resignStatsLines(p);if(cl.length)extra+='\n\n📊 '+L('累計','Cumulative','សរុបបូក')+'\n'+cl.map(function(x){return '• '+x;}).join('\n');}
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,_tgScope);
     var sTag=_tgScope==='join'?'J':_tgScope==='resign'?'R':'B';
-    extra='\n\n— — — —\n'+L('核可批次','Batch')+'：OB-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
+    extra+='\n\n— — — —\n'+L('核可批次','Batch')+'：OB-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
   }
   /* ★ 在核可模式下用日/週/月找離職，若同時有結算單能湊到更多人，明講出來。
      這是你踩過三次的坑：同一張結算單的人離職日各不同，按日曆期間永遠湊不齊。 */
@@ -2504,12 +2547,13 @@ function confirmTg(){
         /* ★ 'S:' 只是內部基準前綴，送給 GAS 的期間要是人看得懂的字 */
         period: isSettleKey(p) ? (String(p).slice(2)+' '+L('結算 Settle','Settle')) : p,
         lang:LANG, count:items.length, items:items, text:r.text,
+        stats:(scope==='join'?[]:resignStatsLines(p)),   /* 2026-10-27 GAS v61 印在核可卡 KPI 下方 */
         /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
         idempotencyKey:['onboarding',sTag,p,items.length,
                         items.map(function(x){return x.key;}).sort().join(',')].join('|'),
         attachments:attachments, applicant:actor, inspector:actor, checker:actor, requestedBy:actor, requestedAt:nowStamp() };
     }else{
-      payload={ action:'telegram', type:'notify', tool:TOOL, module:'onboarding', scope:scope, period:(isSettleKey(p)?String(p).slice(2):p), messageType:'summary', text:r.text, attachments:attachments, applicant:actor, inspector:actor, checker:actor };
+      payload={ action:'telegram', type:'notify', tool:TOOL, module:'onboarding', scope:scope, period:(isSettleKey(p)?String(p).slice(2):p), messageType:'summary', text:r.text, stats:(scope==='join'?[]:resignStatsLines(p)), attachments:attachments, applicant:actor, inspector:actor, checker:actor };
     }
   }catch(e){
     console.error('[confirmTg build]', e);

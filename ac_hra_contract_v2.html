@@ -14,7 +14,7 @@
 <link rel="preload" as="script" href="shared/xlsx.full.min.js?v=0.18.5">
 <link rel="preload" as="script" href="shared/contract-import.js?v=74">
 <link rel="preload" as="script" href="shared/contract-sync.js?v=74">
-<link rel="preload" as="script" href="shared/contract-workflow.js?v=74">
+<link rel="preload" as="script" href="shared/contract-workflow.js?v=75">
 <script type="text/x-ac-after-storage" src="shared/cloud-guard.js?v=2"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=48"></script>
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
@@ -1393,10 +1393,13 @@ function renderDashCont(){
   const settleAmt=settleRows.reduce((s,x)=>s+safeNum(x.settlement&&x.settlement.netPay),0);
   const settleCountLabel=LANG==='en'?'5% Payable':LANG==='km'?'5% ត្រូវបង់':'5% 結算筆數';
   const settleAmtLabel=LANG==='en'?'Payable Total':LANG==='km'?'សរុបត្រូវបង់':'應付總額';
+  const feeRef=contractFeeRef(settlePeriod),feeCum=contractFeeCum(feeRef),feeY=feeRef.slice(0,4);   /* 2026-10-27 今年累計 */
+  const ytdLabel=(LANG==='en'?'5% YTD ':LANG==='km'?'5% ឆ្នាំ ':'5% 今年累計 ')+(feeRef?feeY+'-01～'+feeRef.slice(5):'')+' · '+feeCum.y.n+(LANG==='en'?' ppl':LANG==='km'?' នាក់':' 人');
   const cstrip=document.getElementById("contKpiStrip");
   if(cstrip)cstrip.innerHTML=[
     {l:t("contKpiTotal"),v:ctotal,c:"#1e3a8a"},{l:t("contKpiActive"),v:cactive,c:"#059669"},{l:t("contKpiExpired"),v:cexpired,c:"#dc2626"},{l:t("contKpiSoon"),v:csoon,c:"#d97706"},{l:t("contKpiFDC"),v:cfdc,c:"#b8860b"},{l:t("contKpiUDC"),v:cudc,c:"#0369a1"},
-    {l:settleCountLabel,v:settleRows.length,c:"#7c3aed"},{l:settleAmtLabel,v:'$'+settleAmt.toFixed(2),c:"#0f766e"}
+    {l:settleCountLabel,v:settleRows.length,c:"#7c3aed"},{l:settleAmtLabel,v:'$'+settleAmt.toFixed(2),c:"#0f766e"},
+    {l:ytdLabel,v:'$'+feeCum.y.amt.toFixed(2),c:"#9333ea"}
   ].map(k=>`<div class="kpi"><div class="kpi-n" style="color:${k.c}">${k.v}</div><div class="kpi-l">${k.l}</div></div>`).join("");
   const search=(document.getElementById("dashContSearch")?.value||"").toLowerCase();
   const statusF=(document.getElementById("dashContStatus")?.value||"");
@@ -2713,6 +2716,29 @@ function contractSettlementForPeriod(r,period){
   });
   return candidates[0];
 }
+/* 2026-10-27 5% 結算當月／當年累計（人數、金額）。每個月用 contractSettlementEntriesForPeriod()（頁面同一口徑、同工號只算一次）。
+   當月＝所選月份（全部／年度＝最後有結算的月份）；當年累計＝該年 1 月到當月。用在總覽 KPI、Telegram 摘要與核可卡（GAS v61 stats）。 */
+function contractFeeRef(period){
+  let ref=String(period||'').slice(0,7);
+  if(/^\d{4}-\d{2}$/.test(ref))return ref;
+  const yr=/^\d{4}$/.test(String(period||''))?String(period):'',ms=[];
+  DASH_CONTS.forEach(r=>{(r.settlements||[]).forEach(x=>ms.push(String(x&&x.payoutMonth||'').slice(0,7)));ms.push(String(r.latestSettlementMonth||r.payoutMonth||'').slice(0,7));});
+  return ms.filter(m=>/^\d{4}-\d{2}$/.test(m)&&(!yr||m.startsWith(yr))).sort().pop()||'';
+}
+function contractFeeCum(ref){
+  const acc={m:{n:0,amt:0},y:{n:0,amt:0}};if(!/^\d{4}-\d{2}$/.test(ref||''))return acc;
+  const y=ref.slice(0,4),mm=+ref.slice(5,7);
+  for(let i=1;i<=mm;i++){const rows=contractSettlementEntriesForPeriod(y+'-'+String(i).padStart(2,'0')).filter(x=>safeNum(x.settlement&&x.settlement.netPay)>0),amt=rows.reduce((s,x)=>s+safeNum(x.settlement.netPay),0);acc.y.n+=rows.length;acc.y.amt+=amt;if(i===mm){acc.m.n+=rows.length;acc.m.amt+=amt;}}
+  return acc;
+}
+function contractFeeStatsLines(period,lang){
+  try{
+    const ref=contractFeeRef(period);if(!ref)return [];const c=contractFeeCum(ref);if(!c.y.n)return [];
+    const l=(z,e,k)=>lang==='en'?e:lang==='km'?(k||e):lang==='both'?z+' / '+e:z,f=v=>'$'+(Number(v)||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}),y=ref.slice(0,4);
+    return [l('5% 結算 本月 '+ref+'：'+f(c.m.amt)+'（'+c.m.n+' 人）','5% settlement this month '+ref+': '+f(c.m.amt)+' ('+c.m.n+')','5% ខែ '+ref+': '+f(c.m.amt)+' ('+c.m.n+')'),
+      l('5% 結算 今年累計 '+y+'-01～'+ref.slice(5)+'：'+f(c.y.amt)+'（'+c.y.n+' 人）','5% settlement year to date '+y+'-01~'+ref.slice(5)+': '+f(c.y.amt)+' ('+c.y.n+')','5% ឆ្នាំ '+y+': '+f(c.y.amt)+' ('+c.y.n+')')];
+  }catch(e){console.warn('[contract fee stats]',e);return [];}
+}
 function contractSettlementEntriesForPeriod(period){
   const p=period==='ALL'?'ALL':String(period||'').slice(0,7),map=new Map();
   DASH_CONTS.forEach(function(r){
@@ -3437,6 +3463,6 @@ function printContractApplications(){if(!window.HRAHRGovernance)return window.pr
 
 <script type="text/x-ac-after-storage" src="shared/contract-import.js?v=74"></script>
 <script type="text/x-ac-after-storage" src="shared/contract-sync.js?v=74"></script>
-<script type="text/x-ac-after-storage" src="shared/contract-workflow.js?v=74"></script>
+<script type="text/x-ac-after-storage" src="shared/contract-workflow.js?v=75"></script>
 </body>
 </html>

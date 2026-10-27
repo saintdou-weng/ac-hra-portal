@@ -97,6 +97,16 @@ var ContractWorkflow = (function () {
     const box=el('ctPicker');box.innerHTML='';modal.candidates.forEach(x=>{const label=document.createElement('label');label.className='ct-pick';const input=document.createElement('input');input.type='checkbox';input.disabled=!x.state.ok||busy;input.checked=modal.chosen.has(x.token)&&x.state.ok;input.onchange=()=>{input.checked?modal.chosen.add(x.token):modal.chosen.delete(x.token);preview();};const span=document.createElement('span');span.textContent=(x.k==='prob'?'📝 ':'📄 ')+(x.r.factoryId||'—')+' · '+(M.name(x.r)||'—');const small=document.createElement('small');small.textContent=[x.r.dept||'—',dateFor(x)||'—',reason(x.state.reason)].join(' · ');span.appendChild(small);label.append(input,span);if(x.state.reason==='incomplete'||x.state.reason==='invalid_result'){const edit=document.createElement('button');edit.type='button';edit.className='btn ghost small';edit.textContent=L('補資料','Edit','កែ');edit.onclick=e=>{e.preventDefault();el('contractTelegramModal').classList.remove('show');modal=null;(x.k==='prob'?openDashProbModal:openDashContModal)(x.r.id);};label.appendChild(edit);}box.appendChild(label);});preview();
   }
   function chosen(){return (modal?.candidates||[]).filter(x=>x.state.ok&&modal.chosen.has(x.token));}
+  /* 2026-10-27 核可卡逐筆算式：5% 結算只重算「實付 = 5% 金額 + 年假金額」（Paul 決定：5% 與年假照表上金額）。
+     相符 → verified:true，卡片寫「金額已逐筆重算正確」；不符 → verified:false，卡片標 ❗。 */
+  function settleCalc(st,lang){
+    if(!st||st.netPay==null||!(Number(st.netPay)>0))return {};
+    const n=v=>Number(v)||0,f=v=>'$'+n(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const five=n(st.severance5),ann=n(st.annualPaid),net=n(st.netPay),days=n(st.annualDay),avg=n(st.averageSalary!=null?st.averageSalary:st.avgSalary);
+    const re=Math.round((five+ann)*100)/100,ok=Math.abs(re-net)<=0.05;
+    const calc='5% '+f(five)+' + '+M.l(lang,'年假','Annual leave','ថ្ងៃឈប់')+' '+f(ann)+(days?' ('+days+M.l(lang,'天','d','ថ្ងៃ')+')':'')+' = '+f(re)+(ok?' ✔':' ≠ '+f(net))+(avg?' · '+M.l(lang,'平均薪資','Avg salary','ប្រាក់ខែមធ្យម')+' '+f(avg):'');
+    return {calc:calc.slice(0,220),verified:ok};
+  }
   function requestFor(x){
     const type=el('ctType').value,period=type==='all'||type==='selected'?'ALL':el('ctPeriod').value;
     let st=null;
@@ -151,8 +161,9 @@ var ContractWorkflow = (function () {
       await capabilities();
       if(mode==='approval'){
         const ctRemark=(el('ctRemark')&&el('ctRemark').value||'').trim();
-        const items=docs.map(d=>({key:d.key,empId:d.after.employeeId,name:d.after.name,dept:d.after.department,group:d.after.section,position:d.after.position,period:d.period,kind:d.kind==='prob'?'probation':'contract_record',amount:d.settlement&&d.settlement.netPay!=null?Number(d.settlement.netPay):0,info:ctRemark,contractRequest:d}));
-        const result=await contractGasPost({action:'approvalRequest',module:'contract',scope:el('ctScope').value,contractSchema:73,period,title:M.l(lang,'試用期／合約確認','Probation / Contract Review','ពិនិត្យសាកល្បង / កិច្ចសន្យា'),route:'review',lang,items,inspector:actor,requestedBy:actor,idempotencyKey:'ct73-'+M.hash(items.map(x=>x.key).sort()),batch:'CT73-'+M.hash(items.map(x=>x.key).sort())});
+        const items=docs.map(d=>Object.assign({key:d.key,empId:d.after.employeeId,name:d.after.name,dept:d.after.department,group:d.after.section,position:d.after.position,period:d.period,kind:d.kind==='prob'?'probation':'contract_record',amount:d.settlement&&d.settlement.netPay!=null?Number(d.settlement.netPay):0,info:ctRemark,contractRequest:d},settleCalc(d.settlement,lang)));
+        const ctStats=el('ctScope').value!=='prob'&&typeof contractFeeStatsLines==='function'?contractFeeStatsLines(period,lang):[];
+        const result=await contractGasPost({action:'approvalRequest',module:'contract',scope:el('ctScope').value,contractSchema:73,stats:ctStats,period,title:M.l(lang,'試用期／合約確認','Probation / Contract Review','ពិនិត្យសាកល្បង / កិច្ចសន្យា'),route:'review',lang,items,inspector:actor,requestedBy:actor,idempotencyKey:'ct73-'+M.hash(items.map(x=>x.key).sort()),batch:'CT73-'+M.hash(items.map(x=>x.key).sort())});
         if(!result.messageId&&!result.alreadyDecided&&!result.closed)throw new Error(L('Telegram 尚未確認送達，請重試','Telegram delivery not confirmed; retry','Telegram មិនទាន់បញ្ជាក់ការផ្ញើ; សូមព្យាយាមម្ដងទៀត'));
         for(const d of docs){const state=(result.itemStates||{})[d.key];if(state)await receipt(d,mode,state);}
         el('ctResult').textContent=result.alreadyDecided?L('所選版本已結案，沒有重送','Selected versions already completed; no resend','កំណែដែលជ្រើសបានបញ្ចប់; មិនផ្ញើឡើងវិញ'):L('核可請求已送達；待審查／核可','Approval request delivered; awaiting review / approval','បានផ្ញើសំណើ; រង់ចាំពិនិត្យ / អនុម័ត');
@@ -163,7 +174,7 @@ var ContractWorkflow = (function () {
         for(let i=0;i<job.parts.length;i++){
           if(job.sent[i])continue;
           el('ctResult').textContent=L('發送摘要','Sending summary','ផ្ញើសង្ខេប')+' '+(i+1)+' / '+job.parts.length;
-          const r=await contractGasPost({action:'contractSummary',tool:'contract',module:'contract',messageType:'summary',period,lang,inspector:actor,deliveryKey:key+':'+i,text:'<b>'+esc(M.l(lang,'摘要','Summary','សង្ខេប'))+' '+(i+1)+'/'+job.parts.length+'</b>\n'+esc(job.parts[i])});
+          const r=await contractGasPost({action:'contractSummary',tool:'contract',module:'contract',messageType:'summary',period,lang,inspector:actor,deliveryKey:key+':'+i,stats:(i===job.parts.length-1&&el('ctScope').value!=='prob'&&typeof contractFeeStatsLines==='function'?contractFeeStatsLines(period,lang):[]),text:'<b>'+esc(M.l(lang,'摘要','Summary','សង្ខេប'))+' '+(i+1)+'/'+job.parts.length+'</b>\n'+esc(job.parts[i])});
           if(!r.messageId)throw new Error('Telegram delivery not confirmed');
           job.sent[i]={messageId:r.messageId,at:new Date().toISOString()};saved[key]=job;localStorage.setItem(OUTBOX,JSON.stringify(saved));
           if(i+1<job.parts.length)await new Promise(resolve=>setTimeout(resolve,1200));
