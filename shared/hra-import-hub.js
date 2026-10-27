@@ -19,7 +19,8 @@
     manpower: { ico: '👷', page: 'ac_hra_manpower_v1.html', key: 'manpower', zh: '人力規劃／招募', en: 'Manpower / Recruitment', km: 'កម្លាំងពលកម្ម' },
     certificate: { ico: '🛂', page: 'ac_hra_certificate_visa_v1.html', key: 'certificate_visa', zh: '證書／簽證／工作證', en: 'Certificate / Visa / Work permit', km: 'វិញ្ញាបនបត្រ / ទិដ្ឋាការ' },
     welfare: { ico: '🤝', page: 'ac_hra_welfare_suggestion_v1.html', key: 'welfare', zh: '福利（交通住宿／工會費／意見箱）', en: 'Welfare (transport / union / suggestion)', km: 'សុខុមាលភាព' },
-    salary: { ico: '💵', page: 'ac_hra_salary_v1.html', key: 'salary', zh: '薪資架構／職等', en: 'Salary structure / grades', km: 'ប្រាក់ខែ' },
+    /* 2026-10-27 薪資架構已搬到 HRA-PAY（同網域，隱藏框架照常可用；資料仍是同一份 tool salary） */
+    salary: { ico: '💵', page: '../ac-hra-pay/ac_hra_salary_v1.html', key: 'salary', zh: '薪資架構／職等', en: 'Salary structure / grades', km: 'ប្រាក់ខែ' },
     leave: { ico: '📝', page: 'ac_hra_employee_leave_v1.html', key: 'attendance_leave', zh: '員工資料（請假模組名冊）', en: 'Employee list (Leave)', km: 'បញ្ជីបុគ្គលិក' },
     calendar: { ico: '📅', page: 'ac_hra_calendar_v2.html', key: 'calendar', zh: '行事曆／假日', en: 'Calendar / holidays', km: 'ប្រតិទិន' }
   };

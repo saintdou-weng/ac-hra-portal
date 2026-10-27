@@ -307,8 +307,8 @@
     if (anchor && anchor.parentNode) { insertBtn(anchor); ensureVisible(); return; }
     if (mountTries++ < 20) setTimeout(mountButton, 500);
   }
-  /* 首頁：選模組 → 開該模組並自動打開報告視窗 */
-  var PICK = [['ac_hra_attendance_v1', '🕐'], ['ac_hra_employee_leave_v1', '📝'], ['ac_hra_contract_v2', '📋'], ['ac_hra_onboarding_v3', '🚪'], ['ac_hra_maternity_v1', '🤱'], ['ac_hra_calendar_v2', '📅'], ['ac_hra_manpower_v1', '👷'], ['ac_hra_certificate_visa_v1', '🛂'], ['ac_hra_welfare_suggestion_v1', '🤝'], ['ac_hra_salary_v1', '💵'], ['ac_hra_complete_v2', '📊']];
+  /* 首頁：選模組 → 開該模組並自動打開報告視窗（2026-10-27 薪資架構已搬到 HRA-PAY，報告在該頁的 📄 按鈕） */
+  var PICK = [['ac_hra_attendance_v1', '🕐'], ['ac_hra_employee_leave_v1', '📝'], ['ac_hra_contract_v2', '📋'], ['ac_hra_onboarding_v3', '🚪'], ['ac_hra_maternity_v1', '🤱'], ['ac_hra_calendar_v2', '📅'], ['ac_hra_manpower_v1', '👷'], ['ac_hra_certificate_visa_v1', '🛂'], ['ac_hra_welfare_suggestion_v1', '🤝'], ['ac_hra_complete_v2', '📊']];
   function chooser() {
     injectCss(); var lang = currentLang(), ov = doc.createElement('div'); ov.className = 'hrr-ov';
     ov.innerHTML = '<div class="hrr-dlg" role="dialog"><div class="hrr-h">📄 <span>' + L(lang, '產生參考報告 — 選模組', 'Reference report — pick a module', 'ជ្រើសម៉ូឌុល') + '</span><button class="hrr-x" type="button">×</button></div><div class="hrr-b"><div class="hrr-note">' +
