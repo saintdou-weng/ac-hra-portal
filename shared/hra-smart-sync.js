@@ -1,4 +1,9 @@
-/* AC HRA Portal Smart Sync v1.8
+/* AC HRA Portal Smart Sync v1.9
+ * v1.9 (2026-10-27): downloads work like AC-HRA-PAY / sewing — each bucket read has its own 90-second timeout
+ *   (before, a request stuck in the cloud made the page wait until Google killed it after 6 minutes), a failed
+ *   bucket is retried alone (5 s / 15 s / 45 s), and every bucket that arrives is kept on this device
+ *   (IndexedDB "ac_hra_dlcache", keyed by tool + bucket + hash) so an interrupted download resumes with only the
+ *   buckets still missing.  The cache is content-addressed (same hash = same data) and old copies expire after 7 days.
  * v1.8 (2026-10-24): a page that only READS another module's cloud data (Contract/Maternity read Onboarding,
  *   Maternity reads Contract, Manpower reads Onboarding) now uses a read-only mirror (readOnly:true).  Before,
  *   those reads overwrote the owner's three-way baseline in localStorage, so the owner page could mistake an old
@@ -19,7 +24,8 @@
   'use strict';
   if (g.HRASmartSync) return;
 
-  var VERSION = '1.8';
+  var VERSION = '1.9';
+  var READ_TIMEOUT_MS = 90000, MANIFEST_TIMEOUT_MS = 60000, RETRY_WAITS = [5000, 15000, 45000];
   var STATE_PREFIX = 'ac_hra_smart_sync_v2_';
   var FULL_CACHE_DB = 'AC_HRA_FullCloudCache_v1', FULL_CACHE_STORE = 'snapshots';
   var nativeFetch = g.fetch ? g.fetch.bind(g) : null;
@@ -184,8 +190,20 @@
   }
   function jsonFetch(url, opts) {
     if (!nativeFetch) return Promise.reject(new Error('Browser fetch unavailable'));
-    var request = Object.assign({ cache:'no-store' }, opts || {});
-    return nativeFetch(url, request).then(function (r) {
+    var request = Object.assign({ cache:'no-store' }, opts || {}), limit = request.timeoutMs, controller = null, timer = null;
+    delete request.timeoutMs;
+    /* v1.9：讀取加逾時；雲端卡住時不再白等 Google 的 6 分鐘上限 */
+    if (limit && typeof g.AbortController === 'function' && !request.signal) {
+      controller = new g.AbortController(); request.signal = controller.signal;
+      timer = setTimeout(function () { try { controller.abort(); } catch (_) {} }, limit);
+    }
+    var done = function () { if (timer) { clearTimeout(timer); timer = null; } };
+    return nativeFetch(url, request).catch(function (err) {
+      done();
+      if (err && err.name === 'AbortError') throw new Error('Cloud read timed out after ' + Math.round(limit / 1000) + ' s');
+      throw err;
+    }).then(function (r) {
+      done();
       return r.text().then(function (raw) {
         var j; try { j = JSON.parse(raw); } catch (_) { throw new Error('Cloud returned non-JSON: ' + raw.slice(0, 100)); }
         if (!r.ok || (j && j.ok === false)) throw new Error((j && j.error) || ('HTTP ' + r.status));
@@ -347,7 +365,7 @@
         return validManifest(d) ? d : fallback(reason);
       }).catch(function () { return fallback(reason); });
     }
-    return jsonFetch(endpoint).then(function (j) {
+    return jsonFetch(endpoint, { timeoutMs:MANIFEST_TIMEOUT_MS }).then(function (j) {
       var d = dataOf(j) || {};
       /* Some older GAS deployments return a generic heartbeat object instead
          of an error for an unknown GET action.  Treat that exactly like the
@@ -420,11 +438,88 @@
     }
     return tryCandidate(0, null);
   }
+  /* v1.9：只讀不寫的 POST 也有逾時（上傳不加，避免中斷寫入） */
+  function readPost(url, body) {
+    return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body), timeoutMs:READ_TIMEOUT_MS }).then(dataOf);
+  }
   function post(url, body) {
     if(body&&canonicalTool(body.tool)==='contract')return contractPost(url,body).then(dataOf);
     return jsonFetch(url, { method:'POST', redirect:'follow', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body) }).then(dataOf);
   }
-  function smartBucketRead(url, tool, bucket, remoteIndex, expectedCount, onStatus) {
+  /* ── v1.9 續傳快取：每個下載完成的區塊依「工具＋區塊＋hash」存在這台裝置；hash 相同＝內容相同 ── */
+  var DLC_DB = 'ac_hra_dlcache', DLC_STORE = 'buckets', DLC_TTL = 7 * 86400000, dlcOpen = null, dlcPruned = false;
+  function dlc() {
+    if (dlcOpen) return dlcOpen;
+    dlcOpen = new Promise(function (res) {
+      try {
+        if (!g.indexedDB) return res(null);
+        var rq = g.indexedDB.open(DLC_DB, 1);
+        rq.onupgradeneeded = function () { try { rq.result.createObjectStore(DLC_STORE); } catch (_) {} };
+        rq.onsuccess = function () { res(rq.result); };
+        rq.onerror = function () { res(null); };
+        rq.onblocked = function () { res(null); };
+      } catch (_) { res(null); }
+    });
+    return dlcOpen;
+  }
+  function dlcKey(tool, bucket, hash) { return canonicalTool(tool) + '|' + bucket + '|' + hash; }
+  function dlcGet(tool, bucket, hash) {
+    if (!hash) return Promise.resolve(null);
+    return dlc().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (res) {
+        try { var rq = db.transaction(DLC_STORE, 'readonly').objectStore(DLC_STORE).get(dlcKey(tool, bucket, hash)); rq.onsuccess = function () { var v = rq.result; res(v && Array.isArray(v.records) ? v : null); }; rq.onerror = function () { res(null); }; } catch (_) { res(null); }
+      });
+    });
+  }
+  function dlcPut(tool, bucket, hash, d) {
+    if (!hash || !d || !Array.isArray(d.records)) return Promise.resolve();
+    return dlc().then(function (db) {
+      if (!db) return;
+      return new Promise(function (res) {
+        try { var tx = db.transaction(DLC_STORE, 'readwrite'); tx.objectStore(DLC_STORE).put({ hash:hash, count:d.records.length, records:d.records, at:Date.now() }, dlcKey(tool, bucket, hash)); tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; tx.onabort = function () { res(); }; } catch (_) { res(); }
+      });
+    });
+  }
+  function dlcPrune() {
+    if (dlcPruned) return Promise.resolve(); dlcPruned = true;
+    return dlc().then(function (db) {
+      if (!db) return;
+      return new Promise(function (res) {
+        try {
+          var tx = db.transaction(DLC_STORE, 'readwrite'), st = tx.objectStore(DLC_STORE), cut = Date.now() - DLC_TTL, rq = st.openCursor();
+          rq.onsuccess = function () { var c = rq.result; if (!c) return; if (!c.value || !(c.value.at > cut)) c.delete(); c.continue(); };
+          tx.oncomplete = function () { res(); }; tx.onerror = function () { res(); }; tx.onabort = function () { res(); };
+        } catch (_) { res(); }
+      });
+    });
+  }
+  function retryable(err) { return /timed out|abort|failed to fetch|network|load failed|busy|retry|HTTP 5\d\d|HTTP 429|non-JSON/i.test(text(err && err.message || err)); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function smartBucketRead(url, tool, bucket, remoteIndex, expectedCount, onStatus, expectedHash) {
+    try { dlcPrune(); } catch (_) {}
+    return dlcGet(tool, bucket, expectedHash).then(function (hit) {
+      if (hit && (!(Number(expectedCount) > 0) || hit.records.length === Number(expectedCount))) {
+        callStatus(onStatus, '續傳：' + bucket + ' 已在這台裝置，不用重下', 'busy');
+        return { tool:tool, bucket:bucket, hash:expectedHash, count:hit.records.length, records:hit.records, fromResumeCache:true };
+      }
+      var attempt = 0;
+      function once() {
+        return smartBucketReadOnce(url, tool, bucket, remoteIndex, expectedCount, onStatus).catch(function (err) {
+          if (attempt >= RETRY_WAITS.length || !retryable(err)) throw err;
+          var wait = RETRY_WAITS[attempt++];
+          callStatus(onStatus, '區塊 ' + bucket + ' 讀取失敗（' + text(err && err.message || err).slice(0, 60) + '），' + Math.round(wait / 1000) + ' 秒後只重試這一段（第 ' + attempt + ' 次）', 'warn');
+          return sleep(wait).then(once);
+        });
+      }
+      return once().then(function (d) {
+        var rows = (dataOf(d) || {}).records;
+        if (expectedHash && Array.isArray(rows) && (!d.hash || d.hash === expectedHash)) return dlcPut(tool, bucket, expectedHash, dataOf(d)).then(function () { return d; });
+        return d;
+      });
+    });
+  }
+  function smartBucketReadOnce(url, tool, bucket, remoteIndex, expectedCount, onStatus) {
     var endpoint = noCache(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=smartBucket&tool=' + enc(tool) + '&bucket=' + enc(bucket));
     var fallback = function (reason) {
       /* Read by the bucket's stable name first.  The old fallback used the
@@ -432,7 +527,7 @@
          bucket that index no longer matched the server manifest and a valid
          download returned the wrong (often empty) chunk. */
       callStatus(onStatus, '手機相容下載：POST 精準讀取 ' + bucket, 'warn');
-      return post(url, { action:'smartBucket', read:true, tool:tool, bucket:bucket }).then(function (d) {
+      return readPost(url, { action:'smartBucket', read:true, tool:tool, bucket:bucket }).then(function (d) {
         var exact = dataOf(d) || {}, exactRows = Array.isArray(exact.records) ? exact.records : [];
         if (Number(expectedCount) > 0 && !exactRows.length) throw new Error('Empty POST smart bucket response');
         return exact;
@@ -440,14 +535,14 @@
         /* Pre-v39 GAS has no POST read mode.  Its legacy pull endpoint exposes
            smart buckets by *remote manifest* index, never by union index. */
         if (Number(remoteIndex) < 0) throw (postReadErr || reason);
-        return post(url, { action:'pull', tool:tool, chunk:Number(remoteIndex) }).then(function (d) {
+        return readPost(url, { action:'pull', tool:tool, chunk:Number(remoteIndex) }).then(function (d) {
           return dataOf(d) || {};
         }).catch(function (postErr) {
           throw postErr || postReadErr || reason;
         });
       });
     };
-    return jsonFetch(endpoint).then(function (j) {
+    return jsonFetch(endpoint, { timeoutMs:READ_TIMEOUT_MS }).then(function (j) {
       var d = dataOf(j) || {}, rows = Array.isArray(d.records) ? d.records : [];
       /* A proxy can return a valid empty JSON shell while dropping the actual
          body.  The manifest count lets us distinguish that from a real empty
@@ -902,7 +997,7 @@
             if (lb && localChanged && remoteChanged && lb.hash !== rh) conflictKeys.push(k);
             if (!rh) return;
             callStatus(status, '下載變更 ' + (idx + 1) + '/' + list.length + ' · ' + k, 'busy');
-            return (prefetched[k]?Promise.resolve(prefetched[k]):smartBucketRead(url, tool, k, remoteOrder.indexOf(k), Number((remote.counts || {})[k]) || 0, status)).then(function (bj) {
+            return (prefetched[k]?Promise.resolve(prefetched[k]):smartBucketRead(url, tool, k, remoteOrder.indexOf(k), Number((remote.counts || {})[k]) || 0, status, rh)).then(function (bj) {
               var bd = dataOf(bj) || {}, rows = bd.records || [];
               remoteRows = remoteRows.concat(rows);
               downloaded += rows.length;
@@ -991,7 +1086,7 @@
         chain = chain.then(function () {
           if (ch[k] && ch[k] === remoteH[k] && Array.isArray(cb[k])) { buckets[k] = cb[k]; unchanged += cb[k].length; return; }
           callStatus(status, '下載變更 ' + (idx + 1) + '/' + keys.length + ' · ' + k, 'busy');
-          return smartBucketRead(url, tool, k, idx, Number((remote.counts || {})[k]) || 0, status).then(function (bj) {
+          return smartBucketRead(url, tool, k, idx, Number((remote.counts || {})[k]) || 0, status, remoteH[k]).then(function (bj) {
             var rows = (dataOf(bj) || {}).records || []; buckets[k] = rows; downloaded += rows.length; fetched++;
           });
         });
