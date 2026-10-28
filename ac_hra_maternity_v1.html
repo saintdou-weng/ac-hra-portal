@@ -222,9 +222,9 @@ tbody tr:hover{background:#f8fafc}
       <span class="ml-auto text-[10px] font-normal text-slate-400" data-t="c_rpt2">點選任一列可切換期間</span></h3><div class="p-1" id="mat-report-body"></div></div>
   <div class="sect"><h3>🍼 <span data-t="t_matdet">產假明細 Maternity Records</span></h3>
     <div class="tbl-wrap" id="mat-tbl"></div></div>
-  <div class="sect"><h3>💵 <span>產假未結薪資 Unsettled Salary</span>
+  <div class="sect"><h3>💵 <span id="msal-title">產假未結薪資 Unsettled Salary</span>
       <span id="msal-sum" class="ml-auto text-[11px] font-normal text-slate-400"></span></h3>
-    <div class="px-3 pt-2 text-[11px] text-slate-500">進產假當月要先付清的薪資。不是離職：匯入同一份離職結算工作簿（Summery「Salary Resigned」）時，名冊上懷孕／產假中的人會自動放這裡。<br>Salary owed when a worker starts maternity leave — not a resignation. Import the settlement workbook; people in the pregnant/maternity register land here.</div>
+    <div id="msal-help" class="px-3 pt-2 text-[11px] text-slate-500">進產假當月要先付清的薪資，不是離職。</div>
     <div class="tbl-wrap" id="msal-tbl"></div></div>
 </section>
 
@@ -781,7 +781,32 @@ function setLang(v){
   try{localStorage.setItem('ac_hra_lang',LANG);}catch(e){}
   applyLang(); rebuildFilterOptions&&rebuildFilterOptions(); renderAll();
 }
+/* 2026-10-28 Telegram 視窗、核可工具列、產假未結薪資區：依語言切換（原本寫死中文或中英混排） */
+var STATIC_L=[
+  ['#tg-modal .flex-1 > p.text-sm','傳送至 Telegram 群組','Send to Telegram','ផ្ញើទៅ Telegram'],
+  ['#tgm-sum','📄 摘要','📄 Summary','📄 សង្ខេប'],['#tgm-app','📋 核可','📋 Approval','📋 អនុម័ត'],
+  ['#tgs-all','全部','All','ទាំងអស់'],['#tgs-preg','🤰 孕婦','🤰 Pregnant','🤰 មានផ្ទៃពោះ'],['#tgs-mat','🍼 產假','🍼 Maternity','🍼 មាតុភាព'],
+  ['#tgs-nur','💊 護理費','💊 Nursing','💊 ថែទាំ'],['#tgs-health','🏥 健檢費','🏥 Health fee','🏥 ពិនិត្យសុខភាព'],['#tgs-med','💊 醫療採購','💊 Medical','💊 ទិញថ្នាំ'],['#tgs-clinic','🩺 診所','🩺 Clinic','🩺 គ្លីនិក'],
+  ['#tgr-review','👥 群組審核','👥 Group review','👥 ពិនិត្យក្នុងក្រុម'],['#tgr-direct','🚀 直送核可','🚀 Direct to approver','🚀 ផ្ញើផ្ទាល់'],
+  ['#tg-ptype option[value=day]','日','Day','ថ្ងៃ'],['#tg-ptype option[value=week]','週','Week','សប្តាហ៍'],['#tg-ptype option[value=month]','月','Month','ខែ'],['#tg-ptype option[value=year]','年','Year','ឆ្នាំ'],
+  ['#tg-modal button[onclick="closeTg()"].flex-1','取消','Cancel','បោះបង់'],['#tg-send','確認傳送','Send','ផ្ញើ'],
+  ['#pn-appr button[onclick="apprSelectAll(true)"]','☑ 全選','☑ Select all','☑ ជ្រើសទាំងអស់'],['#pn-appr button[onclick="apprSelectAll(false)"]','☐ 全不選','☐ Select none','☐ មិនជ្រើស'],
+  ['#pn-appr button[onclick="apprMark(\'ok\')"]','✔ 標記核可','✔ Mark approved','✔ អនុម័ត'],['#pn-appr button[onclick="openReject()"]','✖ 標記退回','✖ Mark rejected','✖ បដិសេធ'],
+  ['#pn-appr button[onclick="apprMark(\'\')"]','↺ 清除','↺ Clear','↺ សម្អាត'],['#pn-appr button[onclick="apprResubmit()"]','↻ 重送已退回','↻ Resubmit rejected','↻ ផ្ញើឡើងវិញ'],
+  ['#pn-appr button[onclick="openTg(\'approval\')"]','✈️ 送出核可請求','✈️ Send approval request','✈️ ផ្ញើសំណើអនុម័ត'],
+  ['#appr-stat option[value=pending]','待核可','Pending','រង់ចាំ'],['#appr-stat option[value=ok]','已核可','Approved','អនុម័ត'],['#appr-stat option[value=no]','已退回','Rejected','បដិសេធ'],['#appr-stat option[value=all]','全部','All','ទាំងអស់'],
+  ['#appr-kind option[value=all]','全部','All','ទាំងអស់'],['#appr-kind option[value=preg]','孕婦','Pregnant','មានផ្ទៃពោះ'],['#appr-kind option[value=mat]','產假','Maternity','មាតុភាព'],['#appr-kind option[value=msal]','產假未結薪資','Unsettled salary','ប្រាក់ខែមិនទាន់ទូទាត់'],
+  ['#appr-kind option[value=nur]','護理費','Nursing','ថែទាំ'],['#appr-kind option[value=health]','健檢費','Health fee','ពិនិត្យសុខភាព'],['#appr-kind option[value=med]','醫療採購','Medical purchase','ទិញថ្នាំ'],
+  ['#msal-title','產假未結薪資','Maternity unsettled salary','ប្រាក់ខែមិនទាន់ទូទាត់'],
+  ['#msal-help','進產假當月要先付清的薪資，不是離職。匯入離職結算工作簿（Summery「Salary Resigned」）時，名冊上懷孕／產假中的人會自動放這裡。','Salary owed when a worker starts maternity leave — not a resignation. Import the settlement workbook (Summery "Salary Resigned"); people in the pregnant/maternity register land here.','ប្រាក់ខែត្រូវបង់មុនពេលឈប់សម្រាកមាតុភាព — មិនមែនការលាឈប់ទេ។']
+];
+function applyStaticLang(){
+  STATIC_L.forEach(function(x){ try{ document.querySelectorAll(x[0]).forEach(function(n){ n.textContent=L(x[1],x[2],x[3]); }); }catch(e){} });
+  var bi=el('tg-bi'); if(bi&&bi.parentNode){ var lab=bi.parentNode; Array.prototype.slice.call(lab.childNodes).forEach(function(c){ if(c.nodeType===3)lab.removeChild(c); }); lab.appendChild(document.createTextNode(' '+L('中英雙語（不勾＝只用目前語言）','Bilingual zh + en (unticked = current language only)','ពីរភាសា'))); }
+  document.querySelectorAll('#tg-modal label.uppercase').forEach(function(n){ var t=n.textContent; var M={'傳送模式 Mode':['傳送模式','Mode'],'內容來源 Content':['內容來源','Content'],'期間類型 Type':['期間類型','Period type'],'期間 Period':['期間','Period'],'核可路徑 ROUTE':['核可路徑','Route'],'訊息預覽 Preview':['訊息預覽','Preview']}; var k=n.getAttribute('data-l0')||t.trim(); n.setAttribute('data-l0',k); if(M[k])n.textContent=L(M[k][0],M[k][1]); });
+}
 function applyLang(){
+  applyStaticLang();
   document.querySelectorAll('[data-t]').forEach(function(n){ var v=T(n.getAttribute('data-t')); if(v!=null)n.innerHTML=v; });
   document.querySelectorAll('.lgbtn').forEach(function(n){
     var on=n.getAttribute('data-lg')===LANG;
@@ -2394,6 +2419,19 @@ function apprSelectAll(on){ _apprSel={}; if(on)_apprRows.forEach(function(r){_ap
    重送時在本機 DEC 記 resub 次數，核可項目 key 加上 #R次數 → GAS 視為新項目開新核可單；
    原本的退回紀錄仍留在 GAS 帳本。帳本同步時只採用「目前這一次」(#R次數相符) 的結果。
    只支援 key 就是資料列 _k 的費用類（產假未結薪資、護理費、健檢費、醫療採購、診所）。 */
+/* 雲端／備份的決定合併：重送次數多的優先，同次數取時間較新的。
+   之前是直接用雲端蓋本機 → 剛按「重送」的待核被雲端舊的「已退回」蓋回去。 */
+function decTime(x){ var t=Date.parse(String(x&&x.at||'').replace(' ','T')); return isNaN(t)?0:t; }
+function mergeDecisions(local,remote){
+  var out=Object.assign({},local||{});
+  Object.keys(remote||{}).forEach(function(k){
+    var a=out[k], b=remote[k]; if(!b||typeof b!=='object'){ if(a===undefined)out[k]=b; return; }
+    if(!a||typeof a!=='object'){ out[k]=b; return; }
+    var ra=+a.resub||0, rb=+b.resub||0;
+    if(rb>ra||(rb===ra&&decTime(b)>decTime(a)))out[k]=b;
+  });
+  return out;
+}
 function resubOf(k){ var d=DEC[k]; return (d&&+d.resub)||0; }
 function apprKeyOf(k){ var n=resubOf(k); return n?String(k)+'#R'+n:String(k); }
 function keepResub(k,o){ var n=resubOf(k); if(n)o.resub=n; return o; }
@@ -2585,7 +2623,7 @@ function cloudDownload(options){
     var emp=[],nur=[],hf=[],med=[],clinic=[],sal=[],msal=[];
     recs.forEach(function(r){var t=(r.type||'').toLowerCase();if(t==='mat_salary')msal.push(r);else if(t.indexOf('clinic_')===0||t==='clinic'||r.clinicPassNo!==undefined||r.visitDate!==undefined||r.departmentCounts!==undefined)clinic.push(r);else if(t==='medical_purchase'||t==='medical'||r.medicalPurchase!==undefined||r.quantity!==undefined&&r.unitPrice!==undefined&&r.item!==undefined)med.push(r);else if(t==='health_fee'||t==='health'||r.healthFee!==undefined||r.healthCheckPay!==undefined||r.health_check_pay!==undefined)hf.push(normalizeHealthRow(r));else if(t==='nursing'||r.cardId||r.nursingFee!==undefined||r.nursing_fee!==undefined)nur.push(normalizeNursingRow(r));else if(t==='salary')sal.push(r);else emp.push(r)});
     EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey);NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey);HF=maternityMergeList('health_fee',HF,hf).map(ensureHealthKey);MED=maternityMergeList('medical_purchase',MED,med).map(ensureMedicalKey);CLINIC=maternityMergeList('clinic',CLINIC,clinic).map(ensureClinicKey);if(sal.length)SAL=maternityMergeList('salary',SAL,sal);MSAL=maternityMergeList('mat_salary',MSAL,msal).map(ensureMsalKey);
-    if(res.meta&&res.meta.decisions)DEC=Object.assign({},DEC,res.meta.decisions);
+    if(res.meta&&res.meta.decisions)DEC=mergeDecisions(DEC,res.meta.decisions);
     saveEmp2();saveNur();saveHealth();saveMedical();saveClinic();saveMsal();META.downloadedAt=nowStamp();saveMeta();HRACloudGuard.markRecords('maternity_records',flatRecords());rebuildFilterOptions();renderAll();setTxt('cloud-stat','☁ '+(res.downloaded||0));
     if(!silent&&(res.downloaded||0))toast(L('只下載變更並保留本機資料','Only changed data downloaded; local data kept')+'：🤰 '+EMP.length+' · 💊 '+NUR.length+' · 🏥 '+HF.length+' · 💊 '+MED.length+' · 🩺 '+CLINIC.length,'ok');return res;
   }).catch(function(e){if(!silent)toast(L('下載失敗','Download failed')+'：'+e.message,'error');else console.warn('[maternity auto pull]',e);setTxt('cloud-stat','☁✖');return {ok:false,error:e.message}}).then(function(res){if(btn&&!silent)btn.disabled=false;return res});
@@ -2993,6 +3031,7 @@ function openTg(mode){
   var want=tgWantKey(el('tg-ptype').value, st.pivot);
   var sel=el('tg-period');
   if(Array.prototype.some.call(sel.options,function(o){return o.value===want;}))sel.value=want;
+  applyStaticLang();
   setTgScope(_tgScope); setTgMode(_tgMode);
   var m=el('tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
 }
@@ -3054,6 +3093,15 @@ function confirmTg(){
     if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
     var dd=d.data||d;
     /* 2026-10-28：項目已經核可／退回過（或已在另一張待核單）時 GAS 不會再發，要講清楚，不是 Telegram 壞掉 */
+    if((!_tgMode||_tgMode==='approval')&&dd.alreadyDecided){
+      var rej=(items||[]).map(function(x){return String(x.key).replace(/#R\d+$/,'');}).filter(function(k){return !/^E\|/.test(k)&&DEC[k]&&DEC[k].d==='no';});
+      var lst0=(dd.skippedList||[]).slice(0,6).join('\n');
+      if(rej.length&&confirm(L('這些項目之前已被退回，所以這次沒有送出：','These items were rejected before, so nothing was sent:','ធាតុទាំងនេះត្រូវបានបដិសេធពីមុន៖')+'\n'+lst0+'\n\n'+L('要重送（開一張新核可單，原退回紀錄保留）嗎？','Resubmit them as a new approval card? (the earlier rejection is kept)','ផ្ញើឡើងវិញ?'))){
+        rej.forEach(function(k){var d0=DEC[k]||{};DEC[k]={resub:resubOf(k)+1,at:new Date().toISOString(),prev:{d:d0.d,note:d0.note||'',at:d0.at||'',by:d0.by||'',batch:d0.batch||''}};});
+        saveDec(); renderAll(); scheduleCloudUpload('approval-resubmit');
+        setTimeout(function(){ confirmTg(); },50); return;
+      }
+    }
     if((!_tgMode||_tgMode==='approval')&&(dd.alreadyDecided||dd.alreadyPending)){
       var lst=(dd.skippedList||dd.skippedPending||[]).slice(0,5).join('、');
       toast(dd.alreadyDecided
@@ -3185,7 +3233,7 @@ function importJSON(inp){
       if(Array.isArray(d.clinic))CLINIC=mergeInto(CLINIC,d.clinic.map(ensureClinicKey),{interactive:false}).arr;
       if(Array.isArray(d.salaryRecords))SAL=maternityMergeList('salary',SAL,d.salaryRecords);
       if(Array.isArray(d.matSalary))MSAL=mergeInto(MSAL,d.matSalary.map(ensureMsalKey),{interactive:false}).arr;
-      if(d.decisions&&typeof d.decisions==='object')DEC=Object.assign({},DEC,d.decisions);
+      if(d.decisions&&typeof d.decisions==='object')DEC=mergeDecisions(DEC,d.decisions);
       if(d.settings&&typeof d.settings==='object')SETS=Object.assign({},SETS,d.settings);
       saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); saveMsal(); saveDec(); saveSetsRaw();
       rebuildFilterOptions(); renderSets(); renderAll();
