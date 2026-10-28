@@ -76,6 +76,7 @@ tbody tr:hover{background:#f8fafc}
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
+<script src="shared/settle-parse.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -221,6 +222,10 @@ tbody tr:hover{background:#f8fafc}
       <span class="ml-auto text-[10px] font-normal text-slate-400" data-t="c_rpt2">點選任一列可切換期間</span></h3><div class="p-1" id="mat-report-body"></div></div>
   <div class="sect"><h3>🍼 <span data-t="t_matdet">產假明細 Maternity Records</span></h3>
     <div class="tbl-wrap" id="mat-tbl"></div></div>
+  <div class="sect"><h3>💵 <span>產假未結薪資 Unsettled Salary</span>
+      <span id="msal-sum" class="ml-auto text-[11px] font-normal text-slate-400"></span></h3>
+    <div class="px-3 pt-2 text-[11px] text-slate-500">進產假當月要先付清的薪資。不是離職：匯入同一份離職結算工作簿（Summery「Salary Resigned」）時，名冊上懷孕／產假中的人會自動放這裡。<br>Salary owed when a worker starts maternity leave — not a resignation. Import the settlement workbook; people in the pregnant/maternity register land here.</div>
+    <div class="tbl-wrap" id="msal-tbl"></div></div>
 </section>
 
 <!-- ────────── 護理費 ────────── -->
@@ -328,7 +333,7 @@ tbody tr:hover{background:#f8fafc}
   <div id="nav-appr"></div>
   <div class="sect p-3 flex flex-wrap gap-2 items-center no-print">
     <select id="appr-kind" onchange="renderAppr()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white">
-      <option value="all">全部 All</option><option value="preg">孕婦 Pregnant</option><option value="mat">產假 Maternity</option><option value="nur">護理費 Nursing</option><option value="health">健檢費 Health Fee</option><option value="med">醫療採購 Medical Purchase</option></select>
+      <option value="all">全部 All</option><option value="preg">孕婦 Pregnant</option><option value="mat">產假 Maternity</option><option value="msal">產假未結薪資 Unsettled Salary</option><option value="nur">護理費 Nursing</option><option value="health">健檢費 Health Fee</option><option value="med">醫療採購 Medical Purchase</option></select>
     <select id="appr-stat" onchange="renderAppr()" class="text-xs border border-slate-200 rounded-md px-2 py-1.5 bg-white">
       <option value="pending">待核可 Pending</option><option value="ok">已核可 Approved</option><option value="no">已退回 Rejected</option><option value="all">全部 All</option></select>
     <span class="w-px h-5 bg-slate-200"></span>
@@ -706,7 +711,7 @@ function toast(msg,kind){
 }
 
 /* ── CONSTANTS ── */
-var K_MAT='vrt_maternity_v1', K_NUR='vrt_nursing_fees_v2', K_HF='vrt_health_fees_v1', K_MED='ac_hra_maternity_medical_purchase_v1', K_CLINIC='ac_hra_maternity_clinic_v1',
+var K_MAT='vrt_maternity_v1', K_NUR='vrt_nursing_fees_v2', K_HF='vrt_health_fees_v1', K_MED='ac_hra_maternity_medical_purchase_v1', K_CLINIC='ac_hra_maternity_clinic_v1', K_MSAL='ac_hra_maternity_unsettled_salary_v1',
     K_SETS='ac_hra_mat_settings', K_DEC='ac_hra_mat_decisions', K_META='ac_hra_maternity_meta',
     K_GAS_SHARED='vrt_att_cloud_v1_url', K_GAS_OLD='ac_hra_gas_url';
 var DEFAULT_GAS='https://script.google.com/macros/s/AKfycbya4jZG7YixRmumt9vKA-5Cv92jP8fi_o4toiU-8J2exQCYBhBsLOtN4kX9hoKqzp12/exec';
@@ -718,7 +723,7 @@ var STATUS_COLOR={pregnant:'#ec4899',maternity:'#8b5cf6',returned:'#10b981'};
 var PALETTE=['#ec4899','#8b5cf6','#0ea5e9','#f59e0b','#10b981','#ef4444','#14b8a6','#6366f1','#f97316','#84cc16','#06b6d4','#d946ef','#64748b','#a855f7'];
 
 /* ── STATE ── */
-var EMP=[], NUR=[], HF=[], MED=[], CLINIC=[], SAL=[], SETS={}, DEC={}, META={};
+var EMP=[], NUR=[], HF=[], MED=[], CLINIC=[], SAL=[], MSAL=[], SETS={}, DEC={}, META={};
 var LANG=(function(){try{return localStorage.getItem('ac_hra_lang')||'zh';}catch(e){return 'zh';}})(), TAB='ov', _charts={}, _apprRows=[], _apprSel={}, _tgMode='summary', _tgScope='all', _editEmpId=null;
 var NAV={ ov:{mode:'month',pivot:new Date()}, preg:{mode:'month',pivot:new Date()},
           mat:{mode:'month',pivot:new Date()}, nur:{mode:'month',pivot:new Date()}, health:{mode:'month',pivot:new Date()}, med:{mode:'month',pivot:new Date()}, clinic:{mode:'month',pivot:new Date()},
@@ -968,13 +973,14 @@ function loadData(){
   try{HF=JSON.parse(localStorage.getItem(K_HF)||'[]');}catch(e){HF=[];}
   try{MED=JSON.parse(localStorage.getItem(K_MED)||'[]');}catch(e){MED=[];}
   try{CLINIC=JSON.parse(localStorage.getItem(K_CLINIC)||'[]');}catch(e){CLINIC=[];}
+  try{MSAL=JSON.parse(localStorage.getItem(K_MSAL)||'[]');}catch(e){MSAL=[];}
   try{SETS=JSON.parse(localStorage.getItem(K_SETS)||'{}');}catch(e){SETS={};}
   try{DEC=JSON.parse(localStorage.getItem(K_DEC)||'{}');}catch(e){DEC={};}
   try{META=JSON.parse(localStorage.getItem(K_META)||'{}');}catch(e){META={};}
-  if(!Array.isArray(EMP))EMP=[]; if(!Array.isArray(NUR))NUR=[]; if(!Array.isArray(HF))HF=[]; if(!Array.isArray(MED))MED=[]; if(!Array.isArray(CLINIC))CLINIC=[]; if(!Array.isArray(SAL))SAL=[];
+  if(!Array.isArray(EMP))EMP=[]; if(!Array.isArray(NUR))NUR=[]; if(!Array.isArray(HF))HF=[]; if(!Array.isArray(MED))MED=[]; if(!Array.isArray(CLINIC))CLINIC=[]; if(!Array.isArray(SAL))SAL=[]; if(!Array.isArray(MSAL))MSAL=[];
   
   if(SETS.nurFee===undefined||SETS.nurFee==='')SETS.nurFee=15;
-  EMP.forEach(ensureEmpKey); NUR.forEach(ensureNurKey); HF.forEach(ensureHealthKey); MED.forEach(ensureMedicalKey); CLINIC.forEach(ensureClinicKey);
+  EMP.forEach(ensureEmpKey); NUR.forEach(ensureNurKey); HF.forEach(ensureHealthKey); MED.forEach(ensureMedicalKey); CLINIC.forEach(ensureClinicKey); MSAL.forEach(ensureMsalKey);
 }
 function firstValue(r,keys){for(var i=0;i<keys.length;i++){var v=r&&r[keys[i]];if(v!==undefined&&v!==null&&String(v).trim()!=='')return v;}return '';}
 function healthAmountOf(r){
@@ -1058,6 +1064,10 @@ function ensureNurKey(r){ r=normalizeNursingRow(r); if(!r.id)r.id='n_'+uid(); if
 function ensureHealthKey(r){ r=normalizeHealthRow(r); if(!r.id)r.id='h_'+uid(); if(!r._k)r._k='HF|'+(r.idNo||r.empId||r.cardId||('x'+r.id))+'|'+(r.period||r.payMonth||'-'); return r; }
 function ensureMedicalKey(r){ r=normalizeMedicalRow(r); if(!r.id)r.id='m_'+uid(); if(!r._k)r._k='MED|'+(r.period||'-')+'|'+(r.item||r.name||'')+'|'+(r.productName||'')+'|'+(r.rowNo||r.id); return r; }
 function ensureClinicKey(r){ r=normalizeClinicRow(r); if(!r.id)r.id='c_'+uid(); if(!r._k)r._k='CLINIC|'+(r.type||'visit')+'|'+(r.period||r.date||'-')+'|'+(r.idNo||r.employeeId||r.name||r.rowNo||r.id); return r; }
+/* 2026-10-28 產假未結薪資：孕婦進產假時要先付清當月薪資（Paul：不是離職，不能用入離職的「離職結算」付）。
+   一人一個月一筆：_k = MS|工號|YYYY-MM；type = mat_salary；金額與算式來自結算工作簿（HRASettleParse）。 */
+function ensureMsalKey(r){ r=r||{}; r.type='mat_salary'; if(!r.idNo)r.idNo=String(r.empId||r.employeeId||''); if(!r.period)r.period=String(r.settleDate||'').slice(0,7); if(!r.id)r.id='ms_'+uid(); if(!r._k)r._k='MS|'+(r.idNo||('x'+r.id))+'|'+(r.period||'-'); r.amount=Math.round(N(r.amount)*100)/100; return r; }
+function saveMsal(){ try{localStorage.setItem(K_MSAL,JSON.stringify(MSAL));}catch(e){toast(L('產假未結薪資儲存失敗','Unsettled salary save failed'),'error');} }
 /* ⑦ 寫回 v1 結構 → COMPLETE 照常讀 */
 function saveEmp2(){ try{localStorage.setItem(K_MAT,JSON.stringify({employees:EMP,salaryRecords:SAL}));}catch(e){toast('儲存失敗：'+e.message,'error');} }
 function saveNur(){ try{localStorage.setItem(K_NUR,JSON.stringify(NUR));}catch(e){} }
@@ -1093,6 +1103,9 @@ function detectType(wb,fileName){
     }
     return {type:'nursing',why:L('偵測到 '+nurSheets.length+' 個月份分頁','detected '+nurSheets.length+' monthly sheets')};
   }
+  /* 2026-10-28 離職結算工作簿（Summery「Salary Resigned on …」＋月份明細）→ 產假未結薪資 */
+  if(window.HRASettleParse&&HRASettleParse.isSettlementWorkbook(wb))
+    return {type:'matsalary',why:L('結算工作簿（Summery Salary Resigned）→ 產假未結薪資','settlement workbook → maternity unsettled salary')};
   /* 逐一掃描分頁 */
   for(var s=0;s<names.length;s++){
     var sn=names[s];
@@ -1591,16 +1604,16 @@ function onFiles(files){
   if(!files||!files.length)return;
   var list=Array.prototype.slice.call(files), rep=el('import-report');
   rep.innerHTML='<div class="text-pink-600">⏳ '+L('解析中…','Parsing…')+'</div>';
-  var lines=[],tE=0,tN=0,tH=0,tD=0,tC=0,seq=Promise.resolve();
+  var lines=[],tE=0,tN=0,tH=0,tD=0,tC=0,tS=0,seq=Promise.resolve();
   list.forEach(function(f){
-    seq=seq.then(function(){return readOne(f);}).then(function(res){ lines.push(res); tE+=res.ne||0; tN+=res.nn||0; tH+=res.nh||0; tD+=res.nd||0; tC+=res.nc||0; })
+    seq=seq.then(function(){return readOne(f);}).then(function(res){ lines.push(res); tE+=res.ne||0; tN+=res.nn||0; tH+=res.nh||0; tD+=res.nd||0; tC+=res.nc||0; tS+=res.ns||0; })
       .catch(function(e){ lines.push({html:'<div class="text-rose-600">⛔ '+esc(f.name)+' → '+esc(e.message)+'</div>',ne:0,nn:0,nh:0,nd:0,nc:0}); });
   });
   seq.then(function(){
-    saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); META.updatedAt=nowStamp(); saveMeta();
+    saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); saveMsal(); META.updatedAt=nowStamp(); saveMeta();
     var head='<div class="font-semibold text-slate-700 mb-1.5">📋 '+L('匯入報告','Import report')+' · '+nowStamp()+'</div>';
     var foot='<div class="mt-2 pt-2 border-t border-slate-100 text-slate-600">'+
-      L('合計','Total')+'：🤰 '+L('名冊','Registry')+' '+tE+' · 💊 '+L('護理費','Nursing')+' '+tN+' · 🏥 '+L('健檢費','Health Fee')+' '+tH+' · 💊 '+L('醫療採購','Medical Purchase')+' '+tD+' · 🩺 '+L('診所','Clinic')+' '+tC+
+      L('合計','Total')+'：🤰 '+L('名冊','Registry')+' '+tE+' · 💊 '+L('護理費','Nursing')+' '+tN+' · 🏥 '+L('健檢費','Health Fee')+' '+tH+' · 💊 '+L('醫療採購','Medical Purchase')+' '+tD+' · 🩺 '+L('診所','Clinic')+' '+tC+(tS?' · 💵 '+L('產假未結薪資','Unsettled salary')+' '+tS:'')+
       ' ｜ '+L('目前資料庫','DB now')+'：'+EMP.length+' / '+NUR.length+' / '+HF.length+' / '+MED.length+' / '+CLINIC.length+'</div>';
     rep.innerHTML=head+lines.map(function(x){return x.html;}).join('')+foot;
     resetFilters('preg'); resetFilters('mat'); resetFilters('nur'); resetFilters('health'); resetFilters('med'); resetFilters('clinic');
@@ -1619,7 +1632,7 @@ function readOne(file){
         var wb=XLSX.read(new Uint8Array(fr.result),{type:'array',cellDates:false,raw:true});
         var det=detectType(wb,file.name);
         if(!det.type){ resolve({html:'<div class="text-amber-600">⚠️ '+esc(file.name)+' → '+L('無法判斷檔案類型，已略過','type undetected, skipped')+'</div>',ne:0,nn:0,nh:0,nd:0,nc:0}); return; }
-        var ne=0,nn=0,nh=0,nd=0,nc=0,detail=[],warns=[],label='';
+        var ne=0,nn=0,nh=0,nd=0,nc=0,nsal=0,detail=[],warns=[],label='';
         if(det.type==='register'||det.type==='pregnant'||det.type==='matpay'){
           var a=det.type==='register'?parseRegister(wb):det.type==='matpay'?parseMatPay(wb):parsePregnant(wb);
           warns=a.warn;
@@ -1651,6 +1664,23 @@ function readOne(file){
           label='💊 '+L('醫療採購','Medical Purchase');
           detail.push(L('醫療採購列','Medical purchase rows')+' '+md.rows.length+' ('+L('新增','new')+' '+mm.added+' / '+L('更新','upd')+' '+mm.updated+') · '+
                       L('月份','Month')+' '+(md.rows[0]&&md.rows[0].period||'—')+' · $'+fmt(md.rows.reduce(function(s,r){return s+(+r.amount||0);},0)));
+        }else if(det.type==='matsalary'){
+          var sp=HRASettleParse.parseWorkbook(wb,XLSX,LANG); warns=sp.warn.slice();
+          var stamp=nowStamp(), take=[], notMat=[], obDup=[];
+          var obRes=[]; try{obRes=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[];}catch(e){}
+          sp.rows.forEach(function(x){
+            var emp=EMP.filter(function(e){return String(e.idNo)===String(x.empId);})[0];
+            if(!emp||(emp.status!=='pregnant'&&emp.status!=='maternity')){notMat.push(x.empId+' '+x.name+(emp?' ('+(STATUS[emp.status]?L(STATUS[emp.status][0],STATUS[emp.status][1]):emp.status)+')':''));return;}
+            var row=HRASettleParse.toMatSalary(x,{titleYM:sp.titleYM,dept:emp.dept||x.dept,position:emp.position||'',section:emp.group||emp.section||'',sourceFile:file.name,importedAt:stamp,source:'maternity-import'});
+            take.push(row);
+            if(obRes.some(function(q){return String(q.empId)===String(x.empId)&&String(q.resignDate||q.settleDate||'').slice(0,7)===row.period;}))obDup.push(x.empId+' '+x.name);
+          });
+          var mS=mergeInto(MSAL,take,{interactive:true}); if(mS.cancelled){resolve({html:'<div class="text-amber-600">⚠️ '+esc(file.name)+' → '+L('已取消相同工號／月份的變更','Conflicting month update cancelled')+'</div>',ne:0,nn:0,nh:0,nd:0,nc:0,ns:0});return;} MSAL=mS.arr.map(ensureMsalKey); nsal=take.length;
+          label='💵 '+L('產假未結薪資','Maternity unsettled salary','ប្រាក់ខែមិនទាន់ទូទាត់');
+          var okN=take.filter(function(r){return r.verified;}).length;
+          detail.push(L('產假未結薪資','Unsettled salary')+' '+take.length+' ('+L('新增','new')+' '+mS.added+' / '+L('更新','upd')+' '+mS.updated+') · $'+fmt(take.reduce(function(a,r){return a+(+r.amount||0);},0))+' · 🧮 '+L('重算吻合','recomputed OK')+' '+okN+'/'+take.length);
+          if(notMat.length)warns.push(L('不在孕婦／產假名冊，沒有匯入（一般離職請到「入離職」頁匯入）：','Not in the pregnant/maternity register, not imported (normal resignations go to Join/Resign): ')+notMat.join('、'));
+          if(obDup.length)warns.push(L('入離職頁已有同月離職紀錄，這是產假未結薪資，請到入離職頁刪除那筆離職：','Join/Resign already has a resignation this month; this is maternity unsettled salary — delete that resignation: ')+obDup.join('、'));
         }else if(det.type==='clinic'){
           var cl=parseClinic(wb,file.name); warns=cl.warn;
           var mc=mergeInto(CLINIC,cl.rows,{interactive:true}); if(mc.cancelled){resolve({html:'<div class="text-amber-600">⚠️ '+esc(file.name)+' → '+L('已取消相同日期／診所資料的變更','Conflicting clinic update cancelled')+'</div>',ne:0,nn:0,nh:0,nd:0,nc:0});return;} CLINIC=mc.arr; nc=cl.rows.length;
@@ -1663,7 +1693,7 @@ function readOne(file){
           ' <span class="text-slate-400">('+esc(det.why)+')</span><div class="pl-5 text-slate-500">'+detail.map(esc).join('<br>')+'</div>';
         if(warns.length)html+='<div class="pl-5 text-amber-600">⚠️ '+warns.map(esc).join('<br>')+'</div>';
         html+='</div>';
-        resolve({html:html,ne:ne,nn:nn,nh:nh,nd:nd,nc:nc});
+        resolve({html:html,ne:ne,nn:nn,nh:nh,nd:nd,nc:nc,ns:nsal});
       }catch(e){ reject(e); }
     };
     fr.readAsArrayBuffer(file);
@@ -1805,6 +1835,7 @@ function monthsWithData(){
   HF.forEach(function(r){if(r.period)s[r.period]=1;});
   MED.forEach(function(r){if(r.period)s[r.period]=1;});
   CLINIC.forEach(function(r){var d=clinicDateOf(r);if(d)s[d.slice(0,7)]=1;});
+  MSAL.forEach(function(r){if(r.period)s[r.period]=1;});
   return Object.keys(s).sort();
 }
 function yearsWithData(){ var s={}; monthsWithData().forEach(function(m){s[m.slice(0,4)]=1;}); return Object.keys(s).sort(); }
@@ -1816,6 +1847,7 @@ function yearsWithData(){ var s={}; monthsWithData().forEach(function(m){s[m.sli
    用在：總覽頁、Telegram 摘要與核可卡（送給 GAS v61 的 stats）。 */
 var FEE_CATS=[
   {k:'mat',sc:'mat',ico:'🍼',zh:'產假給付',en:'Maternity pay',km:'ប្រាក់មាតុភាព',u:['人','ppl','នាក់'],rows:function(d){return d.M.filter(function(r){return (+r.matAmount||0)>0;});},amt:function(r){return +r.matAmount||0;}},
+  {k:'msal',sc:'mat',ico:'💵',zh:'產假未結薪資',en:'Maternity unsettled salary',km:'ប្រាក់ខែមិនទាន់ទូទាត់',u:['人','ppl','នាក់'],rows:function(d){return (d.S||[]).filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
   {k:'nur',sc:'nur',ico:'💊',zh:'護理費',en:'Nursing fee',km:'ថ្លៃថែទាំ',u:['人次','pay','ដង'],rows:function(d){return d.Nr.filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
   {k:'health',sc:'health',ico:'🏥',zh:'健檢費',en:'Health fee',km:'ថ្លៃពិនិត្យ',u:['人','ppl','នាក់'],rows:function(d){return d.H.filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
   {k:'med',sc:'med',ico:'💊',zh:'醫療採購',en:'Medical purchase',km:'ទិញថ្នាំ',u:['項','items','មុខ'],rows:function(d){return d.D.filter(function(r){return (+r.amount||0)>0;});},amt:function(r){return +r.amount||0;}},
@@ -2017,7 +2049,29 @@ function renderMat(){
     sched.forEach(function(r){var u=dayDiff(today,r.returnDate);h2+='<tr><td class="jmono">'+esc(r.returnDate)+'</td><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept)+'</td><td class="text-right jmono '+(u!=null&&u>=0&&u<=14?'text-amber-600 font-semibold':'')+'">'+(u==null?'—':(u<0?u:'+'+u))+'</td></tr>';});
     h2+='</tbody></table>'; setHtml('mat-return-bd', h2);
     var rp=periodReportHTML('mat'); el('mat-report').style.display=rp?'':'none'; setHtml('mat-report-body', rp);
+    renderMsal();
   }catch(e){ console.error(e); }
+}
+function renderMsal(){
+  var st=NAV.mat, fd=el('f-mat-dept').value, fq=(el('f-mat-q').value||'').trim().toLowerCase();
+  var rows=MSAL.filter(function(r){
+    if(!r.period||!monthIn(st,r.period))return false;
+    if(fd&&!rowGroupMatches(r,fd))return false;
+    if(fq&&((r.idNo||'')+' '+(r.name||'')).toLowerCase().indexOf(fq)<0)return false;
+    return true;
+  }).sort(function(a,b){return String(a.settleDate||a.period).localeCompare(String(b.settleDate||b.period));});
+  var tot=rows.reduce(function(s,r){return s+(+r.amount||0);},0);
+  setTxt('msal-sum', rows.length+' '+L('人','ppl')+' · $'+fmt(tot));
+  var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th><th>'+L('月份','Month')+'</th><th>'+L('結算日','Settle')+'</th>'+
+    '<th class="text-right">'+L('金額','Amount')+'</th><th>'+L('算式','Calculation')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print">'+L('操作','Action')+'</th></tr></thead><tbody>';
+  if(!rows.length)h+='<tr><td colspan="9" class="text-center text-slate-400 py-6">'+L('此期間沒有產假未結薪資','No unsettled salary in this period')+'</td></tr>';
+  rows.forEach(function(r){
+    h+='<tr><td class="jmono">'+esc(r.idNo)+'</td><td>'+esc(r.name)+'</td><td>'+esc(r.dept||'—')+'</td><td class="jmono">'+esc(r.period||'—')+'</td><td class="jmono">'+esc(r.settleDate||'—')+'</td>'+
+      '<td class="text-right jmono font-semibold text-emerald-600">$'+fmt(r.amount)+'</td>'+
+      '<td class="text-[11px] '+(r.verified?'text-emerald-700':'text-amber-700')+'" style="min-width:260px">'+(r.calc?esc(r.calc):'<span class="text-slate-400">'+L('沒有月份明細','no payroll detail')+'</span>')+'</td>'+
+      '<td>'+decBadge(r._k)+'</td><td class="no-print"><button onclick="deleteMsal(\''+r.id+'\')" class="text-xs text-rose-600" title="'+L('刪除','Delete')+'">🗑</button></td></tr>';
+  });
+  h+='</tbody></table>'; setHtml('msal-tbl', h);
 }
 function renderMatKpi(rows){
   var tot=rows.length, today=lds(new Date());
@@ -2301,12 +2355,13 @@ function apprPool(){
     var d=DEC[r._k]||{}, dv=d.d||'';
     if(stat!=='all'){ if(stat==='pending'&&dv)return; if(stat==='ok'&&dv!=='ok')return; if(stat==='no'&&dv!=='no')return; }
     out.push({_k:r._k,kind:kd,id:r.idNo||r.empId||r.cardId||r.item||r.productName||r.id,name:r.name||r.item||r.productName,dept:r.dept||r.department,
-      info:kd==='nur'?(r.payMonth+' · $'+fmt(r.amount)):kd==='health'?(r.period+' · $'+fmt(r.amount)):kd==='med'?((r.period||'—')+' · '+(r.item||r.name||'—')+' · $'+fmt(r.amount)):(kd==='mat'?(L('回歸','ret')+' '+(r.returnDate||'—')):(L('預產','EDD')+' '+(r.edd||'—'))),
-      date:kd==='nur'?(r.payMonth+'-01'):kd==='health'?(r.period+'-01'):kd==='med'?((r.period||'')+'-01'):evDateEmp(r),decision:dv,note:d.note||'',
+      info:kd==='msal'?(L('產假未結薪資','Unsettled salary')+' '+(r.period||'—')+' · $'+fmt(r.amount)+(r.verified?' ✔':'')):kd==='nur'?(r.payMonth+' · $'+fmt(r.amount)):kd==='health'?(r.period+' · $'+fmt(r.amount)):kd==='med'?((r.period||'—')+' · '+(r.item||r.name||'—')+' · $'+fmt(r.amount)):(kd==='mat'?(L('回歸','ret')+' '+(r.returnDate||'—')):(L('預產','EDD')+' '+(r.edd||'—'))),
+      date:kd==='msal'?(r.settleDate||(r.period+'-01')):kd==='nur'?(r.payMonth+'-01'):kd==='health'?(r.period+'-01'):kd==='med'?((r.period||'')+'-01'):evDateEmp(r),decision:dv,note:d.note||'',
       resigned:!!linkedResign(r,r.period||evDateEmp(r))});
   }
   if(kind==='all'||kind==='preg')empIn(st).filter(function(r){return r.status==='pregnant';}).forEach(function(r){push(r,'preg');});
   if(kind==='all'||kind==='mat')empIn(st).filter(function(r){return r.status==='maternity'||r.status==='returned';}).forEach(function(r){push(r,'mat');});
+  if(kind==='all'||kind==='mat'||kind==='msal')MSAL.filter(function(r){return monthIn(st,r.period);}).forEach(function(r){push(r,'msal');});
   if(kind==='all'||kind==='nur')nurIn(st).forEach(function(r){push(r,'nur');});
   if(kind==='all'||kind==='health')healthIn(st).forEach(function(r){push(r,'health');});
   if(kind==='all'||kind==='med')medIn(st).forEach(function(r){push(r,'med');});
@@ -2315,8 +2370,8 @@ function apprPool(){
 function renderAppr(){
   try{
     _apprRows=apprPool();
-    var pending=0; EMP.concat(NUR,HF,MED).forEach(function(r){var d=DEC[r._k];if(!d||!d.d)pending++;});
-    var kindLbl={preg:'🤰',mat:'🍼',nur:'💊',health:'🏥',med:'💊'};
+    var pending=0; EMP.concat(NUR,HF,MED,MSAL).forEach(function(r){var d=DEC[r._k];if(!d||!d.d)pending++;});
+    var kindLbl={preg:'🤰',mat:'🍼',msal:'💵',nur:'💊',health:'🏥',med:'💊'};
     setTxt('appr-count', _apprRows.length+' '+L('筆','rows'));
     var h='<table><thead><tr><th class="no-print"><input type="checkbox" onclick="apprSelectAll(this.checked)"></th>'+
       '<th>'+L('類型','Type')+'</th><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門','Dept')+'</th>'+
@@ -2364,6 +2419,7 @@ function flatRecords(){
   MED.forEach(function(r){ var o=Object.assign({},r); o.type='medical_purchase'; recs.push(o); });
   CLINIC.forEach(function(r){ var o=Object.assign({},r); o.type=r.type||'clinic_visit'; recs.push(o); });
   SAL.forEach(function(r){ var o=Object.assign({},r); o.type='salary'; recs.push(o); });
+  MSAL.forEach(function(r){ var o=Object.assign({},r); o.type='mat_salary'; recs.push(o); });
   return recs;
 }
 function gasPost(payload){
@@ -2406,7 +2462,7 @@ function cloudUpload(options){
   var coverage=HRACloudGuard.coverage(allRecs,'maternity');
   setTxt('cloud-stat', '☁↑…');
   return HRASmartSync.push({url:gasUrl(),tool:'maternity',records:allRecs,recordCount:allRecs.length,
-    summary:{employees:EMP.length,nursing:NUR.length,healthFee:HF.length,medicalPurchase:MED.length,clinic:CLINIC.length,salary:SAL.length,decisions:Object.keys(DEC).length},
+    summary:{employees:EMP.length,nursing:NUR.length,healthFee:HF.length,medicalPurchase:MED.length,clinic:CLINIC.length,salary:SAL.length,matSalary:MSAL.length,decisions:Object.keys(DEC).length},
     meta:{decisions:DEC,coverage:coverage},allowDeletes:!!META.downloadedAt,autoConfirmConflicts:!!options.auto,
     onStatus:function(s){setTxt('cloud-stat','☁ '+s);}}).then(function(d){
     if(d&&d.cancelled){toast(L('已取消上傳，雲端資料已保留','Upload cancelled; cloud data was kept'));return;}
@@ -2479,6 +2535,7 @@ function normalizeMaternityCloudRows(records){
       return;
     }
     var rt=String(r.type||'').toLowerCase();
+    if(rt==='mat_salary'){out.push(Object.assign({},r));return;}
     if(rt==='health_fee'||rt==='health'||r.healthCheckPay!==undefined||r.health_check_pay!==undefined)r=normalizeHealthRow(Object.assign({},r));
     else if(rt==='nursing'||r.nursingFee!==undefined||r.nursing_fee!==undefined)r=normalizeNursingRow(Object.assign({},r));
     else if(rt==='medical_purchase'||rt==='medical')r=normalizeMedicalRow(Object.assign({},r));
@@ -2496,15 +2553,15 @@ function cloudDownload(options){
     if(res&&res.cancelled){setTxt('cloud-stat','☁↩');return res;}
     if(!res||res.noCloud){if(!silent)toast(L('雲端沒有資料','No cloud data'),'warn');setTxt('cloud-stat','☁∅');return res;}
     var recs=normalizeMaternityCloudRows(res.records||[]),remote=res.remoteRecords||[];
-    var localCount=EMP.length+NUR.length+HF.length+MED.length+CLINIC.length+SAL.length;
+    var localCount=EMP.length+NUR.length+HF.length+MED.length+CLINIC.length+SAL.length+MSAL.length;
     var remoteCount=Number(res.remoteRecordCount)||remote.length;
     if(remoteCount>0&&!recs.length&&!localCount)throw new Error(L('雲端回報有資料，但手機實際讀入 0 筆，請勿重新上傳空資料','Cloud reports data, but this phone received 0 rows. Do not upload the empty data'));
     if(!auto&&remote.length&&localCount&&!confirm(L('雲端有新增或變更資料，合併載入本機？','Cloud has new or changed data. Merge it into this device?'))){setTxt('cloud-stat','☁↩');return {cancelled:true};}
-    var emp=[],nur=[],hf=[],med=[],clinic=[],sal=[];
-    recs.forEach(function(r){var t=(r.type||'').toLowerCase();if(t.indexOf('clinic_')===0||t==='clinic'||r.clinicPassNo!==undefined||r.visitDate!==undefined||r.departmentCounts!==undefined)clinic.push(r);else if(t==='medical_purchase'||t==='medical'||r.medicalPurchase!==undefined||r.quantity!==undefined&&r.unitPrice!==undefined&&r.item!==undefined)med.push(r);else if(t==='health_fee'||t==='health'||r.healthFee!==undefined||r.healthCheckPay!==undefined||r.health_check_pay!==undefined)hf.push(normalizeHealthRow(r));else if(t==='nursing'||r.cardId||r.nursingFee!==undefined||r.nursing_fee!==undefined)nur.push(normalizeNursingRow(r));else if(t==='salary')sal.push(r);else emp.push(r)});
-    EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey);NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey);HF=maternityMergeList('health_fee',HF,hf).map(ensureHealthKey);MED=maternityMergeList('medical_purchase',MED,med).map(ensureMedicalKey);CLINIC=maternityMergeList('clinic',CLINIC,clinic).map(ensureClinicKey);if(sal.length)SAL=maternityMergeList('salary',SAL,sal);
+    var emp=[],nur=[],hf=[],med=[],clinic=[],sal=[],msal=[];
+    recs.forEach(function(r){var t=(r.type||'').toLowerCase();if(t==='mat_salary')msal.push(r);else if(t.indexOf('clinic_')===0||t==='clinic'||r.clinicPassNo!==undefined||r.visitDate!==undefined||r.departmentCounts!==undefined)clinic.push(r);else if(t==='medical_purchase'||t==='medical'||r.medicalPurchase!==undefined||r.quantity!==undefined&&r.unitPrice!==undefined&&r.item!==undefined)med.push(r);else if(t==='health_fee'||t==='health'||r.healthFee!==undefined||r.healthCheckPay!==undefined||r.health_check_pay!==undefined)hf.push(normalizeHealthRow(r));else if(t==='nursing'||r.cardId||r.nursingFee!==undefined||r.nursing_fee!==undefined)nur.push(normalizeNursingRow(r));else if(t==='salary')sal.push(r);else emp.push(r)});
+    EMP=maternityMergeList('employee',EMP,emp).map(ensureEmpKey);NUR=maternityMergeList('nursing',NUR,nur).map(ensureNurKey);HF=maternityMergeList('health_fee',HF,hf).map(ensureHealthKey);MED=maternityMergeList('medical_purchase',MED,med).map(ensureMedicalKey);CLINIC=maternityMergeList('clinic',CLINIC,clinic).map(ensureClinicKey);if(sal.length)SAL=maternityMergeList('salary',SAL,sal);MSAL=maternityMergeList('mat_salary',MSAL,msal).map(ensureMsalKey);
     if(res.meta&&res.meta.decisions)DEC=Object.assign({},DEC,res.meta.decisions);
-    saveEmp2();saveNur();saveHealth();saveMedical();saveClinic();META.downloadedAt=nowStamp();saveMeta();HRACloudGuard.markRecords('maternity_records',flatRecords());rebuildFilterOptions();renderAll();setTxt('cloud-stat','☁ '+(res.downloaded||0));
+    saveEmp2();saveNur();saveHealth();saveMedical();saveClinic();saveMsal();META.downloadedAt=nowStamp();saveMeta();HRACloudGuard.markRecords('maternity_records',flatRecords());rebuildFilterOptions();renderAll();setTxt('cloud-stat','☁ '+(res.downloaded||0));
     if(!silent&&(res.downloaded||0))toast(L('只下載變更並保留本機資料','Only changed data downloaded; local data kept')+'：🤰 '+EMP.length+' · 💊 '+NUR.length+' · 🏥 '+HF.length+' · 💊 '+MED.length+' · 🩺 '+CLINIC.length,'ok');return res;
   }).catch(function(e){if(!silent)toast(L('下載失敗','Download failed')+'：'+e.message,'error');else console.warn('[maternity auto pull]',e);setTxt('cloud-stat','☁✖');return {ok:false,error:e.message}}).then(function(res){if(btn&&!silent)btn.disabled=false;return res});
 }
@@ -2567,9 +2624,13 @@ function periodData(p){
     if(!r.period)return false;
     var _ms4=monthsOfKey(p);return _ms4 ? _ms4.indexOf(r.period)>=0 : r.period.slice(0,String(p).length)===String(p);
   });
+  var S=MSAL.filter(function(r){
+    if(!r.period)return false;
+    var _ms5=monthsOfKey(p);return _ms5 ? _ms5.indexOf(r.period)>=0 : r.period.slice(0,String(p).length)===String(p);
+  });
   return {P:E.filter(function(r){return r.status==='pregnant';}),
           M:E.filter(function(r){return r.status==='maternity'||r.status==='returned';}),
-          E:E, Nr:Nr, H:H, D:D, C:C, isYear:isYear};
+          E:E, Nr:Nr, H:H, D:D, C:C, S:S, isYear:isYear};
 }
 function maternityTgAttachments(p,scope){
   if(!window.HRATelegramEvidence)return [];
@@ -2618,6 +2679,14 @@ function matBlock(M,bi){
   var show=M.slice(0,30);show.forEach(function(r,i){var d=groupLabel(r.group||r.dept||r.section),rs=linkedResign(r,r.leaveStart||r.applyDate);t+='┌ <b>#'+(i+1)+' '+esc(r.name||'—')+'</b>\n';t+='├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.idNo||'—')+'</code>\n';t+='├ '+esc(BL('部門／組別','Dept / Section','ផ្នែក / ក្រុម',bi))+' │ '+esc(d)+'\n';t+='├ '+esc(BL('職位','Position','តំណែង',bi))+' │ '+esc(r.position||'—')+'\n';t+='├ '+esc(BL('開始','Start','ចាប់ផ្តើម',bi))+' │ '+esc(r.leaveStart||r.applyDate||'—')+'\n';t+='├ '+esc(BL('回歸','Return','ត្រឡប់',bi))+' │ '+esc(r.returnDate||'—')+'\n';t+='├ '+esc(BL('天數','Days','ថ្ងៃ',bi))+' │ '+fmt0(r.totalDays||90)+'\n';t+='├ '+esc(BL('給付','Payment','ប្រាក់',bi))+' │ $'+fmt(r.matAmount||0)+'\n';t+='└ '+esc(BL('離職狀態','Resign status','ស្ថានភាពចាកចេញ',bi))+' │ '+(rs?'⚠️ '+esc(BL('已離職','Resigned','បានចាកចេញ',bi))+' '+esc(rs._statusDate||''):'—')+'\n';});
   if(M.length>show.length)t+='· … '+(M.length-show.length)+' '+esc(BL('人未列出','more not shown','មិនបានបង្ហាញ',bi))+'\n';return t;
 }
+function msalBlock(S,bi){
+  if(!S||!S.length)return '';
+  var amt=S.reduce(function(s,r){return s+(+r.amount||0);},0), ok=S.filter(function(r){return r.verified;}).length;
+  var t=HR+'💵 <b>'+esc(BL('產假未結薪資','Maternity Unsettled Salary','ប្រាក់ខែមិនទាន់ទូទាត់',bi))+'</b>\n├ '+esc(BL('人數','People','មនុស្ស',bi))+' │ <b>'+S.length+'</b>\n├ 💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(amt)+'\n└ 🧮 '+esc(BL('重算吻合','Recomputed OK','គណនាត្រូវ',bi))+' │ '+ok+'/'+S.length+'\n';
+  S.slice(0,30).forEach(function(r,i){t+='┌ <b>#'+(i+1)+' '+esc(r.name||'—')+'</b>\n├ '+esc(BL('工號','ID','លេខសម្គាល់',bi))+' │ <code>'+esc(r.idNo||'—')+'</code>\n├ '+esc(BL('部門','Department','ផ្នែក',bi))+' │ '+esc(r.dept||'—')+'\n├ '+esc(BL('結算日','Settle date','ថ្ងៃទូទាត់',bi))+' │ '+esc(r.settleDate||r.period||'—')+'\n└ '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(r.amount||0)+(r.verified?' ✔':'')+'\n';});
+  if(S.length>30)t+='· … '+(S.length-30)+'\n';
+  return t;
+}
 function nurBlock(Nr,bi){
   var ppl=new Set(Nr.map(function(r){return r.cardId;})).size,amt=Nr.reduce(function(s,r){return s+(+r.amount||0);},0);
   var t='💊 <b>'+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+'</b>\n├ '+esc(BL('記錄','Records','កំណត់ត្រា',bi))+' │ <b>'+Nr.length+'</b>\n├ 👥 '+esc(BL('人數','People','មនុស្ស',bi))+' │ '+ppl+'\n└ 💵 '+esc(BL('金額','Amount','ទឹកប្រាក់',bi))+' │ $'+fmt(amt)+'\n';
@@ -2643,7 +2712,7 @@ function apprStats(p,scope){
   scope=scope||'all';
   var d=periodData(p), pool=[];
   if(scope==='all'||scope==='preg')pool=pool.concat(d.P);
-  if(scope==='all'||scope==='mat')pool=pool.concat(d.M);
+  if(scope==='all'||scope==='mat')pool=pool.concat(d.M,d.S);
   if(scope==='all'||scope==='nur')pool=pool.concat(d.Nr);
   if(scope==='all'||scope==='health')pool=pool.concat(d.H);
   if(scope==='all'||scope==='med')pool=pool.concat(d.D);
@@ -2674,6 +2743,7 @@ function summaryAmountAudit(d,scope){
     });
   }
   if(scope==='all'||scope==='mat')add('產假 / Maternity',d.M,function(r){return r.matAmount;},function(r){return r.idNo||r.name;});
+  if(scope==='all'||scope==='mat')add('產假未結薪資 / Unsettled salary',d.S,function(r){return r.amount;},function(r){return r.idNo||r.name;});
   if(scope==='all'||scope==='nur')add('護理費 / Nursing Fee',d.Nr,function(r){return r.amount;},function(r){return r.cardId||r.name;});
   if(scope==='all'||scope==='health')add('健檢費 / Health Check Fee',d.H,function(r){return r.amount;},function(r){return r.idNo||r.empId||r.name;});
   if(scope==='all'||scope==='med')add('藥品費 / Medicine Fee',d.D,function(r){return r.amount;},function(r){return r.item||r.productName||r.id;});
@@ -2699,11 +2769,11 @@ function summaryAmountAuditBlock(d,scope){
 }
 function buildSummaryText(p,bi,scope){
   scope=scope||_tgScope||'all';var d=periodData(p);
-  var need = scope==='preg'?d.P.length : scope==='mat'?d.M.length : scope==='nur'?d.Nr.length : scope==='health'?d.H.length : scope==='med'?d.D.length : scope==='clinic'?d.C.length : (d.P.length+d.M.length+d.Nr.length+d.H.length+d.D.length+d.C.length);
+  var need = scope==='preg'?d.P.length : scope==='mat'?(d.M.length+d.S.length) : scope==='nur'?d.Nr.length : scope==='health'?d.H.length : scope==='med'?d.D.length : scope==='clinic'?d.C.length : (d.P.length+d.M.length+d.S.length+d.Nr.length+d.H.length+d.D.length+d.C.length);
   if(!need)return {err:L('此期間'+(scope==='preg'?'沒有孕婦':scope==='mat'?'沒有產假':scope==='nur'?'沒有護理費':scope==='health'?'沒有健檢費':scope==='med'?'沒有醫療採購':scope==='clinic'?'沒有診所':'')+'資料','No '+(scope==='preg'?'pregnant ':scope==='mat'?'maternity ':scope==='nur'?'nursing ':scope==='health'?'health-fee ':scope==='med'?'medical-purchase ':scope==='clinic'?'clinic ':'')+'data for this period')};
   var head=scope==='preg'?'🤰 <b>'+esc(BL('孕婦月報','Pregnant Report',bi))+'</b>':scope==='mat'?'🍼 <b>'+esc(BL('產假月報','Maternity Report',bi))+'</b>':scope==='nur'?'💊 <b>'+esc(BL('護理費月報','Nursing Fee Report','របាយការណ៍ថ្លៃថែទាំ',bi))+'</b>':scope==='health'?'🏥 <b>'+esc(BL('健檢費月報','Health Fee Report',bi))+'</b>':scope==='med'?'💊 <b>'+esc(BL('藥品費月報','Medicine Fee Report','របាយការណ៍ថ្លៃថ្នាំ',bi))+'</b>':scope==='clinic'?'🩺 <b>'+esc(BL('診所月報','Clinic Report','របាយការណ៍គ្លីនិក',bi))+'</b>':'👶 <b>'+esc(BL('孕婦／產假／員工健康月報','Maternity & Employee Health','របាយការណ៍មាតុភាព និងសុខភាពបុគ្គលិក',bi))+'</b>';
   var t=head+'\n━━━━━━━━━━━━━━━━\n📌 <b>'+esc(BL('總覽','Overview','ទិដ្ឋភាព',bi))+'</b>\n├ 📅 '+esc(BL('期間','Period','រយៈពេល',bi))+' │ '+esc(p)+'\n';
-  if(scope==='all'){t+='├ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ <b>'+d.P.length+'</b>\n';t+='├ 🍼 '+esc(BL('產假','Maternity',bi))+' │ <b>'+d.M.length+'</b>\n';t+='├ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+' · $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+' · $'+fmt(d.H.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+' · $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR;t+=pregBlock(d.P,bi)+HR+matBlock(d.M,bi)+HR+nurBlock(d.Nr,bi)+HR+healthBlock(d.H,bi)+HR+medicalBlock(d.D,bi)+HR+clinicBlock(d.C,bi);}else if(scope==='preg'){t+='└ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ '+d.P.length+'\n'+HR+pregBlock(d.P,bi);}else if(scope==='mat'){t+='└ 🍼 '+esc(BL('產假','Maternity',bi))+' │ '+d.M.length+'\n'+HR+matBlock(d.M,bi);}else if(scope==='nur'){t+='└ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+'\n'+HR+nurBlock(d.Nr,bi);}else if(scope==='health'){t+='└ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+'\n'+HR+healthBlock(d.H,bi);}else if(scope==='med'){t+='└ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+'\n'+HR+medicalBlock(d.D,bi);}else{t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR+clinicBlock(d.C,bi);}
+  if(scope==='all'){t+='├ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ <b>'+d.P.length+'</b>\n';t+='├ 🍼 '+esc(BL('產假','Maternity',bi))+' │ <b>'+d.M.length+'</b>\n';if(d.S.length)t+='├ 💵 '+esc(BL('產假未結薪資','Unsettled salary','ប្រាក់ខែមិនទាន់ទូទាត់',bi))+' │ '+d.S.length+' · $'+fmt(d.S.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+' · $'+fmt(d.Nr.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+' · $'+fmt(d.H.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='├ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+' · $'+fmt(d.D.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n';t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR;t+=pregBlock(d.P,bi)+HR+matBlock(d.M,bi)+msalBlock(d.S,bi)+HR+nurBlock(d.Nr,bi)+HR+healthBlock(d.H,bi)+HR+medicalBlock(d.D,bi)+HR+clinicBlock(d.C,bi);}else if(scope==='preg'){t+='└ 🤰 '+esc(BL('孕婦','Pregnant',bi))+' │ '+d.P.length+'\n'+HR+pregBlock(d.P,bi);}else if(scope==='mat'){t+=(d.S.length?'├':'└')+' 🍼 '+esc(BL('產假','Maternity',bi))+' │ '+d.M.length+'\n'+(d.S.length?'└ 💵 '+esc(BL('產假未結薪資','Unsettled salary','ប្រាក់ខែមិនទាន់ទូទាត់',bi))+' │ '+d.S.length+' · $'+fmt(d.S.reduce(function(s,r){return s+(+r.amount||0);},0))+'\n':'')+HR+matBlock(d.M,bi)+msalBlock(d.S,bi);}else if(scope==='nur'){t+='└ 💊 '+esc(BL('護理費','Nursing Fee','ថ្លៃថែទាំ',bi))+' │ '+d.Nr.length+'\n'+HR+nurBlock(d.Nr,bi);}else if(scope==='health'){t+='└ 🏥 '+esc(BL('健檢費','Health Fee',bi))+' │ '+d.H.length+'\n'+HR+healthBlock(d.H,bi);}else if(scope==='med'){t+='└ 💊 '+esc(BL('藥品費','Medicine Fee','ថ្លៃថ្នាំ',bi))+' │ '+d.D.length+'\n'+HR+medicalBlock(d.D,bi);}else{t+='└ 🩺 '+esc(BL('診所','Clinic','គ្លីនិក',bi))+' │ '+d.C.length+'\n'+HR+clinicBlock(d.C,bi);}
   t+=summaryAmountAuditBlock(d,scope);var st=apprStats(p,scope);t+=HR+'✅ <b>'+esc(BL('核可狀態','Approval Status','ស្ថានភាពអនុម័ត',bi))+'</b>\n├ ✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' │ '+st.ok+'\n├ ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' │ '+st.no+'\n└ ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' │ '+st.pend+'\n';t+='<i>'+esc(nowStamp())+' · AC HRA '+esc(tgScopeLabel(scope,bi))+'</i>';return {text:t};
 }
 /* ═══════════ 2026-10-27 費用核可：逐筆算式＋「已核算正確」 ═══════════
@@ -2723,6 +2793,10 @@ function feeCalcOf(it,r){
     if(!t.length)return {calc:L('依產假給付表 ','Per payment sheet ','តាមតារាង ')+feeMoney(amt)+L('（沒有每月薪資明細可重算，重新匯入給付表即可補上）',' (no monthly payroll detail to recompute; re-import the payment file)',' (គ្មានព័ត៌មានលម្អិត)')};
     var avg=t.reduce(function(a,b){return a+(+b);},0)/t.length, re=Math.round(avg/26*90/2*100)/100, ok=Math.abs(re-amt)<=0.05;
     return {verified:ok,calc:L('平均','Avg','មធ្យម')+' ('+t.map(fmt).join('+')+')/'+t.length+' = '+fmt(avg)+' ÷ 26 × 90 × 50% = '+feeMoney(re)+(ok?' ✔':' ≠ '+feeMoney(amt))};
+  }
+  if(k==='mat_salary'){
+    if(r.calc)return {verified:r.verified===true,calc:L('產假未結薪資 ','Unsettled salary ','ប្រាក់ខែ ')+r.calc};
+    return {calc:L('依結算表 ','Per settlement sheet ','តាមតារាង ')+feeMoney(amt)+L('（沒有月份明細可重算）',' (no payroll detail to recompute)','')};
   }
   if(k==='nursing'&&amt>0){
     var rate=+(SETS&&SETS.nurFee!==undefined&&SETS.nurFee!==''?SETS.nurFee:15)||15, okN=Math.abs(rate-amt)<=0.005;
@@ -2778,6 +2852,14 @@ function buildApprovalItems(p,scope){
   }
   if(scope==='all'||scope==='preg')d.P.forEach(function(r){pushE(r,'pregnant');});
   if(scope==='all'||scope==='mat')d.M.forEach(function(r){pushE(r,'maternity');});
+  if(scope==='all'||scope==='mat')d.S.forEach(function(r){
+    var x=DEC[r._k]||{}, emp=EMP.filter(function(e){return String(e.idNo)===String(r.idNo);})[0]||{}, dt=r.detail||{};
+    items.push({key:r._k,kind:'mat_salary',id:r.idNo,name:r.name||emp.name||'',dept:r.dept||emp.dept||'',group:r.section||emp.group||lineOf(emp),position:r.position||emp.position||'',
+      gender:'F',age:saneAge(emp.age)||'',days:emp.idNo?tenureDaysOf(emp):0,region:regionOf(emp.address||emp.remark||''),joinDate:r.joinDate||emp.joinDate||'',
+      period:String(r.settleDate||r.period||'').slice(0,10),amount:+r.amount||0,
+      info:L('產假未結薪資','Maternity unsettled salary','ប្រាក់ខែមិនទាន់ទូទាត់')+' '+(r.period||'')+(r.settleDate?' · '+L('結算日','settle','ទូទាត់')+' '+r.settleDate:'')+(dt.workDays!=null&&dt.stdDays!=null?' · '+fmt(dt.workDays)+'/'+fmt(dt.stdDays)+L('天','d','ថ្ងៃ'):'')+(emp.edd?' · '+L('預產','EDD','សម្រាល')+' '+emp.edd:''),
+      decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
+  });
   if(scope==='all'||scope==='nur')d.Nr.forEach(function(r){
     var x=DEC[r._k]||{};
     /* ★ 護理費：每人金額 + 從名冊補上年資/性別/部門 */
@@ -3038,8 +3120,8 @@ function saveSets(){
 }
 function clearAllData(){
   if(!confirm(L('確定清除所有孕婦/產假/護理費/健檢費/醫療採購/診所資料？此動作無法復原。','Clear ALL maternity, nursing, health-fee, medical-purchase and clinic data? This cannot be undone.')))return;
-  EMP=[]; NUR=[]; HF=[]; MED=[]; CLINIC=[]; SAL=[]; DEC={};
-  saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); saveDec();
+  EMP=[]; NUR=[]; HF=[]; MED=[]; CLINIC=[]; SAL=[]; MSAL=[]; DEC={};
+  saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); saveMsal(); saveDec();
   rebuildFilterOptions(); renderAll();
   scheduleCloudUpload('batch-delete');
   toast(L('已清除','Cleared'),'ok');
@@ -3047,7 +3129,7 @@ function clearAllData(){
 
 /* ═══════════ 匯出 / 還原 JSON ═══════════ */
 function exportJSON(){
-  var blob={_app:'ac_hra_maternity',_ver:5,_at:nowStamp(),employees:EMP,nursing:NUR,healthFees:HF,medicalPurchase:MED,clinic:CLINIC,salaryRecords:SAL,decisions:DEC,settings:SETS};
+  var blob={_app:'ac_hra_maternity',_ver:5,_at:nowStamp(),employees:EMP,nursing:NUR,healthFees:HF,medicalPurchase:MED,clinic:CLINIC,salaryRecords:SAL,matSalary:MSAL,decisions:DEC,settings:SETS};
   var s=JSON.stringify(blob,null,2), b=new Blob([s],{type:'application/json'});
   var a=document.createElement('a'); a.href=URL.createObjectURL(b);
   a.download='ac_hra_maternity_backup_'+lds(new Date())+'.json'; a.click();
@@ -3066,9 +3148,10 @@ function importJSON(inp){
       if(Array.isArray(d.medicalPurchase))MED=mergeInto(MED,d.medicalPurchase.map(ensureMedicalKey),{interactive:false}).arr;
       if(Array.isArray(d.clinic))CLINIC=mergeInto(CLINIC,d.clinic.map(ensureClinicKey),{interactive:false}).arr;
       if(Array.isArray(d.salaryRecords))SAL=maternityMergeList('salary',SAL,d.salaryRecords);
+      if(Array.isArray(d.matSalary))MSAL=mergeInto(MSAL,d.matSalary.map(ensureMsalKey),{interactive:false}).arr;
       if(d.decisions&&typeof d.decisions==='object')DEC=Object.assign({},DEC,d.decisions);
       if(d.settings&&typeof d.settings==='object')SETS=Object.assign({},SETS,d.settings);
-      saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); saveDec(); saveSetsRaw();
+      saveEmp2(); saveNur(); saveHealth(); saveMedical(); saveClinic(); saveMsal(); saveDec(); saveSetsRaw();
       rebuildFilterOptions(); renderSets(); renderAll();
       scheduleCloudUpload('restore');
       toast(L('已安全合併還原（不重複、不清掉現有資料）','Safely merged restore (deduplicated; current data kept)','បានស្ដារដោយបញ្ចូលបញ្ចូលដោយសុវត្ថិភាព'),'ok');
@@ -3311,6 +3394,11 @@ function saveMedicalEvidence(){
   propagateMedicineEvidence(r,ev);saveMedical();closeMedicalEvidence();renderAll();scheduleCloudUpload('medical-catalog-evidence-saved');
   toast(L('已儲存，同一藥品之後自動沿用','Saved; future purchases of this medicine will reuse it','បានរក្សាទុក ហើយនឹងប្រើឡើងវិញ'),'ok');
 }
+function deleteMsal(id){
+  var r=MSAL.filter(function(x){return x.id===id;})[0]; if(!r)return;
+  if(!confirm(L('確定刪除這筆產假未結薪資？','Delete this unsettled-salary record?','លុបកំណត់ត្រានេះ?')+'\n'+(r.idNo||'')+' '+(r.name||'')+' · '+(r.period||'')+' · $'+fmt(r.amount)))return;
+  MSAL=MSAL.filter(function(x){return x.id!==id;});saveMsal();renderAll();scheduleCloudUpload('mat-salary-deleted');toast(L('已刪除','Deleted','បានលុប'),'ok');
+}
 function deleteClinic(id){
   if(!id||!confirm(L('確定刪除這筆診所資料？刪除會在下次同步後反映到雲端。','Delete this clinic record? The deletion will sync to cloud.','លុបកំណត់ត្រាគ្លីនិកនេះ?')))return;
   CLINIC=CLINIC.filter(function(r){return r.id!==id;});saveClinic();rebuildFilterOptions();renderAll();scheduleCloudUpload('clinic-deleted');toast(L('已刪除','Deleted','បានលុប'),'ok');
@@ -3340,7 +3428,7 @@ function renderAll(){
     else if(TAB==='appr')renderAppr();
     else if(TAB==='set')renderSets();
     /* 徽章持續更新 */
-    var pending=0; EMP.concat(NUR,HF,MED,CLINIC).forEach(function(r){var d=DEC[r._k];if(!d||!d.d)pending++;});
+    var pending=0; EMP.concat(NUR,HF,MED,CLINIC,MSAL).forEach(function(r){var d=DEC[r._k];if(!d||!d.d)pending++;});
     var b=el('bdg-appr'); if(b){b.textContent=pending;b.style.display=pending?'':'none';}
   }catch(e){ console.error('[renderAll]',e); }
 }
@@ -3355,7 +3443,7 @@ Object.assign(window,{
   apprToggle:apprToggle,apprSelectAll:apprSelectAll,apprMark:apprMark,openReject:openReject,closeReject:closeReject,confirmReject:confirmReject,
   openNur:openNur, closeNur:closeNur, saveNurRec:saveNurRec, deleteNur:deleteNur,
   openHealth:openHealth, closeHealth:closeHealth, saveHealthRec:saveHealthRec, deleteHealth:deleteHealth,healthEmploymentChanged:healthEmploymentChanged,
-  deleteMedical:deleteMedical,deleteClinic:deleteClinic,openMedical:openMedical,closeMedical:closeMedical,saveMedicalRec:saveMedicalRec,deleteMedicalFromModal:deleteMedicalFromModal,
+  deleteMedical:deleteMedical,deleteClinic:deleteClinic,deleteMsal:deleteMsal,openMedical:openMedical,closeMedical:closeMedical,saveMedicalRec:saveMedicalRec,deleteMedicalFromModal:deleteMedicalFromModal,
   openMedicalEvidence:openMedicalEvidence,closeMedicalEvidence:closeMedicalEvidence,saveMedicalEvidence:saveMedicalEvidence,
   openClinic:openClinic,closeClinic:closeClinic,saveClinicRec:saveClinicRec,deleteClinicFromModal:deleteClinicFromModal,clinicModalTypeChanged:clinicModalTypeChanged,openMaternity:openMaternity,
   openEmp:openEmp,closeEmp:closeEmp,saveEmp:saveEmp,deleteEmp:deleteEmp,saveSets:saveSets,clearAllData:clearAllData,

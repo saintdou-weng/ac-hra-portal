@@ -68,6 +68,7 @@ tbody tr:hover{background:#f8fafc}
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
+<script src="shared/settle-parse.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -1261,17 +1262,19 @@ function parseSettleDetailSheet(rows,sheetName){
     r2.forEach(function(v){ var s=cs(v); if(/\d+\s*years?\s*\d+\s*months?\s*\d+\s*days?/i.test(s))d.tenure=s; else if(/^(pass|fail)/i.test(s))d.probation=s; });
     /* 下方「Average =」 */
     for(var k=i+4;k<Math.min(n,i+24);k++){ var rk=rows[k]||[]; var hk=H(rk); if(cIdx(hk,/grand\s*total/)>=0)break; var ai=hk.indexOf('average'); if(ai>=0){ for(var c2=ai+1;c2<rk.length;c2++){ if(rk[c2]!==null&&rk[c2]!==''&&isFinite(+rk[c2])){d.avgSalary=+rk[c2];break;} } break; } }
-    /* 重算：薪資＋餐費＋年假＋交通＋全勤＋夜班＋假日＋OT＋good working ＝ 小計；小計 − 預支 ＋ NSSF（負數）− 稅 ＝ 應付 */
+    /* 重算：薪資＋餐費＋年假＋交通＋全勤＋夜班＋假日＋OT＋good working ＝ 小計；小計 − 預支 ± NSSF − 稅 ＝ 應付
+       2026-10-28 Paul 決定 NSSF「照表上正負號」：表上是負數＝扣款，正數＝退還／加回（例：5807 的 +5.90）。
+       舊版一律當扣款，正數會算成 − 5.90 → 標成不符。 */
     var plus=[d.salaryPay,d.meal,d.annualPay,d.travel,d.attBonus,d.nightShift,d.holiday,d.otTotal,d.goodWorking].map(function(v){return +v||0;});
     var gross=plus.reduce(function(a,b){return a+b;},0);
     var ded=(+d.advance||0)+Math.abs(+d.leave||0)+Math.abs(+d.absent||0);
     var nssf=+d.nssf||0, tax=+d.tax||0;
-    var net=gross-ded+(nssf<0?nssf:-nssf)-Math.abs(tax);
+    var net=gross-ded+nssf-Math.abs(tax);
     d.recomputed=Math.round(net*100)/100;
     d.verified=(d.grandTotal!==null&&Math.abs(d.recomputed-d.grandTotal)<=0.05)&&(d.totalNoOt===null||Math.abs((gross-(+d.otTotal||0)-(+d.goodWorking||0))-d.totalNoOt)<=0.05);
     var f=function(v){return (Math.round((+v||0)*100)/100).toString();};
     var parts=[f(d.salaryPay)]; if(d.meal)parts.push(f(d.meal)+' '+L('餐','meal','អាហារ')); if(d.annualPay)parts.push(f(d.annualPay)+' '+L('年假','AL','ឈប់')+(d.annualDays?' '+f(d.annualDays)+'d':'')); if(d.travel)parts.push(f(d.travel)+' '+L('交通','travel','ធ្វើដំណើរ')); if(d.attBonus)parts.push(f(d.attBonus)+' '+L('全勤','attend.','វត្តមាន')); if(d.otTotal)parts.push(f(d.otTotal)+' OT'); if(d.nightShift)parts.push(f(d.nightShift)+' '+L('夜班','night','យប់')); if(d.holiday)parts.push(f(d.holiday)+' '+L('假日','holiday','បុណ្យ'));
-    var calc=parts.join(' + ')+' = '+f(gross); if(d.advance)calc+=' − '+f(d.advance)+' '+L('預支','advance','បុរេប្រទាន'); if(nssf)calc+=' − '+f(Math.abs(nssf))+' NSSF'; if(tax)calc+=' − '+f(Math.abs(tax))+' '+L('稅','tax','ពន្ធ'); if(d.leave||d.absent)calc+=' − '+f(Math.abs(+d.leave||0)+Math.abs(+d.absent||0))+' '+L('缺勤','absent','អវត្តមាន');
+    var calc=parts.join(' + ')+' = '+f(gross); if(d.advance)calc+=' − '+f(d.advance)+' '+L('預支','advance','បុរេប្រទាន'); if(nssf)calc+=(nssf<0?' − ':' + ')+f(Math.abs(nssf))+' NSSF'; if(tax)calc+=' − '+f(Math.abs(tax))+' '+L('稅','tax','ពន្ធ'); if(d.leave||d.absent)calc+=' − '+f(Math.abs(+d.leave||0)+Math.abs(+d.absent||0))+' '+L('缺勤','absent','អវត្តមាន');
     calc+=' = '+f(d.recomputed)+(d.verified?' ✔':' ≠ '+f(d.grandTotal));
     if(d.workDays!==null&&d.stdDays!==null)calc+=' · '+f(d.workDays)+'/'+f(d.stdDays)+'d';
     if(d.avgSalary!==null)calc+=' · '+L('平均','avg','មធ្យម')+' '+f(d.avgSalary);
@@ -1424,13 +1427,40 @@ function attachSettlements(resigns,setts){
 }
 
 /* ═══════════ 匯入流程 ═══════════ */
+/* ═══════════ 2026-10-28 產假未結薪資轉送 ═══════════
+   孕婦進產假當月要先付清薪資，HR 用的是同一份離職結算工作簿，但那不是離職（Paul 10/28）。
+   匯入結算單時，產假名冊上「懷孕中／產假中」的人不寫進離職／結算，改送到產假頁的「產假未結薪資」，
+   匯入報告會列出來。名冊：本機 vrt_maternity_v1 ＋ 雲端 maternity（唯讀，不動產假頁的同步基準）。 */
+var _obMatReg=null, _obMatOut=[];
+function loadMatRegisterOB(){
+  var map={};
+  try{var d=JSON.parse(localStorage.getItem('vrt_maternity_v1')||'{}');(d.employees||[]).forEach(function(e){if(e&&e.idNo)map[String(e.idNo)]=e;});}catch(e){}
+  var url=gasUrl();
+  if(!window.HRASmartSync||!HRASmartSync.readRemote||!url||!navigator.onLine)return Promise.resolve(map);
+  var cloud=HRASmartSync.readRemote({url:url,tool:'maternity'}).then(function(rr){
+    (rr&&rr.records||[]).forEach(function(r){var t=String(r.type||r.status||'').toLowerCase(),id=String(r.idNo||'');if(!id||['pregnant','maternity','returned'].indexOf(t)<0)return;map[id]=Object.assign({},map[id]||{},r,{status:r.status||t});});
+    return map;
+  }).catch(function(e){console.warn('[maternity register]',e);return map;});
+  return Promise.race([cloud,new Promise(function(res){setTimeout(function(){res(map);},60000);})]);
+}
+function matStatusOB(id){ var e=_obMatReg&&_obMatReg[String(id)]; var st=e&&String(e.status||e.type||'').toLowerCase(); return (st==='pregnant'||st==='maternity')?e:null; }
+function flushMatSalaryOB(rows){
+  if(!rows||!rows.length)return Promise.resolve(null);
+  var K='ac_hra_maternity_unsettled_salary_v1', cur=[];
+  try{cur=JSON.parse(localStorage.getItem(K)||'[]')||[];}catch(e){cur=[];}
+  var map={},order=[];cur.concat(rows).forEach(function(r){if(!map[r._k])order.push(r._k);map[r._k]=Object.assign({},map[r._k]||{},r,map[r._k]?{id:map[r._k].id}:{});});
+  try{localStorage.setItem(K,JSON.stringify(order.map(function(k){return map[k];})));}catch(e){console.warn('[mat salary local]',e);}
+  if(!window.HRASmartSync||!HRASmartSync.appendMissing||!gasUrl())return Promise.resolve({ok:false,error:'offline'});
+  return HRASmartSync.appendMissing({url:gasUrl(),tool:'maternity',records:rows}).catch(function(e){return {ok:false,error:e.message||String(e)};});
+}
 function onFiles(files){
   if(!files||!files.length)return;
   var list=Array.prototype.slice.call(files);
   var rep=el('import-report');
-  rep.innerHTML='<div class="text-sky-600">⏳ '+L('解析中…','Parsing…')+'</div>';
+  rep.innerHTML='<div class="text-sky-600">⏳ '+L('解析中…（讀取產假名冊）','Parsing… (reading maternity register)')+'</div>';
   var lines=[], totJ=0, totR=0, totS=0;
-  var seq=Promise.resolve();
+  _obMatOut=[];
+  var seq=loadMatRegisterOB().then(function(m){_obMatReg=m;});
   list.forEach(function(f){
     seq=seq.then(function(){ return readOne(f); }).then(function(res){
       lines.push(res);
@@ -1442,6 +1472,13 @@ function onFiles(files){
   seq.then(function(){
     saveJoins(); saveResigns(); saveSettles();
     META.updatedAt=nowStamp(); saveMeta();
+    var matOut=_obMatOut.slice(); _obMatOut=[];
+    if(matOut.length){
+      var mid='ob-matsal-'+Date.now();
+      lines.push({html:'<div id="'+mid+'" class="mb-1.5 text-violet-700">🍼 '+L('產假未結薪資 ','Maternity unsettled salary ')+matOut.length+L(' 筆送到產假頁…',' row(s) → Maternity page…')+'</div>'});
+      flushMatSalaryOB(matOut).then(function(r){var n=el(mid);if(!n)return;
+        n.innerHTML=r&&r.ok!==false?'🍼 '+esc(L('產假未結薪資 '+matOut.length+' 筆已送到產假頁（雲端新增 '+(r.added||0)+'）','Maternity unsettled salary: '+matOut.length+' row(s) sent to the Maternity page (cloud +'+(r.added||0)+')')):'⚠️ '+esc(L('產假未結薪資已存本機，雲端稍後由產假頁上傳：','Unsettled salary saved locally; Maternity page will upload it: ')+(r&&r.error||''));});
+    }
     var head='<div class="font-semibold text-slate-700 mb-1.5">📋 '+L('匯入報告','Import report')+' · '+nowStamp()+'</div>';
     var foot='<div class="mt-2 pt-2 border-t border-slate-100 text-slate-600">'+
       L('合計','Total')+'：🟢 '+L('入職','Join')+' '+totJ+' · 🔴 '+L('離職','Resign')+' '+totR+' · 🧾 '+L('結算','Settlement')+' '+totS+
@@ -1495,6 +1532,19 @@ function readOne(file){
             if(d.grandTotal!==null&&r.amount&&Math.abs(d.grandTotal-r.amount)>0.05){ r.verified=false; r.calc+=' · '+L('Summery 金額 ','Summery amount ')+r.amount+' ≠ '+d.grandTotal; }
           });
           if(inS.length)detail.push('🧮 '+L('月份分頁明細','Payroll detail')+' '+nDetail+'/'+inS.length+' · '+L('重算吻合','recomputed OK')+' '+nVerified+(nDetail>nVerified?' · ⚠️ '+L('不符','mismatch')+' '+(nDetail-nVerified):''));
+          /* 2026-10-28 產假名冊上懷孕／產假中的人 → 產假未結薪資，不是離職 */
+          var toMat=[], dupR=[];
+          inS=inS.filter(function(r){
+            var e=matStatusOB(r.empId); if(!e)return true;
+            var row=HRASettleParse.toMatSalary(r,{dept:e.dept||r.dept,position:e.position||'',section:e.group||e.section||'',sourceFile:file.name,importedAt:nowStamp(),source:'onboarding-redirect'});
+            toMat.push(row); _obMatOut.push(row);
+            if(RESIGNS.some(function(q){return String(q.empId)===String(r.empId)&&String(q.resignDate||q.settleDate||'').slice(0,7)===row.period;}))dupR.push(r.empId+' '+r.name);
+            return false;
+          });
+          if(toMat.length){
+            detail.push('🍼 '+L('產假名冊上的人改記「產假未結薪資」（不算離職）','People on the maternity register were filed as maternity unsettled salary (not resignations)')+' '+toMat.length+'：'+toMat.map(function(x){return x.idNo+' '+x.name+' $'+fmt(x.amount);}).join('、'));
+            if(dupR.length)warns.push(L('這些人已有同月離職紀錄，若是產假請刪除那筆離職：','These already have a resignation this month — delete it if this is maternity: ')+dupR.join('、'));
+          }
           var ms=mergeInto(SETTLES,inS); SETTLES=ms.arr;
           var at=attachSettlements(RESIGNS,inS);
           ns=inS.length;
