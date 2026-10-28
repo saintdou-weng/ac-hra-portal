@@ -342,6 +342,7 @@ tbody tr:hover{background:#f8fafc}
     <button onclick="apprMark('ok')"  class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">✔ 標記核可</button>
     <button onclick="openReject()"    class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100">✖ 標記退回</button>
     <button onclick="apprMark('')"    class="text-xs px-2.5 py-1.5 rounded-md border border-slate-200 bg-white text-slate-500 hover:bg-slate-50">↺ 清除</button>
+    <button onclick="apprResubmit()"  class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100" title="被退回的項目改回待核，下次送核可會開一張新核可單（原退回紀錄保留）">↻ 重送已退回 Resubmit</button>
     <button onclick="openTg('approval')" class="text-xs font-semibold px-2.5 py-1.5 rounded-md border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100">✈️ 送出核可請求</button>
     <span id="appr-count" class="text-xs text-slate-400 jmono ml-auto"></span>
   </div>
@@ -2389,9 +2390,33 @@ function renderAppr(){
 }
 function apprToggle(k,on){ if(on)_apprSel[k]=1; else delete _apprSel[k]; }
 function apprSelectAll(on){ _apprSel={}; if(on)_apprRows.forEach(function(r){_apprSel[r._k]=1;}); renderAppr(); }
+/* 2026-10-28 重送已退回（Paul 決定）：GAS 帳本記著「已退回」的項目不會再送。
+   重送時在本機 DEC 記 resub 次數，核可項目 key 加上 #R次數 → GAS 視為新項目開新核可單；
+   原本的退回紀錄仍留在 GAS 帳本。帳本同步時只採用「目前這一次」(#R次數相符) 的結果。
+   只支援 key 就是資料列 _k 的費用類（產假未結薪資、護理費、健檢費、醫療採購、診所）。 */
+function resubOf(k){ var d=DEC[k]; return (d&&+d.resub)||0; }
+function apprKeyOf(k){ var n=resubOf(k); return n?String(k)+'#R'+n:String(k); }
+function keepResub(k,o){ var n=resubOf(k); if(n)o.resub=n; return o; }
+function apprResubmit(){
+  var ks=Object.keys(_apprSel); if(!ks.length){ toast(L('請先勾選項目','Select items first'),'warn'); return; }
+  var done=[], skipE=[], notRej=[];
+  ks.forEach(function(k){
+    var d=DEC[k]||{};
+    if(/^E\|/.test(k)){ skipE.push(k); return; }
+    if(d.d!=='no'){ notRej.push(k); return; }
+    DEC[k]={resub:resubOf(k)+1,at:new Date().toISOString(),prev:{d:d.d,note:d.note||'',at:d.at||'',by:d.by||'',batch:d.batch||''}};
+    done.push(k);
+  });
+  saveDec(); _apprSel={}; renderAppr(); renderAll();
+  if(done.length)scheduleCloudUpload('approval-resubmit');
+  var msg=done.length?L('已改回待核 ','Back to pending ')+done.length+L(' 筆，請按 Telegram →「核可」再送一次（會開新核可單）',' — send them again from Telegram → Approval (a new card is created)'):L('沒有可重送的項目','Nothing to resubmit');
+  if(notRej.length)msg+=' · '+L('未退回的不用重送 ','not rejected, skipped ')+notRej.length;
+  if(skipE.length)msg+=' · '+L('孕婦／產假名冊項目請直接重送核可 ','registry items are not supported here ')+skipE.length;
+  toast(msg,done.length?'ok':'warn');
+}
 function apprMark(dec){
   var ks=Object.keys(_apprSel); if(!ks.length){ toast(L('請先勾選項目','Select items first'),'warn'); return; }
-  ks.forEach(function(k){ if(dec)DEC[k]={d:dec,at:nowStamp()}; else delete DEC[k]; });
+  ks.forEach(function(k){ if(dec)DEC[k]=keepResub(k,{d:dec,at:nowStamp()}); else if(resubOf(k))DEC[k]={resub:resubOf(k),at:nowStamp()}; else delete DEC[k]; });
   saveDec(); _apprSel={}; renderAppr(); renderAll();
   if(window.HRAAutoSync)HRAAutoSync.schedule('maternity','approval',{},60); else cloudUpload({auto:true});
   toast(L('已更新','Updated')+' '+ks.length+' '+L('筆','rows'),'ok');
@@ -2404,7 +2429,7 @@ function openReject(){
 function closeReject(){ var m=el('rj-modal'); m.classList.add('hidden'); m.classList.remove('flex'); }
 function confirmReject(){
   var note=(el('rj-note').value||'').trim(), ks=Object.keys(_apprSel);
-  ks.forEach(function(k){ DEC[k]={d:'no',note:note,at:nowStamp()}; });
+  ks.forEach(function(k){ DEC[k]=keepResub(k,{d:'no',note:note,at:nowStamp()}); });
   saveDec(); _apprSel={}; closeReject(); renderAppr(); renderAll();
   scheduleCloudUpload('approval-rejected');
   toast(L('已退回','Rejected')+' '+ks.length+' '+L('筆','rows'),'ok');
@@ -2899,6 +2924,8 @@ function buildApprovalItems(p,scope){
         : (L('診所月結','Clinic Summary','សរុបគ្លីនិក')+' · '+L('看診','Visits','ពិនិត្យ')+' '+fmt0(r.visitCount||r.total||0));
     items.push({key:r._k,kind:'clinic',id:r.idNo||r.employeeId||r.id,name:nm,dept:r.dept||r.department||'',group:r.group||'',position:r.position||'',gender:r.gender||'',age:'',days:0,region:'',period:dt,amount:+r.medicalFee||0,info:inf,decision:x.d||'',note:x.note||''}); feeCalcAttach(items[items.length-1],r);
   });
+  /* 重送：key 加 #R次數（見 apprResubmit） */
+  items.forEach(function(it){ var n=resubOf(it.key); if(n&&!/^E\|/.test(String(it.key))){ it.key=apprKeyOf(it.key); it.info=(it.info||'')+' · ↻ '+L('重送第 '+n+' 次','resubmission #'+n,'ផ្ញើឡើងវិញ '+n); } });
   return items;
 }
 function monthsWithDataTg(){ return monthsWithData(); }
@@ -3447,7 +3474,7 @@ Object.assign(window,{
   onFiles:onFiles,setTab:setTab,toggleLang:toggleLang, setLang:setLang,
   pMode:pMode,pStep:pStep,pPick:pPick,pToday:pToday,pJump:pJump,
   renderPreg:renderPreg,renderMat:renderMat,renderNur:renderNur,renderHealth:renderHealth,renderMed:renderMed,renderClinic:renderClinic,renderAnly:renderAnly,renderAppr:renderAppr,
-  resetFilters:resetFilters,cloudUpload:cloudUpload,cloudDownload:cloudDownload,
+  resetFilters:resetFilters,apprResubmit:apprResubmit,cloudUpload:cloudUpload,cloudDownload:cloudDownload,
   openTg:openTg,closeTg:closeTg,setTgMode:setTgMode,setTgScope:setTgScope,fillTgPeriods:fillTgPeriods,previewTg:previewTg,confirmTg:confirmTg,
   apprToggle:apprToggle,apprSelectAll:apprSelectAll,apprMark:apprMark,openReject:openReject,closeReject:closeReject,confirmReject:confirmReject,
   openNur:openNur, closeNur:closeNur, saveNurRec:saveNurRec, deleteNur:deleteNur,
@@ -3525,7 +3552,7 @@ function printHealthApplications(){
 /* v68: pull Telegram approval ledger back into Nursing/Health lists. */
 (function(){
   function approvalStatusLabelV68(k){var d=DEC[k]||{};if(!d.d)return '<span class="pill bg-amber-50 text-amber-700">⏳ '+L('待核','Pending','រង់ចាំ')+'</span>';var meta=(d.by?(' · '+esc(d.by)):'')+(d.at?(' · '+esc(String(d.at).replace('T',' ').slice(0,16))):'');return d.d==='ok'?'<span class="pill bg-emerald-50 text-emerald-700">✔ '+L('已核可','Approved','អនុម័ត')+meta+'</span>':'<span class="pill bg-rose-50 text-rose-700" title="'+esc(d.note||'')+'">✖ '+L('已退回','Rejected','បដិសេធ')+meta+'</span>'}
-  window.syncApprovalLedgerM=async function(silent){var url=gasUrl();if(!url||!navigator.onLine)return{ok:false};try{var r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'approvalLedger',module:'maternity'})}),t=await r.text(),d=JSON.parse(t);if(d.ok===false)throw new Error(d.error||'ledger error');var led=d.decisions||{},changed=0;Object.keys(led).forEach(function(k){var v=led[k]||{},status=String(v.s||'').toLowerCase(),nd=status==='approved'?{d:'ok'}:status==='rejected'?{d:'no'}:null;if(!nd)return;nd.at=v.at||'';nd.by=v.by||'';nd.batch=v.b||'';var old=DEC[k]||{},ot=Date.parse(old.at||0)||0,nt=Date.parse(nd.at||0)||0;if(!old.d||nt>=ot){if(old.d!==nd.d||old.at!==nd.at||old.by!==nd.by){DEC[k]=Object.assign({},old,nd);changed++}}});if(changed){saveDec();renderAll()}if(!silent&&changed)toast(L('已更新 Telegram 核可狀態','Telegram approval status updated','បានធ្វើបច្ចុប្បន្នភាពស្ថានភាពអនុម័ត'),'ok');return{ok:true,changed:changed,count:Object.keys(led).length}}catch(e){if(!silent)toast(L('核可狀態同步失敗','Approval status sync failed','សមកាលកម្មស្ថានភាពអនុម័តបរាជ័យ')+'：'+e.message,'error');return{ok:false,error:e.message}}};
+  window.syncApprovalLedgerM=async function(silent){var url=gasUrl();if(!url||!navigator.onLine)return{ok:false};try{var r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action:'approvalLedger',module:'maternity'})}),t=await r.text(),d=JSON.parse(t);if(d.ok===false)throw new Error(d.error||'ledger error');var led=(d.data||d).decisions||{},changed=0;Object.keys(led).forEach(function(k){var mR=String(k).match(/^(.*)#R(\d+)$/),nR=mR?+mR[2]:0;if(mR)k=mR[1];if(nR!==resubOf(k))return;var v=led[mR?mR[0]:k]||{},status=String(v.s||'').toLowerCase(),nd=status==='approved'?{d:'ok'}:status==='rejected'?{d:'no'}:null;if(!nd)return;nd.at=v.at||'';nd.by=v.by||'';nd.batch=v.b||'';var old=DEC[k]||{},ot=Date.parse(old.at||0)||0,nt=Date.parse(nd.at||0)||0;if(!old.d||nt>=ot){if(old.d!==nd.d||old.at!==nd.at||old.by!==nd.by){DEC[k]=Object.assign({},old,nd);changed++}}});if(changed){saveDec();renderAll()}if(!silent&&changed)toast(L('已更新 Telegram 核可狀態','Telegram approval status updated','បានធ្វើបច្ចុប្បន្នភាពស្ថានភាពអនុម័ត'),'ok');return{ok:true,changed:changed,count:Object.keys(led).length}}catch(e){if(!silent)toast(L('核可狀態同步失敗','Approval status sync failed','សមកាលកម្មស្ថានភាពអនុម័តបរាជ័យ')+'：'+e.message,'error');return{ok:false,error:e.message}}};
   var oldCloudDownload=window.cloudDownload;window.cloudDownload=function(options){options=options||{};return Promise.resolve(oldCloudDownload(options)).then(function(r){return Promise.resolve(syncApprovalLedgerM(true)).then(function(){return r})})};
   var oldAutoSync=window.autoSync;window.autoSync=function(){if(!gasUrl()||!navigator.onLine)return;cloudDownload({auto:true,silent:true}).then(function(){return syncApprovalLedgerM(true)}).then(function(){return cloudUpload({auto:true,silent:true,reason:'startup-reconcile'})}).catch(function(e){console.warn('[maternity v68 auto sync]',e)})};
   window.renderNur=function(){try{var rows=nurFiltered();renderNurKpi(rows);rows=rows.slice().sort(function(a,b){return(b.payMonth||'').localeCompare(a.payMonth||'')||(a.cardId||'').localeCompare(b.cardId||'')});var pk=pKey(NAV.nur);setTxt('nur-count',(pk?pk+' · ':'')+rows.length+' '+L('筆','rows'));var h='<table><thead><tr><th>'+L('工號','ID')+'</th><th>'+L('姓名','Name')+'</th><th>'+L('部門／組別','Dept / Section','ផ្នែក / ក្រុម')+'</th><th>'+L('入職日','Join Date','ថ្ងៃចូល')+'</th><th>'+L('寶寶生日','Baby DOB')+'</th><th>'+L('付款月','Pay Month')+'</th><th>'+L('第幾月','Month#')+'</th><th class="text-right">'+L('金額','Amount')+'</th><th>'+L('核可','Approval','អនុម័ត')+'</th><th>'+L('離職狀態','Resign')+'</th><th class="no-print"></th></tr></thead><tbody>';if(!rows.length)h+='<tr><td colspan="11" class="text-center text-slate-400 py-6">'+L('此期間沒有護理費記錄','No nursing records','គ្មានកំណត់ត្រាថ្លៃថែទាំ')+'</td></tr>';rows.forEach(function(r){var c=empContextM(r.cardId,r.payMonth),emp=EMP.filter(function(e){return e.idNo===r.cardId})[0]||{};h+='<tr><td class="jmono">'+esc(r.cardId)+'</td><td>'+esc(r.name||c.name||emp.name||'—')+' '+maternityEvidenceLinks(r.evidence)+'</td><td>'+esc(r.dept||c.dept||emp.dept||'—')+(c.section||emp.group?'<br><span class="text-[10px] text-slate-400">'+esc(c.section||emp.group)+'</span>':'')+'</td><td class="jmono">'+esc(c.joinDate||emp.joinDate||'—')+'</td><td class="jmono text-slate-400">'+esc(r.babyDob||'—')+'</td><td class="jmono">'+esc(r.payMonth||'—')+'</td><td class="jmono">'+esc(r.monthNo||'—')+'</td><td class="text-right jmono font-semibold">$'+fmt(r.amount)+'</td><td>'+approvalStatusLabelV68(r._k)+'</td><td>'+(resignTag(r,r.payMonth)||'<span class="text-slate-300">—</span>')+'</td><td class="no-print"><button onclick="openNur(\''+r.id+'\')" title="'+L('編輯','Edit','កែ')+'" class="text-xs text-slate-400 hover:text-pink-600">✏️</button></td></tr>'});h+='</tbody></table>';setHtml('nur-tbl',h);var rp=periodReportHTML('nur');el('nur-report').style.display=rp?'':'none';setHtml('nur-report-body',rp)}catch(e){console.error('[renderNur v68]',e)}};
