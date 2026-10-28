@@ -69,6 +69,7 @@ tbody tr:hover{background:#f8fafc}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/settle-parse.js?v=1"></script>
+<script src="shared/join-pay.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -367,7 +368,15 @@ tbody tr:hover{background:#f8fafc}
         <input id="tg-actor" oninput="saveTgActor();previewTg()" placeholder="例：Phary / HRA" class="mt-1.5 w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white">
         <p class="mt-1 text-[10px] text-slate-400">會顯示在摘要／核可訊息；同一瀏覽器下次自動帶入。</p></div>
       <label class="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
-        <input type="checkbox" id="tg-bi" checked onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
+        <input type="checkbox" id="tg-bi" onchange="previewTg()" class="rounded"> 中英雙語 Bilingual（建議 recommended）</label>
+      <div id="tg-route-wrap" class="hidden">
+        <label class="text-[11px] font-semibold text-slate-500 uppercase">核可路徑 ROUTE</label>
+        <div class="mt-1.5 grid grid-cols-2 gap-1 bg-slate-100 p-1 rounded-lg">
+          <button id="tgr-review" type="button" onclick="setTgRoute('review')" class="text-xs px-3 py-1.5 rounded-md transition">👥 群組審核</button>
+          <button id="tgr-direct" type="button" onclick="setTgRoute('direct')" class="text-xs px-3 py-1.5 rounded-md transition">🚀 直送核可</button>
+        </div>
+        <p id="tg-route-note" class="mt-1 text-[10px] text-slate-400 leading-relaxed"></p>
+      </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
       <p id="tg-note" class="text-[10px] text-slate-400 leading-relaxed"></p>
@@ -571,6 +580,7 @@ var I18N={
      c_totbl:'តារាងអត្រាចេញ',s_hc:'បុគ្គលិកមូលដ្ឋាន',s_ov:'កែតម្រូវដោយដៃ'}
 };
 function T(k){var d=I18N[LANG]||I18N.zh;return d[k]!==undefined?d[k]:(I18N.zh[k]||k);}
+function CL(){ return LANG==='zh'?'：':': '; }   /* 2026-10-28 英／高棉文不用全形冒號 */
 function L(zh,en,km){ return LANG==='km'?(km||en):LANG==='en'?en:zh; }
 /* 雙語輸出（Telegram 用） */
 function BL(zh,en,km,bi){
@@ -1806,8 +1816,8 @@ function renderOv(){
       }
     }
     mkChart('ch-trend',{type:'bar',data:{labels:labels,datasets:[
-      {label:L('入職 Join','Join'),data:jd,backgroundColor:'#10b981',borderRadius:3},
-      {label:L('離職 Resign','Resign'),data:rd,backgroundColor:'#ef4444',borderRadius:3}]},options:barOpts()});
+      {label:L('入職','Join'),data:jd,backgroundColor:'#10b981',borderRadius:3},
+      {label:L('離職','Resign'),data:rd,backgroundColor:'#ef4444',borderRadius:3}]},options:barOpts()});
 
     var tc={}; R.forEach(function(r){ var k=r.resignType||'resign'; tc[k]=(tc[k]||0)+1; });
     var tk=Object.keys(RESIGN_TYPES).filter(function(k){return tc[k];});
@@ -2070,8 +2080,8 @@ function renderAnly(){
 
     var top=keys.slice(0,14);
     var ds=[];
-    if(side!=='resign'&&!resignOnly) ds.push({label:L('入職 Join','Join'),data:top.map(function(k){return agg[k].j;}),backgroundColor:'#10b981',borderRadius:3});
-    if(side!=='join') ds.push({label:L('離職 Resign','Resign'),data:top.map(function(k){return agg[k].r;}),backgroundColor:'#ef4444',borderRadius:3});
+    if(side!=='resign'&&!resignOnly) ds.push({label:L('入職','Join'),data:top.map(function(k){return agg[k].j;}),backgroundColor:'#10b981',borderRadius:3});
+    if(side!=='join') ds.push({label:L('離職','Resign'),data:top.map(function(k){return agg[k].r;}),backgroundColor:'#ef4444',borderRadius:3});
     mkChart('ch-dim',{type:'bar',data:{labels:top,datasets:ds},options:barOpts()});
 
     /* 流動率趨勢 */
@@ -2291,9 +2301,11 @@ function openTg(mode){
     var sel=el('tg-period');
     if(Array.prototype.some.call(sel.options,function(o){return o.value===want;})) sel.value=want;
   }
+  applyObTgLang();
   setTgScope(_tgScope);
   setTgMode(_tgMode);
   var m=el('tg-modal'); m.classList.remove('hidden'); m.classList.add('flex');
+  if(window.HRAJoinPay&&!HRAJoinPay.ready())HRAJoinPay.load().then(function(){ try{previewTg();}catch(e){} });
 }
 function setTgScope(s){
   _tgScope=s;
@@ -2358,14 +2370,38 @@ function syncTgSendBtn(){
                         : L('📄 傳送摘要 Send Summary','📄 Send Summary');
   if(!btn.disabled) btn.className = app?TG_BTN_CLS_APP:TG_BTN_CLS_SUM;
 }
+/* 2026-10-28：審查與核可分清楚（Paul）——群組審核＝先審查人確認、再核可人核；直送核可＝直接給核可人 */
+var _tgRoute='review';
+function setTgRoute(r){
+  _tgRoute=(r==='direct')?'direct':'review'; var d=(_tgRoute==='direct'), a=el('tgr-review'), b=el('tgr-direct');
+  if(a)a.className='text-xs px-3 py-1.5 rounded-md transition '+(!d?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
+  if(b)b.className='text-xs px-3 py-1.5 rounded-md transition '+( d?'bg-white shadow-sm font-semibold text-amber-700':'text-slate-500 font-medium');
+  setTxt('tg-route-note', d?L('直接私訊核可人，一步核可（不經群組審查）','Sent straight to the approver — one step, no group review','ផ្ញើផ្ទាល់ទៅអ្នកអនុម័ត')
+                           :L('先送群組：第 1 關審查人（如 Phary）按「確認審查」，第 2 關核可人才能核可','Group first: step 1 the reviewer (e.g. Phary) confirms, step 2 the approver approves','ក្រុមជាមុន៖ អ្នកពិនិត្យ → អ្នកអនុម័ត'));
+}
+var OB_STATIC_L=[
+  ['#tg-modal .flex-1 > p.text-sm','傳送至 Telegram 群組','Send to Telegram','ផ្ញើទៅ Telegram'],
+  ['#tgm-sum','📄 摘要','📄 Summary','📄 សង្ខេប'],['#tgm-app','📋 核可','📋 Approval','📋 អនុម័ត'],
+  ['#tgs-both','🔵 入職＋離職','🔵 Join + Resign','🔵 ចូល + ចេញ'],['#tgs-join','🟢 入職','🟢 Join','🟢 ចូល'],['#tgs-resign','🔴 離職','🔴 Resign','🔴 ចេញ'],
+  ['#tg-ptype option[value=day]','日','Day','ថ្ងៃ'],['#tg-ptype option[value=week]','週','Week','សប្តាហ៍'],['#tg-ptype option[value=month]','月','Month','ខែ'],['#tg-ptype option[value=year]','年','Year','ឆ្នាំ'],['#tg-ptype option[value=settle]','💵 結算日','💵 Settle date','💵 ថ្ងៃទូទាត់'],
+  ['#tgr-review','👥 群組審核','👥 Group review','👥 ពិនិត្យក្នុងក្រុម'],['#tgr-direct','🚀 直送核可','🚀 Direct to approver','🚀 ផ្ញើផ្ទាល់'],
+  ['#tg-modal button[onclick="closeTg()"]','取消','Cancel','បោះបង់'],['#tg-send','確認傳送','Send','ផ្ញើ']
+];
+function applyObTgLang(){
+  OB_STATIC_L.forEach(function(x){ try{ document.querySelectorAll(x[0]).forEach(function(n){ n.textContent=L(x[1],x[2],x[3]); }); }catch(e){} });
+  var M={'傳送模式 Mode':['傳送模式','Mode','របៀប'],'內容來源 Content':['內容來源','Content','មាតិកា'],'期間類型 Type':['期間類型','Period type','ប្រភេទ'],'期間 Period':['期間','Period','រយៈពេល'],'申請人／檢查人 Applicant / Inspector *':['申請人／檢查人 *','Applicant / Inspector *','អ្នកស្នើ / អ្នកពិនិត្យ *'],'核可路徑 ROUTE':['核可路徑','Route','ផ្លូវអនុម័ត'],'訊息預覽 Preview':['訊息預覽','Preview','មើលជាមុន']};
+  document.querySelectorAll('#tg-modal label.uppercase').forEach(function(n){ var k=n.getAttribute('data-l0')||n.textContent.trim(); n.setAttribute('data-l0',k); if(M[k])n.textContent=L(M[k][0],M[k][1],M[k][2]); });
+  var bi=el('tg-bi'); if(bi&&bi.parentNode){ var lab=bi.parentNode; Array.prototype.slice.call(lab.childNodes).forEach(function(c){ if(c.nodeType===3)lab.removeChild(c); }); lab.appendChild(document.createTextNode(' '+L('中英雙語（不勾＝只用目前語言）','Bilingual zh + en (unticked = current language only)','ពីរភាសា'))); }
+}
 function setTgMode(m){
   _tgMode=m;
   var app=(m==='approval');
+  var rw=el('tg-route-wrap'); if(rw){ rw.className=app?'':'hidden'; if(app)setTgRoute(_tgRoute); }
   var a=el('tgm-sum'), b=el('tgm-app');
   a.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+(!app?'bg-white shadow-sm font-semibold text-sky-700':'text-slate-500 font-medium');
   b.className='flex-1 text-xs px-3 py-1.5 rounded-md transition '+( app?'bg-white shadow-sm font-semibold text-amber-700':'text-slate-500 font-medium');
   setTxt('tg-kind', app
-    ? L('📋 核可請求 — 群組會出現逐筆 ✅／✕ 按鈕','📋 Approval request — per-item ✅/✕ buttons appear in the group')
+    ? L('📋 核可請求 — 先審查（或直送）再由核可人按 ✅／✕','📋 Approval request — reviewed first (or direct), then the approver taps ✅/✕','📋 សំណើអនុម័ត')
     : L('📄 入離職摘要 — 純文字，群組沒有核可按鈕','📄 Onboarding summary — plain text, no approval buttons'));
   setTxt('tg-note', app
     ? L('送出後由 GAS 建立核可批次，群組訊息會帶編號按鈕；同一批資料重送會命中原批次，不會產生第二則訊息。',
@@ -2423,6 +2459,20 @@ function joinBlock(J,bi){
   t+='└ '+esc(BL('女','Female','ស្រី',bi))+' │ '+f+'\n';
   var dl=Object.keys(dm).sort(function(a,b){return dm[b]-dm[a];}).slice(0,8);
   if(dl.length){ t+='<b>'+esc(BL('入職部門','By department','តាមផ្នែក',bi))+'</b>\n'; dl.forEach(function(k,i){ t+=(i===dl.length-1?'└ ':'├ ')+esc(k)+' │ '+dm[k]+'\n'; }); }
+  t+=joinPayBlock(J,bi);
+  return t;
+}
+/* 2026-10-28 入職起薪（Paul：入職也要附薪資，算清楚、一看就懂）——依 HRA-PAY 薪資架構逐項計算 */
+function joinPayOf(r){ return window.HRAJoinPay?HRAJoinPay.forJoin(r,LANG):{ok:false,calc:L('薪資架構程式沒有載入','Salary module not loaded','មិនទាន់ផ្ទុក')}; }
+function joinPayBlock(J,bi){
+  if(!J.length)return '';
+  var rows=J.map(function(r){return {r:r,p:joinPayOf(r)};}), ok=rows.filter(function(x){return x.p.ok;}), tot=ok.reduce(function(s,x){return s+(x.p.total||0);},0), ver=ok.filter(function(x){return x.p.verified===true;}).length;
+  var t='<b>💵 '+esc(BL('起薪（依 HRA-PAY 薪資架構）','Starting pay (HRA-PAY salary structure)','ប្រាក់ខែចាប់ផ្តើម',bi))+'</b>\n';
+  if(!ok.length){ t+='└ ⚠️ '+esc(rows[0].p.calc||'')+'\n'; return t; }
+  t+='├ '+esc(BL('月固定合計','Monthly fixed total','សរុបប្រចាំខែ',bi))+' │ <b>$'+fmt(tot)+'</b> ('+ok.length+'/'+J.length+' '+esc(BL('人','ppl','នាក់',bi))+')\n';
+  ok.slice(0,15).forEach(function(x){ t+='├ '+esc(x.r.name||'—')+' · '+esc(x.r.empId||'')+' │ $'+fmt(x.p.total)+(x.p.verified===true?' ✔':' ⚠️')+'\n'; t+='│   '+esc(String(x.p.calc).split(' · ')[0])+'\n'; });
+  if(ok.length>15)t+='├ … +'+(ok.length-15)+'\n';
+  t+='└ '+(ver===J.length?'✅ '+esc(BL('起薪已逐項核算正確','Starting pay recomputed OK','បានគណនាត្រឹមត្រូវ',bi))+' '+ver+'/'+J.length:'⚠️ '+esc(BL('待確認','To check','ត្រូវពិនិត្យ',bi))+' '+(J.length-ver)+'/'+J.length+CL()+esc(rows.filter(function(x){return x.p.verified!==true;}).slice(0,4).map(function(x){return (x.r.empId||'')+' '+(x.p.ok?(x.p.warn||''):x.p.calc);}).join('；')))+'\n';
   return t;
 }
 function resignBlock(R,p,bi){
@@ -2481,7 +2531,13 @@ function buildSummaryText(p,bi,scope){
   t+='├ ✔ '+esc(BL('已核可','Approved','អនុម័ត',bi))+' │ '+st.ok+'\n';
   t+='├ ✖ '+esc(BL('已退回','Rejected','បដិសេធ',bi))+' │ '+st.no+'\n';
   t+='└ ⏳ '+esc(BL('待核可','Pending','រង់ចាំ',bi))+' │ '+st.pend+'\n';
-  t+='<i>'+esc(BL('以上人數與金額已經系統核算','Headcount and amounts verified by system','ចំនួន និងទឹកប្រាក់ត្រូវបានផ្ទៀងផ្ទាត់',bi))+'</i>\n';
+  /* 2026-10-28：只有每一筆金額都重算吻合才寫「已核算正確」，否則列出幾筆待確認 */
+  {var its=buildApprovalItems(p,scope).filter(function(x){return +x.amount>0;}),okn=its.filter(function(x){return x.verified===true;}).length;
+   t+=HR+'🔎 <b>'+esc(BL('數字核對','Number check','ពិនិត្យលេខ',bi))+'</b>\n';
+   if(scope!=='resign')t+='├ '+esc(BL('入職人數','Joins','ចូល',bi))+' │ '+J.length+'\n';
+   if(scope!=='join')t+='├ '+esc(BL('離職人數','Resigns','ចេញ',bi))+' │ '+R.length+'\n';
+   t+=(its.length&&okn<its.length)?'└ ⚠️ '+esc(BL('金額待確認','Amounts to check','ត្រូវពិនិត្យ',bi))+' '+(its.length-okn)+'/'+its.length+CL()+esc(its.filter(function(x){return x.verified!==true;}).slice(0,5).map(function(x){return x.id+' '+(x.name||'');}).join('、'))+'\n'
+       :'└ ✅ '+esc(BL('人數與金額已逐筆核算正確','Headcount and amounts verified item by item','បានផ្ទៀងផ្ទាត់ត្រឹមត្រូវ',bi))+(its.length?' '+okn+'/'+its.length:'')+'\n';}
   var actor=tgActor();
   if(actor)t+='👤 '+esc(BL('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកពិនិត្យ',bi))+' │ <b>'+esc(actor)+'</b>\n';
   t+='<i>'+esc(nowStamp())+' · AC HRA Onboarding v3</i>';
@@ -2515,9 +2571,9 @@ function buildApprovalItems(p,scope){
       period:(String(r.resignDate||'').slice(0,10)||monthOfKey(p)), date:r.resignDate, joinDate:jd, type:r.resignType,
       info:((jd?L('入職日 Join ','Join date ')+String(jd).slice(0,10)+' · ':'')+(REASON_ZH[r.reasonCat]||r.reasonCat||r.reason||'')
             +(r.resignDate?((REASON_ZH[r.reasonCat]||r.reasonCat||r.reason?' · ':'')
-              +L('離職日 Resigned ','Resigned ')+String(r.resignDate).slice(0,10)):'')
+              +L('離職日 ','Resigned ')+String(r.resignDate).slice(0,10)):'')
             +(r.settleDate&&String(r.settleDate).slice(0,10)!==String(r.resignDate).slice(0,10)
-              ?(' · '+L('結算 Settled ','Settled ')+String(r.settleDate).slice(0,10)):'')),
+              ?(' · '+L('結算 ','Settled ')+String(r.settleDate).slice(0,10)):'')),
       reason:r.reasonCat||r.reason, amount:+r.amount||0,
       /* v73: 結算金額逐筆重算結果，群組卡片據此寫「金額已核算正確」 */
       verified:(+r.amount>0)?!!r.settleVerified:undefined, calc:r.settleCalc||'',
@@ -2531,6 +2587,10 @@ function buildApprovalItems(p,scope){
       region:regionOf(r.remark||r.region||''), marital:r.marital||'',
       period:(String(r.joinDate||'').slice(0,10)||monthOfKey(p)), date:r.joinDate,
       info:r.position||'', amount:0, decision:x.d||'',note:x.note||''});
+    /* 2026-10-28 起薪：月固定＝底薪＋各項加給（HRA-PAY 薪資架構），算式與「已核算」一起送 */
+    var jp=joinPayOf(r), it=items[items.length-1];
+    if(jp.ok){ it.amount=jp.total; it.calc=jp.calc; if(jp.verified===true)it.verified=true; it.info=jp.probText||''; }
+    else it.calc=jp.calc;
   });
   return items;
 }
@@ -2561,7 +2621,7 @@ function previewTg(){
       });
       var nowN=(periodData(p).R||[]).length;
       if(bestN>nowN){
-        extra+='\n\n💡 '+L('提示 TIP','TIP')+'：'+L('目前這個期間只有 ','this period has only ')+nowN+L(' 筆。','.')
+        extra+='\n\n💡 '+L('提示','TIP')+'：'+L('目前這個期間只有 ','this period has only ')+nowN+L(' 筆。','.')
              +L('改用「💵 結算日」選 ','Switch TYPE to "Settle date" and pick ')+bestD
              +L('，可一次核 ',' to approve ')+bestN+L(' 人 ',' people, ')+'$'+bestAmt.toFixed(2)
              +L('（同一張結算單，離職日各不相同）','(one settlement sheet, different resign dates).');
@@ -2595,8 +2655,8 @@ function confirmTg(){
       payload={ action:'approvalRequest', type:'approvalRequest', module:'onboarding', scope:scope,
         batch:'OB-'+sTag+'-'+String(p).replace(/[^0-9A-Za-z]/g,''),
         /* ★ 'S:' 只是內部基準前綴，送給 GAS 的期間要是人看得懂的字 */
-        period: isSettleKey(p) ? (String(p).slice(2)+' '+L('結算 Settle','Settle')) : p,
-        lang:LANG, count:items.length, items:items, text:r.text,
+        period: isSettleKey(p) ? (String(p).slice(2)+' '+L('結算','Settle')) : p,
+        lang:LANG, route:_tgRoute, count:items.length, items:items, text:r.text,
         stats:(scope==='join'?[]:resignStatsLines(p)),   /* 2026-10-27 GAS v61 印在核可卡 KPI 下方 */
         /* ★ 帶上明細指紋：資料改了就是新批次，資料沒改才會被判為重複 */
         idempotencyKey:['onboarding',sTag,p,items.length,
@@ -2954,6 +3014,7 @@ function checkCDN(){
   return false;
 }
 function init(){
+  setTimeout(function(){ if(window.HRAJoinPay)HRAJoinPay.load(); },3000);   /* 2026-10-28 起薪用的薪資架構，背景先載入 */
   try{ checkCDN(); }catch(e){ console.warn('[checkCDN]',e); }
   try{
     loadData();

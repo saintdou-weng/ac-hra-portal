@@ -776,6 +776,7 @@ function setLang(l){
   LANG=l;
   LS.set('lang',l);
   document.documentElement.lang=l==='zh'?'zh-TW':l;
+  {const tl=document.getElementById('tgLanguage');if(tl)tl.value=l==='km'?'en':l;}   /* 2026-10-28：摘要語言預設跟介面一樣 */
   document.getElementById('lbZh').style.background=l==='zh'?'#2dd4a8':'transparent';
   document.getElementById('lbZh').style.color=l==='zh'?'#0f3027':'#8bc5b5';
   document.getElementById('lbEn').style.background=l==='en'?'#2dd4a8':'transparent';
@@ -1264,7 +1265,7 @@ function telegramPeriodValues(mode){
 }
 function tgLabel(zh,en,lang){
   if(lang==='zh')return zh;
-  if(lang==='en')return en;
+  if(lang==='en'||lang==='km')return en;   /* 2026-10-28：選哪種只用那種；考勤摘要還沒有高棉文翻譯，高棉先用英文，不摻中文 */
   return zh+' / '+en;
 }
 /* Telegram 部門／組別中英對照。優先完整詞，再做一般詞彙翻譯。 */
@@ -1317,7 +1318,7 @@ function tgName(s,lang){
   if(!/[\u4e00-\u9fff]/.test(zh))return zh;
   var en=TG_DEPT_EXACT[zh]||tgTermEn(zh);
   if(lang==='zh'||!en)return zh;
-  if(lang==='en')return en;
+  if(lang==='en'||lang==='km')return en;
   return zh+' / '+en;
 }
 function telegramRateIcon(rate){return rate==null?'':rate>=.95?'🌟':rate>=.90?'✅':rate>=.87?'⚠️':'🔴';}
@@ -1457,11 +1458,24 @@ function buildTelegramSummary(mode,key,lang){
         }
       }
     });
-    if(lang!=='zh'){
+    if(lang!=='zh'&&lang!=='en'&&lang!=='km'){
       text+=`${sep}\n📖 <b>${tgLabel('假別代碼','Leave Codes',lang)}</b>\n`;
       text+=`AL ${tgLabel('特休','Annual Leave',lang)} · PL ${tgLabel('事假','Personal Leave',lang)} · SL ${tgLabel('病假','Sick Leave',lang)} · NP ${tgLabel('曠職／無薪缺勤','No-Pay / Absent',lang)}\n`;
       text+=`Bus ${tgLabel('公假／出差','Business Leave',lang)} · FL ${tgLabel('喪假／特殊假','Funeral / Special Leave',lang)} · ML ${tgLabel('產假','Maternity Leave',lang)}\n`;
     }
+  }
+  /* 2026-10-28 數字核對（Paul：數字跟分項要清楚，要寫已核算正確）
+     出勤率算式攤開；各部門／組別加總要等於全廠總計，相符才寫「已核算正確」。 */
+  if(grands.length){
+    const rep=grands.reduce((n,g)=>n+calc(g).report,0),att=grands.reduce((n,g)=>n+(Number(g.att)||0),0),ttl=grands.reduce((n,g)=>n+calc(g).ttl,0);
+    text+=`${sep}\n🔎 <b>${tgLabel('數字核對','Number check',lang)}</b>\n`;
+    text+=`├ 🧮 ${tgLabel('出勤率','Attendance rate',lang)} = ${tgLabel('出勤','attendance',lang)} ${att} ÷ ${tgLabel('應到','expected',lang)} ${rep} = ${rep>0?(att/rep*100).toFixed(1)+'%':'—'}\n`;
+    if(sections.length){
+      const ss=sections.reduce((a,s)=>({ttl:a.ttl+s.ttl,att:a.att+s.att,lv:a.lv+attendanceLeaveCount(s)}),{ttl:0,att:0,lv:0});
+      const bad=[];if(Math.abs(ss.ttl-ttl)>0.5)bad.push(`${tgLabel('人數','headcount',lang)} ${ss.ttl}≠${ttl}`);if(Math.abs(ss.att-att)>0.5)bad.push(`${tgLabel('出勤','attendance',lang)} ${ss.att}≠${att}`);if(Math.abs(ss.lv-leaveTotal)>0.5)bad.push(`${tgLabel('請假','leave',lang)} ${ss.lv}≠${leaveTotal}`);
+      text+=bad.length?`└ ⚠️ ${tgLabel('各部門加總與全廠不符','Department totals differ from factory totals',lang)}${lang==='zh'?'：':': '}${bad.join(lang==='zh'?'；':'; ')}\n`
+                      :`└ ✅ ${tgLabel('各部門加總＝全廠（人數、出勤、請假）已核算正確','Department totals = factory totals (headcount, attendance, leave) — verified',lang)}\n`;
+    }else text+=`└ ✅ ${tgLabel('全廠數字已核算','Factory figures computed',lang)}\n`;
   }
   return text.trim();
 }
