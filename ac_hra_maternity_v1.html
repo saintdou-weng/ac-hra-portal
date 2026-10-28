@@ -2626,6 +2626,7 @@ function periodData(p){
   });
   var S=MSAL.filter(function(r){
     if(!r.period)return false;
+    if(isRangeKey(String(p)))return inPeriod(r.settleDate||(r.period+'-01'),p);   /* 週／自訂區間：看結算日 */
     var _ms5=monthsOfKey(p);return _ms5 ? _ms5.indexOf(r.period)>=0 : r.period.slice(0,String(p).length)===String(p);
   });
   return {P:E.filter(function(r){return r.status==='pregnant';}),
@@ -3014,7 +3015,7 @@ function confirmTg(){
     return;
   }
 
-  btn.disabled=true; btn.textContent=L('傳送中…','Sending…');
+  btn.disabled=true; btn.textContent=L('傳送中…（雲端處理中，約 10–30 秒）','Sending… (cloud is processing, ~10–30 s)');
   var unlock=function(){ btn.disabled=false; btn.innerHTML=oldHtml; };
 
   gasPost(payload).then(function(d){
@@ -3025,6 +3026,14 @@ function confirmTg(){
   }).then(function(d){
     if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
     var dd=d.data||d;
+    /* 2026-10-28：項目已經核可／退回過（或已在另一張待核單）時 GAS 不會再發，要講清楚，不是 Telegram 壞掉 */
+    if((!_tgMode||_tgMode==='approval')&&(dd.alreadyDecided||dd.alreadyPending)){
+      var lst=(dd.skippedList||dd.skippedPending||[]).slice(0,5).join('、');
+      toast(dd.alreadyDecided
+        ? L('沒有新送出：這些項目之前已經核可或退回過，不會重送。','Nothing sent: these items were already approved or rejected and are not re-sent.')+(lst?' '+lst:'')
+        : L('沒有新送出：這些項目已在群組待核單裡','Nothing sent: these items are already waiting in a group approval card')+(dd.batchId?' · '+dd.batchId:'')+(lst?' '+lst:''),'warn');
+      closeTg(); return;
+    }
     if(!_tgMode || _tgMode==='approval'){
       if(!dd.closed && (!dd.messageId || dd.sentToGroup===false)){
         throw new Error(L('GAS 已收到，但 Telegram 沒有回傳群組訊息編號，未確認送達；請再按一次送出。',
