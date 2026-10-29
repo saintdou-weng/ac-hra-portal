@@ -40,6 +40,21 @@
     if (!m[key]) { m[key] = new Date().toISOString(); try { localStorage.setItem(k, JSON.stringify(m)); } catch (e) {} }
     return m[key];
   }
+  /* HRA-PAY 帳本：8～9 月的舊列欄位往右錯兩格（requestedAt 變成「Phary」、status 空白、decidedAt 變成「已核可」），
+     頁面因此把 Paul 早就核可的期間當成還沒核可。讀到這種列就把欄位排回去（2026-10-29 查到）。 */
+  var ISO = /^\d{4}-\d{2}-\d{2}/;
+  function fixRow(r) {
+    if (!r || typeof r !== 'object') return r;
+    var ra = String(r.requestedAt == null ? '' : r.requestedAt).trim(), da = String(r.decidedAt == null ? '' : r.decidedAt).trim();
+    if (!ra || ISO.test(ra) || String(r.status || '').trim() || !ISO.test(String(r.decidedBy || '')) || !/^(已|待)/.test(da)) return r;
+    var o = {}; for (var k in r) o[k] = r[k];
+    o.requestedAt = r.decidedBy; o.status = da; o.decidedBy = r.note || ''; o.decidedAt = ISO.test(String(r.route || '')) ? r.route : '';
+    o.note = ''; o.route = r.reviewedAt || ''; o.reviewer = r.chatId || ''; o.reviewedAt = ISO.test(String(r.messageId || '')) ? r.messageId : '';
+    o.chatId = r.docUrl || ''; o.messageId = ''; o.docUrl = '';
+    o.code = da.indexOf('已核可') === 0 ? 'approved' : da.indexOf('已退件') === 0 ? 'rejected' : da.indexOf('已退回') === 0 ? 'returned' : da.indexOf('待核可') === 0 ? 'verified' : r.code;
+    o._fixedShift = true;
+    return o;
+  }
   /* HRA-PAY：從 PAY GAS 取已送出的期間（不論待審、待核、已核、退回） */
   var PP = {};
   function payPeriods(url, module) {
@@ -47,7 +62,7 @@
     if (!url) return Promise.resolve(null);
     return fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=approvalStatus&module=' + encodeURIComponent(module))
       .then(function (r) { return r.json(); }).then(function (d) {
-        var x = (d && (d.data || d)) || {}, rows = x.records || x.rows || x.list || (Array.isArray(x) ? x : []), set = {};
+        var x = (d && (d.data || d)) || {}, rows = (x.records || x.rows || x.list || (Array.isArray(x) ? x : [])).map(fixRow), set = {};
         rows.forEach(function (r) { var p = r && (r.period || r.Period); if (p) set[String(p)] = { status: r.status || r.code || '', at: r.reviewedAt && !isDecided(r.status) ? r.requestedAt || r.reviewedAt : (r.requestedAt || r.createdAt || '') }; });
         PP[module] = { at: Date.now(), set: set }; return set;
       }).catch(function () { return null; });   /* 查不到就不判斷，免得把已送的也提醒 */
@@ -122,5 +137,6 @@
     render(o.box, o.items, o.lang || 'zh', o.onSend);
     return report(o);
   }
-  g.HRAUnsent = { version: '1.1', pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
+  g.HRAFixApprovalRow = fixRow;
+  g.HRAUnsent = { version: '1.2', fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
 })(typeof window !== 'undefined' ? window : this);
