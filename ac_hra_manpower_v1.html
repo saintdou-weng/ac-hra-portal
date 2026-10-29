@@ -188,7 +188,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 }
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
-<script src="shared/hra-unsent.js?v=1"></script>
+<script src="shared/hra-unsent.js?v=2"></script>
 </head>
 <body>
 
@@ -3343,8 +3343,8 @@ function scheduleMpUnsent(){clearTimeout(_mpUnsentT);_mpUnsentT=setTimeout(mpUns
 async function mpUnsentCheck(){
   if(!window.HRAUnsent)return;
   const [led,pk]=await Promise.all([HRAUnsent.ledger('manpower'),HRAUnsent.pendingKeys('manpower')]);if(!led)return;
-  const items=latestPlanRows(DB.plans||[]).filter(r=>(r.period||ymFromDate(r.snapshotDate)||'')>='2026-07'&&n(r.required)>0).map(r=>{const k=mpApprovalKey(r);if(HRAUnsent.decided(led,k)||pk[k]||mpApprovalStatus(r))return null;const since=r.importedAt||r.updatedAt||HRAUnsent.firstSeen('manpower',k);
-    return {key:k,name:[r.dept,r.section,r.position].filter(Boolean).join(' / '),detail:L('需求 ','Required ','ត្រូវការ ')+fmt(r.required),date:r.period||ymFromDate(r.snapshotDate)||'',since,days:HRAUnsent.daysSince(since)};}).filter(Boolean);
+  const items=latestPlanRows(DB.plans||[]).filter(r=>(r.period||ymFromDate(r.snapshotDate)||'')>='2026-07'&&n(r.required)>0).map(r=>{const k=mpApprovalKey(r);if(HRAUnsent.decided(led,k)||mpApprovalStatus(r))return null;const since=r.importedAt||r.updatedAt||HRAUnsent.firstSeen('manpower',k);
+    const it={key:k,name:[r.dept,r.section,r.position].filter(Boolean).join(' / '),detail:L('需求 ','Required ','ត្រូវការ ')+fmt(r.required),date:r.period||ymFromDate(r.snapshotDate)||'',since,days:HRAUnsent.daysSince(since)};return pk[k]?HRAUnsent.waitingItem(it,HRAUnsent.pendingSince('manpower',k)):it;}).filter(Boolean);
   HRAUnsent.update({module:'manpower',label:'人力需求',platform:'portal',page:'ac-hra-portal/ac_hra_manpower_v1.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTelegram()});
 }
 function renderAll(){

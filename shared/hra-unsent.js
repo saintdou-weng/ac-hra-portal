@@ -25,9 +25,14 @@
   function pendingKeys(module) {
     var c = PK[module]; if (c && Date.now() - c.at < 300000) return Promise.resolve(c.keys);
     return fetch(gasUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'pendingItemKeys', module: module }) })
-      .then(function (r) { return r.json(); }).then(function (d) { var keys = ((d && (d.data || d)) || {}).keys || {}; PK[module] = { at: Date.now(), keys: keys }; return keys; })
+      .then(function (r) { return r.json(); }).then(function (d) { var x = ((d && (d.data || d)) || {}); PK[module] = { at: Date.now(), keys: x.keys || {}, since: x.since || {} }; return PK[module].keys; })
       .catch(function () { return (c && c.keys) || {}; });
   }
+  /* 已送出的那張卡片是什麼時候送的（v69 起 GAS 會回） */
+  function pendingSince(module, key) { var c = PK[module]; return c && c.since ? c.since[key] || '' : ''; }
+  /* 已送出、還在等核可的項目：送出超過 3 天就提醒「待核」 */
+  function waitingItem(item, sentAt) { var d = daysSince(sentAt); if (!sentAt || d < DAYS) return null; item.state = 'waiting'; item.since = sentAt; item.days = d; return item; }
+  function isDecided(st) { return /^(已|approved|rejected|returned|A$|R$)/i.test(String(st || '').trim()); }
   /* 沒有建立時間的資料：第一次看到就記下日期，從那天起算 */
   function firstSeen(module, key) {
     var k = 'hra_unsent_seen_' + module, m = {};
@@ -43,7 +48,7 @@
     return fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'action=approvalStatus&module=' + encodeURIComponent(module))
       .then(function (r) { return r.json(); }).then(function (d) {
         var x = (d && (d.data || d)) || {}, rows = x.records || x.rows || x.list || (Array.isArray(x) ? x : []), set = {};
-        rows.forEach(function (r) { var p = r && (r.period || r.Period); if (p) set[String(p)] = r.status || r.code || 'sent'; });
+        rows.forEach(function (r) { var p = r && (r.period || r.Period); if (p) set[String(p)] = { status: r.status || r.code || '', at: r.reviewedAt && !isDecided(r.status) ? r.requestedAt || r.reviewedAt : (r.requestedAt || r.createdAt || '') }; });
         PP[module] = { at: Date.now(), set: set }; return set;
       }).catch(function () { return null; });   /* 查不到就不判斷，免得把已送的也提醒 */
   }
@@ -82,17 +87,18 @@
     var row = function (x, i) {
       return '<li style="margin:3px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="font-weight:600">' + esc(x.name || x.key) + '</span>' +
         (x.detail ? '<span style="color:#64748b">' + esc(x.detail) + '</span>' : '') + (x.date ? '<span style="font-family:ui-monospace,monospace">' + esc(x.date) + '</span>' : '') +
-        ((x.days || 0) >= DAYS ? '<b style="color:#b91c1c">' + x.days + ' ' + esc(L(lang, '天未送', 'days unsent', 'ថ្ងៃ')) + '</b>' : '') +
+        ((x.days || 0) >= DAYS ? '<b style="color:#b91c1c">' + (x.state === 'waiting' ? esc(L(lang, '已送出 ' + x.days + ' 天待核', 'sent ' + x.days + ' days ago, waiting', 'ផ្ញើ ' + x.days + ' ថ្ងៃ')) : x.days + ' ' + esc(L(lang, '天未送', 'days unsent', 'ថ្ងៃ'))) + '</b>' : '') +
         (x.warn ? '<span style="color:#b45309">⚠️ ' + esc(x.warn) + '</span>' : '') +
         (onSend ? '<button type="button" data-unsent-i="' + i + '" style="margin-left:auto;font-size:12px;padding:2px 10px;border-radius:8px;border:1px solid #c7d2fe;background:#eef2ff;color:#4338ca;cursor:pointer">✈️ ' + esc(L(lang, '送核可', 'Send', 'ផ្ញើ')) + '</button>' : '') + '</li>';
     };
     var all = late.concat(warnOnly);
     box.innerHTML = '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:10px 14px;margin:8px 0;font-size:13px;color:#7f1d1d">' +
-      (late.length ? '<div style="font-weight:700">⏰ ' + esc(L(lang, '有 ' + late.length + ' 筆填了 Pending，超過 3 天還沒送出審查／核可', late.length + ' item(s) are Pending and have not been sent for approval for 3+ days', 'មាន ' + late.length + ' មិនទាន់ផ្ញើលើស 3 ថ្ងៃ')) + '</div>' : '') +
+      (late.length ? (function () { var w = late.filter(function (x) { return x.state === 'waiting'; }).length, u = late.length - w;
+        return '<div style="font-weight:700">⏰ ' + esc(L(lang, (u ? u + ' 筆超過 3 天還沒送出審查／核可' : '') + (u && w ? '；' : '') + (w ? w + ' 筆已送出超過 3 天還沒核可' : ''), (u ? u + ' not sent for approval for 3+ days' : '') + (u && w ? '; ' : '') + (w ? w + ' sent but waiting 3+ days' : ''), 'មាន ' + late.length)) + '</div>'; })() : '') +
       (warnOnly.length ? '<div style="font-weight:700;color:#92400e">⚠️ ' + esc(L(lang, warnOnly.length + ' 筆日期請再確認', warnOnly.length + ' date(s) to double-check', 'ពិនិត្យថ្ងៃ ' + warnOnly.length)) + '</div>' : '') +
       '<ul style="margin:6px 0 2px;padding-left:2px;list-style:none">' + all.slice(0, 20).map(row).join('') + '</ul>' +
       (all.length > 20 ? '<div>… +' + (all.length - 20) + '</div>' : '') +
-      '<div style="color:#991b1b;font-size:11px;margin-top:4px">' + esc(L(lang, '每天早上 8 點也會在群組提醒一次，送出後就會消失。', 'A reminder is also posted to the group every morning at 08:00; items disappear once sent.', 'ក៏នឹងរំលឹកក្នុងក្រុមរៀងរាល់ព្រឹក')) + '</div></div>';
+      '<div style="color:#991b1b;font-size:11px;margin-top:4px">' + esc(L(lang, '每天早上 8 點也會在群組提醒一次；送出並核可後就會消失。', 'A reminder is also posted to the group every morning at 08:00; items disappear once sent and decided.', 'ក៏នឹងរំលឹកក្នុងក្រុមរៀងរាល់ព្រឹក')) + '</div></div>';
     if (onSend) Array.prototype.forEach.call(box.querySelectorAll('[data-unsent-i]'), function (b) { b.onclick = function () { onSend(all[+b.getAttribute('data-unsent-i')]); }; });
   }
   /* 首頁：各頁最近一次送來的「未送核可」清單彙總，點了直接開那一頁 */
@@ -107,7 +113,7 @@
         var total = rows.reduce(function (n, x) { return n + x.items.length; }, 0);
         box.style.display = '';
         box.innerHTML = '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:10px 14px;margin:10px 0;font-size:13px;color:#7f1d1d">' +
-          '<div style="font-weight:700;margin-bottom:4px">⏰ ' + esc(L(lang, '未送核可 ' + total + ' 筆（填了 Pending 超過 3 天）', total + ' item(s) not yet sent for approval (Pending 3+ days)', 'មិនទាន់ផ្ញើ ' + total)) + '</div>' +
+          '<div style="font-weight:700;margin-bottom:4px">⏰ ' + esc(L(lang, '未送／待核 ' + total + ' 筆（超過 3 天）', total + ' item(s) unsent or waiting for approval 3+ days', 'មិនទាន់ផ្ញើ ' + total)) + '</div>' +
           rows.map(function (x) { var oldest = Math.max.apply(null, x.items.map(function (i) { return i.days || 0; }));
             return '<a href="/' + esc(x.page) + '" style="display:inline-block;margin:3px 6px 3px 0;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid #fca5a5;color:#991b1b;text-decoration:none;font-weight:600">' + esc(x.label) + ' · ' + x.items.length + ' <span style="font-weight:400;color:#b91c1c">(' + esc(L(lang, '最久 ' + oldest + ' 天', 'oldest ' + oldest + 'd', oldest + 'd')) + ')</span></a>'; }).join('') + '</div>';
       }).catch(function () {});
@@ -116,5 +122,5 @@
     render(o.box, o.items, o.lang || 'zh', o.onSend);
     return report(o);
   }
-  g.HRAUnsent = { version: '1.0', homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
+  g.HRAUnsent = { version: '1.1', pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
 })(typeof window !== 'undefined' ? window : this);

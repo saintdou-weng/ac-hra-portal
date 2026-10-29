@@ -77,7 +77,7 @@ tbody tr:hover{background:#f8fafc}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/settle-parse.js?v=1"></script>
-<script src="shared/hra-unsent.js?v=1"></script>
+<script src="shared/hra-unsent.js?v=2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -3498,9 +3498,11 @@ function matUnsentCheck(){
     var KL={pregnant:L('孕婦登記','Pregnant','មានផ្ទៃពោះ'),maternity:L('產假','Maternity','មាតុភាព'),mat_salary:L('產假未結薪資','Unsettled salary','ប្រាក់ខែ'),nursing:L('護理費','Nursing','ថែទាំ'),health:L('健檢費','Health fee','ពិនិត្យ'),medical_purchase:L('醫療採購','Medical','ថ្នាំ'),clinic:L('診所','Clinic','គ្លីនិក')};
     months.forEach(function(m){ buildApprovalItems(m,'all').forEach(function(it){
       var k=String(it.key); if(seen[k])return; seen[k]=1;
-      if(HRAUnsent.decided(led,k)||pk[k]||(DEC[k.replace(/#R\d+$/,'')]&&DEC[k.replace(/#R\d+$/,'')].d))return;
+      if(HRAUnsent.decided(led,k)||(DEC[k.replace(/#R\d+$/,'')]&&DEC[k.replace(/#R\d+$/,'')].d))return;
       var since=HRAUnsent.firstSeen('maternity',k);
-      items.push({key:k,name:(it.id?it.id+' ':'')+(it.name||''),detail:(KL[it.kind]||it.kind)+(+it.amount>0?' · $'+fmt(it.amount):''),date:String(it.period||m).slice(0,10),since:since,days:HRAUnsent.daysSince(since)});
+      var row={key:k,name:(it.id?it.id+' ':'')+(it.name||''),detail:(KL[it.kind]||it.kind)+(+it.amount>0?' · $'+fmt(it.amount):''),date:String(it.period||m).slice(0,10),since:since,days:HRAUnsent.daysSince(since)};
+      if(pk[k]){ var w=HRAUnsent.waitingItem(row,HRAUnsent.pendingSince('maternity',k)); if(w)items.push(w); return; }
+      items.push(row);
     }); });
     HRAUnsent.update({module:'maternity',label:'產假／健康費用',platform:'portal',page:'ac-hra-portal/ac_hra_maternity_v1.html',items:items,box:'unsent-box',lang:LANG,onSend:function(){ setTab('appr'); openTg('approval'); }});
   });

@@ -147,7 +147,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
 .source-highlight td{background:#fffbc8}.source-highlight td:first-child{border-left:4px solid #e4b400}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
-<script src="shared/hra-unsent.js?v=1"></script>
+<script src="shared/hra-unsent.js?v=2"></script>
 </head>
 <body>
 <div class="app">
@@ -720,8 +720,8 @@ function renderAnalysis(){
 /* 2026-10-29 未送核可提醒（Paul）：申請單狀態 Pending、還沒送 Telegram 核可（沒有批次編號），超過 3 天 → 紅框＋每天 08:00 群組提醒 */
 function certUnsentCheck(){
   if(!window.HRAUnsent||!STATE)return;
-  const items=(STATE.requests||[]).filter(r=>r.status==='pending'&&!r.batchId).map(r=>{const since=r.submittedAt||r.createdAt||r.updatedAt||'';
-    return {key:r.id,name:(r.number?r.number+' ':'')+(r.title||''),detail:(r.items||[]).length+' '+(LANG==='en'?'item(s)':LANG==='km'?'ធាតុ':'項')+(r.cost?' · $'+Number(r.cost).toFixed(2):''),date:r.dueDate||'',since,days:HRAUnsent.daysSince(since),rid:r.id};});
+  const items=(STATE.requests||[]).filter(r=>r.status==='pending').map(r=>{const since=r.submittedAt||r.createdAt||r.updatedAt||'';
+    const it={key:r.id,name:(r.number?r.number+' ':'')+(r.title||''),detail:(r.items||[]).length+' '+(LANG==='en'?'item(s)':LANG==='km'?'ធាតុ':'項')+(r.cost?' · $'+Number(r.cost).toFixed(2):''),date:r.dueDate||'',since,days:HRAUnsent.daysSince(since),rid:r.id};return r.batchId?HRAUnsent.waitingItem(it,r.submittedAt):it;}).filter(Boolean);   /* 已送出（有批次編號）超過 3 天沒核可＝待核 */
   HRAUnsent.update({module:'certificate_visa',label:'證書簽證申請',platform:'portal',page:'ac-hra-portal/ac_hra_certificate_visa_v1.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTelegram('approval')});
 }
 function renderAll(){

@@ -69,7 +69,7 @@ tbody tr:hover{background:#f8fafc}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/settle-parse.js?v=1"></script>
-<script src="shared/hra-unsent.js?v=1"></script>
+<script src="shared/hra-unsent.js?v=2"></script>
 <script src="shared/join-pay.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
@@ -3025,9 +3025,11 @@ function obUnsentCheck(){
     var items=[];
     function add(kind,r,date){
       date=String(date||'').slice(0,10); if(!date||date<'2026-07-01')return;
-      var key=kind+'|'+r.empId+'|'+date; if(HRAUnsent.decided(led,key)||pk[key])return;
+      var key=kind+'|'+r.empId+'|'+date; if(HRAUnsent.decided(led,key))return;
       var since=r.importedAt||r.updatedAt||r.createdAt||HRAUnsent.firstSeen('onboarding',key);
-      items.push({key:key,name:r.empId+' '+(r.name||''),detail:(kind==='J'?L('入職','Join','ចូល'):L('離職','Resign','ចេញ'))+' · '+(r.dept||r.section||'—')+(kind==='R'&&+r.amount>0?' · $'+fmt(r.amount):''),date:date,since:since,days:HRAUnsent.daysSince(since),kind:kind});
+      var it={key:key,name:r.empId+' '+(r.name||''),detail:(kind==='J'?L('入職','Join','ចូល'):L('離職','Resign','ចេញ'))+' · '+(r.dept||r.section||'—')+(kind==='R'&&+r.amount>0?' · $'+fmt(r.amount):''),date:date,since:since,days:HRAUnsent.daysSince(since),kind:kind};
+      if(pk[key]){ var w=HRAUnsent.waitingItem(it,HRAUnsent.pendingSince('onboarding',key)); if(w)items.push(w); return; }   /* 已送出：超過 3 天還沒核可也提醒 */
+      items.push(it);
     }
     JOINS.forEach(function(r){add('J',r,r.joinDate);}); RESIGNS.forEach(function(r){add('R',r,r.resignDate);});
     HRAUnsent.update({module:'onboarding',label:'入離職',platform:'portal',page:'ac-hra-portal/ac_hra_onboarding_v3.html',items:items,box:'unsent-box',lang:LANG,

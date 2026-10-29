@@ -153,8 +153,11 @@ var ContractWorkflow = (function () {
     if(!window.HRAUnsent)return;const today=todayISO(),items=[];
     allRows().forEach(x=>{const s=M.snapshot(x.r,x.k);if(s.deleted||!s.endDate||s.endDate<'2026-09-01'||s.endDate>today)return;
       if(x.k==='prob'&&!/^(passed|failed|extended)$/.test(s.result))return;
-      const st=M.eligible(x.r,'approval',x.k,ledger,requestFor(x));if(!st.ok)return;
-      items.push({key:x.k+':'+x.r.id,name:s.employeeId+' '+s.name,detail:(x.k==='prob'?L('試用期','Probation','សាកល្បង'):L('合約','Contract','កិច្ចសន្យា'))+' · '+(s.section||s.department||'—')+(x.k==='prob'?' · '+M.status(s.result,LANG):''),date:s.endDate,since:s.endDate,days:HRAUnsent.daysSince(s.endDate)});});
+      const st=M.eligible(x.r,'approval',x.k,ledger,requestFor(x));const rc=(x.r._wf?.receipts||[]).filter(q=>q.mode==='approval').slice(-1)[0];
+      if(!st.ok&&!(rc&&!/^(approved|rejected)$/.test(rc.state||'')&&st.reason!=='approved'&&st.reason!=='rejected'&&st.reason!=='decided'&&st.reason!=='historical'&&st.reason!=='incomplete'&&st.reason!=='invalid_result'))return;
+      const it={key:x.k+':'+x.r.id,name:s.employeeId+' '+s.name,detail:(x.k==='prob'?L('試用期','Probation','សាកល្បង'):L('合約','Contract','កិច្ចសន្យា'))+' · '+(s.section||s.department||'—')+(x.k==='prob'?' · '+M.status(s.result,LANG):''),date:s.endDate,since:s.endDate,days:HRAUnsent.daysSince(s.endDate)};
+      if(!st.ok){const w=HRAUnsent.waitingItem(it,rc.at);if(w)items.push(w);return;}   /* 已送出、超過 3 天還沒核可 */
+      items.push(it);});
     HRAUnsent.update({module:'contract',label:'試用期／合約',platform:'portal',page:'ac-hra-portal/ac_hra_contract_v2.html',items,box:'unsent-box',lang:(typeof LANG!=='undefined'?LANG:'zh'),onSend:it=>{try{open(String(it.key).split(':')[0],'approval');}catch(e){console.warn(e);}}});
   }
   async function receipt(d,mode,value){
