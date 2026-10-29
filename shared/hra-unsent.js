@@ -7,6 +7,9 @@
 (function (g) {
   'use strict';
   var DAYS = 3, DATE_GAP = 40;
+  /* Paul 10/29：9 月以前的都當已核可，不提醒；只提醒 10 月起「已記錄、要核可、但還沒送出」的（已送出待核的不提醒） */
+  var FROM = '2026-10';
+  function keep(x) { if (!x || x.state === 'waiting') return false; var m = String(x.date || '').slice(0, 7); return !/^\d{4}-\d{2}$/.test(m) || m >= FROM; }
   var DEFAULT_GAS = 'https://script.google.com/macros/s/AKfycbya4jZG7YixRmumt9vKA-5Cv92jP8fi_o4toiU-8J2exQCYBhBsLOtN4kX9hoKqzp12/exec';
   function gasUrl() { try { return (localStorage.getItem('vrt_att_cloud_v1_url') || localStorage.getItem('ac_hra_gas_url') || '').trim() || DEFAULT_GAS; } catch (e) { return DEFAULT_GAS; } }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -31,7 +34,7 @@
   /* 已送出的那張卡片是什麼時候送的（v69 起 GAS 會回） */
   function pendingSince(module, key) { var c = PK[module]; return c && c.since ? c.since[key] || '' : ''; }
   /* 已送出、還在等核可的項目：送出超過 3 天就提醒「待核」 */
-  function waitingItem(item, sentAt) { var d = daysSince(sentAt); if (!sentAt || d < DAYS) return null; item.state = 'waiting'; item.since = sentAt; item.days = d; return item; }
+  function waitingItem(item, sentAt) { return null; var d = daysSince(sentAt); if (!sentAt || d < DAYS) return null; item.state = 'waiting'; item.since = sentAt; item.days = d; return item; }
   function isDecided(st) { return /^(已|approved|rejected|returned|A$|R$)/i.test(String(st || '').trim()); }
   /* 沒有建立時間的資料：第一次看到就記下日期，從那天起算 */
   function firstSeen(module, key) {
@@ -80,7 +83,7 @@
   function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
   /* 送給 GAS：內容有變或超過 6 小時才送，避免每次重繪都打雲端 */
   function report(o) {
-    var items = (o.items || []).filter(function (x) { return (x.days || 0) >= DAYS; });
+    var items = (o.items || []).filter(keep).filter(function (x) { return (x.days || 0) >= DAYS; });
     var body = { action: 'unsentReport', module: o.module, label: o.label, platform: o.platform || 'portal', page: o.page || location.pathname.split('/').pop(), items: items, by: o.by || '' };
     var sig = hash(JSON.stringify(items.map(function (x) { return [x.key, x.days, x.warn]; }))), k = 'hra_unsent_sig_' + o.module, old = null;
     try { old = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) {}
@@ -95,6 +98,7 @@
   function render(box, items, lang, onSend) {
     if (typeof box === 'string') box = document.getElementById(box);
     if (!box) return;
+    items = (items || []).filter(keep);
     var late = (items || []).filter(function (x) { return (x.days || 0) >= DAYS; }).sort(function (a, b) { return b.days - a.days; });
     var warnOnly = (items || []).filter(function (x) { return (x.days || 0) < DAYS && x.warn; });
     if (!late.length && !warnOnly.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
@@ -108,12 +112,12 @@
     };
     var all = late.concat(warnOnly);
     box.innerHTML = '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:10px 14px;margin:8px 0;font-size:13px;color:#7f1d1d">' +
-      (late.length ? (function () { var w = late.filter(function (x) { return x.state === 'waiting'; }).length, u = late.length - w;
+      (late.length ? (function () { var w = 0, u = late.length - w;
         return '<div style="font-weight:700">⏰ ' + esc(L(lang, (u ? u + ' 筆超過 3 天還沒送出審查／核可' : '') + (u && w ? '；' : '') + (w ? w + ' 筆已送出超過 3 天還沒核可' : ''), (u ? u + ' not sent for approval for 3+ days' : '') + (u && w ? '; ' : '') + (w ? w + ' sent but waiting 3+ days' : ''), 'មាន ' + late.length)) + '</div>'; })() : '') +
       (warnOnly.length ? '<div style="font-weight:700;color:#92400e">⚠️ ' + esc(L(lang, warnOnly.length + ' 筆日期請再確認', warnOnly.length + ' date(s) to double-check', 'ពិនិត្យថ្ងៃ ' + warnOnly.length)) + '</div>' : '') +
       '<ul style="margin:6px 0 2px;padding-left:2px;list-style:none">' + all.slice(0, 20).map(row).join('') + '</ul>' +
       (all.length > 20 ? '<div>… +' + (all.length - 20) + '</div>' : '') +
-      '<div style="color:#991b1b;font-size:11px;margin-top:4px">' + esc(L(lang, '每天早上 8 點也會在群組提醒一次；送出並核可後就會消失。', 'A reminder is also posted to the group every morning at 08:00; items disappear once sent and decided.', 'ក៏នឹងរំលឹកក្នុងក្រុមរៀងរាល់ព្រឹក')) + '</div></div>';
+      '<div style="color:#991b1b;font-size:11px;margin-top:4px">' + esc(L(lang, '每週五早上 8 點也會在群組提醒一次；送出後就會消失。', 'A reminder is also posted to the group every Friday at 08:00; items disappear once sent.', 'នឹងរំលឹកក្នុងក្រុមរៀងរាល់ថ្ងៃសុក្រ ម៉ោង ៨ ព្រឹក · ផ្ញើរួចនឹងបាត់')) + '</div></div>';
     if (onSend) Array.prototype.forEach.call(box.querySelectorAll('[data-unsent-i]'), function (b) { b.onclick = function () { onSend(all[+b.getAttribute('data-unsent-i')]); }; });
   }
   /* 首頁：各頁最近一次送來的「未送核可」清單彙總，點了直接開那一頁 */
@@ -131,7 +135,7 @@
     var lang = opts.lang || 'zh';
     return fetch(gasUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'unsentList' }) })
       .then(function (r) { return r.json(); }).then(function (d) {
-        var st = (d && (d.data || d)) || {}, rows = Object.keys(st).map(function (k) { var x = st[k] || {}; return { k: k, label: x.label || k, page: x.page || '', platform: x.platform || '', items: (x.items || []).filter(function (i) { return (i.days || 0) >= DAYS; }), at: x.at }; })
+        var st = (d && (d.data || d)) || {}, rows = Object.keys(st).map(function (k) { var x = st[k] || {}; return { k: k, label: x.label || k, page: x.page || '', platform: x.platform || '', items: (x.items || []).filter(keep).filter(function (i) { return (i.days || 0) >= DAYS; }), at: x.at }; })
           .filter(function (x) { return x.items.length && (!opts.platform || x.platform === opts.platform); });
         if (!rows.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
         var total = rows.reduce(function (n, x) { return n + x.items.length; }, 0);
@@ -147,5 +151,5 @@
     return report(o);
   }
   g.HRAFixApprovalRow = fixRow;
-  g.HRAUnsent = { version: '1.3', fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
+  g.HRAUnsent = { version: '1.4', FROM: FROM, keep: keep, fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
 })(typeof window !== 'undefined' ? window : this);
