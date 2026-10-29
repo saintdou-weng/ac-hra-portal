@@ -117,6 +117,15 @@
     if (onSend) Array.prototype.forEach.call(box.querySelectorAll('[data-unsent-i]'), function (b) { b.onclick = function () { onSend(all[+b.getAttribute('data-unsent-i')]); }; });
   }
   /* 首頁：各頁最近一次送來的「未送核可」清單彙總，點了直接開那一頁 */
+  /* 首頁晶片名稱：跟著介面語言，不混中文 */
+  var NAMES = {
+    onboarding: ['入離職', 'Join / Resign', 'ចូល / ចេញ'], maternity: ['產假／健康費用', 'Maternity / Health', 'មាតុភាព / សុខភាព'],
+    certificate_visa: ['證書簽證申請', 'Certificate / Visa', 'វិញ្ញាបនបត្រ / ទិដ្ឋាការ'], contract: ['試用期／合約', 'Probation / Contract', 'សាកល្បង / កិច្ចសន្យា'],
+    manpower: ['人力需求', 'Manpower', 'កម្លាំងពលកម្ម'], hrpay_transfer: ['HRA-PAY 調職', 'HRA-PAY Transfer', 'HRA-PAY ផ្ទេរ'],
+    hrpay_meal: ['HRA-PAY 餐費', 'HRA-PAY Meal Fee', 'HRA-PAY ថ្លៃអាហារ'], hrpay_otbonus: ['HRA-PAY 加班／獎金', 'HRA-PAY OT / Bonus', 'HRA-PAY ថែមម៉ោង / ប្រាក់រង្វាន់'],
+    hrpay_payroll: ['HRA-PAY 薪資／預付', 'HRA-PAY Payroll / Advance', 'HRA-PAY ប្រាក់ខែ / បុរេប្រទាន']
+  };
+  function modName(k, lang, fb) { var n = NAMES[k]; if (!n) return fb || k; return lang === 'en' ? n[1] : lang === 'km' ? n[2] : n[0]; }
   function homePanel(box, opts) {
     opts = opts || {}; if (typeof box === 'string') box = document.getElementById(box); if (!box) return Promise.resolve();
     var lang = opts.lang || 'zh';
@@ -130,7 +139,7 @@
         box.innerHTML = '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:10px 14px;margin:10px 0;font-size:13px;color:#7f1d1d">' +
           '<div style="font-weight:700;margin-bottom:4px">⏰ ' + esc(L(lang, '未送／待核 ' + total + ' 筆（超過 3 天）', total + ' item(s) unsent or waiting for approval 3+ days', 'មិនទាន់ផ្ញើ ' + total)) + '</div>' +
           rows.map(function (x) { var oldest = Math.max.apply(null, x.items.map(function (i) { return i.days || 0; }));
-            return '<a href="/' + esc(x.page) + '" style="display:inline-block;margin:3px 6px 3px 0;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid #fca5a5;color:#991b1b;text-decoration:none;font-weight:600">' + esc(x.label) + ' · ' + x.items.length + ' <span style="font-weight:400;color:#b91c1c">(' + esc(L(lang, '最久 ' + oldest + ' 天', 'oldest ' + oldest + 'd', oldest + 'd')) + ')</span></a>'; }).join('') + '</div>';
+            return '<a href="/' + esc(x.page) + '" style="display:inline-block;margin:3px 6px 3px 0;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid #fca5a5;color:#991b1b;text-decoration:none;font-weight:600">' + esc(modName(x.k, lang, x.label)) + ' · ' + x.items.length + ' <span style="font-weight:400;color:#b91c1c">(' + esc(L(lang, '最久 ' + oldest + ' 天', 'oldest ' + oldest + 'd', oldest + 'd')) + ')</span></a>'; }).join('') + '</div>';
       }).catch(function () {});
   }
   function update(o) {
@@ -138,5 +147,5 @@
     return report(o);
   }
   g.HRAFixApprovalRow = fixRow;
-  g.HRAUnsent = { version: '1.2', fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
+  g.HRAUnsent = { version: '1.3', fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
 })(typeof window !== 'undefined' ? window : this);
