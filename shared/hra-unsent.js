@@ -47,6 +47,16 @@
         PP[module] = { at: Date.now(), set: set }; return set;
       }).catch(function () { return null; });   /* 查不到就不判斷，免得把已送的也提醒 */
   }
+  /* Portal：GAS 帳本裡已核可／已退回的 key */
+  var LG = {};
+  function ledger(module) {
+    var c = LG[module]; if (c && Date.now() - c.at < 300000) return Promise.resolve(c.d);
+    return fetch(gasUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'approvalLedger', module: module }) })
+      .then(function (r) { return r.json(); }).then(function (d) { var x = ((d && (d.data || d)) || {}).decisions || null; if (x) LG[module] = { at: Date.now(), d: x }; return x; })
+      .catch(function () { return null; });
+  }
+  /* 帳本裡有這筆（含舊格式「前兩段」的 key，如 R|工號） */
+  function decided(led, key) { if (!led) return false; var k = String(key || ''); if (led[k]) return true; var p = k.split('|'); return p.length > 2 && !!led[p[0] + '|' + p[1]]; }
   function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
   /* 送給 GAS：內容有變或超過 6 小時才送，避免每次重繪都打雲端 */
   function report(o) {
@@ -85,9 +95,26 @@
       '<div style="color:#991b1b;font-size:11px;margin-top:4px">' + esc(L(lang, '每天早上 8 點也會在群組提醒一次，送出後就會消失。', 'A reminder is also posted to the group every morning at 08:00; items disappear once sent.', 'ក៏នឹងរំលឹកក្នុងក្រុមរៀងរាល់ព្រឹក')) + '</div></div>';
     if (onSend) Array.prototype.forEach.call(box.querySelectorAll('[data-unsent-i]'), function (b) { b.onclick = function () { onSend(all[+b.getAttribute('data-unsent-i')]); }; });
   }
+  /* 首頁：各頁最近一次送來的「未送核可」清單彙總，點了直接開那一頁 */
+  function homePanel(box, opts) {
+    opts = opts || {}; if (typeof box === 'string') box = document.getElementById(box); if (!box) return Promise.resolve();
+    var lang = opts.lang || 'zh';
+    return fetch(gasUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'unsentList' }) })
+      .then(function (r) { return r.json(); }).then(function (d) {
+        var st = (d && (d.data || d)) || {}, rows = Object.keys(st).map(function (k) { var x = st[k] || {}; return { k: k, label: x.label || k, page: x.page || '', platform: x.platform || '', items: (x.items || []).filter(function (i) { return (i.days || 0) >= DAYS; }), at: x.at }; })
+          .filter(function (x) { return x.items.length && (!opts.platform || x.platform === opts.platform); });
+        if (!rows.length) { box.innerHTML = ''; box.style.display = 'none'; return; }
+        var total = rows.reduce(function (n, x) { return n + x.items.length; }, 0);
+        box.style.display = '';
+        box.innerHTML = '<div style="border:1px solid #fecaca;background:#fef2f2;border-radius:12px;padding:10px 14px;margin:10px 0;font-size:13px;color:#7f1d1d">' +
+          '<div style="font-weight:700;margin-bottom:4px">⏰ ' + esc(L(lang, '未送核可 ' + total + ' 筆（填了 Pending 超過 3 天）', total + ' item(s) not yet sent for approval (Pending 3+ days)', 'មិនទាន់ផ្ញើ ' + total)) + '</div>' +
+          rows.map(function (x) { var oldest = Math.max.apply(null, x.items.map(function (i) { return i.days || 0; }));
+            return '<a href="/' + esc(x.page) + '" style="display:inline-block;margin:3px 6px 3px 0;padding:4px 10px;border-radius:999px;background:#fff;border:1px solid #fca5a5;color:#991b1b;text-decoration:none;font-weight:600">' + esc(x.label) + ' · ' + x.items.length + ' <span style="font-weight:400;color:#b91c1c">(' + esc(L(lang, '最久 ' + oldest + ' 天', 'oldest ' + oldest + 'd', oldest + 'd')) + ')</span></a>'; }).join('') + '</div>';
+      }).catch(function () {});
+  }
   function update(o) {
     render(o.box, o.items, o.lang || 'zh', o.onSend);
     return report(o);
   }
-  g.HRAUnsent = { version: '1.0', firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
+  g.HRAUnsent = { version: '1.0', homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
 })(typeof window !== 'undefined' ? window : this);

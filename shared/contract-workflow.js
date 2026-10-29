@@ -145,6 +145,17 @@ var ContractWorkflow = (function () {
       if(dirty){await rawPut(storage(x.k),x.r);changed=true;}
     }
     if(changed)scheduleContractSync('approval-result');decorate('prob');decorate('cont');
+    try{unsentCheck();}catch(e){console.warn('[contract unsent]',e);}
+  }
+  /* 2026-10-29 未送核可提醒（Paul）：試用期已填結果（通過／不通過／延長）或合約已到期，2026-09 起、到期日已過 3 天以上，
+     還沒送核可（沒有送出紀錄、帳本也沒有決定）→ 頁面紅框＋每天 08:00 群組提醒。 */
+  function unsentCheck(){
+    if(!window.HRAUnsent)return;const today=todayISO(),items=[];
+    allRows().forEach(x=>{const s=M.snapshot(x.r,x.k);if(s.deleted||!s.endDate||s.endDate<'2026-09-01'||s.endDate>today)return;
+      if(x.k==='prob'&&!/^(passed|failed|extended)$/.test(s.result))return;
+      const st=M.eligible(x.r,'approval',x.k,ledger,requestFor(x));if(!st.ok)return;
+      items.push({key:x.k+':'+x.r.id,name:s.employeeId+' '+s.name,detail:(x.k==='prob'?L('試用期','Probation','សាកល្បង'):L('合約','Contract','កិច្ចសន្យា'))+' · '+(s.section||s.department||'—')+(x.k==='prob'?' · '+M.status(s.result,LANG):''),date:s.endDate,since:s.endDate,days:HRAUnsent.daysSince(s.endDate)});});
+    HRAUnsent.update({module:'contract',label:'試用期／合約',platform:'portal',page:'ac-hra-portal/ac_hra_contract_v2.html',items,box:'unsent-box',lang:(typeof LANG!=='undefined'?LANG:'zh'),onSend:it=>{try{open(String(it.key).split(':')[0],'approval');}catch(e){console.warn(e);}}});
   }
   async function receipt(d,mode,value){
     const entry=allRows().find(x=>x.r.id===d.recordId&&x.k===d.kind);if(!entry)return;
@@ -215,6 +226,6 @@ var ContractWorkflow = (function () {
     applyLang=()=>{previousApplyLang();ContractImporter.localize();if(modal)syncSegments();};
   }
   async function start(){install();await init();ready=true;if(window.HRAAutoSync)HRAAutoSync.install({key:'contract',push:async o=>{const startup=/startup|resume|pageshow|network-restored/.test(o.reason||'');if(startup){const r=await pull(o);if(r===false)return false;}return push(o);},canSync:()=>ready&&!batchDepth&&!!contractGasUrl()&&typeof HRASmartSync!=='undefined',startDelay:100,strictFailure:true,minResumeInterval:60000});else scheduleContractSync('startup');}
-  return {batch,start,open,send,refill,pick,preview,requestFor,save:saveNow,mergeFlat,prepareLoaded,refreshLedger,selected,archive:()=>archive,allRows,eligible:M.eligible};
+  return {batch,start,open,send,refill,pick,preview,requestFor,save:saveNow,mergeFlat,prepareLoaded,refreshLedger,selected,archive:()=>archive,allRows,eligible:M.eligible,unsentCheck};
 })();
 ContractWorkflow.start().catch(e=>{console.error(e);toast('初始化錯誤 / Initialization error: '+e.message,'danger');});

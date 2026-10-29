@@ -188,6 +188,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 }
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
+<script src="shared/hra-unsent.js?v=1"></script>
 </head>
 <body>
 
@@ -260,6 +261,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 </div>
 
 <main>
+<div id="unsent-box" style="display:none"></div>
   <!-- Overview -->
   <section id="page-dashboard" class="page on">
     <div id="overviewKpis" class="kpis"></div>
@@ -3335,7 +3337,18 @@ function renderImportLog(){
   }).join('');
   el('settingsImportLog').innerHTML=html||`<div class="muted">${esc(L('尚無匯入記錄','No import history','មិនមានប្រវត្តិ'))}</div>`;
 }
+/* 2026-10-29 未送核可提醒（Paul）：最新一期人力需求（2026-07 起），還沒核可／退回、也不在待核卡片裡，超過 3 天 → 紅框＋每天 08:00 群組提醒 */
+let _mpUnsentT=null;
+function scheduleMpUnsent(){clearTimeout(_mpUnsentT);_mpUnsentT=setTimeout(mpUnsentCheck,3000);}
+async function mpUnsentCheck(){
+  if(!window.HRAUnsent)return;
+  const [led,pk]=await Promise.all([HRAUnsent.ledger('manpower'),HRAUnsent.pendingKeys('manpower')]);if(!led)return;
+  const items=latestPlanRows(DB.plans||[]).filter(r=>(r.period||ymFromDate(r.snapshotDate)||'')>='2026-07'&&n(r.required)>0).map(r=>{const k=mpApprovalKey(r);if(HRAUnsent.decided(led,k)||pk[k]||mpApprovalStatus(r))return null;const since=r.importedAt||r.updatedAt||HRAUnsent.firstSeen('manpower',k);
+    return {key:k,name:[r.dept,r.section,r.position].filter(Boolean).join(' / '),detail:L('需求 ','Required ','ត្រូវការ ')+fmt(r.required),date:r.period||ymFromDate(r.snapshotDate)||'',since,days:HRAUnsent.daysSince(since)};}).filter(Boolean);
+  HRAUnsent.update({module:'manpower',label:'人力需求',platform:'portal',page:'ac-hra-portal/ac_hra_manpower_v1.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTelegram()});
+}
 function renderAll(){
+  scheduleMpUnsent();
   populatePeriodNav();renderActive();updateCounts();
 }
 function setupDropzone(){

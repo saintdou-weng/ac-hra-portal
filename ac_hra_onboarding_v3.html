@@ -69,6 +69,7 @@ tbody tr:hover{background:#f8fafc}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/settle-parse.js?v=1"></script>
+<script src="shared/hra-unsent.js?v=1"></script>
 <script src="shared/join-pay.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
@@ -146,6 +147,7 @@ tbody tr:hover{background:#f8fafc}
 </div>
 
 <main class="max-w-screen-2xl mx-auto px-3 sm:px-4 py-4">
+<div id="unsent-box" style="display:none"></div>
 
 <!-- ────────── 總覽 ────────── -->
 <section id="pn-ov" class="pane space-y-4">
@@ -3013,7 +3015,27 @@ function checkCDN(){
   console.warn('[CDN] 未載入：'+miss.map(function(m){return m.n;}).join(', '));
   return false;
 }
+/* 2026-10-29 未送核可提醒（Paul）：2026-07 起的資料，還沒核可／退回、也不在群組待核卡片裡，超過 3 天 → 頁面紅框＋每天 08:00 群組提醒。 */
+var _obUnsentT=null;
+function scheduleObUnsent(){ clearTimeout(_obUnsentT); _obUnsentT=setTimeout(obUnsentCheck,3000); }
+function obUnsentCheck(){
+  if(!window.HRAUnsent)return;
+  Promise.all([HRAUnsent.ledger('onboarding'),HRAUnsent.pendingKeys('onboarding')]).then(function(x){
+    var led=x[0], pk=x[1]||{}; if(!led)return;   /* 拿不到帳本就不判斷 */
+    var items=[];
+    function add(kind,r,date){
+      date=String(date||'').slice(0,10); if(!date||date<'2026-07-01')return;
+      var key=kind+'|'+r.empId+'|'+date; if(HRAUnsent.decided(led,key)||pk[key])return;
+      var since=r.importedAt||r.updatedAt||r.createdAt||HRAUnsent.firstSeen('onboarding',key);
+      items.push({key:key,name:r.empId+' '+(r.name||''),detail:(kind==='J'?L('入職','Join','ចូល'):L('離職','Resign','ចេញ'))+' · '+(r.dept||r.section||'—')+(kind==='R'&&+r.amount>0?' · $'+fmt(r.amount):''),date:date,since:since,days:HRAUnsent.daysSince(since),kind:kind});
+    }
+    JOINS.forEach(function(r){add('J',r,r.joinDate);}); RESIGNS.forEach(function(r){add('R',r,r.resignDate);});
+    HRAUnsent.update({module:'onboarding',label:'入離職',platform:'portal',page:'ac-hra-portal/ac_hra_onboarding_v3.html',items:items,box:'unsent-box',lang:LANG,
+      onSend:function(it){ TAB=it.kind==='J'?'join':'resign'; openTg('approval'); }});
+  });
+}
 function init(){
+  setTimeout(scheduleObUnsent,5000);
   setTimeout(function(){ if(window.HRAJoinPay)HRAJoinPay.load(); },3000);   /* 2026-10-28 起薪用的薪資架構，背景先載入 */
   try{ checkCDN(); }catch(e){ console.warn('[checkCDN]',e); }
   try{

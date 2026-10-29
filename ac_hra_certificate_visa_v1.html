@@ -147,6 +147,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
 .source-highlight td{background:#fffbc8}.source-highlight td:first-child{border-left:4px solid #e4b400}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
+<script src="shared/hra-unsent.js?v=1"></script>
 </head>
 <body>
 <div class="app">
@@ -211,6 +212,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
   </div>
 
   <main>
+  <div id="unsent-box" style="display:none"></div>
     <section class="view on" id="view-dashboard">
       <div class="cards">
         <div class="kpi"><div class="label" data-i18n="kpiCert">公司證書</div><div class="value" id="kCert">0</div><div class="sub" data-i18n="kpiCertSub">有效追蹤項目</div></div>
@@ -715,8 +717,15 @@ function renderAnalysis(){
   if(chartStatus)chartStatus.destroy();if(window.Chart)chartStatus=new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:Object.keys(statuses).map(statusKey).map(tr),datasets:[{data:Object.values(statuses),backgroundColor:['#2d98c3','#e5a128','#d94b50','#2a996a']}]},options:{responsive:true,maintainAspectRatio:false}});
   document.getElementById('analysisSummary').innerHTML=Object.entries(statuses).map(([k,v])=>badge(k,`${tr(statusKey(k))} ${v}`)).join('')
 }
+/* 2026-10-29 未送核可提醒（Paul）：申請單狀態 Pending、還沒送 Telegram 核可（沒有批次編號），超過 3 天 → 紅框＋每天 08:00 群組提醒 */
+function certUnsentCheck(){
+  if(!window.HRAUnsent||!STATE)return;
+  const items=(STATE.requests||[]).filter(r=>r.status==='pending'&&!r.batchId).map(r=>{const since=r.submittedAt||r.createdAt||r.updatedAt||'';
+    return {key:r.id,name:(r.number?r.number+' ':'')+(r.title||''),detail:(r.items||[]).length+' '+(LANG==='en'?'item(s)':LANG==='km'?'ធាតុ':'項')+(r.cost?' · $'+Number(r.cost).toFixed(2):''),date:r.dueDate||'',since,days:HRAUnsent.daysSince(since),rid:r.id};});
+  HRAUnsent.update({module:'certificate_visa',label:'證書簽證申請',platform:'portal',page:'ac-hra-portal/ac_hra_certificate_visa_v1.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTelegram('approval')});
+}
 function renderAll(){
-  if(!STATE)return;syncPeriodPicker();
+  if(!STATE)return;syncPeriodPicker();try{certUnsentCheck();}catch(e){console.warn('[unsent]',e);}
   const deps=distinctDepartments();fillSelect('timelineDept',deps,'allDepartments');fillSelect('listDept',deps,'allDepartments');fillSelect('peopleDept',[...new Set(peopleForMonth().map(x=>x.department).filter(Boolean))].sort(),'allDepartments');fillSelect('certDept',[...new Set(certificatesForMonth().map(x=>x.department||x.category).filter(Boolean))].sort(),'allCategories');
   renderDashboard();renderTimeline();renderPeriodList();renderCertificates();renderPeople();renderApprovals();renderAnalysis()
 }
