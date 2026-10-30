@@ -78,6 +78,7 @@ tbody tr:hover{background:#f8fafc}
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/settle-parse.js?v=1"></script>
 <script src="shared/hra-unsent.js?v=5"></script>
+<script src="shared/appr-precheck.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -481,6 +482,7 @@ tbody tr:hover{background:#f8fafc}
       </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
+      <p id="tg-precheck" style="display:none"></p>
       <p id="tg-note" class="text-[10px] text-slate-400 leading-relaxed"></p>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
@@ -3054,8 +3056,9 @@ function previewTg(){
   if(_tgMode==='approval'){
     var items=buildApprovalItems(p,_tgScope), sTag=_tgScope==='preg'?'P':_tgScope==='mat'?'M':_tgScope==='nur'?'N':_tgScope==='health'?'H':_tgScope==='med'?'D':'A';
     extra+='\n\n— — — —\n'+L('核可批次','Batch')+'：MAT-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
-    setTxt('tg-note', L('核可請求會送到 GAS，待五模組統一的按鈕核可引擎上線後即可在 Telegram 直接按鈕核可。','Approval request posts to GAS; inline-button approval activates with the unified engine.'));
-  }else{ setTxt('tg-note', L('摘要會傳送到群組。','Summary will be sent to the group.')); }
+    setTxt('tg-note','');
+    if(window.HRAApprCheck)HRAApprCheck.run({box:'tg-precheck',btn:'tg-send',module:'maternity',items:items,lang:LANG});   /* 10/30：先查哪些已核可／待核，不用送的直接講清楚 */
+  }else{ setTxt('tg-note', L('摘要會傳送到群組。','Summary will be sent to the group.','សង្ខេបនឹងផ្ញើទៅក្រុម។')); if(window.HRAApprCheck)HRAApprCheck.clear('tg-precheck'); }
   pv.textContent=(r.text+extra).replace(/<[^>]+>/g,'');
   btn.disabled=false; btn.className='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-pink-600 text-white hover:bg-pink-700';
 }

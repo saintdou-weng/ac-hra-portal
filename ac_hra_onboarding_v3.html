@@ -70,6 +70,7 @@ tbody tr:hover{background:#f8fafc}
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/settle-parse.js?v=1"></script>
 <script src="shared/hra-unsent.js?v=5"></script>
+<script src="shared/appr-precheck.js?v=1"></script>
 <script src="shared/join-pay.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
@@ -381,6 +382,7 @@ tbody tr:hover{background:#f8fafc}
       </div>
       <div><label class="text-[11px] font-semibold text-slate-500 uppercase">訊息預覽 Preview</label>
         <pre id="tg-preview" class="mt-1.5 text-[11px] leading-relaxed bg-slate-50 border border-slate-100 rounded-lg p-3 max-h-40 overflow-auto whitespace-pre-wrap text-slate-600"></pre></div>
+      <p id="tg-precheck" style="display:none"></p>
       <p id="tg-note" class="text-[10px] text-slate-400 leading-relaxed"></p>
     </div>
     <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex gap-2 shrink-0">
@@ -2368,8 +2370,8 @@ var TG_BTN_CLS_APP='flex-1 text-xs font-bold px-3 py-2.5 rounded-lg bg-amber-600
 function syncTgSendBtn(){
   var btn=el('tg-send'); if(!btn)return;
   var app=(_tgMode==='approval');
-  btn.textContent = app ? L('📋 送出核可請求 Send for Approval','📋 Send for Approval')
-                        : L('📄 傳送摘要 Send Summary','📄 Send Summary');
+  btn.textContent = app ? L('📋 送出核可請求','📋 Send for Approval','📋 ផ្ញើសុំអនុម័ត')
+                        : L('📄 傳送摘要','📄 Send Summary','📄 ផ្ញើសង្ខេប');   /* 10/30：選哪種語言就只用那種 */
   if(!btn.disabled) btn.className = app?TG_BTN_CLS_APP:TG_BTN_CLS_SUM;
 }
 /* 2026-10-28：審查與核可分清楚（Paul）——群組審核＝先審查人確認、再核可人核；直送核可＝直接給核可人 */
@@ -2610,7 +2612,8 @@ function previewTg(){
     var items=buildApprovalItems(p,_tgScope);
     var sTag=_tgScope==='join'?'J':_tgScope==='resign'?'R':'B';
     extra+='\n\n— — — —\n'+L('核可批次','Batch')+'：OB-'+sTag+'-'+p.replace(/-/g,'')+'\n'+L('明細筆數','Items')+'：'+items.length;
-  }
+    if(window.HRAApprCheck)setTimeout(function(){HRAApprCheck.run({box:'tg-precheck',btn:'tg-send',module:'onboarding',items:items,lang:LANG});},0);   /* 10/30：先查哪些已核可／待核 */
+  }else if(window.HRAApprCheck)HRAApprCheck.clear('tg-precheck');
   /* ★ 在核可模式下用日/週/月找離職，若同時有結算單能湊到更多人，明講出來。
      這是你踩過三次的坑：同一張結算單的人離職日各不同，按日曆期間永遠湊不齊。 */
   if(_tgMode==='approval' && _tgScope!=='join' && !isSettleKey(p)){
@@ -2687,7 +2690,11 @@ function confirmTg(){
   }).then(function(d){
     if(d.ok===false) throw new Error(d.error||L('GAS 回報失敗','GAS reported failure'));
     var dd=d.data||d;
-    if(dd.closed){
+    if(dd.alreadyDecided){   /* 10/30：全部早就核可／退回過，GAS 沒發卡——舊版會誤報「已送出」 */
+      toast(L('沒有送出：這些項目之前已經核可或退回過','Nothing sent: these items were already approved or rejected','មិនបានផ្ញើ៖ ធាតុទាំងនេះបានអនុម័ត ឬបដិសេធរួចហើយ')+((dd.skippedList||[]).length?' · '+dd.skippedList.slice(0,3).join('、'):''),'warn');
+    }else if(dd.alreadyPending){
+      toast(L('沒有新送出：這些項目已在群組待核單，請到群組審查／核可','Nothing new sent: these items are already waiting in a group approval card','មិនបានផ្ញើថ្មី៖ កំពុងរង់ចាំក្នុងក្រុម')+(dd.batchId?' · '+dd.batchId:''),'warn');
+    }else if(dd.closed){
       toast(L('這批先前已核可並關閉，未重複送出','Batch was already approved and closed — not re-sent')
             +(dd.batchId?(' · '+dd.batchId):''),'warn');
     }else if(dd.reused){
