@@ -2026,6 +2026,8 @@ function planDate(r){return String(r?.snapshotDate||((r?.period||'')+'-01')).sli
 function isChainPlan(r){const d=norm(r?.dept);return planAlive(r)&&planPeriod(r)>=MP_CUTOVER&&n(r.required)>0&&!!norm(r?.position)&&!!d&&d!=='—'}
 function planManualCount(r){const has=r?.manualJoined!==undefined&&r?.manualJoined!==null&&String(r.manualJoined).trim()!=='';return has?n(r.manualJoined):n(r?.hired||0)}
 function mpInvalidateChains(){MP_CHAIN_CACHE=null}
+/* 同一職位＝同部門＋同職位（組別寫法常不一致，例如 Production/IE 與 Production/Production，不拿來分單） */
+function mpOrgKey(r){return deptKey(r?.dept||r?.section||'')+'|'+normKey(r?.position||'')}
 function mpJoinPool(){
   const out=[],seen=new Set(),from=MP_CUTOVER+'-01';
   const add=(r,kind,date)=>{
@@ -2045,12 +2047,12 @@ function mpChainFilled(c,asOf){
 function mpChains(){
   if(MP_CHAIN_CACHE)return MP_CHAIN_CACHE;
   const groups=new Map();
-  DB.plans.filter(isChainPlan).forEach(r=>{const k=planOrgKey(r);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
-  const pool=mpJoinPool(),chains=[],byKey=new Map();
+  DB.plans.filter(isChainPlan).forEach(r=>{const k=mpOrgKey(r);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+  const pool=mpJoinPool(),chains=[],byKey=new Map(),used=new Set();   /* 一個人只算進一張單 */
   groups.forEach((recs,org)=>{
     recs.sort((a,b)=>planDate(a).localeCompare(planDate(b))||String(a.updatedAt||'').localeCompare(String(b.updatedAt||'')));
     const js=pool.filter(j=>samePlanOrg(recs[0],j));let cur=null,ji=0;
-    const feed=until=>{while(ji<js.length&&(!until||js[ji].date<until)){const j=js[ji++];if(!cur||cur.closedAt||j.date<cur.startDate)continue;cur.joins.push(j);if(mpChainFilled(cur,j.date)>=cur.required)cur.closedAt=j.date}};
+    const feed=until=>{while(ji<js.length&&(!until||js[ji].date<until)){const j=js[ji++];if(!cur||cur.closedAt||j.date<cur.startDate||used.has(j.id))continue;used.add(j.id);cur.joins.push(j);if(mpChainFilled(cur,j.date)>=cur.required)cur.closedAt=j.date}};
     const manual=d=>{if(cur&&!cur.closedAt&&!cur.joins.length&&mpChainFilled(cur,d)>=cur.required)cur.closedAt=d};
     recs.forEach(r=>{
       const d=planDate(r);feed(d);
@@ -2066,7 +2068,7 @@ function mpChains(){
 function mpChainOpenAt(c,date){return c.startDate<=date&&(!c.closedAt||c.closedAt>=date)}
 function mpChainViewRows(start,end){
   const asOf=end>today()?today():end;
-  return mpChains().chains.filter(c=>c.startDate<=end&&(!c.closedAt||c.closedAt>=start)).map(c=>({...c.head,_chain:c,_asOf:asOf<c.startDate?c.startDate:asOf,_viewPeriod:String(end).slice(0,7)}));
+  return mpChains().chains.filter(c=>c.startDate<=end&&(!c.closedAt||c.closedAt>=start)).map(c=>({...c.head,_chain:c,_asOf:asOf<c.startDate?c.startDate:asOf,_viewEnd:end,_viewPeriod:String(end).slice(0,7)}));
 }
 function mpChainProgress(plan){
   const c=plan._chain,asOf=plan._asOf||today(),head=c.head,required=n(head.required);
@@ -2074,12 +2076,12 @@ function mpChainProgress(plan){
   const resignRows=[],seen=new Set();
   DB.resigns.forEach(r=>{const d=String(r.resignDate||r.date||'').slice(0,10);if(!d||d<c.startDate||d>asOf||!samePlanOrg(head,r))return;const id=digits(r.empId||r.id)||normName(r.name||'');if(seen.has(id))return;seen.add(id);resignRows.push({kind:'resign',id,name:r.name||'',date:d,dept:r.dept||'',section:r.section||'',position:r.position||''})});
   return{filled,gap:required-filled,rate:required?Math.min(100,filled/required*100):0,rows,resignRows,resigned:resignRows.length,
-    source:c.joins.length?'recruitment':'manual',carried:c.start<String(asOf).slice(0,7),merged:c.members.filter(m=>planDate(m)<=asOf).length-1,closedAt:c.closedAt&&c.closedAt<=asOf?c.closedAt:''};
+    source:c.joins.length?'recruitment':'manual',carried:c.start<String(asOf).slice(0,7),merged:Math.max(0,c.members.filter(m=>planDate(m)<=(plan._viewEnd||asOf)).length-1),closedAt:c.closedAt&&c.closedAt<=asOf?c.closedAt:''};
 }
 /* 開新需求前：同職位還有沒滿額的單，就不另開 */
 function mpOpenChainFor(r,ignoreKey){
   if(!isChainPlan({...r,deleted:false}))return null;
-  const org=planOrgKey(r),d=planDate(r);
+  const org=mpOrgKey(r),d=planDate(r);
   return mpChains().chains.find(c=>c.org===org&&!c.members.some(m=>m._k===ignoreKey)&&mpChainOpenAt(c,d))||null;
 }
 /* ── 操作人：刪除、編輯都要留名（每次動作前確認一次） ── */
