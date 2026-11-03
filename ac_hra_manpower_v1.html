@@ -345,10 +345,18 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         </select>
         <button class="btn primary" onclick="openRecordModal('plan')">＋ <span data-zh="線上新增" data-en="Add online" data-km="បន្ថែម">線上新增</span></button>
       </div>
+      <div id="mpSelBar" class="toolbar no-print" style="display:none;background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:8px 10px;margin:0 0 10px">
+        <b id="mpSelCount"></b>
+        <button class="btn ghost small" onclick="openMpBulkEdit()">✎ <span data-zh="批次編輯" data-en="Edit selected" data-km="កែដែលបានជ្រើស">批次編輯</span></button>
+        <button class="btn danger small" onclick="openMpDelete()">✕ <span data-zh="刪除所選" data-en="Delete selected" data-km="លុបដែលបានជ្រើស">刪除所選</span></button>
+        <button class="btn ghost small" onclick="mpClearSel()" data-zh="取消選取" data-en="Clear selection" data-km="បោះបង់ការជ្រើស">取消選取</button>
+      </div>
+      <div class="panel-note" style="margin:0 0 10px" data-zh="2026-10 起同一個職位只開一張需求單：入職人數從開單月份起一路累計，沒滿額就自動沿用到下個月，同職位不另開新單（線上新增或 Excel 匯入都一樣，會併進同一張）；滿額後才可以再開，或手動刪除後重開。缺口＝需求－已入職；離職只是參考，不會增加缺口。" data-en="From 2026-10 each position has one open request: joins are counted from the opening month until the headcount is filled, and the request carries over month to month. A new request for the same position (online or Excel) is merged into the open one; a new one can be opened only after it is filled or deleted. Gap = required − joined; resignations are for reference and do not add to the gap." data-km="ចាប់ពី 2026-10 តំណែងនីមួយៗមានសំណើតែមួយ រហូតដល់គ្រប់ចំនួន។ ចន្លោះ = ត្រូវការ − បានចូល។">2026-10 起同一個職位只開一張需求單：入職人數從開單月份起一路累計，沒滿額就自動沿用到下個月，同職位不另開新單（線上新增或 Excel 匯入都一樣，會併進同一張）；滿額後才可以再開，或手動刪除後重開。缺口＝需求－已入職；離職只是參考，不會增加缺口。</div>
       <div class="panel-note" style="margin:0 0 10px" data-zh="需求單記錄需求人數、條件與原因；已入職／離職優先由 Recruitment／Join 連動，若尚未連到 Recruitment，可填手動進度作為暫時基準。Telegram 審查／核可由上方 TG 進入，狀態直接顯示在本表。" data-en="The request records required headcount, conditions and reason. Joined / resigned progress is linked from Recruitment / Join first; manual progress can be used temporarily when Recruitment is not linked. Open TG above for review / approval; status is shown in this table." data-km="សំណើកត់ចំនួន លក្ខខណ្ឌ និងមូលហេតុ។ វឌ្ឍនភាពចូល／ចាកចេញភ្ជាប់ពី Recruitment / Join ជាមុន; បើមិនទាន់ភ្ជាប់ អាចបញ្ចូលវឌ្ឍនភាពដោយដៃជាបណ្តោះអាសន្ន។ បើក TG ខាងលើសម្រាប់ពិនិត្យ／អនុម័ត ហើយស្ថានភាពបង្ហាញក្នុងតារាងនេះ។">需求單記錄需求人數、條件與原因；已入職／離職優先由 Recruitment／Join 連動，若尚未連到 Recruitment，可填手動進度作為暫時基準。Telegram 審查／核可由上方 TG 進入，狀態直接顯示在本表。</div>
       <div class="table-wrap">
         <table>
           <thead><tr>
+            <th class="no-print"><input type="checkbox" id="mpSelAll" onchange="mpToggleAll(this.checked)" title="全選 Select all"></th>
             <th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th>
             <th data-zh="部門" data-en="Department" data-km="ផ្នែក">部門</th>
             <th data-zh="組別" data-en="Section / Group" data-km="ក្រុម">組別</th>
@@ -601,10 +609,48 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
         </select>
       </div>
       <div id="recordFields" class="form-grid"></div>
+      <div id="recActorWrap" class="form-grid" style="margin-top:10px;display:none"><div class="field"><label data-zh="修改人姓名 *" data-en="Edited by (name) *" data-km="ឈ្មោះអ្នកកែ *">修改人姓名 *</label><input id="recActor" class="input" autocomplete="name"></div></div>
     </div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="closeModal('recordModal')" data-zh="取消" data-en="Cancel" data-km="បោះបង់">取消</button>
       <button class="btn primary" onclick="saveOnlineRecord()">💾 <span data-zh="儲存" data-en="Save" data-km="រក្សាទុក">儲存</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- 2026-11-03 多選刪除／批次編輯（要留名） -->
+<div id="mpDelModal" class="modal-bg" onclick="modalBackdrop(event,'mpDelModal')">
+  <div class="modal" style="width:560px">
+    <div class="modal-head"><div class="modal-title" data-zh="刪除需求單" data-en="Delete requests" data-km="លុបសំណើ">刪除需求單</div><button class="modal-close" onclick="closeModal('mpDelModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mpDelKeys">
+      <div id="mpDelInfo" class="panel-note" style="margin:0 0 8px"></div>
+      <div id="mpDelList" style="margin-bottom:10px;max-height:180px;overflow:auto"></div>
+      <div class="form-grid">
+        <div class="field"><label data-zh="刪除人姓名 *" data-en="Deleted by (name) *" data-km="ឈ្មោះអ្នកលុប *">刪除人姓名 *</label><input id="mpDelActor" class="input" autocomplete="name"></div>
+        <div class="field"><label data-zh="原因（可不填）" data-en="Reason (optional)" data-km="មូលហេតុ">原因（可不填）</label><input id="mpDelReason" class="input"></div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal('mpDelModal')" data-zh="取消" data-en="Cancel" data-km="បោះបង់">取消</button>
+      <button class="btn danger" onclick="confirmMpDelete()">✕ <span data-zh="確認刪除" data-en="Delete" data-km="លុប">確認刪除</span></button>
+    </div>
+  </div>
+</div>
+<div id="mpBulkModal" class="modal-bg" onclick="modalBackdrop(event,'mpBulkModal')">
+  <div class="modal" style="width:720px">
+    <div class="modal-head"><div class="modal-title" data-zh="批次編輯需求單" data-en="Edit selected requests" data-km="កែសំណើដែលបានជ្រើស">批次編輯需求單</div><button class="modal-close" onclick="closeModal('mpBulkModal')">×</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="mpBulkKeys">
+      <div id="mpBulkInfo" class="panel-note" style="margin:0 0 8px"></div>
+      <div class="form-grid" style="margin-bottom:10px">
+        <div class="field"><label data-zh="修改人姓名 *" data-en="Edited by (name) *" data-km="ឈ្មោះអ្នកកែ *">修改人姓名 *</label><input id="mpBulkActor" class="input" autocomplete="name"></div>
+      </div>
+      <div id="mpBulkFields" class="form-grid"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn ghost" onclick="closeModal('mpBulkModal')" data-zh="取消" data-en="Cancel" data-km="បោះបង់">取消</button>
+      <button class="btn primary" onclick="confirmMpBulkEdit()">💾 <span data-zh="套用到所選" data-en="Apply to selected" data-km="អនុវត្ត">套用到所選</span></button>
     </div>
   </div>
 </div>
@@ -1106,7 +1152,9 @@ function migrateLegacy(){
   try{
     const reqs=JSON.parse(lsGet(LEGACY_REQ_KEY)||'[]');
     arrayValue(reqs).forEach((r,i)=>{
-      const date=parseDate(r.date)||today(),period=date.slice(0,7),dept=norm(r.dept)||'—',position=norm(r.position||r.title)||'—';
+      /* 2026-11-03：舊版需求沒有日期的不再補成「今天」——那會讓刪掉的職位每次開新瀏覽器就以新月份冒出來 */
+      if(!parseDate(r.date))return;
+      const date=parseDate(r.date),period=date.slice(0,7),dept=norm(r.dept)||'—',position=norm(r.position||r.title)||'—';
       d.plans.push({
         _kind:'plan',_k:`P|${period}|${normKey(dept)}|${normKey(position)}`,
         period,snapshotDate:date,dept,section:dept,position,required:n(r.required),
@@ -1318,6 +1366,7 @@ async function persistSnapshot(snapshot){
   return{ok:false,mode:'memory',error:fallback.error||idbError};
 }
 function saveDB(){
+  mpInvalidateChains();
   DB.updatedAt=new Date().toISOString();
   normalizeMovementCollections();
   syncSharedMovement();
@@ -1432,6 +1481,7 @@ function mergeParsed(parsed,options={}){
   stats.daily=upsertArray(DB.daily,parsed.daily||[],'daily');
   normalizeMovementCollections();
   relinkCandidates();
+  mpInvalidateChains();
   return stats;
 }
 function relinkCandidates(){
@@ -1829,6 +1879,8 @@ async function smartImport(input){
       if(!total)throw new Error(L('沒有讀到有效資料','No valid records found','រកមិនឃើញទិន្នន័យ'));
       if(detected.type==='demand')applyImportedPlanDecisions(parsed.plans);
       const stats=mergeParsed(parsed,{interactive:true});
+      /* 2026-11-03：同職位還沒滿額的，匯入的新月份記錄只併進原需求單，不另開 */
+      let mergedIntoOpen=0,keptDeleted=0;{const ch=mpChains().byKey;parsed.plans.forEach(x=>{if(planPeriod(x)<MP_CUTOVER)return;const rec=DB.plans.find(r=>r._k===canonicalPlanKey(x));if(!rec)return;if(rec.deleted){keptDeleted++;return}const c=ch.get(rec._k);if(c&&c.head._k!==rec._k)mergedIntoOpen++})}
       const dates=[
         ...parsed.plans.map(r=>r.snapshotDate),...parsed.candidates.map(r=>r.registerDate),
         ...parsed.joins.map(r=>r.joinDate),...parsed.resigns.map(r=>r.resignDate),...parsed.daily.map(r=>r.date)
@@ -1838,7 +1890,7 @@ async function smartImport(input){
       DB.imports.unshift(log);DB.imports=DB.imports.slice(0,50);
       line.className='import-line ok';
       const typeLabel=detected.type==='monthly'?'Monthly Manpower':detected.type==='demand'?'Manpower Requisition':'Recruit Report';
-      line.textContent=`✅ ${file.name} → ${typeLabel} · ${fmt(total)} ${L('筆','records','កំណត់ត្រា')} · ${statText(stats)}`;
+      line.textContent=`✅ ${file.name} → ${typeLabel} · ${fmt(total)} ${L('筆','records','កំណត់ត្រា')} · ${statText(stats)}`+(mergedIntoOpen?` · ${L('同職位未滿額、已併入原需求單','merged into open requests','បញ្ចូលទៅសំណើដែលបើក')} ${mergedIntoOpen}`:'')+(keptDeleted?` · ${L('已刪除的維持刪除','kept deleted','រក្សាការលុប')} ${keptDeleted}`:'');
     }catch(e){
       line.className='import-line err';line.textContent=`❌ ${file.name} · ${e.message}`;
       console.error('Import:',file.name,e);
@@ -1865,14 +1917,18 @@ function kindRows(kind,state=currentState()){
 }
 function latestPlanRows(rows){
   if(!rows.length)return[];
-  const latest=rows.map(r=>r.period||ymFromDate(r.snapshotDate)).filter(Boolean).sort().at(-1);
-  return rows.filter(r=>(r.period||ymFromDate(r.snapshotDate))===latest);
+  const pk=r=>r._viewPeriod||r.period||ymFromDate(r.snapshotDate);
+  const latest=rows.map(pk).filter(Boolean).sort().at(-1);
+  return rows.filter(r=>pk(r)===latest);
 }
 function plansForState(state,allowFallback=true){
-  let rows=DB.plans.filter(r=>inState(r.snapshotDate||`${r.period}-01`,state));
+  /* 2026-11-03：2026-10 起改用「同職位一張單累計到滿額」；之前的月份照舊 */
+  const b=periodBounds(state),cut=MP_CUTOVER+'-01';
+  const legacy=DB.plans.filter(r=>planAlive(r)&&planPeriod(r)<MP_CUTOVER);
+  let rows=legacy.filter(r=>inState(r.snapshotDate||`${r.period}-01`,state));
+  if(b.end>=cut)return rows.concat(mpChainViewRows(b.start<cut?cut:b.start,b.end));
   if(!rows.length&&allowFallback&&state.mode!=='all'){
-    const end=periodBounds(state).end;
-    const prior=DB.plans.filter(r=>(r.snapshotDate||`${r.period}-01`)<=end);
+    const prior=legacy.filter(r=>(r.snapshotDate||`${r.period}-01`)<=b.end);
     rows=latestPlanRows(prior);
   }
   return rows;
@@ -1941,6 +1997,7 @@ function resignationsForPlan(plan){
   return rows;
 }
 function planProgress(plan){
+  if(plan&&plan._chain)return mpChainProgress(plan);
   const linked=recruitmentForPlan(plan),resignRows=resignationsForPlan(plan);
   const legacy=n(plan?.hired||plan?.actualMonthly||plan?.actual||0);
   const hasManualJoined=plan?.manualJoined!==undefined&&plan?.manualJoined!==null&&String(plan.manualJoined).trim()!=='';
@@ -1951,6 +2008,154 @@ function planProgress(plan){
   return {filled,gap,rate:required?Math.min(100,filled/required*100):0,rows:linked,resignRows,resigned,
     source:linked.length?'recruitment':hasManualJoined?'manual':'imported'};
 }
+/* ─────────────────────────────────────────────────────────────
+   2026-11-03 Paul：同職位的需求一路累計到滿額，沒滿就沿用，不另開新單
+   · 2026-10 起的需求依「部門｜組別｜職位」串成一張需求單：第一筆開單，之後同職位的
+     （線上新增或 Excel 匯入）在還沒滿額前都併進這張單，不另開。
+   · 入職人數從開單月份起累計；累計到需求人數那天關單，之後同職位才會開新單。
+   · 缺口＝需求－已入職；離職只是參考，不會讓缺口變大。
+   · 手動刪除＝取消這張單（連同併入的記錄一起，留刪除人姓名）；刪了才可以重開。
+   · 2026-09 以前的記錄照舊，不受影響。
+   ───────────────────────────────────────────────────────────── */
+const MP_CUTOVER='2026-10';
+const MP_ACTOR_KEY='ac_hra_manpower_actor';
+let MP_CHAIN_CACHE=null;
+let MP_SEL=new Set();
+function planAlive(r){return !!r&&!r.deleted}
+function planDate(r){return String(r?.snapshotDate||((r?.period||'')+'-01')).slice(0,10)}
+function isChainPlan(r){const d=norm(r?.dept);return planAlive(r)&&planPeriod(r)>=MP_CUTOVER&&n(r.required)>0&&!!norm(r?.position)&&!!d&&d!=='—'}
+function planManualCount(r){const has=r?.manualJoined!==undefined&&r?.manualJoined!==null&&String(r.manualJoined).trim()!=='';return has?n(r.manualJoined):n(r?.hired||0)}
+function mpInvalidateChains(){MP_CHAIN_CACHE=null}
+function mpJoinPool(){
+  const out=[],seen=new Set(),from=MP_CUTOVER+'-01';
+  const add=(r,kind,date)=>{
+    date=String(date||'').slice(0,10);if(!r||!date||date<from)return;
+    const id=digits(r.empId||r.id||r.employeeId)||normName(r.name||r.employeeName||'')||`${kind}|${date}|${out.length}`;
+    if(seen.has(id))return;seen.add(id);
+    out.push({kind,id,name:r.name||r.employeeName||'',date,dept:r.dept||'',section:r.section||'',group:r.group||'',position:r.position||''});
+  };
+  DB.joins.forEach(r=>add(r,'join',r.joinDate||r.date));
+  DB.candidates.forEach(r=>{if(r.joined||r.joinDate)add(r,'recruit',r.joinDate||r.registerDate)});
+  return out.sort((a,b)=>a.date.localeCompare(b.date));
+}
+function mpChainFilled(c,asOf){
+  if(c.joins.length)return c.joins.filter(j=>j.date<=asOf).length;
+  return c.members.filter(m=>planDate(m)<=asOf).reduce((s,m)=>s+planManualCount(m),0);
+}
+function mpChains(){
+  if(MP_CHAIN_CACHE)return MP_CHAIN_CACHE;
+  const groups=new Map();
+  DB.plans.filter(isChainPlan).forEach(r=>{const k=planOrgKey(r);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r)});
+  const pool=mpJoinPool(),chains=[],byKey=new Map();
+  groups.forEach((recs,org)=>{
+    recs.sort((a,b)=>planDate(a).localeCompare(planDate(b))||String(a.updatedAt||'').localeCompare(String(b.updatedAt||'')));
+    const js=pool.filter(j=>samePlanOrg(recs[0],j));let cur=null,ji=0;
+    const feed=until=>{while(ji<js.length&&(!until||js[ji].date<until)){const j=js[ji++];if(!cur||cur.closedAt||j.date<cur.startDate)continue;cur.joins.push(j);if(mpChainFilled(cur,j.date)>=cur.required)cur.closedAt=j.date}};
+    const manual=d=>{if(cur&&!cur.closedAt&&!cur.joins.length&&mpChainFilled(cur,d)>=cur.required)cur.closedAt=d};
+    recs.forEach(r=>{
+      const d=planDate(r);feed(d);
+      if(cur&&!cur.closedAt){cur.members.push(r);byKey.set(r._k,cur);manual(d);return}
+      cur={head:r,org,start:planPeriod(r),startDate:planPeriod(r)+'-01',required:n(r.required),members:[r],joins:[],closedAt:''};
+      chains.push(cur);byKey.set(r._k,cur);manual(d);
+    });
+    feed('');
+  });
+  MP_CHAIN_CACHE={chains,byKey};
+  return MP_CHAIN_CACHE;
+}
+function mpChainOpenAt(c,date){return c.startDate<=date&&(!c.closedAt||c.closedAt>=date)}
+function mpChainViewRows(start,end){
+  const asOf=end>today()?today():end;
+  return mpChains().chains.filter(c=>c.startDate<=end&&(!c.closedAt||c.closedAt>=start)).map(c=>({...c.head,_chain:c,_asOf:asOf<c.startDate?c.startDate:asOf,_viewPeriod:String(end).slice(0,7)}));
+}
+function mpChainProgress(plan){
+  const c=plan._chain,asOf=plan._asOf||today(),head=c.head,required=n(head.required);
+  const filled=mpChainFilled(c,asOf),rows=c.joins.filter(j=>j.date<=asOf);
+  const resignRows=[],seen=new Set();
+  DB.resigns.forEach(r=>{const d=String(r.resignDate||r.date||'').slice(0,10);if(!d||d<c.startDate||d>asOf||!samePlanOrg(head,r))return;const id=digits(r.empId||r.id)||normName(r.name||'');if(seen.has(id))return;seen.add(id);resignRows.push({kind:'resign',id,name:r.name||'',date:d,dept:r.dept||'',section:r.section||'',position:r.position||''})});
+  return{filled,gap:required-filled,rate:required?Math.min(100,filled/required*100):0,rows,resignRows,resigned:resignRows.length,
+    source:c.joins.length?'recruitment':'manual',carried:c.start<String(asOf).slice(0,7),merged:c.members.filter(m=>planDate(m)<=asOf).length-1,closedAt:c.closedAt&&c.closedAt<=asOf?c.closedAt:''};
+}
+/* 開新需求前：同職位還有沒滿額的單，就不另開 */
+function mpOpenChainFor(r,ignoreKey){
+  if(!isChainPlan({...r,deleted:false}))return null;
+  const org=planOrgKey(r),d=planDate(r);
+  return mpChains().chains.find(c=>c.org===org&&!c.members.some(m=>m._k===ignoreKey)&&mpChainOpenAt(c,d))||null;
+}
+/* ── 操作人：刪除、編輯都要留名（每次動作前確認一次） ── */
+function mpActor(){return norm(lsGet(MP_ACTOR_KEY)||'')}
+function mpSetActor(v){v=norm(v);if(v)lsSet(MP_ACTOR_KEY,v);return v}
+/* ── 多選 ── */
+function mpVisibleKeys(){return [...document.querySelectorAll('#manpowerBody input[data-mpsel]')].map(x=>decodeURIComponent(x.getAttribute('data-mpsel')))}
+function mpToggle(enc,on){const k=decodeURIComponent(enc);if(on)MP_SEL.add(k);else MP_SEL.delete(k);mpSelBar()}
+function mpToggleAll(on){const keys=mpVisibleKeys();keys.forEach(k=>on?MP_SEL.add(k):MP_SEL.delete(k));document.querySelectorAll('#manpowerBody input[data-mpsel]').forEach(x=>x.checked=on);mpSelBar()}
+function mpClearSel(){MP_SEL.clear();renderManpower()}
+function mpSelBar(){
+  const bar=el('mpSelBar');if(!bar)return;const nSel=MP_SEL.size;
+  bar.style.display=nSel?'flex':'none';
+  el('mpSelCount').textContent=`${L('已選','Selected','បានជ្រើស')} ${nSel}`;
+  const all=el('mpSelAll');if(all){const keys=mpVisibleKeys();all.checked=!!keys.length&&keys.every(k=>MP_SEL.has(k));all.indeterminate=!all.checked&&keys.some(k=>MP_SEL.has(k))}
+}
+function mpRecordsForKeys(keys){
+  const out=[],seen=new Set(),chains=mpChains().byKey;
+  keys.forEach(k=>{
+    const c=chains.get(k),list=c?c.members:DB.plans.filter(r=>r._k===k);
+    list.forEach(r=>{if(r&&planAlive(r)&&!seen.has(r._k)){seen.add(r._k);out.push(r)}});
+  });
+  return out;
+}
+function mpHeadLabel(k){const r=DB.plans.find(x=>x._k===k)||{};return `${planPeriod(r)} · ${planFullLabel(r)} · ${L('需求','Req','ត្រូវការ')} ${fmt(r.required)}`}
+function openMpDelete(keys){
+  keys=(keys||[...MP_SEL]).filter(Boolean);if(!keys.length)return;
+  el('mpDelKeys').value=JSON.stringify(keys);
+  el('mpDelActor').value=mpActor();
+  const recs=mpRecordsForKeys(keys);
+  el('mpDelInfo').textContent=L(`要刪除 ${keys.length} 張需求單（含併入的記錄共 ${recs.length} 筆）。刪除後同職位才可以重新開單；之前的記錄保留在雲端，標記為已刪除。`,
+    `Delete ${keys.length} request(s) (${recs.length} record(s) including merged ones). The same position can be opened again afterwards; the records stay in the cloud marked as deleted.`,
+    `លុប ${keys.length} សំណើ (${recs.length} កំណត់ត្រា)។`);
+  el('mpDelList').innerHTML=keys.slice(0,12).map(k=>`<div class="muted">• ${esc(mpHeadLabel(k))}</div>`).join('')+(keys.length>12?`<div class="muted">… +${keys.length-12}</div>`:'');
+  el('mpDelModal').classList.add('open');applyLang();setTimeout(()=>el('mpDelActor').focus(),50);
+}
+async function confirmMpDelete(){
+  const actor=mpSetActor(el('mpDelActor').value);
+  if(!actor){toast(L('請先填刪除人姓名','Enter your name first','សូមបញ្ចូលឈ្មោះ'),'warn');el('mpDelActor').focus();return}
+  let keys=[];try{keys=JSON.parse(el('mpDelKeys').value||'[]')}catch(e){}
+  const recs=mpRecordsForKeys(keys),now=new Date().toISOString(),reason=norm(el('mpDelReason').value);
+  recs.forEach(r=>{r.deleted=true;r.deletedBy=actor;r.deletedAt=now;if(reason)r.deleteReason=reason;r.updatedAt=now});
+  keys.forEach(k=>MP_SEL.delete(k));
+  closeModal('mpDelModal');el('mpDelReason').value='';
+  const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-deleted');renderAll();
+  toast(saved.ok?L(`已刪除 ${keys.length} 張需求單（${actor}）`,`Deleted ${keys.length} request(s) (${actor})`,`បានលុប ${keys.length}`):L('已從畫面刪除但尚未保存','Removed from the page but not saved','បានលុបពីទំព័រ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
+}
+const MP_BULK_FIELDS=[['required','number'],['genderReq','select'],['ageMin','number'],['ageMax','number'],['experienceReq','select'],['educationReq','select'],['requestReason','select'],['reasonDetail','textarea'],['remark','textarea']];
+function openMpBulkEdit(keys){
+  keys=(keys||[...MP_SEL]).filter(Boolean);if(!keys.length)return;
+  el('mpBulkKeys').value=JSON.stringify(keys);el('mpBulkActor').value=mpActor();
+  const defs=Object.fromEntries((FORM_FIELDS.plan||[]).map(x=>[x[0],x]));
+  el('mpBulkFields').innerHTML=MP_BULK_FIELDS.map(([k,kind])=>{
+    const def=defs[k]||[k,[k,k,k],'text'],label=def[1],type=def[2]||'text';let control;
+    if(kind==='select'){const opts=type.startsWith('select:')?type.slice(7).split('|'):[];control=`<select id="mb-${k}" class="select"><option value="">${esc(L('（不變）','(no change)','(មិនប្តូរ)'))}</option>${opts.map(x=>`<option value="${esc(x)}">${esc(fieldOptionLabel(k,x))}</option>`).join('')}</select>`}
+    else if(kind==='textarea')control=`<textarea id="mb-${k}" class="input" placeholder="${esc(L('留空＝不變','Blank = no change','ទទេ = មិនប្តូរ'))}"></textarea>`;
+    else control=`<input id="mb-${k}" class="input" type="number" min="0" step="1" placeholder="${esc(L('留空＝不變','Blank = no change','ទទេ = មិនប្តូរ'))}">`;
+    return `<div class="field${kind==='textarea'?' full':''}"><label>${esc(localizedPart(label))}</label>${control}</div>`;
+  }).join('');
+  el('mpBulkInfo').textContent=L(`一次修改 ${keys.length} 張需求單；只會改有填的欄位，留空的保持原樣。`,`Edit ${keys.length} request(s) at once; only filled fields change.`,`កែ ${keys.length} សំណើ`);
+  el('mpBulkModal').classList.add('open');applyLang();
+}
+async function confirmMpBulkEdit(){
+  const actor=mpSetActor(el('mpBulkActor').value);
+  if(!actor){toast(L('請先填修改人姓名','Enter your name first','សូមបញ្ចូលឈ្មោះ'),'warn');el('mpBulkActor').focus();return}
+  let keys=[];try{keys=JSON.parse(el('mpBulkKeys').value||'[]')}catch(e){}
+  const patch={};MP_BULK_FIELDS.forEach(([k,kind])=>{const v=norm(el('mb-'+k)?.value||'');if(v!=='')patch[k]=kind==='number'?n(v):v});
+  if(!Object.keys(patch).length){toast(L('沒有填要修改的欄位','Nothing to change','គ្មានអ្វីត្រូវកែ'),'warn');return}
+  if(patch.required!==undefined&&patch.required<=0){toast(L('需求人數要大於 0；要取消請用刪除','Required must be above 0; use Delete to cancel','ត្រូវតែលើស 0'),'warn');return}
+  const now=new Date().toISOString();let nRec=0;
+  keys.forEach(k=>{const r=DB.plans.find(x=>x._k===k);if(!r||!planAlive(r))return;Object.assign(r,patch,{editedBy:actor,editedAt:now,updatedAt:now});nRec++});
+  closeModal('mpBulkModal');
+  const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-saved');renderAll();
+  toast(saved.ok?L(`已修改 ${nRec} 張需求單（${actor}）`,`Updated ${nRec} request(s) (${actor})`,`បានកែ ${nRec}`):L('已修改但尚未保存','Changed but not saved','បានកែ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
+}
+
 function planConditions(plan,lang='zh'){
   const a=[];
   const g=String(plan?.genderReq||plan?.genderRequirement||'').trim();
@@ -2012,8 +2217,10 @@ function metricsForState(state,group={dim:'overall',value:null}){
 }
 function metricsForKey(grain,key,group={dim:'overall',value:null}){return metricsForState(stateFromKey(grain,key),group)}
 function availableMonths(){
+  const open=[];const cs=mpChains().chains;if(cs.length){const first=cs.map(c=>c.start).sort()[0],now=today().slice(0,7);for(let m=first;m<=now;){open.push(m);const [y,mm]=m.split('-').map(Number);m=mm===12?`${y+1}-01`:`${y}-${pad2(mm+1)}`}}
   return uniq([
-    ...DB.plans.map(r=>r.period),
+    ...open,
+    ...DB.plans.filter(planAlive).map(r=>r.period),
     ...allDataDates('dashboard').map(d=>String(d).slice(0,7))
   ]).filter(x=>/^\d{4}-\d{2}$/.test(x)).sort();
 }
@@ -2220,17 +2427,20 @@ function renderManpower(){
     const p=planProgress(r),gap=p.gap,rate=p.rate;
     const people=(p.rows||[]).slice(0,4).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');
     const resignedPeople=(p.resignRows||[]).slice(0,4).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');
-    return `<tr>
-      <td class="mono">${esc(r.period)}</td><td>${esc(r.dept||'—')}</td><td>${esc(r.section||'—')}</td><td>${esc(r.position||'—')}</td>
+    const sk=encodeURIComponent(r._k),carry=r._chain?[p.carried?`${L('沿用中','carried','បន្ត')}${p.merged?` · ${L('併入','merged','បញ្ចូល')} ${p.merged}`:''}`:(p.merged?`${L('併入','merged','បញ្ចូល')} ${p.merged}`:''),p.closedAt?`✔ ${L('滿額','filled','គ្រប់')} ${p.closedAt}`:''].filter(Boolean).join(' · '):'';
+    return `<tr${MP_SEL.has(r._k)?' class="active-row"':''}>
+      <td class="no-print"><input type="checkbox" data-mpsel="${sk}" ${MP_SEL.has(r._k)?'checked':''} onchange="mpToggle('${sk}',this.checked)"></td>
+      <td class="mono">${esc(r.period)}${carry?`<div class="muted" style="font-family:inherit">${esc(carry)}</div>`:''}</td><td>${esc(r.dept||'—')}</td><td>${esc(r.section||'—')}</td><td>${esc(r.position||'—')}</td>
       <td class="num">${fmt(r.required)}</td><td class="num"><b>${fmt(p.filled)}</b>${people?`<div class="muted">${esc(people)}${p.rows.length>4?' …':''}</div>`:''}</td><td class="num" style="color:${p.resigned?'var(--danger)':'inherit'}">${fmt(p.resigned)}${resignedPeople?`<div class="muted">${esc(resignedPeople)}${p.resignRows.length>4?' …':''}</div>`:''}</td>
       <td><span class="badge ${rate>=90?'ok':rate>=70?'warn':'danger'}">${pct(rate)}</span></td>
       <td class="num" style="color:${gap>0?'var(--danger)':'var(--ok)'}"><b>${fmt(gap)}</b></td>
       <td class="muted">${esc(planConditions(r,'both'))}</td><td class="muted">${esc(planReason(r,'both'))}</td>
       <td>${mpApprovalBadge(mpApprovalStatus(r))}</td>
       <td class="no-print nowrap"><button class="btn ghost small" onclick="openRecordModal('plan','${encodeURIComponent(r._k)}')">✎</button>
-      <button class="btn danger small" onclick="deleteRecord('plan','${encodeURIComponent(r._k)}')">×</button></td>
+      <button class="btn danger small" onclick="openMpDelete([decodeURIComponent('${sk}')])">×</button></td>
     </tr>`;
-  }).join('')||emptyRow(13,L('此期間沒有資料','No data for this period','គ្មានទិន្នន័យ'));
+  }).join('')||emptyRow(14,L('此期間沒有資料','No data for this period','គ្មានទិន្នន័យ'));
+  mpSelBar();
 }
 
 /* ─────────────────────────────────────────────────────────────
@@ -2717,6 +2927,7 @@ function openRecordModal(kind='plan',encodedKey=''){
   EDITING={kind,key};el('recordType').value=kind;el('recordType').disabled=!!key;
   el('recordModalTitle').textContent=key?L('編輯記錄','Edit record','កែសម្រួល'):L('線上新增記錄','Add record online','បន្ថែមកំណត់ត្រា');
   renderRecordFields(record);
+  if(el('recActorWrap')){el('recActorWrap').style.display=(kind==='plan'&&key)?'grid':'none';el('recActor').value=mpActor()}
   if(!key){
     const dateKey=kind==='plan'?'snapshotDate':kind==='candidate'?'registerDate':kind==='join'?'joinDate':kind==='resign'?'resignDate':'date';
     const st=currentState(),value=st.mode==='all'?today():lds(st.pivot);
@@ -2761,6 +2972,14 @@ async function saveOnlineRecord(){
     if(r.manualJoined!=='')r.manualJoined=n(r.manualJoined);
     if(r.manualResigned!=='')r.manualResigned=n(r.manualResigned);
     delete r.hiredNoExp;delete r.hiredExp;delete r.hired;delete r.resigned;delete r.ending;delete r.actual;
+    /* 2026-11-03：編輯要留名；同職位還有沒滿額的需求單就不另開 */
+    if(EDITING.key){const a=mpSetActor(el('recActor')?.value||'');if(!a){toast(L('請填修改人姓名','Enter your name (edited by)','សូមបញ្ចូលឈ្មោះ'),'warn');el('recActor')?.focus();return}r.editedBy=a;r.editedAt=new Date().toISOString();
+      const old=DB.plans.find(x=>x._k===EDITING.key);if(old){['createdBy','manualJoined','manualResigned'].forEach(k=>{if(r[k]===undefined||r[k]==='')if(old[k]!==undefined)r[k]=old[k]})}}
+    const openC=mpOpenChainFor(r,EDITING.key||'');
+    if(openC){const p=mpChainProgress({...openC.head,_chain:openC,_asOf:today()});
+      toast(L(`這個職位已有需求單還沒滿額（${openC.start} 開單，需求 ${fmt(openC.required)}，已入職 ${fmt(p.filled)}，還缺 ${fmt(p.gap)}），不另開新單；要改人數請編輯那一張，或先刪除再重開。`,
+        `This position already has an open request (opened ${openC.start}, required ${fmt(openC.required)}, joined ${fmt(p.filled)}, gap ${fmt(p.gap)}). Edit that request, or delete it before opening a new one.`,
+        `តំណែងនេះមានសំណើបើករួចហើយ (${openC.start})។`),'warn');return}
   }
   if(kind==='candidate'){r.phone=digits(r.phone);r.joined=false}
   if(['join','resign'].includes(kind))r.empId=digits(r.empId);
@@ -2791,6 +3010,7 @@ async function saveOnlineRecord(){
 }
 async function deleteRecord(kind,encodedKey){
   const key=decodeURIComponent(encodedKey);
+  if(kind==='plan'){openMpDelete([key]);return}
   if(!confirm(L('確認刪除此筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
   const arr=collection(kind),i=arr.findIndex(r=>r._k===key),victim=i>=0?arr[i]:null;
   if((kind==='join'||kind==='resign')&&(victim||key))setMovementDeleted(kind,victim||key,true);
@@ -2934,7 +3154,8 @@ function migrateCloudLegacy(payload){
   const withKind=(rows,kind,prefix)=>arrayValue(rows).map((raw,i)=>{const r={...raw,_kind:kind};if(!r._k)r._k=`${prefix}|${digits(r.empId||r.employeeId||r.idNo)||normName(r.name)||i}|${parseDate(r.resignDate||r.joinDate||r.date||r.period)||''}`;return r});
   const parsed={plans:[],candidates:[],joins:withKind(payload?.joins,'join','J'),resigns:withKind(payload?.resigns,'resign','R'),daily:withKind(payload?.daily,'daily','D')};
   arrayValue(payload?.reqs||payload?.plans).forEach((r,i)=>{
-    const date=parseDate(r.date)||today(),period=date.slice(0,7),dept=norm(r.dept)||'—',position=norm(r.position||r.title)||'—';
+    if(!parseDate(r.date||r.snapshotDate||r.period))return;   /* 2026-11-03：沒日期的舊需求不補成今天 */
+    const date=parseDate(r.date||r.snapshotDate||r.period),period=date.slice(0,7),dept=norm(r.dept)||'—',position=norm(r.position||r.title)||'—';
     parsed.plans.push({...r,_kind:'plan',_k:`P|${period}|${normKey(dept)}|${normKey(position)}`,period,snapshotDate:date,dept,position,required:n(r.required),actual:n(r.actual??r.filled),source:'cloud-legacy',_legacyIndex:i});
   });
   arrayValue(payload?.recruit||payload?.candidates).forEach((r,i)=>{
@@ -3289,7 +3510,7 @@ function exportExcel(){
   if(typeof XLSX==='undefined'){toast('XLSX not loaded','err');return}
   const wb=XLSX.utils.book_new();
   addSheet(wb,'Manpower',['Period','Snapshot Date','Department','Section','Position','Required','Joined / filled','Completion','Gap','Manual joined / hired','Manual resigned','Gender requirement','Min age','Max age','Relevant experience','Education','Request reason','Reason details','Approval','Approval Note'],
-    DB.plans.map(r=>{const d=MP_DEC[mpApprovalKey(r)]||{},p=planProgress(r);return[r.period,r.snapshotDate,r.dept,r.section,r.position,n(r.required),n(p.filled),pct(p.rate),p.gap,r.manualJoined??'',r.manualResigned??'',r.genderReq||'',r.ageMin||'',r.ageMax||'',fieldOptionLabel('experienceReq',r.experienceReq||''),fieldOptionLabel('educationReq',r.educationReq||''),fieldOptionLabel('requestReason',r.requestReason||''),r.reasonDetail||'',d.d||'pending',d.note||'']}));
+    DB.plans.filter(planAlive).map(r=>{const d=MP_DEC[mpApprovalKey(r)]||{},p=planProgress(r);return[r.period,r.snapshotDate,r.dept,r.section,r.position,n(r.required),n(p.filled),pct(p.rate),p.gap,r.manualJoined??'',r.manualResigned??'',r.genderReq||'',r.ageMin||'',r.ageMax||'',fieldOptionLabel('experienceReq',r.experienceReq||''),fieldOptionLabel('educationReq',r.educationReq||''),fieldOptionLabel('requestReason',r.requestReason||''),r.reasonDetail||'',d.d||'pending',d.note||'']}));
   addSheet(wb,'Candidates',['Register Date','Name','Department','Section','Position','Gender','DOB','Age','Phone','Referral','Interview Result','Joined','Employee ID','Join Date','Reason','Remark'],
     DB.candidates.map(r=>[r.registerDate,r.name,r.dept,r.section,r.position,r.gender,r.dob,r.age,r.phone,r.referral,r.interviewResult,r.joined?'Yes':'No',r.empId,r.joinDate,r.noShowReason,r.remark]));
   addSheet(wb,'Join',['Join Date','Employee ID','Name','Department','Section','Position','Gender','DOB','Phone','Referral','Remark'],
@@ -3341,13 +3562,12 @@ function renderImportLog(){
 let _mpUnsentT=null;
 function scheduleMpUnsent(){clearTimeout(_mpUnsentT);_mpUnsentT=setTimeout(mpUnsentCheck,3000);}
 async function mpUnsentCheck(){
-  if(!window.HRAUnsent)return;
-  const [led,pk]=await Promise.all([HRAUnsent.ledger('manpower'),HRAUnsent.pendingKeys('manpower')]);if(!led)return;
-  const items=latestPlanRows(DB.plans||[]).filter(r=>(r.period||ymFromDate(r.snapshotDate)||'')>='2026-07'&&n(r.required)>0).map(r=>{const k=mpApprovalKey(r);if(HRAUnsent.decided(led,k)||mpApprovalStatus(r))return null;const since=r.importedAt||r.updatedAt||HRAUnsent.firstSeen('manpower',k);
-    const it={key:k,name:[r.dept,r.section,r.position].filter(Boolean).join(' / '),detail:L('需求 ','Required ','ត្រូវការ ')+fmt(r.required),date:r.period||ymFromDate(r.snapshotDate)||'',since,days:HRAUnsent.daysSince(since)};return pk[k]?HRAUnsent.waitingItem(it,HRAUnsent.pendingSince('manpower',k)):it;}).filter(Boolean);
-  HRAUnsent.update({module:'manpower',label:'人力需求',platform:'portal',page:'ac-hra-portal/ac_hra_manpower_v1.html',items,box:'unsent-box',lang:LANG,onSend:()=>openTelegram()});
+  /* 2026-11-03 Paul：紅框提醒先拿掉，不顯示在介面；也把雲端的未送清單清空，週五群組提醒不再列人力需求 */
+  const box=el('unsent-box');if(box){box.innerHTML='';box.style.display='none'}
+  if(window.HRAUnsent&&!lsGet('ac_hra_mp_unsent_cleared_v1')){try{const r=await HRAUnsent.report({module:'manpower',label:'人力需求',platform:'portal',page:'ac-hra-portal/ac_hra_manpower_v1.html',items:[]});if(r&&r.ok!==false&&!r.offline)lsSet('ac_hra_mp_unsent_cleared_v1',new Date().toISOString())}catch(e){}}
 }
 function renderAll(){
+  mpInvalidateChains();
   scheduleMpUnsent();
   populatePeriodNav();renderActive();updateCounts();
 }
