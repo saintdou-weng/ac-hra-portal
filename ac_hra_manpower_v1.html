@@ -188,7 +188,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 }
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
-<script src="shared/hra-unsent.js?v=5"></script>
+<script src="shared/hra-unsent.js?v=6"></script>
 </head>
 <body>
 
@@ -2041,8 +2041,10 @@ function mpJoinPool(){
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function mpChainFilled(c,asOf){
-  if(c.joins.length)return c.joins.filter(j=>j.date<=asOf).length;
-  return c.members.filter(m=>planDate(m)<=asOf).reduce((s,m)=>s+planManualCount(m),0);
+  /* prefilled：開單前就已找到的人數（例如 IE 需求 2，之前已找 1，10 月再進 1 → 已滿） */
+  const pre=n(c.head.prefilled);
+  if(c.joins.length)return pre+c.joins.filter(j=>j.date<=asOf).length;
+  return pre+c.members.filter(m=>planDate(m)<=asOf).reduce((s,m)=>s+planManualCount(m),0);
 }
 function mpChains(){
   if(MP_CHAIN_CACHE)return MP_CHAIN_CACHE;
@@ -2129,7 +2131,7 @@ async function confirmMpDelete(){
   const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-deleted');renderAll();
   toast(saved.ok?L(`已刪除 ${keys.length} 張需求單（${actor}）`,`Deleted ${keys.length} request(s) (${actor})`,`បានលុប ${keys.length}`):L('已從畫面刪除但尚未保存','Removed from the page but not saved','បានលុបពីទំព័រ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
 }
-const MP_BULK_FIELDS=[['required','number'],['genderReq','select'],['ageMin','number'],['ageMax','number'],['experienceReq','select'],['educationReq','select'],['requestReason','select'],['reasonDetail','textarea'],['remark','textarea']];
+const MP_BULK_FIELDS=[['required','number'],['prefilled','number'],['genderReq','select'],['ageMin','number'],['ageMax','number'],['experienceReq','select'],['educationReq','select'],['requestReason','select'],['reasonDetail','textarea'],['remark','textarea']];
 function openMpBulkEdit(keys){
   keys=(keys||[...MP_SEL]).filter(Boolean);if(!keys.length)return;
   el('mpBulkKeys').value=JSON.stringify(keys);el('mpBulkActor').value=mpActor();
@@ -2746,6 +2748,7 @@ const FORM_FIELDS={
     ['ageMax',['最高年齡','Maximum age','អាយុអតិបរមា'],'number'],
     ['experienceReq',['相關經驗','Relevant experience','បទពិសោធន៍ពាក់ព័ន្ធ'],'select:none|beginner|semi|experienced|any|other'],
     ['educationReq',['學歷','Education','កម្រិតសិក្សា'],'select:none|primary|middle|highschool|vocational|associate|bachelor|master|any|other'],
+    ['prefilled',['開單前已找到人數','Already filled before opening','បានរកឃើញមុនបើក'],'number'],
     ['manualJoined',['已聘用／入職（手動）','Manual joined / hired','បានជួល / ចូលធ្វើការ (បញ្ចូលដៃ)'],'number'],
     ['manualResigned',['離職人數（手動）','Manual resigned','ចំនួនចាកចេញ (បញ្ចូលដៃ)'],'number'],
     ['requestReason',['需求原因','Request reason','មូលហេតុតម្រូវការ'],'select:resign_replacement|expansion|new_position|new_setup|seasonal|other'],

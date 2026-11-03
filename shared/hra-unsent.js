@@ -9,6 +9,8 @@
   var DAYS = 3, DATE_GAP = 40;
   /* Paul 10/29：9 月以前的都當已核可，不提醒；只提醒 10 月起「已記錄、要核可、但還沒送出」的（已送出待核的不提醒） */
   var FROM = '2026-10';
+  /* 2026-11-03 Paul：紅框提醒整個先拿掉——頁面不顯示、首頁不顯示、不再送清單到雲端（週五群組提醒也就沒有內容） */
+  var OFF = true;
   function keep(x) { if (!x || x.state === 'waiting') return false; var m = String(x.date || '').slice(0, 7); return !/^\d{4}-\d{2}$/.test(m) || m >= FROM; }
   var DEFAULT_GAS = 'https://script.google.com/macros/s/AKfycbya4jZG7YixRmumt9vKA-5Cv92jP8fi_o4toiU-8J2exQCYBhBsLOtN4kX9hoKqzp12/exec';
   function gasUrl() { try { return (localStorage.getItem('vrt_att_cloud_v1_url') || localStorage.getItem('ac_hra_gas_url') || '').trim() || DEFAULT_GAS; } catch (e) { return DEFAULT_GAS; } }
@@ -83,6 +85,7 @@
   function hash(s) { var h = 2166136261; for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
   /* 送給 GAS：內容有變或超過 6 小時才送，避免每次重繪都打雲端 */
   function report(o) {
+    if (OFF) return Promise.resolve({ off: true });
     var items = (o.items || []).filter(keep).filter(function (x) { return (x.days || 0) >= DAYS; });
     var body = { action: 'unsentReport', module: o.module, label: o.label, platform: o.platform || 'portal', page: o.page || location.pathname.split('/').pop(), items: items, by: o.by || '' };
     var sig = hash(JSON.stringify(items.map(function (x) { return [x.key, x.days, x.warn]; }))), k = 'hra_unsent_sig_' + o.module, old = null;
@@ -98,6 +101,7 @@
   function render(box, items, lang, onSend) {
     if (typeof box === 'string') box = document.getElementById(box);
     if (!box) return;
+    if (OFF) { box.innerHTML = ''; box.style.display = 'none'; return; }
     items = (items || []).filter(keep);
     var late = (items || []).filter(function (x) { return (x.days || 0) >= DAYS; }).sort(function (a, b) { return b.days - a.days; });
     var warnOnly = (items || []).filter(function (x) { return (x.days || 0) < DAYS && x.warn; });
@@ -132,6 +136,7 @@
   function modName(k, lang, fb) { var n = NAMES[k]; if (!n) return fb || k; return lang === 'en' ? n[1] : lang === 'km' ? n[2] : n[0]; }
   function homePanel(box, opts) {
     opts = opts || {}; if (typeof box === 'string') box = document.getElementById(box); if (!box) return Promise.resolve();
+    if (OFF) { box.innerHTML = ''; box.style.display = 'none'; return Promise.resolve(); }
     var lang = opts.lang || 'zh';
     return fetch(gasUrl(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'unsentList' }) })
       .then(function (r) { return r.json(); }).then(function (d) {
@@ -151,5 +156,5 @@
     return report(o);
   }
   g.HRAFixApprovalRow = fixRow;
-  g.HRAUnsent = { version: '1.4', FROM: FROM, keep: keep, fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
+  g.HRAUnsent = { version: '1.5', OFF: OFF, FROM: FROM, keep: keep, fixRow: fixRow, pendingSince: pendingSince, waitingItem: waitingItem, isDecided: isDecided, homePanel: homePanel, ledger: ledger, decided: decided, firstSeen: firstSeen, payPeriods: payPeriods, DAYS: DAYS, DATE_GAP: DATE_GAP, daysSince: daysSince, dayDiff: dayDiff, dateGapWarn: dateGapWarn, pendingKeys: pendingKeys, report: report, render: render, update: update };
 })(typeof window !== 'undefined' ? window : this);
