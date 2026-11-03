@@ -241,6 +241,7 @@ function parseWorkbook(wb,XLSXlib,lang){
     var d=detailMap[r.empId]; if(!d)return;
     r.joinDate=d.joinDate||''; r.gender=d.gender||''; r.detail=d; r.calc=d.calc; r.verified=!!d.verified;
     if(d.grandTotal!==null&&r.amount&&Math.abs(d.grandTotal-r.amount)>0.05){ r.verified=false; r.calc+=' · '+L('Summery 金額 ','Summery amount ')+r.amount+' ≠ '+d.grandTotal; }
+    if(g.HRANssf){ var nw=g.HRANssf.settleCheck(d,String(r.settleDate||titleYM||'').slice(0,7)); if(nw){ r.nssfWarn=nw; r.calc+=' · ⚠️ '+L(nw.zh,nw.en); } } /* 2026-11-03 NSSF 3135/26 防呆（入離職頁同步） */
   });
   return {titleYM:titleYM,rows:inS,detail:detailMap,warn:warns};
 }

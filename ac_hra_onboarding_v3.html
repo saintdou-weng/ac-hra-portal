@@ -68,7 +68,8 @@ tbody tr:hover{background:#f8fafc}
 @media print{header,.no-print,.tab-bar{display:none!important}.pane{display:block!important}}
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
-<script src="shared/settle-parse.js?v=1"></script>
+<script src="shared/nssf-rules.js?v=1"></script>
+<script src="shared/settle-parse.js?v=2"></script>
 <script src="shared/hra-unsent.js?v=6"></script>
 <script src="shared/appr-precheck.js?v=1"></script>
 <script src="shared/join-pay.js?v=1"></script>
@@ -1544,6 +1545,7 @@ function readOne(file){
             var d=detailMap[r.empId]; if(!d)return; nDetail++;
             r.joinDate=d.joinDate||''; r.gender=d.gender||''; r.detail=d; r.calc=d.calc; r.verified=!!d.verified; if(d.verified)nVerified++;
             if(d.grandTotal!==null&&r.amount&&Math.abs(d.grandTotal-r.amount)>0.05){ r.verified=false; r.calc+=' · '+L('Summery 金額 ','Summery amount ')+r.amount+' ≠ '+d.grandTotal; }
+            if(window.HRANssf){ var nw=HRANssf.settleCheck(d,String(r.settleDate||'').slice(0,7)); if(nw){ r.nssfWarn=nw; r.calc+=' · ⚠️ '+L(nw.zh,nw.en); } } /* 2026-11-03 NSSF 3135/26 防呆 */
           });
           if(inS.length)detail.push('🧮 '+L('月份分頁明細','Payroll detail')+' '+nDetail+'/'+inS.length+' · '+L('重算吻合','recomputed OK')+' '+nVerified+(nDetail>nVerified?' · ⚠️ '+L('不符','mismatch')+' '+(nDetail-nVerified):''));
           /* 2026-10-28 產假名冊上懷孕／產假中的人 → 產假未結薪資，不是離職 */
