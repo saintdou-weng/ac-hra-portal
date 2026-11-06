@@ -1,4 +1,5 @@
-/* v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
+/* v72 (2026-11-06)：交通車改成每台車一段（部門各幾人、男女、年資列表）；柬文一律英柬並列。
+   v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
    v70: welfare Telegram cards rebuilt — union dues / transport / accommodation / suggestion box as separate cards,
    totals first (people, amount, paid/unpaid with reasons, per-vehicle counts, department share), colour status lights,
    one short line per person (department shown once), bilingual labels inline, verified line; no approval workflow.
@@ -35,7 +36,7 @@
   function pct(n,total){return total?Math.round(n/total*100)+'%':'0%';}
   function usd(v){return 'USD '+Number(v||0).toFixed(2);}
   function mmdd(d){d=text(d);return /^\d{4}-\d{2}-\d{2}/.test(d)?d.slice(5,10):d;}
-  function L(lang,z,e,k){if(lang==='en')return e;if(lang==='km')return k||e;if(lang==='zh')return z;return z===e?z:z+' '+e;}
+  function L(lang,z,e,k){if(lang==='en')return e;if(lang==='km')return k&&k!==e?e+' / '+k:e;  /* 柬文＝英柬並列，不單獨柬文 */if(lang==='zh')return z;return z===e?z:z+' '+e;}
   function bold(s){return B1+s+B2;}
   function escapeHtml(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
   function plain(s){return String(s).split(B1).join('').split(B2).join('');}
@@ -94,8 +95,21 @@
     out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🚐 '+L(lang,'車輛','Vehicles','ឡាន')+' '+bold(vk.filter(function(k){return k!==none;}).length)+' · 🆕 '+bold('+'+added.length)+' · ⛔ '+bold('−'+stopped.length));
     if(s.transport!==undefined&&Number(s.transport)!==rows.length)out.push('📑 '+L(lang,'月摘要寫','Monthly summary says','សង្ខេបខែ')+' '+bold(s.transport)+' · '+L(lang,'名單','roster','បញ្ជី')+' '+bold(rows.length));
     out.push(verify(lang,rows,ctx));
-    if(vk.length)out.push(sec('🚐',L(lang,'每車人數','Per vehicle','ក្នុងមួយឡាន'))+'\n'+vk.map(function(k){return dot(k)+icon(k)+' '+bold(k)+' · '+bold(vm[k])+' '+L(lang,'人','ppl','នាក់')+'\n'+bar(vm[k],rows.length,10,SQ[ix[k]%SQ.length]);}).join('\n'));
-    if(rows.length)out.push(sec('🏢',L(lang,'部門 → 坐哪車','Department → vehicle','ផ្នែក → ឡាន'))+'\n'+deptLines(lang,rows,ctx,function(m){var c=countBy(m,veh);return sortedKeys(c).map(function(k){return dot(k)+c[k];}).join(' ');},16).join('\n'));
+    /* 2026-11-06 Paul：每台車列出坐哪些部門各幾人、男女、年資（列表式，不列員工名字） */
+    var ref=/^\d{4}-\d{2}$/.test(period)?new Date(+period.slice(0,4),+period.slice(5,7),0):/^\d{4}$/.test(period)?new Date(+period,11,31):new Date();
+    var sex=function(r){var g=text(ctx(r).gender).toUpperCase();return /^(M|MALE|男|ប្រុស)/.test(g)?'M':/^(F|FEMALE|女|ស្រី)/.test(g)?'F':'';};
+    var yrs=function(r){var j=text(ctx(r).joinDate).slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(j))return null;return (ref-new Date(j+'T00:00:00'))/31557600000;};
+    var TEN=[[0,1,'<1y'],[1,3,'1–3y'],[3,5,'3–5y'],[5,99,'5y+']];
+    function mf(m){var f=m.filter(function(r){return sex(r)==='F';}).length,ma=m.filter(function(r){return sex(r)==='M';}).length,u=m.length-f-ma;return '👩'+f+' 👨'+ma+(u?' ❔'+u:'');}
+    function tenure(m){var t=TEN.map(function(x){return [x[2],m.filter(function(r){var y=yrs(r);return y!=null&&y>=x[0]&&y<x[1];}).length];}),u=m.filter(function(r){return yrs(r)==null;}).length;return t.filter(function(x){return x[1];}).map(function(x){return x[0]+' '+x[1];}).join(' · ')+(u?' · ❔'+u:'');}
+    if(rows.length)out.push('👩 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 👨 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
+    vk.forEach(function(k){
+      var m=rows.filter(function(r){return veh(r)===k;}),dm=countBy(m,function(r){return place(ctx(r))||'—';}),dk=sortedKeys(dm);
+      var blk=[dot(k)+icon(k)+' '+bold(k)+' · '+bold(m.length)+' '+L(lang,'人','ppl','នាក់')+'\n'+bar(m.length,rows.length,10,SQ[ix[k]%SQ.length]),
+        '   '+mf(m)+' · ⏳ '+tenure(m)];
+      dk.forEach(function(d,i){var dd=m.filter(function(r){return (place(ctx(r))||'—')===d;});blk.push('   '+(i===dk.length-1?'└ ':'├ ')+d+' · '+bold(dm[d])+' ('+mf(dd).replace(/ ❔\d+/,'')+')');});
+      out.push(blk.join('\n'));
+    });
     if(added.length)out.push(sec('🆕',L(lang,'新增','New','ថ្មី')+' · '+added.length)+'\n'+added.map(function(r){return '🆕 '+moveLine(r,ctx,text(r.driver)?dot(text(r.driver))+' '+text(r.driver):'');}).join('\n'));
     if(stopped.length)out.push(sec('⛔',L(lang,'停止','Stopped','បញ្ឈប់')+' · '+stopped.length)+'\n'+stopped.map(function(r){return '⛔ '+moveLine(r,ctx,'');}).join('\n'));
     if(!rows.length)out.push(L(lang,'沒有資料','No records','គ្មានទិន្នន័យ'));
