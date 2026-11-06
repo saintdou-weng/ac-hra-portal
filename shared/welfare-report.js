@@ -1,4 +1,5 @@
-/* v70: welfare Telegram cards rebuilt — union dues / transport / accommodation / suggestion box as separate cards,
+/* v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
+   v70: welfare Telegram cards rebuilt — union dues / transport / accommodation / suggestion box as separate cards,
    totals first (people, amount, paid/unpaid with reasons, per-vehicle counts, department share), colour status lights,
    one short line per person (department shown once), bilingual labels inline, verified line; no approval workflow.
    Based on v69 employee context resolution. */
@@ -55,54 +56,64 @@
   }
   function sortRows(rows,ctx){return rows.slice().sort(function(a,b){var x=ctx(a),y=ctx(b);return String(x.id||'').localeCompare(String(y.id||''),undefined,{numeric:true})||String(x.name||'').localeCompare(String(y.name||''));});}
   function header(icon,title,period){return [icon+' '+bold(title)+' · '+period,'━━━━━━━━━━━━'].join('\n');}
+  /* ── 2026-11-06 Paul：摘要先總覽（人數、車數、部門、比例條），名單不逐人列；只列新增／停止／未付 ── */
+  var DOT=['🔵','🟢','🟠','🟣','🔴','🟡','🟤','⚫'],SQ=['🟦','🟩','🟧','🟪','🟥','🟨','🟫','⬛'],CAR=['🚌','🚐','🚎','🚙','🛻','🚕','🚗','🚚'];
+  function bar(v,total,w,sq){w=w||10;total=Number(total)||0;v=Number(v)||0;if(total<=0)return '';var r=Math.max(0,Math.min(1,v/total)),n=Math.round(r*w),b=sq||(r>=0.9?'🟩':r>=0.7?'🟨':'🟥'),o='';for(var i=0;i<w;i++)o+=i<n?b:'⬜';return o+' '+Math.round(r*100)+'%';}
+  function sec(icon,title){return '━━ '+icon+' '+bold(title)+' ━━';}
+  function countBy(rows,fn){var m={};rows.forEach(function(r){var k=fn(r);m[k]=(m[k]||0)+1;});return m;}
+  function sortedKeys(m){return Object.keys(m).sort(function(a,b){return m[b]-m[a]||a.localeCompare(b,undefined,{numeric:true});});}
+  /* 同一部門的列：「Line9 · 9 人 13% · 🔵5 🟢3 🟠1」 */
+  function deptLines(lang,rows,ctx,extra,max){
+    max=max||14;var dm=countBy(rows,function(r){return place(ctx(r))||'—';}),keys=sortedKeys(dm),out=[];
+    keys.slice(0,max).forEach(function(k){var mine=rows.filter(function(r){return (place(ctx(r))||'—')===k;});out.push('▸ '+bold(k)+' · '+bold(dm[k])+' '+L(lang,'人','ppl','នាក់')+' '+pct(dm[k],rows.length)+(extra?' · '+extra(mine):''));});
+    if(keys.length>max){var rest=keys.slice(max).reduce(function(n,k){return n+dm[k];},0);out.push('▸ '+L(lang,'其他','Others','ផ្សេងៗ')+' '+(keys.length-max)+' · '+bold(rest)+' '+L(lang,'人','ppl','នាក់'));}
+    return out;
+  }
+  function moveLine(r,ctx,tail){var c=ctx(r);return mmdd(r.date)+' · '+(c.id||'—')+' '+bold(c.name||'—')+(place(c)?' · '+place(c):'')+(tail?' · '+tail:'')+(text(r.remark)?' · '+text(r.remark):'');}
   /* ── 工會費 Union dues ───────────────────────────────────────────────── */
   function unionCard(lang,s,period,ctx){
-    var rows=sortRows(s.union||[],ctx),paid=rows.filter(function(r){return r.status!=='unpaid'&&Number(r.amount)>0;}),unpaid=rows.filter(function(r){return r.status==='unpaid'||!(Number(r.amount)>0);}),total=rows.reduce(function(n,r){return n+(Number(r.amount)||0);},0);
+    var rows=sortRows(s.union||[],ctx),unpaid=rows.filter(function(r){return r.status==='unpaid'||!(Number(r.amount)>0);}),paid=rows.length-unpaid.length,total=rows.reduce(function(n,r){return n+(Number(r.amount)||0);},0);
     var out=[header('🤝',L(lang,'工會費','Union dues','ថ្លៃសហជីព'),period)];
-    out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 💵 '+L(lang,'合計','Total','សរុប')+' '+bold(usd(total))+' · 🟢 '+L(lang,'已付','Paid','បានបង់')+' '+bold(paid.length)+' · 🔴 '+L(lang,'未付','Unpaid','មិនបានបង់')+' '+bold(unpaid.length)+(rows.length?' '+pct(unpaid.length,rows.length):''));
-    var ds=deptShare(lang,rows,ctx);if(ds)out.push(ds);
-    if(unpaid.length)out.push('🔴 '+L(lang,'未付名單／原因','Unpaid / reason','មិនបានបង់ / មូលហេតុ')+'：'+unpaid.slice(0,8).map(function(r){var c=ctx(r);return (c.id||'—')+' '+(c.name||'—')+(text(r.remark)?'（'+text(r.remark)+'）':'（'+L(lang,'未註明','no reason given','មិនបានបញ្ជាក់')+'）');}).join(' · ')+(unpaid.length>8?' · …+'+(unpaid.length-8):''));
+    out.push((unpaid.length?'🟠 ':'🟢 ')+bold(unpaid.length?L(lang,'未付 '+unpaid.length+' 人','Unpaid '+unpaid.length,'មិនបានបង់ '+unpaid.length):L(lang,'全部已付','All paid','បានបង់ទាំងអស់')));
+    out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 💵 '+bold(usd(total))+' · 🏢 '+L(lang,'部門','Depts','ផ្នែក')+' '+bold(Object.keys(countBy(rows,function(r){return place(ctx(r))||'—';})).length));
+    if(rows.length)out.push('🟢 '+L(lang,'已付','Paid','បានបង់')+' '+bold(paid)+' · 🔴 '+L(lang,'未付','Unpaid','មិនបានបង់')+' '+bold(unpaid.length)+'\n'+bar(paid,rows.length));
     out.push(verify(lang,rows,ctx,[Math.abs(total-Number(s.unionAmount||0))>0.005?L(lang,'金額合計不符','amount total mismatch','ចំនួនមិនត្រូវ'):'']));
-    out.push('━━━━━━━━━━━━\n📋 '+bold(L(lang,'名單','List','បញ្ជី')+' · '+rows.length));
+    if(rows.length)out.push(sec('🏢',L(lang,'部門','Departments','ផ្នែក'))+'\n'+deptLines(lang,rows,ctx,function(m){return '$'+m.reduce(function(n,r){return n+(Number(r.amount)||0);},0).toFixed(2);}).join('\n'));
+    if(unpaid.length)out.push(sec('🔴',L(lang,'未付','Unpaid','មិនបានបង់')+' · '+unpaid.length)+'\n'+unpaid.map(function(r){var c=ctx(r);return '🔴 '+(c.id||'—')+' '+bold(c.name||'—')+(place(c)?' · '+place(c):'')+' · '+(text(r.remark)||L(lang,'未註明原因','no reason given','មិនបានបញ្ជាក់'));}).join('\n'));
     if(!rows.length)out.push(L(lang,'沒有資料','No records','គ្មានទិន្នន័យ'));
-    rows.forEach(function(r,i){var c=ctx(r),un=unpaid.indexOf(r)>=0;out.push((un?'🔴':'🟢')+' '+who(c,i+1)+' · '+L(lang,'入會','since','ចូល')+' '+(text(r.unionJoinDate).slice(0,7)||'—')+' · $'+Number(r.amount||0).toFixed(2)+(un?' · '+statusWord(lang,'unpaid')+(text(r.remark)?' · '+text(r.remark):''):''));});
     return out.join('\n');
   }
   /* ── 交通車 Transport ────────────────────────────────────────────────── */
   function transportCard(lang,s,period,ctx){
-    var active=(s.members||[]).filter(function(r){return r.transport&&r.status!=='stopped';}),rows=sortRows(active,ctx),mov=s.mov||[],added=mov.filter(function(r){return r.action==='transport_apply';}),stopped=mov.filter(function(r){return r.action==='transport_stop';});
+    var rows=sortRows((s.members||[]).filter(function(r){return r.transport&&r.status!=='stopped';}),ctx),mov=s.mov||[],added=mov.filter(function(r){return r.action==='transport_apply';}),stopped=mov.filter(function(r){return r.action==='transport_stop';});
+    var none=L(lang,'未填車輛','No vehicle','គ្មានយានយន្ត'),veh=function(r){return text(r.driver)||none;},vm=countBy(rows.concat(added),veh),vk=sortedKeys(countBy(rows,veh)),ix={};
+    /* 顏色照車名排序固定（每個月同一台車同一個顏色） */
+    Object.keys(vm).filter(function(k){return k!==none;}).sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});}).forEach(function(k,i){ix[k]=i;});vm=countBy(rows,veh);
+    var dot=function(k){var i=ix[k];return i==null?'⚪':DOT[i%DOT.length];},icon=function(k){var i=ix[k];return i==null?'🚐':CAR[i%CAR.length];};
     var out=[header('🚌',L(lang,'交通車','Transport','ដឹកជញ្ជូន'),period)];
-    var head='👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🆕 '+L(lang,'新增','New','ថ្មី')+' '+bold(added.length)+' · ⛔ '+L(lang,'停止','Stopped','បញ្ឈប់')+' '+bold(stopped.length);
-    if(s.transport!==undefined&&Number(s.transport)!==rows.length)head+=' · 📑 '+L(lang,'月摘要','Monthly summary','សង្ខេបខែ')+' '+s.transport;
-    out.push(head);
-    var vm={};rows.forEach(function(r){var k=text(r.driver)||L(lang,'未填車輛','no vehicle','គ្មានយានយន្ត');vm[k]=(vm[k]||0)+1;});
-    var vk=Object.keys(vm).sort(function(a,b){return vm[b]-vm[a];});
-    if(vk.length)out.push('🚐 '+L(lang,'每車人數','Per vehicle','ក្នុងមួយឡាន')+' '+bold(vk.length)+' '+L(lang,'車','vehicles','ឡាន')+'：'+vk.slice(0,10).map(function(k){return k+' '+bold(vm[k]);}).join(' │ ')+(vk.length>10?' │ …+'+(vk.length-10):''));
-    var ds=deptShare(lang,rows,ctx);if(ds)out.push(ds);
+    out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🚐 '+L(lang,'車輛','Vehicles','ឡាន')+' '+bold(vk.filter(function(k){return k!==none;}).length)+' · 🆕 '+bold('+'+added.length)+' · ⛔ '+bold('−'+stopped.length));
+    if(s.transport!==undefined&&Number(s.transport)!==rows.length)out.push('📑 '+L(lang,'月摘要寫','Monthly summary says','សង្ខេបខែ')+' '+bold(s.transport)+' · '+L(lang,'名單','roster','បញ្ជី')+' '+bold(rows.length));
     out.push(verify(lang,rows,ctx));
-    if(added.length)out.push('🆕 '+bold(L(lang,'新增','New','ថ្មី')+' · '+added.length)+'\n'+added.map(function(r){var c=ctx(r);return '🆕 '+mmdd(r.date)+' '+who(c)+(text(r.remark)?' · '+text(r.remark):'');}).join('\n'));
-    if(stopped.length)out.push('⛔ '+bold(L(lang,'停止','Stopped','បញ្ឈប់')+' · '+stopped.length)+'\n'+stopped.map(function(r){var c=ctx(r);return '⛔ '+mmdd(r.date)+' '+who(c)+(text(r.remark)?' · '+text(r.remark):'');}).join('\n'));
-    out.push('━━━━━━━━━━━━\n📋 '+bold(L(lang,'名單','List','បញ្ជី')+' · '+rows.length));
+    if(vk.length)out.push(sec('🚐',L(lang,'每車人數','Per vehicle','ក្នុងមួយឡាន'))+'\n'+vk.map(function(k){return dot(k)+icon(k)+' '+bold(k)+' · '+bold(vm[k])+' '+L(lang,'人','ppl','នាក់')+'\n'+bar(vm[k],rows.length,10,SQ[ix[k]%SQ.length]);}).join('\n'));
+    if(rows.length)out.push(sec('🏢',L(lang,'部門 → 坐哪車','Department → vehicle','ផ្នែក → ឡាន'))+'\n'+deptLines(lang,rows,ctx,function(m){var c=countBy(m,veh);return sortedKeys(c).map(function(k){return dot(k)+c[k];}).join(' ');},16).join('\n'));
+    if(added.length)out.push(sec('🆕',L(lang,'新增','New','ថ្មី')+' · '+added.length)+'\n'+added.map(function(r){return '🆕 '+moveLine(r,ctx,text(r.driver)?dot(text(r.driver))+' '+text(r.driver):'');}).join('\n'));
+    if(stopped.length)out.push(sec('⛔',L(lang,'停止','Stopped','បញ្ឈប់')+' · '+stopped.length)+'\n'+stopped.map(function(r){return '⛔ '+moveLine(r,ctx,'');}).join('\n'));
     if(!rows.length)out.push(L(lang,'沒有資料','No records','គ្មានទិន្នន័យ'));
-    var byV=rows.slice().sort(function(a,b){return (vm[text(b.driver)]||0)-(vm[text(a.driver)]||0)||text(a.driver).localeCompare(text(b.driver))||String(ctx(a).id||'').localeCompare(String(ctx(b).id||''),undefined,{numeric:true});});
-    byV.forEach(function(r,i){var c=ctx(r);out.push('🟢 '+who(c,i+1)+' · 🚐 '+(text(r.driver)||'—')+(r.accommodation?' · 🏠':''));});
     return out.join('\n');
   }
   /* ── 住宿 Accommodation ──────────────────────────────────────────────── */
   function accommodationCard(lang,s,period,ctx){
-    var active=(s.members||[]).filter(function(r){return r.accommodation&&r.status!=='stopped';}),rows=sortRows(active,ctx),mov=s.mov||[],moveIn=mov.filter(function(r){return r.action==='dorm_in';}),moveOut=mov.filter(function(r){return r.action==='dorm_out';});
-    var local=rows.filter(function(r){return r.accommodationType!=='expat';}).length,expat=rows.length-local;
+    var rows=sortRows((s.members||[]).filter(function(r){return r.accommodation&&r.status!=='stopped';}),ctx),mov=s.mov||[],moveIn=mov.filter(function(r){return r.action==='dorm_in';}),moveOut=mov.filter(function(r){return r.action==='dorm_out';});
+    var expat=rows.filter(function(r){return r.accommodationType==='expat';}).length,local=rows.length-expat;
     var out=[header('🏠',L(lang,'住宿','Accommodation','ស្នាក់នៅ'),period)];
-    var head='👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🏘 '+L(lang,'本地','Local','ក្នុងស្រុក')+' '+bold(local)+' · 🌏 '+L(lang,'外籍','Expat','បរទេស')+' '+bold(expat)+' · 🆕 '+L(lang,'入住','Move-in','ចូល')+' '+bold(moveIn.length)+' · ⛔ '+L(lang,'搬出','Move-out','ចេញ')+' '+bold(moveOut.length);
-    if(s.accommodation!==undefined&&Number(s.accommodation)!==rows.length)head+=' · 📑 '+L(lang,'月摘要','Monthly summary','សង្ខេបខែ')+' '+s.accommodation+(Number(s.expat)?' ('+L(lang,'外籍','expat','បរទេស')+' '+s.expat+')':'');
-    out.push(head);
-    var ds=deptShare(lang,rows,ctx);if(ds)out.push(ds);
+    out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🆕 '+bold('+'+moveIn.length)+' · ⛔ '+bold('−'+moveOut.length));
+    if(rows.length)out.push('🏘 '+L(lang,'本地','Local','ក្នុងស្រុក')+' '+bold(local)+' · 🌏 '+L(lang,'外籍','Expat','បរទេស')+' '+bold(expat)+'\n'+bar(local,rows.length,10,'🟦'));
+    if(s.accommodation!==undefined&&Number(s.accommodation)!==rows.length)out.push('📑 '+L(lang,'月摘要寫','Monthly summary says','សង្ខេបខែ')+' '+bold(s.accommodation)+(Number(s.expat)?' ('+L(lang,'外籍','expat','បរទេស')+' '+s.expat+')':'')+' · '+L(lang,'名單','roster','បញ្ជី')+' '+bold(rows.length));
     out.push(verify(lang,rows,ctx));
-    if(moveIn.length)out.push('🆕 '+bold(L(lang,'入住','Move-in','ចូលស្នាក់នៅ')+' · '+moveIn.length)+'\n'+moveIn.map(function(r){var c=ctx(r);return '🆕 '+mmdd(r.date)+' '+who(c)+(text(r.remark)?' · '+text(r.remark):'');}).join('\n'));
-    if(moveOut.length)out.push('⛔ '+bold(L(lang,'搬出','Move-out','ចាកចេញ')+' · '+moveOut.length)+'\n'+moveOut.map(function(r){var c=ctx(r);return '⛔ '+mmdd(r.date)+' '+who(c)+(text(r.remark)?' · '+text(r.remark):'');}).join('\n'));
-    out.push('━━━━━━━━━━━━\n📋 '+bold(L(lang,'名單','List','បញ្ជី')+' · '+rows.length));
+    if(rows.length)out.push(sec('🏢',L(lang,'部門','Departments','ផ្នែក'))+'\n'+deptLines(lang,rows,ctx,function(m){var e=m.filter(function(r){return r.accommodationType==='expat';}).length,t=m.filter(function(r){return r.transport;}).length;return [(m.length-e)?'🏘'+(m.length-e):'',e?'🌏'+e:''].filter(Boolean).join(' ')+(t?' · 🚌'+t:'');}).join('\n'));
+    if(moveIn.length)out.push(sec('🆕',L(lang,'入住','Move-in','ចូលស្នាក់នៅ')+' · '+moveIn.length)+'\n'+moveIn.map(function(r){return '🆕 '+moveLine(r,ctx,'');}).join('\n'));
+    if(moveOut.length)out.push(sec('⛔',L(lang,'搬出','Move-out','ចាកចេញ')+' · '+moveOut.length)+'\n'+moveOut.map(function(r){return '⛔ '+moveLine(r,ctx,'');}).join('\n'));
     if(!rows.length)out.push(L(lang,'沒有資料','No records','គ្មានទិន្នន័យ'));
-    rows.forEach(function(r,i){var c=ctx(r);out.push('🟢 '+who(c,i+1)+' · '+(r.accommodationType==='expat'?'🌏 '+L(lang,'外籍','Expat','បរទេស'):'🏘 '+L(lang,'本地','Local','ក្នុងស្រុក'))+(r.transport?' · 🚌':''));});
     return out.join('\n');
   }
   /* ── 意見箱 Suggestion box ───────────────────────────────────────────── */
@@ -128,6 +139,8 @@
   }
   function format(options){return plain(build(options));}
   function html(options){return toHtml(build(options));}
+  /* 送 Telegram 用：先切頁（不切斷一行），每頁轉成 HTML（粗體保留） */
+  function htmlParts(options,limit){return split(build(options),limit).map(toHtml);}
   // Split on blank lines, then on single lines; never cut inside a line (bold tags live within one line).
   function split(message,limit){
     limit=limit||3400;var chunks=[],chunk='';
@@ -139,5 +152,5 @@
     });flush();return chunks;
   }
   function delivered(result){var d=result&&result.data||result||{}, ids=[d.messageId,d.message_id,d.result&&d.result.message_id].concat(d.messageIds||[]);return ids.filter(function(x){return typeof x==='number'?x>0:/^\d+$/.test(String(x||''));});}
-  return {resolve:resolve,format:format,html:html,split:split,delivered:delivered,place:place};
+  return {resolve:resolve,format:format,html:html,htmlParts:htmlParts,bar:bar,split:split,delivered:delivered,place:place};
 });

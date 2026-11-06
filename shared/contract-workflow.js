@@ -118,11 +118,13 @@ var ContractWorkflow = (function () {
     if(!modal)return;const list=chosen(),lang=el('ctLang').value,mode=el('ctMode').value;
     el('ctCounts').textContent=L('選取','Selected','បានជ្រើស')+' '+list.length+' / '+modal.candidates.length+' · '+L('已略過','Excluded','បានរំលង')+' '+modal.candidates.filter(x=>!x.state.ok).length;
     const requests=list.map(requestFor),lines=M.summaryHeader(requests,requests[0]?.period||el('ctPeriod').value,lang);
+    /* 2026-11-06：摘要模式預覽＝實際送出的新版卡片（總覽在前、一人一行） */
+    if(mode!=='approval'&&M.summaryCard){el('ctPreview').textContent=M.summaryCard(requests,requests[0]?.period||el('ctPeriod').value,lang,el('ctActor').value.trim()).join('\n').replace(/<[^>]+>/g,'').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&');}
     if(mode==='approval')lines[0]=M.l(lang,'試用期／合約核可','Probation / Contract Approval','អនុម័តសាកល្បង / កិច្ចសន្យា');
     lines.push(L('申請人／檢查人','Applicant / Inspector','អ្នកស្នើ / អ្នកត្រួតពិនិត្យ')+'：'+(el('ctActor').value.trim()||'—'));
     list.forEach((x,i)=>{const d=requestFor(x);lines.push('\n#'+(i+1)+' '+(x.k==='prob'?M.l(lang,'試用期','Probation','សាកល្បង'):M.l(lang,'合約','Contract','កិច្ចសន្យា')));M.pairs(d,lang).forEach(p=>lines.push(p.join('：')));});
     el('ctValidation').textContent=!list.length?L('沒有可發送的項目：請查看下方原因，或匯入最新 Excel 補齊姓名。','No eligible items. Check the reasons or import the latest Excel to complete names.','គ្មានធាតុផ្ញើ។ ពិនិត្យមូលហេតុ ឬនាំចូល Excel ដើម្បីបំពេញឈ្មោះ។'):!el('ctActor').value.trim()?L('請填寫申請人／檢查人後送出。','Enter the applicant / inspector to send.','បំពេញអ្នកស្នើ / អ្នកត្រួតពិនិត្យដើម្បីផ្ញើ។'):L('可發送 '+list.length+' 筆','Ready to send '+list.length+' records','អាចផ្ញើ '+list.length+' កំណត់ត្រា');
-    syncSegments();el('ctPreview').textContent=lines.join('\n');el('ctSend').textContent=mode==='approval'?L('送出核可請求','Send for Approval','ផ្ញើសុំអនុម័ត'):L('傳送摘要','Send Summary','ផ្ញើសង្ខេប');el('ctSend').disabled=busy||!list.length||!el('ctActor').value.trim();
+    syncSegments();if(mode==='approval'||!M.summaryCard)el('ctPreview').textContent=lines.join('\n');el('ctSend').textContent=mode==='approval'?L('送出核可請求','Send for Approval','ផ្ញើសុំអនុម័ត'):L('傳送摘要','Send Summary','ផ្ញើសង្ខេប');el('ctSend').disabled=busy||!list.length||!el('ctActor').value.trim();
     const available=modal.candidates.filter(x=>x.state.ok);el('ctSelectAll').checked=!!available.length&&list.length===available.length;el('ctSelectAll').indeterminate=list.length>0&&list.length<available.length;
   }
   function open(k,mode,changes){
@@ -184,11 +186,13 @@ var ContractWorkflow = (function () {
       }else{
         const key='summary-'+M.hash([docs.map(d=>d.key).sort(),lang,actor]),saved=JSON.parse(localStorage.getItem(OUTBOX)||'{}');
         let job=saved[key];
-        if(!job){const lines=M.summaryHeader(docs,period,lang);docs.forEach((d,i)=>{lines.push('\n#'+(i+1));M.pairs(d,lang).forEach(p=>lines.push(p.join('：')));});job={docs:M.clone(docs),parts:M.chunks(lines,2600),sent:{},at:new Date().toISOString()};saved[key]=job;localStorage.setItem(OUTBOX,JSON.stringify(saved));}
+        if(job&&job.v!==2&&!Object.keys(job.sent||{}).length)job=null;  /* 舊格式還沒送的就改用新卡片 */
+        if(!job){const lines=M.summaryCard(docs,period,lang,actor);const parts=[];let cur='';lines.forEach(ln=>{if(cur&&cur.length+1+ln.length>2600){parts.push(cur);cur='';}cur+=(cur?'\n':'')+ln;});if(cur)parts.push(cur);  /* 整行切頁，不會切斷 <b> */
+          job={v:2,docs:M.clone(docs),parts,sent:{},at:new Date().toISOString()};saved[key]=job;localStorage.setItem(OUTBOX,JSON.stringify(saved));}
         for(let i=0;i<job.parts.length;i++){
           if(job.sent[i])continue;
           el('ctResult').textContent=L('發送摘要','Sending summary','ផ្ញើសង្ខេប')+' '+(i+1)+' / '+job.parts.length;
-          const r=await contractGasPost({action:'contractSummary',tool:'contract',module:'contract',messageType:'summary',period,lang,inspector:actor,deliveryKey:key+':'+i,stats:(i===job.parts.length-1&&el('ctScope').value!=='prob'&&typeof contractFeeStatsLines==='function'?contractFeeStatsLines(period,lang):[]),text:'<b>'+esc(M.l(lang,'摘要','Summary','សង្ខេប'))+' '+(i+1)+'/'+job.parts.length+'</b>\n'+esc(job.parts[i])});
+          const r=await contractGasPost({action:'contractSummary',tool:'contract',module:'contract',messageType:'summary',period,lang,inspector:actor,deliveryKey:key+':'+i,stats:(i===job.parts.length-1&&el('ctScope').value!=='prob'&&typeof contractFeeStatsLines==='function'?contractFeeStatsLines(period,lang):[]),text:job.v===2?(job.parts.length>1?'📄 '+(i+1)+'/'+job.parts.length+'\n':'')+job.parts[i]:'<b>'+esc(M.l(lang,'摘要','Summary','សង្ខេប'))+' '+(i+1)+'/'+job.parts.length+'</b>\n'+esc(job.parts[i])});
           if(!r.messageId)throw new Error('Telegram delivery not confirmed');
           job.sent[i]={messageId:r.messageId,at:new Date().toISOString()};saved[key]=job;localStorage.setItem(OUTBOX,JSON.stringify(saved));
           if(i+1<job.parts.length)await new Promise(resolve=>setTimeout(resolve,1200));

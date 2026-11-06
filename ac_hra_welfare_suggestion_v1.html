@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <script src="shared/ac-storage.js?v=1" data-offload="ac_hra_cloud_state_*,ac_hra_manpower_cloud_manifest_v2,ac_hra_smart_sync_v2_*,vrt_nursing_fees_v2,ac_hra_joins,ac_hra_resigns,vrt_dashProbs"></script>
 <link rel="preload" as="script" href="shared/cloud-guard.js?v=2">
-<link rel="preload" as="script" href="shared/welfare-report.js?v=69">
+<link rel="preload" as="script" href="shared/welfare-report.js?v=71">
 <link rel="preload" as="script" href="shared/hra-smart-sync.js?v=49">
 <link rel="preload" as="script" href="shared/telegram-evidence.js?v=45">
 <link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
 <script type="text/x-ac-after-storage" src="shared/cloud-guard.js?v=2"></script>
-<script type="text/x-ac-after-storage" src="shared/welfare-report.js?v=69"></script>
+<script type="text/x-ac-after-storage" src="shared/welfare-report.js?v=71"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=49"></script>
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
@@ -574,16 +574,19 @@ if(window.HRAAutoSync)HRAAutoSync.install({key:'welfare',pull:cloudPull,push:clo
   window.renderPeriodList=function(){var mode=PERIOD_MODE,dept=document.getElementById('listDept').value,field=document.getElementById('listField').value,keys=periodOptions(mode);if(mode==='all')keys=['all'];var rows=keys.map(function(k){return{k:k,s:statsFor(k,mode,dept)}}).filter(function(o){var s=o.s;return field==='all'?(s.transport+s.accommodation+s.unionMembers+s.suggestions)>0:field==='transport'?s.transport+s.apply+s.stop>0:field==='accommodation'?s.accommodation>0:field==='union'?s.unionMembers>0:s.suggestions>0});document.getElementById('periodCount').textContent=rows.length+' '+tr('records');document.getElementById('periodBody').innerHTML=rows.length?rows.map(function(o){var s=o.s;return '<tr style="cursor:pointer" onclick="jumpPeriodV68(\''+o.k+'\')"><td><b>'+esc(labelFor(mode,o.k))+'</b></td><td>'+s.transport+'</td><td>'+s.local+'</td><td>'+s.expat+'</td><td>'+s.apply+'</td><td>'+s.stop+'</td><td>'+s.unionMembers+'</td><td class="money">'+money(s.unionAmount)+'</td><td>'+s.suggestions+'</td><td>'+s.photos+'</td><td>'+s.closed+'</td></tr>'}).join(''):empty(11)};
   window.jumpPeriodV68=function(k){if(k==='all'){PERIOD_MODE='all'}else{var raw=String(k).split('~')[0];if(/^\d{4}$/.test(k))PERIOD_MODE='year';else if(/^\d{4}-\d{2}$/.test(k))PERIOD_MODE='month';else if(k.indexOf('~')>0)PERIOD_MODE='week';else PERIOD_MODE='day';var d=dFrom(raw.length===4?raw+'-01-01':raw.length===7?raw+'-01':raw);if(d)ANCHOR=d}setTab('dashboard');renderAll()};
   window.renderAnalysis=function(){if(ACTIVE_TAB!=='analysis')return;var key=selectedKey(),mode=PERIOD_MODE,field=val('analysisField'),groups={};allDepartments().forEach(function(d){groups[d]=0});if(field==='transport'||field==='accommodation')(STATE.members||[]).filter(function(x){return monthlyOverlap(x.period,mode,key)&&x[field]}).forEach(function(x){groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+1});else if(field==='unionCount'||field==='unionAmount')(STATE.unionDues||[]).filter(function(x){return monthlyOverlap(x.period,mode,key)}).forEach(function(x){groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+(field==='unionAmount'?num(x.amount):1)});else (STATE.suggestions||[]).filter(function(x){return exactIn(x.date||((x.period||'')+'-01'),mode,key)}).forEach(function(x){groups[x.department||tr('unknown')]=(groups[x.department||tr('unknown')]||0)+1});var labels=Object.keys(groups).filter(function(x){return groups[x]}).sort(function(a,b){return groups[b]-groups[a]}).slice(0,20);if(deptChart)deptChart.destroy();if(window.Chart)deptChart=new Chart(document.getElementById('deptChart'),{type:'bar',data:{labels:labels,datasets:[{data:labels.map(function(x){return groups[x]}),backgroundColor:'#24a5a0'}]},options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{beginAtZero:true}}}});var trendKeys=PERIOD_MODE==='day'?Array.from({length:14},function(_,i){return dIso(addD(ANCHOR,i-13))}):PERIOD_MODE==='week'?Array.from({length:12},function(_,i){var s=wkStart(addD(ANCHOR,(i-11)*7));return dIso(s)+'~'+dIso(addD(s,6))}):PERIOD_MODE==='year'?Array.from({length:5},function(_,i){return String(ANCHOR.getFullYear()-4+i)}):Array.from({length:12},function(_,i){return ANCHOR.getFullYear()+'-'+String(i+1).padStart(2,'0')});var trendMode=PERIOD_MODE==='day'?'day':PERIOD_MODE==='week'?'week':PERIOD_MODE==='year'?'year':'month',series=trendKeys.map(function(p){var s=statsFor(p,trendMode,'');return field==='transport'?s.transport:field==='accommodation'?s.accommodation:field==='unionCount'?s.unionMembers:field==='unionAmount'?s.unionAmount:s.suggestions});if(trendChart)trendChart.destroy();if(window.Chart)trendChart=new Chart(document.getElementById('trendChart'),{type:'line',data:{labels:trendKeys.map(function(k){return labelFor(trendMode,k)}),datasets:[{data:series,borderColor:'#e39a17',backgroundColor:'rgba(227,154,23,.18)',fill:true,tension:.25}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}})};
-  window.summaryText=function(code,type,mode){
+  window.summaryOptions=function(code,type,mode){
     mode=mode||PERIOD_MODE;var key=keyFor(mode,ANCHOR);
-    return HRAWelfareReport.format({lang:code,type:type,period:mode==='all'?(code==='en'?'All periods':code==='km'?'រយៈពេលទាំងអស់':'全部期間'):key,stats:statsFor(key,mode,''),context:welfareCtx});
+    return {lang:code,type:type,period:mode==='all'?(code==='en'?'All periods':code==='km'?'រយៈពេលទាំងអស់':'全部期間'):key,stats:statsFor(key,mode,''),context:welfareCtx};
   };
+  window.summaryText=function(code,type,mode){return HRAWelfareReport.format(summaryOptions(code,type,mode));};
+  /* 2026-11-06：中英雙語＝同一張卡片標籤並列（不再中文一整份、英文再一整份） */
+  window.refreshTg=function(){document.getElementById('tgPreview').textContent=summaryText(val('tgLang'),val('tgType'),val('tgPeriod'));};
   window.welfareTgAttachments=function(type,mode){if(!window.HRATelegramEvidence||!(type==='all'||type==='suggestion'))return[];var key=keyFor(mode||PERIOD_MODE,ANCHOR),rows=(STATE.suggestions||[]).filter(function(x){return exactIn(x.date||((x.period||'')+'-01'),mode||PERIOD_MODE,key)});return HRATelegramEvidence.collect(rows,{labelFn:function(x){return(x.department||'Suggestion')+' · '+(x.grievance||'')+' · '+(x.date||x.period||'')}})};
   var welfareSending=false;
   window.sendTelegram=async function(){
     if(welfareSending)return;welfareSending=true;showLoading(LANG==='en'?'Sending…':'發送中…');
     try{
-      refreshTg();var type=val('tgType'),mode=val('tgPeriod')||PERIOD_MODE,key=keyFor(mode,ANCHOR),attachments=welfareTgAttachments(type,mode),message=document.getElementById('tgPreview').textContent,chunks=HRAWelfareReport.split(message),day=dIso(new Date());
+      refreshTg();var type=val('tgType'),mode=val('tgPeriod')||PERIOD_MODE,key=keyFor(mode,ANCHOR),attachments=welfareTgAttachments(type,mode),message=document.getElementById('tgPreview').textContent,chunks=HRAWelfareReport.htmlParts(summaryOptions(val('tgLang'),type,mode)),day=dIso(new Date());
       var content=JSON.stringify({message:message,attachments:attachments,day:day}),hash;
       if(window.crypto&&crypto.subtle){var digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(content));hash=Array.from(new Uint8Array(digest)).map(x=>x.toString(16).padStart(2,'0')).join('');}
       else{var h1=2166136261,h2=5381;for(var i=0;i<content.length;i++){h1=Math.imul(h1^content.charCodeAt(i),16777619);h2=Math.imul(h2,33)^content.charCodeAt(i);}hash=(h1>>>0).toString(36)+'-'+(h2>>>0).toString(36);}
@@ -591,7 +594,7 @@ if(window.HRAAutoSync)HRAAutoSync.install({key:'welfare',pull:cloudPull,push:clo
       var sent=journal.hash===hash&&journal.day===day?journal.parts||{}:{};
       for(var part=0;part<chunks.length;part++){
         if(sent[part])continue;
-        var result=await postGas({action:'telegram',tool:TOOL_ID,module:'welfare',period:key,periodType:mode,messageType:'summary',text:(chunks.length>1?'📄 '+(part+1)+'/'+chunks.length+'\n':'')+esc(chunks[part]),parseMode:'HTML',parse_mode:'HTML',attachments:part===chunks.length-1?attachments:[],idempotencyKey:'welfare-summary|'+hash+'|'+part});
+        var result=await postGas({action:'telegram',tool:TOOL_ID,module:'welfare',period:key,periodType:mode,messageType:'summary',text:(chunks.length>1?'📄 '+(part+1)+'/'+chunks.length+'\n':'')+chunks[part],parseMode:'HTML',parse_mode:'HTML',attachments:part===chunks.length-1?attachments:[],idempotencyKey:'welfare-summary|'+hash+'|'+part});
         var ids=HRAWelfareReport.delivered(result);if(!ids.length)throw new Error(LANG==='en'?'Telegram did not confirm delivery. Retry to continue from this part.':'Telegram 未確認送達；再次發送會從未完成部分繼續。');
         sent[part]=ids;localStorage.setItem(journalKey,JSON.stringify({hash:hash,day:day,parts:sent}));
       }

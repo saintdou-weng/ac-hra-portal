@@ -146,6 +146,60 @@ var HRAContractModel = (function () {
     if(money.length)out.push(L('結算筆數','Settlement records','កំណត់ត្រាទូទាត់')+' '+money.length+' · '+L('應付合計','Total payable','ទឹកប្រាក់សរុប')+' $'+money.reduce(function(n,d){return n+Number(d.settlement.netPay);},0).toFixed(2));
     docs.forEach(function(d){var dep=d.after.department||'—';dept[dep]=(dept[dep]||0)+1;});Object.keys(dept).sort().forEach(function(dep){out.push(L('部門','Department','ផ្នែក')+' '+dep+'：'+dept[dep]);});return out;
   }
-  return {cutoff:CUTOFF,clone:clone,stable:stable,hash:hash,kind:kind,name:name,result:result,snapshot:snapshot,semantic:semantic,identity:identity,ensure:ensure,latest:latest,revision:revision,requestKey:requestKey,edit:edit,merge:merge,mergeRow:mergeRow,historical:historical,receipts:receipts,eligible:eligible,request:request,l:l,pairs:pairs,status:status,chunks:chunks,union:union,summaryHeader:summaryHeader};
+
+  /* 2026-11-06 Paul：試用期／合約摘要改成「先總覽再名單」。
+     總覽：幾人、幾個部門、通過／未通過（比例條）、分數平均／最高／最低、高中低分（顏色）、各部門一行。
+     名單：依部門分組，一人一行「✅ 🟢34 · 工號 姓名」，沒通過才寫備註；有修改才寫「✏️ 分數 30→34」。
+     分數分級 SCORE_BANDS：≥ high 綠、≥ mid 黃、其餘紅（滿分制待 Paul 確認，先用 30／25）。輸出為 Telegram HTML（已跳脫）。 */
+  var SCORE_BANDS={high:30,mid:25};
+  function escH(v){return String(v==null?'':v).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
+  function band(score){var n=Number(score);if(score===null||score===''||!isFinite(n))return {dot:'⚪',k:'none'};return n>=SCORE_BANDS.high?{dot:'🟢',k:'high'}:n>=SCORE_BANDS.mid?{dot:'🟡',k:'mid'}:{dot:'🔴',k:'low'};}
+  function bar(v,total,w){w=w||10;if(!(total>0))return '';var r=Math.max(0,Math.min(1,v/total)),n=Math.round(r*w),b=r>=0.9?'🟩':r>=0.7?'🟨':'🟥',o='';for(var i=0;i<w;i++)o+=i<n?b:'⬜';return o+' '+Math.round(r*100)+'%';}
+  function md(d){d=text(d);return /^\d{4}-\d{2}-\d{2}/.test(d)?d.slice(5,10):d||'—';}
+  function summaryCard(docs,period,lang,actor){
+    var S=function(z,e,k){return lang==='both'||lang==='all3'?(z+' / '+e+(lang==='all3'&&k?' / '+k:'')):l(lang,z,e,k);};
+    var B=function(x){return '<b>'+escH(x)+'</b>';},ppl=S('人','ppl','នាក់'),out=[];
+    var p=docs.filter(function(d){return d.kind==='prob';}),c=docs.filter(function(d){return d.kind==='cont';});
+    var dep=function(d){var a=d.after||{},x=text(a.department)||'—',y=text(a.section);return y&&y.toUpperCase().replace(/\s+/g,'').replace(/^LINE/,'L')!==x.toUpperCase().replace(/\s+/g,'').replace(/^LINE/,'L')?x+'/'+y:x;};
+    var mark={passed:'✅',failed:'❌',pending:'⏳',extended:'↔️'};
+    function groups(list){var m={};list.forEach(function(d){(m[dep(d)]=m[dep(d)]||[]).push(d);});return Object.keys(m).sort(function(a,b){return m[b].length-m[a].length||a.localeCompare(b,undefined,{numeric:true});}).map(function(k){return [k,m[k]];});}
+    function changes(d){if(!d.before||d.operation==='confirm')return '';var a=d.after,keys=['score','result','endDate','evaluationDate','department','section','name','employeeId','contractType','terminationDate'],t={score:S('分數','Score'),result:S('結果','Result'),endDate:S('到期','End'),evaluationDate:S('評估日','Eval'),department:S('部門','Dept'),section:S('組別','Section'),name:S('姓名','Name'),employeeId:S('工號','ID'),contractType:S('類型','Type'),terminationDate:S('終止','Term.')};
+      var nv=function(v){return v==null||v===''?'':String(v);},ch=keys.filter(function(k){return nv(d.before[k])!==nv(a[k]);}).map(function(k){var f=function(v){return k==='result'?status(v,lang):v==null||v===''?'—':String(v);};return t[k]+' '+f(d.before[k])+'→'+f(a[k]);});return ch.length?'\n    ✏️ '+escH(ch.join(' · ')):'';}
+    if(p.length){
+      var cnt=function(r){return p.filter(function(d){return d.after.result===r;}).length;},pass=cnt('passed'),fail=cnt('failed'),pend=cnt('pending'),ext=cnt('extended');
+      var sc=p.map(function(d){return Number(d.after.score);}).filter(function(n){return isFinite(n)&&n>0;});
+      var bands={high:0,mid:0,low:0,none:0};p.forEach(function(x){bands[band(x.after.score).k]++;});
+      var gs=groups(p);
+      out.push('📝 '+B(S('試用期評分','Probation evaluation','ការវាយតម្លៃសាកល្បង'))+' · '+escH(period));
+      out.push('━━━━━━━━━━━━');
+      out.push((fail?'🟠 '+B(S('未通過 '+fail+' 人','Failed '+fail,'ធ្លាក់ '+fail)):pend?'🟡 '+B(S('待評估 '+pend+' 人','Pending '+pend,'រង់ចាំ '+pend)):'🟢 '+B(S('全部通過','All passed','ជាប់ទាំងអស់'))));
+      out.push('👥 '+B(p.length)+' '+ppl+' · 🏢 '+B(gs.length)+' '+S('部門','depts','ផ្នែក'));
+      out.push('✅ '+S('通過','Passed','ជាប់')+' '+B(pass)+' · ❌ '+S('未通過','Failed','ធ្លាក់')+' '+B(fail)+(pend?' · ⏳ '+S('待評估','Pending','រង់ចាំ')+' '+B(pend):'')+(ext?' · ↔️ '+S('延長','Extended','ពន្យារ')+' '+B(ext):''));
+      out.push(bar(pass,p.length)+' '+S('通過','passed','ជាប់'));
+      if(sc.length){var avg=sc.reduce(function(a,b){return a+b;},0)/sc.length;out.push('📊 '+S('分數','Score','ពិន្ទុ')+' · '+S('平均','avg','មធ្យម')+' '+B(Math.round(avg*10)/10)+' · '+S('最高','max','ខ្ពស់')+' '+B(Math.max.apply(null,sc))+' · '+S('最低','min','ទាប')+' '+B(Math.min.apply(null,sc)));
+        out.push('🟢 '+S('高','High','ខ្ពស់')+' ≥'+SCORE_BANDS.high+' '+B(bands.high)+' · 🟡 '+S('中','Mid','មធ្យម')+' '+SCORE_BANDS.mid+'–'+(SCORE_BANDS.high-1)+' '+B(bands.mid)+' · 🔴 '+S('低','Low','ទាប')+' &lt;'+SCORE_BANDS.mid+' '+B(bands.low)+(bands.none?' · ⚪ '+S('無分數','no score','គ្មាន')+' '+B(bands.none):''));}
+      out.push('');out.push('━━ 🏢 '+B(S('部門','Departments','ផ្នែក'))+' ━━');
+      gs.forEach(function(g){var l2=g[1],ss=l2.map(function(x){return Number(x.after.score);}).filter(function(n){return isFinite(n)&&n>0;}),f=l2.filter(function(x){return x.after.result==='failed';}).length,ok=l2.filter(function(x){return x.after.result==='passed';}).length,o=l2.length-f-ok;
+        out.push('▸ '+B(g[0])+' · '+l2.length+' '+ppl+' · '+(ok?'✅'+ok:'')+(f?' ❌'+f:'')+(o?' ⏳'+o:'')+(ss.length?' · '+S('均','avg','មធ្យម')+' '+(Math.round(ss.reduce(function(a,b){return a+b;},0)/ss.length*10)/10):''));});
+      out.push('');out.push('━━ 👤 '+B(S('名單','List','បញ្ជី'))+' ━━');
+      gs.forEach(function(g){out.push('<b>'+escH(g[0])+'</b>');g[1].slice().sort(function(a,b){return (Number(b.after.score)||0)-(Number(a.after.score)||0);}).forEach(function(x){var a=x.after,bd=band(a.score);
+        out.push((a.deleted?'🗑':mark[a.result]||'•')+' '+bd.dot+(a.score==null||a.score===''?'—':escH(a.score))+' · '+escH(a.employeeId||'—')+' '+escH(a.name||'—')+(a.result!=='passed'&&a.notes?' · '+escH(a.notes):'')+(a.result==='pending'&&a.endDate?' · '+S('到期','end','ផុត')+' '+md(a.endDate):'')+changes(x));});});
+    }
+    if(c.length){
+      if(out.length)out.push('');
+      var money=c.filter(function(d){return d.settlement&&d.settlement.netPay!=null;}),tot=money.reduce(function(n,d){return n+Number(d.settlement.netPay||0);},0),cg=groups(c),st={};c.forEach(function(d){var k=d.after.result||'active';st[k]=(st[k]||0)+1;});
+      out.push('📄 '+B(S('合約','Contracts','កិច្ចសន្យា'))+' · '+escH(period));out.push('━━━━━━━━━━━━');
+      out.push('👥 '+B(c.length)+' '+ppl+' · 🏢 '+B(cg.length)+' '+S('部門','depts','ផ្នែក')+(money.length?' · 💵 '+B('$'+tot.toFixed(2))+' ('+money.length+')':''));
+      out.push(Object.keys(st).map(function(k){return escH(status(k,lang))+' '+B(st[k]);}).join(' · '));
+      out.push('▸ '+cg.map(function(g){return escH(g[0])+' '+g[1].length;}).join(' · '));
+      out.push('');out.push('━━ 👤 '+B(S('名單','List','បញ្ជី'))+' ━━');
+      cg.forEach(function(g){out.push('<b>'+escH(g[0])+'</b>');g[1].forEach(function(x){var a=x.after,net=x.settlement&&x.settlement.netPay!=null?' · 💵 $'+Number(x.settlement.netPay).toFixed(2):'';
+        out.push((a.deleted?'🗑 ':'📄 ')+escH(a.employeeId||'—')+' '+escH(a.name||'—')+' · '+S('到期','end','ផុត')+' '+md(a.endDate)+' · '+escH(status(a.result,lang))+net+changes(x));});});
+    }
+    if(!docs.length)out.push(escH(S('沒有資料','No records','គ្មានទិន្នន័យ')));
+    out.push('');out.push('🔎 '+B(S('已核對','Verified','បានផ្ទៀងផ្ទាត់'))+' ✓ · '+docs.length+' '+S('筆','records','កំណត់ត្រា')+(actor?' · 👤 '+escH(actor):''));
+    return out;
+  }
+  return {summaryCard:summaryCard,scoreBands:SCORE_BANDS,cutoff:CUTOFF,clone:clone,stable:stable,hash:hash,kind:kind,name:name,result:result,snapshot:snapshot,semantic:semantic,identity:identity,ensure:ensure,latest:latest,revision:revision,requestKey:requestKey,edit:edit,merge:merge,mergeRow:mergeRow,historical:historical,receipts:receipts,eligible:eligible,request:request,l:l,pairs:pairs,status:status,chunks:chunks,union:union,summaryHeader:summaryHeader};
 })();
 if(typeof module!=='undefined'&&module.exports)module.exports=HRAContractModel;
