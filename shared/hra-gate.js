@@ -55,3 +55,6 @@
   /* 會整個重建 <body> 的頁面（切語言）也不能把鎖弄掉 */
   setInterval(function () { if (!ok() && doc.body && !doc.getElementById('hra-gate')) show(); }, 800);
 })(window);
+
+/* 表格搜尋＋手機排版（每頁都會載入閘門，所以從這裡帶進來） */
+(function(){try{var d=document,s=d.createElement("script");s.src=(d.currentScript&&d.currentScript.src?d.currentScript.src.replace(/[^\/]*$/,""):"shared/")+"table-find.js?v=1";s.defer=true;(d.head||d.documentElement).appendChild(s)}catch(e){}})();
