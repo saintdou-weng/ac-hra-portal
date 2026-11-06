@@ -199,7 +199,7 @@ var HRAContractModel = (function () {
         out.push((a.deleted?'🗑 ':'📄 ')+escH(a.employeeId||'—')+' '+escH(a.name||'—')+' · '+S('到期','end','ផុត')+' '+md(a.endDate)+' · '+escH(status(a.result,lang))+net+changes(x));});});
     }
     if(!docs.length)out.push(escH(S('沒有資料','No records','គ្មានទិន្នន័យ')));
-    out.push('');out.push('🔎 '+B(S('已核對','Verified','បានផ្ទៀងផ្ទាត់'))+' ✓ · '+docs.length+' '+S('筆','records','កំណត់ត្រា')+(actor?' · 👤 '+escH(actor):''));
+    out.push('');out.push('🔎 '+B(S('已核對','Verified','បានផ្ទៀងផ្ទាត់'))+' ✓ · '+docs.length+' '+S('筆','records','កំណត់ត្រា'));  /* 檢查人由 GAS 蓋章，不重複 */
     return out;
   }
   return {summaryCard:summaryCard,scoreBands:SCORE_BANDS,scoreMax:SCORE_MAX,band:band,cutoff:CUTOFF,clone:clone,stable:stable,hash:hash,kind:kind,name:name,result:result,snapshot:snapshot,semantic:semantic,identity:identity,ensure:ensure,latest:latest,revision:revision,requestKey:requestKey,edit:edit,merge:merge,mergeRow:mergeRow,historical:historical,receipts:receipts,eligible:eligible,request:request,l:l,pairs:pairs,status:status,chunks:chunks,union:union,summaryHeader:summaryHeader};
