@@ -136,6 +136,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
 <!-- v58 Attendance Telegram compact non-zero leave display -->
 <script src="shared/hra-report.js?v=2" defer></script>
+<script src="shared/att-tg.js?v=2"></script>
 </head>
 <body>
 
@@ -1349,6 +1350,12 @@ function genTelegram(mode){
   document.getElementById('tgModal').style.display='flex';
 }
 function buildTelegramSummary(mode,key,lang){
+  /* 2026-11-12 Paul：摘要改短版（shared/att-tg.js）——色條、色點、假別簡寫、部門一行、已核對正確 */
+  if(window.HRAAttTg){
+    const ds=periodDates(telegramModeKey(mode),key),days=ds.map(d=>({date:d,rows:attDedupeRows(rowsForDate(d))}));
+    let pl=key;if(mode==='weekly'&&ds.length)pl=ds[0].slice(5).replace('-','/')+' ~ '+ds[ds.length-1].slice(5).replace('-','/');
+    return HRAAttTg.build({mode,lang:lang==='km'?'en':lang,key,periodLabel:pl,days});
+  }
   const grain=telegramModeKey(mode);
   const dates=periodDates(grain,key);
   const x=attendancePeriodMetrics(grain,key);

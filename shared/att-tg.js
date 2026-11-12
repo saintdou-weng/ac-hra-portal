@@ -1,6 +1,6 @@
 /* AC HRA 考勤 Telegram 摘要 v1（2026-11-12）
    Paul：學生產摘要——短、色條、色點、假別只留簡寫（AL/PL/SL/NP/ML…），數字正確就寫「已核對正確」。
-   人車比＝全廠人數 ÷ 車工（例 1.6 ＝ 每 1 個車工配 0.6 個間接人員）。
+   人車比＝1 個車工配幾個間接人員（間接 ÷ 車工），寫成「1 : 0.60」。
    部門分組不重疊：全廠總計 → 部門小計（加總要等於全廠）→ 其下各組小計 ＋ 其餘。
    純函式：頁面和 GAS 都可用。輸入 days=[{date, rows:[當天所有列]}]，輸出 Telegram HTML。 */
 (function(root){
@@ -88,7 +88,8 @@
     L.push(bar(rate));
     L.push('👥 '+avgTag+r1(hc)+' '+lab(lang,'人','ppl')+' · ✅ '+lab(lang,'出勤','att.')+' '+r1(att/D)+' · 📋 '+lab(lang,'請假','leave')+' '+r1(sum(G,function(x){return leave(x.g);})/D)+(lv.np?' · ⚠️ NP '+r1(lv.np/D):''));
     if(hc>0)L.push('👩 '+r1(F)+' ('+pc(F/hc,0)+') · 👨 '+r1(M)+' ('+pc(M/hc,0)+')');
-    if(S>0)L.push('🧵 '+lab(lang,'車工','Sewers')+' '+r1(S)+' · '+lab(lang,'間接','Indirect')+' '+r1(ST-S)+' · <b>'+lab(lang,'人車比','Ratio')+' '+(ST/S).toFixed(2)+'</b>');
+    /* 人車比：1 個車工配幾個間接人員（間接 ÷ 車工） */
+    if(S>0)L.push('🧵 '+lab(lang,'車工','Sewers')+' '+r1(S)+' · '+lab(lang,'間接','Indirect')+' '+r1(ST-S)+' · <b>'+lab(lang,'人車比','Ratio')+' 1 : '+((ST-S)/S).toFixed(2)+'</b>');
     L.push('🔄 '+lab(lang,'入','Join')+' '+join+' · '+lab(lang,'離','Resign')+' '+res+(hc>0?' · '+lab(lang,'流失','turnover')+' '+pc(res/hc,2):''));
     var lc=leaveCodes(lv);if(lc)L.push('📋 '+(daily?'':lab(lang,'人次 ','person-days '))+lc);
     /* 期間明細：週＝每天一行；月＝每週；年＝每月 */
@@ -109,8 +110,8 @@
     /* 核對 */
     var ok=G.every(function(x){if(!x.gr.exact)return false;var gs=x.gr.groups;return Math.abs(sum(gs,ttl)-ttl(x.g))<0.5&&Math.abs(sum(gs,function(g){return n(g.att);})-n(x.g.att))<0.5;});
     L.push('');
-    L.push(ok?'🔎 ✅ '+lab(lang,'部門加總＝全廠（人數、出勤）· 出勤率＝','Departments = factory (headcount, attendance) · rate = ')+att+'÷'+rep+' · '+lab(lang,'已核對正確','verified')
-             :'🔎 ⚠️ '+lab(lang,'部門加總與全廠不一致，請看平台','Department totals differ from factory — check the platform')+' · '+lab(lang,'出勤率＝','rate = ')+att+'÷'+rep);
+    L.push(ok?'🔎 ✅ <b>'+lab(lang,'已核對正確','Verified')+'</b> · '+lab(lang,'部門加總＝全廠','depts = factory')+' · '+att+' ÷ '+rep+' = '+pc(rate)
+             :'🔎 ⚠️ <b>'+lab(lang,'部門加總與全廠不一致，請看平台','Dept totals ≠ factory — check platform')+'</b> · '+att+' ÷ '+rep+' = '+pc(rate));
     return L.join('\n');
   }
   var api={build:build,groupsForDay:groupsForDay,isSewingLine:isSewingLine};
