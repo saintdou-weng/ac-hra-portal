@@ -1,4 +1,4 @@
-/* v73 (2026-11-12)：交通車每台車載客色標——限 25–30 人，>30 🔴 超載、<15 🟡 偏少、其餘 🟢。
+/* v73 (2026-11-12)：交通車每台車載客色標——15–25 🟢；26–30、10–14 🟡；>30、<10 🔴；加全廠部門／職位總覽與每台車職位。
    v72 (2026-11-06)：交通車改成每台車一段（部門各幾人、男女、年資列表）；柬文一律英柬並列。
    v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
    v70: welfare Telegram cards rebuilt — union dues / transport / accommodation / suggestion box as separate cards,
@@ -61,8 +61,10 @@
   /* ── 2026-11-06 Paul：摘要先總覽（人數、車數、部門、比例條），名單不逐人列；只列新增／停止／未付 ── */
   var DOT=['🔵','🟢','🟠','🟣','🔴','🟡','🟤','⚫'],SQ=['🟦','🟩','🟧','🟪','🟥','🟨','🟫','⬛'],CAR=['🚌','🚐','🚎','🚙','🛻','🚕','🚗','🚚'];
   function bar(v,total,w,sq){w=w||10;total=Number(total)||0;v=Number(v)||0;if(total<=0)return '';var r=Math.max(0,Math.min(1,v/total)),n=Math.round(r*w),b=sq||(r>=0.9?'🟩':r>=0.7?'🟨':'🟥'),o='';for(var i=0;i<w;i++)o+=i<n?b:'⬜';return o+' '+Math.round(r*100)+'%';}
-  function capTone(n){return n>30?'🔴':n<15?'🟡':'🟢';}
-  function capBar(n){var sq=n>30?'🟥':n<15?'🟨':'🟩',k=Math.max(1,Math.min(10,Math.round(n/30*10))),o='';for(var i=0;i<10;i++)o+=i<k?sq:'⬜';return o+' '+Math.round(n/30*100)+'%';}
+  /* Paul 11/12 第二次定：15–25 🟢；26–30、10–14 🟡；>30、<10 🔴 */
+  function capTone(n){return (n>30||n<10)?'🔴':(n>25||n<15)?'🟡':'🟢';}
+  function capWord(lang,n){return n>30?L(lang,'超載 +'+(n-30),'over by '+(n-30),'លើស '+(n-30)):n<10?L(lang,'太少（未滿 10）','too few (under 10)','តិចពេក (<10)'):n>25?L(lang,'接近滿載','near full','ជិតពេញ'):n<15?L(lang,'偏少（未滿 15）','low (under 15)','តិច (<15)'):L(lang,'正常','OK','ធម្មតា');}
+  function capBar(n){var t=capTone(n),sq=t==='🔴'?'🟥':t==='🟡'?'🟨':'🟩',k=Math.max(1,Math.min(10,Math.round(n/30*10))),o='';for(var i=0;i<10;i++)o+=i<k?sq:'⬜';return o+' '+Math.round(n/30*100)+'%';}
   function sec(icon,title){return '━━ '+icon+' '+bold(title)+' ━━';}
   function countBy(rows,fn){var m={};rows.forEach(function(r){var k=fn(r);m[k]=(m[k]||0)+1;});return m;}
   function sortedKeys(m){return Object.keys(m).sort(function(a,b){return m[b]-m[a]||a.localeCompare(b,undefined,{numeric:true});});}
@@ -97,8 +99,8 @@
     var out=[header('🚌',L(lang,'交通車','Transport','ដឹកជញ្ជូន'),period)];
     out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🚐 '+L(lang,'車輛','Vehicles','ឡាន')+' '+bold(vk.filter(function(k){return k!==none;}).length)+' · 🆕 '+bold('+'+added.length)+' · ⛔ '+bold('−'+stopped.length));
     if(s.transport!==undefined&&Number(s.transport)!==rows.length)out.push('📑 '+L(lang,'月摘要寫','Monthly summary says','សង្ខេបខែ')+' '+bold(s.transport)+' · '+L(lang,'名單','roster','បញ្ជី')+' '+bold(rows.length));
-    {var real=vk.filter(function(k){return k!==none;}),over=real.filter(function(k){return vm[k]>30;}),low=real.filter(function(k){return vm[k]<15;});
-     if(real.length)out.push('🚦 '+L(lang,'載客（限 25–30）','Load (limit 25–30)','ចំនួនអ្នកជិះ (25–30)')+'：🟢 '+bold(real.length-over.length-low.length)+' · 🔴 '+L(lang,'超載','over','លើស')+' '+bold(over.length)+(over.length?'（'+over.map(function(k){return k+' '+vm[k];}).join('、')+'）':'')+' · 🟡 '+L(lang,'偏少','low','តិច')+' '+bold(low.length)+(low.length?'（'+low.map(function(k){return k+' '+vm[k];}).join('、')+'）':''));}
+    {var real=vk.filter(function(k){return k!==none;}),red=real.filter(function(k){return capTone(vm[k])==='🔴';}),yel=real.filter(function(k){return capTone(vm[k])==='🟡';}),nm=function(l){return l.length?'（'+l.map(function(k){return k+' '+vm[k];}).join('、')+'）':'';};
+     if(real.length)out.push('🚦 '+L(lang,'載客','Load','ចំនួនអ្នកជិះ')+'：🟢 '+bold(real.length-red.length-yel.length)+' · 🟡 '+bold(yel.length)+nm(yel)+' · 🔴 '+bold(red.length)+nm(red)+'\n   '+L(lang,'15–25 綠 · 26–30／10–14 黃 · 超過 30／不到 10 紅','15–25 green · 26–30 / 10–14 yellow · over 30 / under 10 red','15–25 បៃតង · 26–30 / 10–14 លឿង · >30 / <10 ក្រហម'));}
     out.push(verify(lang,rows,ctx));
     /* 2026-11-06 Paul：每台車列出坐哪些部門各幾人、男女、年資（列表式，不列員工名字） */
     var ref=/^\d{4}-\d{2}$/.test(period)?new Date(+period.slice(0,4),+period.slice(5,7),0):/^\d{4}$/.test(period)?new Date(+period,11,31):new Date();
@@ -108,12 +110,17 @@
     function mf(m){var f=m.filter(function(r){return sex(r)==='F';}).length,ma=m.filter(function(r){return sex(r)==='M';}).length,u=m.length-f-ma;return '👩'+f+' 👨'+ma+(u?' ❔'+u:'');}
     function tenure(m){var t=TEN.map(function(x){return [x[2],m.filter(function(r){var y=yrs(r);return y!=null&&y>=x[0]&&y<x[1];}).length];}),u=m.filter(function(r){return yrs(r)==null;}).length;return t.filter(function(x){return x[1];}).map(function(x){return x[0]+' '+x[1];}).join(' · ')+(u?' · ❔'+u:'');}
     if(rows.length)out.push('👩 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 👨 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
+    var posOf=function(r){return text(ctx(r).position)||'';},posLine=function(m,max){var pm=countBy(m.filter(posOf),posOf),pk=sortedKeys(pm);if(!pk.length)return '';return pk.slice(0,max).map(function(p){return p+' '+pm[p];}).join(' · ')+(pk.length>max?' · +'+(pk.length-max):'');};
+    if(rows.length){var adm=countBy(rows,function(r){return place(ctx(r))||'—';}),adk=sortedKeys(adm);
+      out.push('🏢 '+L(lang,'部門','Depts','ផ្នែក')+' '+bold(adk.length)+'：'+adk.slice(0,16).map(function(d){return d+' '+adm[d];}).join(' · ')+(adk.length>16?' · +'+(adk.length-16):''));
+      var apl=posLine(rows,8);if(apl)out.push('💼 '+L(lang,'職位','Positions','មុខតំណែង')+'：'+apl);}
     vk.forEach(function(k){
       var m=rows.filter(function(r){return veh(r)===k;}),dm=countBy(m,function(r){return place(ctx(r))||'—';}),dk=sortedKeys(dm);
-      /* 2026-11-12 Paul：公司車以 25–30 人為限。>30 🔴 超載；<15 🟡 警訊（坐太少）；15–30 🟢 */
-      var cap=k===none?null:capTone(m.length),capTxt=cap==null?'':' · '+cap+' '+(m.length>30?L(lang,'超載 +'+(m.length-30),'over by '+(m.length-30),'លើស '+(m.length-30)):m.length<15?L(lang,'偏少（未滿 15）','low (under 15)','តិច (<15)'):m.length>=25?L(lang,'滿載範圍','full range','ពេញ'):L(lang,'正常','OK','ធម្មតា'));
+      /* 2026-11-12 Paul：每台車載客色標（15–25 綠；26–30、10–14 黃；>30、<10 紅） */
+      var cap=k===none?null:capTone(m.length),capTxt=cap==null?'':' · '+cap+' '+capWord(lang,m.length);
       var blk=[dot(k)+icon(k)+' '+bold(k)+' · '+bold(m.length)+' '+L(lang,'人','ppl','នាក់')+(k===none?'':' / 30')+capTxt+'\n'+(k===none?bar(m.length,rows.length,10,'⬜'):capBar(m.length)),
         '   '+mf(m)+' · ⏳ '+tenure(m)];
+      var pl=posLine(m,6);if(pl)blk.push('   💼 '+pl);
       dk.forEach(function(d,i){var dd=m.filter(function(r){return (place(ctx(r))||'—')===d;});blk.push('   '+(i===dk.length-1?'└ ':'├ ')+d+' · '+bold(dm[d])+' ('+mf(dd).replace(/ ❔\d+/,'')+')');});
       out.push(blk.join('\n'));
     });
