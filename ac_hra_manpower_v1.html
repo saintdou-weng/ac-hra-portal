@@ -3396,7 +3396,9 @@ async function submitMovementToOnboardingApproval(rows,period){
 /* 2026-11-12 Paul：人力摘要改短版——需求／已補／尚缺一行＋色條，部門一行一個（🟢 補滿 🟡 ≥80% 🔴 <80%），入離職一行，數字對得上只寫「已核對正確」。 */
 function buildTelegramHtml(){
   const state=tgPeriodState(),lang=el('tgLanguage').value,m=metricsForState(state),label=el('tgPeriod').value||pLabel(state),B=(z,e)=>tgBi(z,e,lang);
-  const tone=(req,fil)=>req<=0?'⚪':fil>=req?'🟢':fil/req>=0.8?'🟡':'🔴',bar=(req,fil)=>{if(req<=0)return '';const k=Math.max(0,Math.min(10,Math.round(fil/req*10))),sq=fil>=req?'🟩':fil/req>=0.8?'🟨':'🟥';let o='';for(let x=0;x<10;x++)o+=x<k?sq:'⬜';return o;};
+  /* Paul 11/12：需求 ≥30 人補到 90% 就綠；10–29 人要 95%；不到 10 人要 100% 才綠。黃＝再往下到 70%（大宗 80%），其餘紅 */
+  const grade=(req,fil)=>{if(req<=0)return 0;const r=fil/req;if(req>=30)return r>=0.9?3:r>=0.8?2:1;if(req>=10)return r>=0.95?3:r>=0.8?2:1;return r>=1?3:r>=0.7?2:1;};
+  const tone=(req,fil)=>['⚪','🔴','🟡','🟢'][grade(req,fil)],bar=(req,fil)=>{if(req<=0)return '';const k=Math.max(0,Math.min(10,Math.round(fil/req*10))),sq=['⬜','🟥','🟨','🟩'][grade(req,fil)];let o='';for(let x=0;x<10;x++)o+=x<k?sq:'⬜';return o;};
   let t=`👥 <b>${B('VRT 人力摘要','VRT Manpower Summary')}</b> · ${esc(label)}\n━━━━━━━━━━━━\n`;
   const chkBad=[];let checked=0;
   if(el('tgPlan').checked){
@@ -3412,7 +3414,7 @@ function buildTelegramHtml(){
   if(el('tgDept').checked&&el('tgPlan').checked){
     const latest=latestPlanRows(plansForState(state,true)),dm={};latest.forEach(r=>{const d=String(r.dept||r.section||'—').replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'L$1'),p=planProgress(r);if(!dm[d])dm[d]={required:0,filled:0};dm[d].required+=n(r.required);dm[d].filled+=p.filled;});
     const rows=Object.entries(dm).map(([d,v])=>({d,...v,gap:v.required-v.filled})).sort((a,b)=>b.gap-a.gap);
-    if(rows.length){t+=`\n🏢 <b>${B('各部門','By department')}</b>（🟢 ${B('補滿','filled')} 🟡 ≥80% 🔴 &lt;80%）\n`;rows.slice(0,12).forEach(r=>{t+=`${tone(r.required,r.filled)} <b>${esc(r.d)}</b> ${B('需','need')} ${fmt(r.required)} · ${B('補','filled')} ${fmt(r.filled)} · ${B('缺','gap')} <b>${fmt(r.gap)}</b>\n`;});if(rows.length>12)t+=`… +${rows.length-12}\n`;
+    if(rows.length){t+=`\n🏢 <b>${B('各部門','By department')}</b>\n<i>${B('🟢 需求 30 人以上補 90%、10–29 人補 95%、不到 10 人補滿','🟢 need ≥30: 90% · 10–29: 95% · under 10: 100%')}</i>\n`;rows.slice(0,12).forEach(r=>{t+=`${tone(r.required,r.filled)} <b>${esc(r.d)}</b> ${B('需','need')} ${fmt(r.required)} · ${B('補','filled')} ${fmt(r.filled)} · ${B('缺','gap')} <b>${fmt(r.gap)}</b> · ${r.required>0?Math.round(r.filled/r.required*100):0}%\n`;});if(rows.length>12)t+=`… +${rows.length-12}\n`;
       const sr=rows.reduce((a,r)=>a+r.required,0);checked++;if(Math.abs(sr-n(m.required))>=0.5)chkBad.push(`${B('部門需求加總','Dept required sum')} ${fmt(sr)} ≠ ${B('總需求','total')} ${fmt(m.required)}`);}
   }
   if(el('tgRecruit').checked){const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?12:5);}

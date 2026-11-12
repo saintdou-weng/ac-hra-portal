@@ -1,4 +1,4 @@
-/* v76 (2026-11-12)：男女不用人像（🚺 女／🚹 男）；Line1 寫 L1；每台車部門列改等寬對齊、依組別順序。
+/* v76 (2026-11-12)：男女不用人像（🩷 女／🩵 男）；Line1 寫 L1；每台車部門列改等寬對齊、依組別順序。
    v73 (2026-11-12)：交通車每台車載客色標——15–25 🟢；26–30、10–14 🟡；>30、<10 🔴；加全廠部門／職位總覽與每台車職位。
    v72 (2026-11-06)：交通車改成每台車一段（部門各幾人、男女、年資列表）；柬文一律英柬並列。
    v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
@@ -118,9 +118,9 @@
     var TEN=[[0,1,'<1y'],[1,3,'1–3y'],[3,5,'3–5y'],[5,99,'5y+']];
     var FW=L(lang,'女','F','ស្រី'),MW=L(lang,'男','M','ប្រុស');if(lang==='both'){FW='女';MW='男';}
     function mfn(m){var f=m.filter(function(r){return sex(r)==='F';}).length,ma=m.filter(function(r){return sex(r)==='M';}).length;return [f,ma,m.length-f-ma];}
-    function mf(m){var x=mfn(m);return '🚺 '+FW+' '+x[0]+' · 🚹 '+MW+' '+x[1]+(x[2]?' · ❔'+x[2]:'');}
+    function mf(m){var x=mfn(m);return '🩷 '+FW+' '+x[0]+' · 🩵 '+MW+' '+x[1]+(x[2]?' · ❔'+x[2]:'');}
     function tenure(m){var t=TEN.map(function(x){return [x[2],m.filter(function(r){var y=yrs(r);return y!=null&&y>=x[0]&&y<x[1];}).length];}),u=m.filter(function(r){return yrs(r)==null;}).length;return t.filter(function(x){return x[1];}).map(function(x){return x[0]+' '+x[1];}).join(' · ')+(u?' · ❔'+u:'');}
-    if(rows.length)out.push('🚺 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 🚹 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
+    if(rows.length)out.push('🩷 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 🩵 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
     var posOf=function(r){var p=text(ctx(r).position).replace(/\s+/g,' ');return /^[\x00-\x7f]+$/.test(p)?p.split(' ').map(function(w){return w.length<=3&&w===w.toUpperCase()?w:w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();}).join(' '):p;},posLine=function(m,max){var pm=countBy(m.filter(posOf),posOf),pk=sortedKeys(pm);if(!pk.length)return '';return pk.slice(0,max).map(function(p){return p+' '+pm[p];}).join(' · ')+(pk.length>max?' · +'+(pk.length-max):'');};
     if(rows.length){var adm=countBy(rows,function(r){return place(ctx(r))||'—';}),adk=Object.keys(adm).sort(lineSort);
       out.push('🏢 '+L(lang,'部門','Depts','ផ្នែក')+' '+bold(adk.length)+'：'+adk.slice(0,16).map(function(d){return d+' '+adm[d];}).join(' · ')+(adk.length>16?' · +'+(adk.length-16):''));
