@@ -16,7 +16,8 @@
   function clean(s){return String(s||'').replace(/小計|subtotal/gi,'').replace(/\s+/g,' ').trim();}
   function dot(rate){return rate==null?'⚪':rate>=0.95?'🟢':rate>=0.90?'🟡':'🔴';}
   function sq(rate){return rate==null?'⬜':rate>=0.95?'🟩':rate>=0.90?'🟨':'🟥';}
-  function bar(rate,w){w=w||10;if(rate==null)return '';var k=Math.round(Math.max(0,Math.min(1,rate))*w),o='';for(var i=0;i<w;i++)o+=i<k?sq(rate):'⬜';return o;}
+  /* 色條刻度 80%→100%（出勤率都在 9 成上下，從 0 畫起每天都一樣長，看不出差別） */
+  function bar(rate,w){w=w||10;if(rate==null)return '';var k=Math.max(1,Math.round(Math.max(0,Math.min(1,(rate-0.8)/0.2))*w)),o='';for(var i=0;i<w;i++)o+=i<k?sq(rate):'⬜';return o;}
   function pc(v,d){return v==null||!isFinite(v)?'—':(v*100).toFixed(d==null?1:d)+'%';}
   function r1(v){return Math.round(v*10)/10;}
   function isSewingLine(r){
