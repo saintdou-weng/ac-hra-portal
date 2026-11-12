@@ -177,7 +177,8 @@ function ensureWeeklyAttTrigger71_() {
     var tin=sum(G,function(x){return n(x.g.ti);}),tout=sum(G,function(x){return n(x.g.to);});
     L.push('🔄 '+lab(lang,'入','Join')+' <b>+'+join+'</b> · '+lab(lang,'離','Resign')+' <b>−'+res+'</b>'+(hc>0?' · '+lab(lang,'流失','turnover')+' '+pc(res/hc,2):'')+((tin||tout)?' · '+lab(lang,'調動','Transfer')+' +'+tin+'/−'+tout:''));
     {var jm={},rm={},who=function(r){return isSewingLine(r)?lab(lang,'車工','Sewer')+' '+lineName(r):String(r.sect||r.line||r.dept||'—').replace(/\s*[/／].*$/,'').trim();};
-     G.forEach(function(x){(x.rows||[]).forEach(function(r){if(r.isGrand||r.isSubtotal)return;if(n(r.join)>0)jm[who(r)]=(jm[who(r)]||0)+n(r.join);if(n(r.resign)>0)rm[who(r)]=(rm[who(r)]||0)+n(r.resign);});});
+     /* 「Shop A sewing Section｜A section」這一列其實是車工小計（數字和車工小計完全一樣），當天有各組明細時不重複算 */
+     G.forEach(function(x){var hasLines=(x.rows||[]).some(isSewingLine);(x.rows||[]).forEach(function(r){if(r.isGrand||r.isSubtotal)return;if(hasLines&&/sewing/i.test(String(r.sect||''))&&/section\s*$/i.test(String(r.line||'')))return;if(n(r.join)>0)jm[who(r)]=(jm[who(r)]||0)+n(r.join);if(n(r.resign)>0)rm[who(r)]=(rm[who(r)]||0)+n(r.resign);});});
      var last=G[G.length-1].date,ym=last.slice(0,7),MD=(opt.monthDays||[]).filter(function(d){return d.date.slice(0,7)===ym&&d.date<=last;}).map(function(d){return d.rows.filter(function(r){return r.isGrand;})[0];}).filter(Boolean);
      if(MD.length){var mj=sum(MD,function(g){return n(g.join);}),mr=sum(MD,function(g){return n(g.resign);});L.push('   📆 '+lab(lang,'本月累計','Month to date')+'（'+ym.slice(5)+'/01–'+last.slice(5).replace('-','/')+'）：'+lab(lang,'入','Join')+' <b>+'+mj+'</b> · '+lab(lang,'離','Resign')+' <b>−'+mr+'</b> · '+lab(lang,'淨','Net')+' '+(mj-mr>0?'+':'')+(mj-mr));}}
      /* 少的時候一行寫完；多的時候（週／月／年報）排成表：入、離、名稱，車縫組照 L1…排，其餘照人數 */
