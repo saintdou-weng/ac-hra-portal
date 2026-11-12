@@ -2478,7 +2478,7 @@ function obLine_(map,fmtFn,max){
   return out.join(' · ');
 }
 function joinBlock(J,bi){
-  var h=obHead_(J), dm={}; J.forEach(function(r){var k=obDeptKey_(r.dept||lineOf(r));dm[k]=(dm[k]||0)+1;});
+  var h=obHead_(J), dm={}; J.forEach(function(r){var k=obDeptKey_(lineOf(r)||r.dept);dm[k]=(dm[k]||0)+1;});   /* 2026-11-13：用組別／課別，部門欄幾乎全是 Production 看不出東西 */
   var ppl=esc(BL('人','ppl','នាក់',bi));
   var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+' '+J.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(J.length-h.sew)+((h.f+h.m)?' · 🚺 '+esc(BL('女','F','ស្រី',bi))+' '+h.f+' 🚹 '+esc(BL('男','M','ប្រុស',bi))+' '+h.m:'')+'\n';
   if(J.length)t+='🏢 <b>'+esc(BL('各部門','By department','តាមផ្នែក',bi))+'</b> · '+esc(BL('人數／單位','headcount / unit','ចំនួន',bi))+'\n'+obTable_(dm,function(k){return [dm[k]];});
@@ -2490,15 +2490,20 @@ function joinPayBlock(J,bi){
   var rows=J.map(function(r){return {r:r,p:joinPayOf(r)};}), ok=rows.filter(function(x){return x.p.ok;}), tot=ok.reduce(function(s,x){return s+(x.p.total||0);},0), ver=ok.filter(function(x){return x.p.verified===true;}).length;
   if(!ok.length)return '💵 ⚠️ '+esc(rows[0].p.calc||'')+'\n';
   var t='💵 <b>'+esc(BL('起薪','Starting pay','ប្រាក់ខែចាប់ផ្តើម',bi))+' $'+fmt(tot)+'</b> · '+esc(BL('平均','avg','មធ្យម',bi))+' $'+fmt(tot/ok.length)+' ('+ok.length+'/'+J.length+')\n';
-  ok.slice(0,15).forEach(function(x){ t+=(x.p.verified===true?'🟢':'🟡')+' '+esc(x.r.empId||'')+' '+esc(x.r.name||'—')+' · <b>$'+fmt(x.p.total)+'</b>\n'; });
-  if(ok.length>15)t+='… +'+(ok.length-15)+'\n';
-  if(ver!==J.length)t+='⚠️ '+esc(BL('起薪待確認','Starting pay to check','ត្រូវពិនិត្យ',bi))+' '+(J.length-ver)+'/'+J.length+CL()+esc(rows.filter(function(x){return x.p.verified!==true;}).slice(0,4).map(function(x){return (x.r.empId||'')+' '+(x.p.ok?(x.p.warn||''):x.p.calc);}).join('；'))+'\n';
+  /* 2026-11-13：不逐人列名單。對得上薪資架構的只寫人數；對不上的才一人一行（工號・金額・原因） */
+  var bad=rows.filter(function(x){return x.p.verified!==true;});
+  if(!bad.length)t+='🟢 ✅ <b>'+esc(BL('起薪經計算核對正確','Starting pay recalculated — correct','ប្រាក់ខែចាប់ផ្តើមត្រឹមត្រូវ',bi))+'</b> '+ver+'/'+J.length+'\n';
+  else{
+    t+='🟢 '+ver+' '+esc(BL('正確','correct','ត្រូវ',bi))+' · 🟡 '+bad.length+' '+esc(BL('待確認','to check','ត្រូវពិនិត្យ',bi))+'\n';
+    bad.slice(0,10).forEach(function(x){t+='🟡 <code>'+esc(String(x.r.empId||'—'))+' '+(x.p.ok?('$'+fmt(x.p.total)):'     —')+'</code> '+esc(x.p.ok?(x.p.warn||''):(x.p.calc||''))+'\n';});
+    if(bad.length>10)t+='🟡 … +'+(bad.length-10)+'\n';
+  }
   return t;
 }
 function resignBlock(R,p,bi){
   var h=obHead_(R), ppl=esc(BL('人','ppl','នាក់',bi));
   var tc={}; R.forEach(function(r){var k=r.resignType||'resign';tc[k]=(tc[k]||0)+1;});
-  var dm={}; R.forEach(function(r){var k=obDeptKey_(r.dept);if(!dm[k])dm[k]={n:0,amt:0};dm[k].n++;dm[k].amt+=(+r.amount||0);});
+  var dm={}; R.forEach(function(r){var k=obDeptKey_(lineOf(r)||r.dept);if(!dm[k])dm[k]={n:0,amt:0};dm[k].n++;dm[k].amt+=(+r.amount||0);});
   var rc={}; R.forEach(function(r){var k=r.reasonCat||'Other';rc[k]=(rc[k]||0)+1;});
   var to=(p.length===7)?turnoverOf(p):null;
   var days=R.map(function(r){return +r.workingDays||0;}).filter(function(x){return x>0;});
