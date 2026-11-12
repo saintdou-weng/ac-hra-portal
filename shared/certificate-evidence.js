@@ -118,10 +118,12 @@ var CertificateEvidence=(function(){
     const list=selected(val('tgType'),mode),scope=val('tgScope')||'period',ll=(z,e,k)=>certificateL(lang,z,e,k);
     const whole=scope==='period'&&(!picker||list.length===picker.list.length);
     const out=whole?[base()]:['📄 '+ll('證書／證件及附件','Certificates / Documents and Files','វិញ្ញាបនបត្រ / ឯកសារ'),ll('資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth(),ll('選取項目','Selected items','ធាតុបានជ្រើស')+'：'+list.length,ll('檢查人','Inspector','អ្នកត្រួតពិនិត្យ')+'：'+val('tgActor')];
-    list.forEach((x,i)=>{if(!x.r)return;const r=x.r;out.push('\n#'+(i+1)+' '+x.name,ll('分類／部門','Category / Department','ប្រភេទ / ផ្នែក')+'：'+(r.category||r.department||'—'));
-      const fields=x.kind==='certificate'?[['開始日','Start','ចាប់ផ្ដើម',r.startDate],['到期日','Expiry','ផុតកំណត់',r.expiryDate],['續期日','Renewal','បន្ត',r.renewalDate]]:[['護照到期','Passport expiry','លិខិតឆ្លងដែន',r.passportExpiry],['簽證到期','Visa expiry','ទិដ្ឋាការ',r.visaExpiry],['工作證到期','Work permit expiry','ប័ណ្ណការងារ',r.workPermitExpiry]];
-      fields.forEach(f=>out.push(ll(...f.slice(0,3))+'：'+(f[3]||'—')+(/Expiry|expiry/.test(f[1])&&f[3]&&f[3]<certificateReferenceDate(x.month)?' ⚠ '+ll('已過期','Expired','ផុតកំណត់'):'')));const files=x.files.filter(a=>!picker?.omitted.has(key(a)));out.push(ll('附件','Files','ឯកសារ')+'：'+files.length+(files.length?' · '+files.map(name).join(' / '):''));if(r.remark)out.push(r.remark);
-    });return out.join('\n');
+    /* 2026-11-12 Paul：短版——整期摘要只寫附件合計；勾選項目才一項一行（到期／續期／附件數），不再每項五行 */
+    const liveFiles=x=>x.files.filter(a=>!picker?.omitted.has(key(a)));
+    if(whole){const withF=list.filter(x=>liveFiles(x).length),nF=withF.reduce((n,x)=>n+liveFiles(x).length,0);if(nF)out.push('📎 '+ll('附件','Files','ឯកសារ')+' '+nF+'（'+withF.length+' '+ll('項','items','មុខ')+'）');}
+    else{out.push('━━━━━━━━━━━━');list.forEach((x,i)=>{if(!x.r)return;const r=x.r,ref=certificateReferenceDate(x.month),exp=x.kind==='certificate'?r.expiryDate:[r.visaExpiry,r.workPermitExpiry,r.passportExpiry].filter(Boolean).sort()[0],n=liveFiles(x).length,late=exp&&exp<ref;
+      out.push((late?'🔴':'▸')+' '+x.name+(exp?' · '+ll('到期','exp.','ផុតកំណត់')+' '+exp+(late?' '+ll('已過期','expired','ផុតកំណត់'):''):'')+(x.kind==='certificate'&&r.renewalDate?' · '+ll('續期','renew','បន្ត')+' '+r.renewalDate:'')+(n?' · 📎'+n:'')+(r.remark?' · '+r.remark:''));});}
+    return out.join('\n');
   }
   function resetPicker(){picker=null;E('tgScope').value=selectedCerts.size||selectedPeople.size?'selected':'period';}
   function assertSelection(){if(picker&&val('tgScope')!=='period'&&!selected(val('tgType'),val('tgPeriod')).length)throw new Error(tr('selectItems'));}
