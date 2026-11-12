@@ -2479,7 +2479,7 @@ function joinPayBlock(J,bi){
   var rows=J.map(function(r){return {r:r,p:joinPayOf(r)};}), ok=rows.filter(function(x){return x.p.ok;}), tot=ok.reduce(function(s,x){return s+(x.p.total||0);},0), ver=ok.filter(function(x){return x.p.verified===true;}).length;
   if(!ok.length)return '💵 ⚠️ '+esc(rows[0].p.calc||'')+'\n';
   var t='💵 <b>'+esc(BL('起薪','Starting pay','ប្រាក់ខែចាប់ផ្តើម',bi))+' $'+fmt(tot)+'</b> · '+esc(BL('平均','avg','មធ្យម',bi))+' $'+fmt(tot/ok.length)+' ('+ok.length+'/'+J.length+')\n';
-  ok.slice(0,15).forEach(function(x){ t+=(x.p.verified===true?'✅':'⚠️')+' '+esc(x.r.empId||'')+' '+esc(x.r.name||'—')+' · <b>$'+fmt(x.p.total)+'</b>\n'; });
+  ok.slice(0,15).forEach(function(x){ t+=(x.p.verified===true?'🟢':'🟡')+' '+esc(x.r.empId||'')+' '+esc(x.r.name||'—')+' · <b>$'+fmt(x.p.total)+'</b>\n'; });
   if(ok.length>15)t+='… +'+(ok.length-15)+'\n';
   if(ver!==J.length)t+='⚠️ '+esc(BL('起薪待確認','Starting pay to check','ត្រូវពិនិត្យ',bi))+' '+(J.length-ver)+'/'+J.length+CL()+esc(rows.filter(function(x){return x.p.verified!==true;}).slice(0,4).map(function(x){return (x.r.empId||'')+' '+(x.p.ok?(x.p.warn||''):x.p.calc);}).join('；'))+'\n';
   return t;
@@ -2507,6 +2507,35 @@ function resignBlock(R,p,bi){
   if(R.length)t+='❓ '+obLine_(rc,function(k){return esc(BL(REASON_ZH[k]||k,k,REASON_KM[k]||'',bi))+' '+rc[k];},8)+'\n';
   return t;
 }
+/* 2026-11-12 Paul：金額核對三色。🟢 重算吻合（差 ≤ $0.05）＝「經計算核對正確」；🟡 差一點點（≤ $1.00）或沒有明細可重算；🔴 差距過大（> $1.00），標出差在哪。 */
+var AMT_TOL_OK=0.05, AMT_TOL_MINOR=1.00;
+function amtTone_(it){
+  if(it.verified===true&&!(Math.abs(+it.diff||0)>AMT_TOL_OK))return 'g';
+  if(typeof it.diff==='number'){ var a=Math.abs(it.diff); return a<=AMT_TOL_OK?'y':a<=AMT_TOL_MINOR?'y':'r'; }
+  return 'y';
+}
+function amtWhy_(it,bi){
+  if(typeof it.diff==='number'&&Math.abs(it.diff)>AMT_TOL_OK){
+    var who=it.diffSrc==='summary'?BL('總表','Summary','តារាងសរុប',bi):BL('重算','Recalc','គណនាឡើងវិញ',bi);
+    return BL('明細表','Sheet','តារាង',bi)+' $'+fmt(it.sheetAmt)+' ≠ '+who+' $'+fmt(it.calcAmt)+' · '+BL('差','diff','ខុស',bi)+' '+(it.diff>0?'+':'−')+'$'+fmt(Math.abs(it.diff));
+  }
+  if(typeof it.diff==='number')return BL('合計吻合，小計欄不符','Total matches; subtotal column differs','សរុបត្រូវ តែជួររងខុស',bi);
+  if(it.kind==='join')return BL('起薪無法對上薪資架構','Starting pay not matched to salary structure','មិនត្រូវនឹងរចនាសម្ព័ន្ធប្រាក់ខែ',bi);
+  return BL('沒有結算明細可重算','No settlement sheet to recalculate','គ្មានតារាងលម្អិត',bi);
+}
+function amtVerifyBlock_(its,bi){
+  its=its.filter(function(x){return +x.amount>0;});
+  var g=[],y=[],r=[]; its.forEach(function(x){var t=amtTone_(x);(t==='g'?g:t==='y'?y:r).push(x);});
+  if(!its.length)return '🔎 ✅ <b>'+esc(BL('已核對正確','Verified','បានផ្ទៀងផ្ទាត់',bi))+'</b> · '+esc(BL('人數','headcount','ចំនួន',bi))+'\n';
+  if(!y.length&&!r.length)return '🟢 ✅ <b>'+esc(BL('經計算核對正確','Recalculated — correct','បានគណនាផ្ទៀងផ្ទាត់ត្រឹមត្រូវ',bi))+'</b> · '+esc(BL('金額','amounts','ប្រាក់',bi))+' '+g.length+'/'+its.length+' · '+esc(BL('人數','headcount','ចំនួន',bi))+'\n';
+  var t='🔎 <b>'+esc(BL('金額核對','Amount check','ពិនិត្យប្រាក់',bi))+'</b> · 🟢 '+g.length+' '+esc(BL('正確','correct','ត្រូវ',bi))+' · 🟡 '+y.length+' '+esc(BL('小差距／待確認','minor / to check','ខុសតិច',bi))+' · 🔴 '+r.length+' '+esc(BL('差距過大','large gap','ខុសច្រើន',bi))+'\n';
+  r.sort(function(a,b){return Math.abs(b.diff||0)-Math.abs(a.diff||0);});
+  r.slice(0,10).forEach(function(x){t+='🔴 '+esc(x.id||'')+' '+esc(x.name||'')+' · '+esc(amtWhy_(x,bi))+'\n';});
+  if(r.length>10)t+='🔴 … +'+(r.length-10)+'\n';
+  y.slice(0,8).forEach(function(x){t+='🟡 '+esc(x.id||'')+' '+esc(x.name||'')+' · '+esc(amtWhy_(x,bi))+'\n';});
+  if(y.length>8)t+='🟡 … +'+(y.length-8)+'\n';
+  return t;
+}
 /* scope: 'join' | 'resign' | 'both' */
 function buildSummaryText(p,bi,scope){
   scope=scope||_tgScope||'both';
@@ -2524,10 +2553,8 @@ function buildSummaryText(p,bi,scope){
   else t+=resignBlock(R,p,bi);
   var st=apprStats(p,scope);
   t+='\n📝 '+esc(BL('核可','Approval','អនុម័ត',bi))+' ✔ '+st.ok+' · ✖ '+st.no+' · ⏳ '+st.pend+'\n';
-  /* 只有每一筆金額都重算吻合才寫「已核對正確」，否則列出幾筆待確認 */
-  {var its=buildApprovalItems(p,scope).filter(function(x){return +x.amount>0;}),okn=its.filter(function(x){return x.verified===true;}).length;
-   t+=(its.length&&okn<its.length)?'🔎 ⚠️ <b>'+esc(BL('金額待確認','Amounts to check','ត្រូវពិនិត្យ',bi))+' '+(its.length-okn)+'/'+its.length+'</b>'+CL()+esc(its.filter(function(x){return x.verified!==true;}).slice(0,5).map(function(x){return x.id+' '+(x.name||'');}).join('、'))+'\n'
-       :'🔎 ✅ <b>'+esc(BL('已核對正確','Verified','បានផ្ទៀងផ្ទាត់',bi))+'</b> · '+esc(BL('人數','headcount','ចំនួន',bi))+(its.length?' · '+esc(BL('金額','amounts','ប្រាក់',bi))+' '+okn+'/'+its.length:'')+'\n';}
+  /* 金額核對三色（綠＝經計算核對正確／黃＝小差距／紅＝差距過大，列出差在哪） */
+  t+=amtVerifyBlock_(buildApprovalItems(p,scope),bi);
   var actor=tgActor();
   if(actor)t+='👤 <b>'+esc(actor)+'</b>\n';
   t+='<i>'+esc(nowStamp())+' · AC HRA Onboarding v3</i>';
@@ -2568,6 +2595,11 @@ function buildApprovalItems(p,scope){
       /* v73: 結算金額逐筆重算結果，群組卡片據此寫「金額已核算正確」 */
       verified:(+r.amount>0)?!!r.settleVerified:undefined, calc:r.settleCalc||'',
       decision:x.d||'',note:x.note||''});
+    /* 2026-11-12 Paul：金額核對三色——把「表上金額／重算金額／差多少」帶出來，摘要才能標綠黃紅 */
+    (function(it,sd){ if(!sd||sd.grandTotal===null||sd.grandTotal===undefined||!isFinite(+sd.recomputed))return;
+      var d1=(+sd.recomputed)-(+sd.grandTotal), d2=(+r.amount||0)-(+sd.grandTotal), useSum=Math.abs(d2)>Math.abs(d1);
+      it.sheetAmt=+sd.grandTotal; it.calcAmt=useSum?(+r.amount||0):+sd.recomputed; it.diff=Math.round((useSum?d2:d1)*100)/100; it.diffSrc=useSum?'summary':'recalc';
+    })(items[items.length-1],r.settleDetail);
   });
   if(scope!=='resign') d.J.forEach(function(r){
     var x=DEC[r._k]||{};

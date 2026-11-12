@@ -1,4 +1,5 @@
-/* v72 (2026-11-06)：交通車改成每台車一段（部門各幾人、男女、年資列表）；柬文一律英柬並列。
+/* v73 (2026-11-12)：交通車每台車載客色標——限 25–30 人，>30 🔴 超載、<15 🟡 偏少、其餘 🟢。
+   v72 (2026-11-06)：交通車改成每台車一段（部門各幾人、男女、年資列表）；柬文一律英柬並列。
    v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
    v70: welfare Telegram cards rebuilt — union dues / transport / accommodation / suggestion box as separate cards,
    totals first (people, amount, paid/unpaid with reasons, per-vehicle counts, department share), colour status lights,
@@ -60,6 +61,8 @@
   /* ── 2026-11-06 Paul：摘要先總覽（人數、車數、部門、比例條），名單不逐人列；只列新增／停止／未付 ── */
   var DOT=['🔵','🟢','🟠','🟣','🔴','🟡','🟤','⚫'],SQ=['🟦','🟩','🟧','🟪','🟥','🟨','🟫','⬛'],CAR=['🚌','🚐','🚎','🚙','🛻','🚕','🚗','🚚'];
   function bar(v,total,w,sq){w=w||10;total=Number(total)||0;v=Number(v)||0;if(total<=0)return '';var r=Math.max(0,Math.min(1,v/total)),n=Math.round(r*w),b=sq||(r>=0.9?'🟩':r>=0.7?'🟨':'🟥'),o='';for(var i=0;i<w;i++)o+=i<n?b:'⬜';return o+' '+Math.round(r*100)+'%';}
+  function capTone(n){return n>30?'🔴':n<15?'🟡':'🟢';}
+  function capBar(n){var sq=n>30?'🟥':n<15?'🟨':'🟩',k=Math.max(1,Math.min(10,Math.round(n/30*10))),o='';for(var i=0;i<10;i++)o+=i<k?sq:'⬜';return o+' '+Math.round(n/30*100)+'%';}
   function sec(icon,title){return '━━ '+icon+' '+bold(title)+' ━━';}
   function countBy(rows,fn){var m={};rows.forEach(function(r){var k=fn(r);m[k]=(m[k]||0)+1;});return m;}
   function sortedKeys(m){return Object.keys(m).sort(function(a,b){return m[b]-m[a]||a.localeCompare(b,undefined,{numeric:true});});}
@@ -94,6 +97,8 @@
     var out=[header('🚌',L(lang,'交通車','Transport','ដឹកជញ្ជូន'),period)];
     out.push('👥 '+L(lang,'人數','People','ចំនួន')+' '+bold(rows.length)+' · 🚐 '+L(lang,'車輛','Vehicles','ឡាន')+' '+bold(vk.filter(function(k){return k!==none;}).length)+' · 🆕 '+bold('+'+added.length)+' · ⛔ '+bold('−'+stopped.length));
     if(s.transport!==undefined&&Number(s.transport)!==rows.length)out.push('📑 '+L(lang,'月摘要寫','Monthly summary says','សង្ខេបខែ')+' '+bold(s.transport)+' · '+L(lang,'名單','roster','បញ្ជី')+' '+bold(rows.length));
+    {var real=vk.filter(function(k){return k!==none;}),over=real.filter(function(k){return vm[k]>30;}),low=real.filter(function(k){return vm[k]<15;});
+     if(real.length)out.push('🚦 '+L(lang,'載客（限 25–30）','Load (limit 25–30)','ចំនួនអ្នកជិះ (25–30)')+'：🟢 '+bold(real.length-over.length-low.length)+' · 🔴 '+L(lang,'超載','over','លើស')+' '+bold(over.length)+(over.length?'（'+over.map(function(k){return k+' '+vm[k];}).join('、')+'）':'')+' · 🟡 '+L(lang,'偏少','low','តិច')+' '+bold(low.length)+(low.length?'（'+low.map(function(k){return k+' '+vm[k];}).join('、')+'）':''));}
     out.push(verify(lang,rows,ctx));
     /* 2026-11-06 Paul：每台車列出坐哪些部門各幾人、男女、年資（列表式，不列員工名字） */
     var ref=/^\d{4}-\d{2}$/.test(period)?new Date(+period.slice(0,4),+period.slice(5,7),0):/^\d{4}$/.test(period)?new Date(+period,11,31):new Date();
@@ -105,7 +110,9 @@
     if(rows.length)out.push('👩 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 👨 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
     vk.forEach(function(k){
       var m=rows.filter(function(r){return veh(r)===k;}),dm=countBy(m,function(r){return place(ctx(r))||'—';}),dk=sortedKeys(dm);
-      var blk=[dot(k)+icon(k)+' '+bold(k)+' · '+bold(m.length)+' '+L(lang,'人','ppl','នាក់')+'\n'+bar(m.length,rows.length,10,SQ[ix[k]%SQ.length]),
+      /* 2026-11-12 Paul：公司車以 25–30 人為限。>30 🔴 超載；<15 🟡 警訊（坐太少）；15–30 🟢 */
+      var cap=k===none?null:capTone(m.length),capTxt=cap==null?'':' · '+cap+' '+(m.length>30?L(lang,'超載 +'+(m.length-30),'over by '+(m.length-30),'លើស '+(m.length-30)):m.length<15?L(lang,'偏少（未滿 15）','low (under 15)','តិច (<15)'):m.length>=25?L(lang,'滿載範圍','full range','ពេញ'):L(lang,'正常','OK','ធម្មតា'));
+      var blk=[dot(k)+icon(k)+' '+bold(k)+' · '+bold(m.length)+' '+L(lang,'人','ppl','នាក់')+(k===none?'':' / 30')+capTxt+'\n'+(k===none?bar(m.length,rows.length,10,'⬜'):capBar(m.length)),
         '   '+mf(m)+' · ⏳ '+tenure(m)];
       dk.forEach(function(d,i){var dd=m.filter(function(r){return (place(ctx(r))||'—')===d;});blk.push('   '+(i===dk.length-1?'└ ':'├ ')+d+' · '+bold(dm[d])+' ('+mf(dd).replace(/ ❔\d+/,'')+')');});
       out.push(blk.join('\n'));
