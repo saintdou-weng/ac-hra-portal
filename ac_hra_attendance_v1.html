@@ -136,7 +136,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
 <!-- v58 Attendance Telegram compact non-zero leave display -->
 <script src="shared/hra-report.js?v=2" defer></script>
-<script src="shared/att-tg.js?v=6"></script>
+<script src="shared/att-tg.js?v=7"></script>
 </head>
 <body>
 
@@ -1354,7 +1354,9 @@ function buildTelegramSummary(mode,key,lang){
   if(window.HRAAttTg){
     const ds=periodDates(telegramModeKey(mode),key),days=ds.map(d=>({date:d,rows:attDedupeRows(rowsForDate(d))}));
     let pl=key;if(mode==='weekly'&&ds.length)pl=ds[0].slice(5).replace('-','/')+' ~ '+ds[ds.length-1].slice(5).replace('-','/');
-    return HRAAttTg.build({mode,lang:lang==='km'?'en':lang,key,periodLabel:pl,days});
+    /* 本月累計入離：把期間最後一天所在月份、到那天為止的每一天也帶進去 */
+    let monthDays=[];try{const last=ds[ds.length-1];if(last)monthDays=periodDates('month',last.slice(0,7)).filter(d=>d<=last).map(d=>({date:d,rows:attDedupeRows(rowsForDate(d))}));}catch(e){console.warn('[att mtd]',e);}
+    return HRAAttTg.build({mode,lang:lang==='km'?'en':lang,key,periodLabel:pl,days,monthDays});
   }
   const grain=telegramModeKey(mode);
   const dates=periodDates(grain,key);

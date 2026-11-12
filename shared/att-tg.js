@@ -1,4 +1,5 @@
-/* AC HRA 考勤 Telegram 摘要 v2（2026-11-12）
+/* AC HRA 考勤 Telegram 摘要 v3（2026-11-12）
+   v3 Paul：色標回到他定的 ≥92% 綠／≥88% 黃／<88% 紅；出勤率分含產假／不含產假；入離列出哪個職稱與本月累計（opt.monthDays）；車縫組一組一行列人數／出勤／出勤率。
    v2 Paul：不要過度簡化——補回應到／出勤／缺勤人數、各部門出勤人數與入離、各車縫組出勤率；人車比 🟢≤1.3 🟡≤1.8 🔴>1.8。
    Paul：學生產摘要——短、色條、色點、假別只留簡寫（AL/PL/SL/NP/ML…），數字正確就寫「已核對正確」。
    人車比＝全廠 ÷ 車工（1.6＝1 個車工配 0.6 個間接）。
@@ -15,8 +16,9 @@
   function report(r){return ttl(r)-n(r.resign)+n(r.join)+n(r.ti)-n(r.to);}
   function leave(r){return n(r.al)+n(r.pl)+n(r.sl)+n(r.bus)+n(r.fl)+n(r.ml);}
   function clean(s){return String(s||'').replace(/小計|subtotal/gi,'').replace(/\s+/g,' ').trim();}
-  function dot(rate){return rate==null?'⚪':rate>=0.95?'🟢':rate>=0.90?'🟡':'🔴';}
-  function sq(rate){return rate==null?'⬜':rate>=0.95?'🟩':rate>=0.90?'🟨':'🟥';}
+  /* Paul 定的標準（11/12 重申，不可自行提高）：≥92% 綠、88–92% 黃、<88% 紅 */
+  function dot(rate){return rate==null?'⚪':rate>=0.92?'🟢':rate>=0.88?'🟡':'🔴';}
+  function sq(rate){return rate==null?'⬜':rate>=0.92?'🟩':rate>=0.88?'🟨':'🟥';}
   /* 色條刻度 80%→100%（出勤率都在 9 成上下，從 0 畫起每天都一樣長，看不出差別） */
   function bar(rate,w){w=w||10;if(rate==null)return '';var k=Math.max(1,Math.round(Math.max(0,Math.min(1,(rate-0.8)/0.2))*w)),o='';for(var i=0;i<w;i++)o+=i<k?sq(rate):'⬜';return o;}
   function pc(v,d){return v==null||!isFinite(v)?'—':(v*100).toFixed(d==null?1:d)+'%';}
@@ -94,6 +96,8 @@
     var daily=mode==='daily',avgTag=daily?'':lab(lang,'日均','avg ');
     L.push(dot(rate)+' <b>'+lab(lang,'出勤率','Attendance')+' '+pc(rate)+'</b>');
     L.push(bar(rate));
+    /* 含產假／不含產假：產假的人算在應到裡會把出勤率拉低，兩個都列 */
+    if(lv.ml>0){var rateX=(rep-lv.ml)>0?att/(rep-lv.ml):null;L.push(dot(rate)+' '+lab(lang,'含產假','incl. ML')+' '+pc(rate)+' · '+dot(rateX)+' <b>'+lab(lang,'不含產假','excl. ML')+' '+pc(rateX)+'</b>（ML '+r1(lv.ml/D)+'）');}
     L.push('👥 '+avgTag+lab(lang,'在職','Headcount')+' '+r1(hc)+' · '+lab(lang,'應到','Due')+' '+r1(rep/D)+' · ✅ '+lab(lang,'出勤','Att.')+' <b>'+r1(att/D)+'</b> · '+lab(lang,'未到','Absent')+' '+r1((rep-att)/D));
     var lvNoNp={};LV.forEach(function(x){if(x[0]!=='np')lvNoNp[x[0]]=lv[x[0]]/D;});var lcs=leaveCodes(lvNoNp);
     L.push('📋 '+lab(lang,'請假','Leave')+' '+r1(sum(G,function(x){return leave(x.g);})/D)+(lcs?'（'+lcs+'）':'')+' · '+(lv.np?'🔴':'🟢')+' NP '+r1(lv.np/D)+(daily?'':' '+lab(lang,'／天','/day')));
@@ -103,6 +107,13 @@
     if(S>0){var pr=ST/S;L.push('🧵 '+lab(lang,'車工','Sewers')+' '+r1(S)+' · '+lab(lang,'間接','Indirect')+' '+r1(ST-S)+' · '+(pr<=1.3?'🟢':pr<=1.8?'🟡':'🔴')+' <b>'+lab(lang,'人車比','Ratio')+' '+pr.toFixed(2)+'</b>'+(pr>1.8?' '+lab(lang,'過高','too high'):pr>1.3?' '+lab(lang,'略高','slightly high'):''));}
     var tin=sum(G,function(x){return n(x.g.ti);}),tout=sum(G,function(x){return n(x.g.to);});
     L.push('🔄 '+lab(lang,'入','Join')+' <b>+'+join+'</b> · '+lab(lang,'離','Resign')+' <b>−'+res+'</b>'+(hc>0?' · '+lab(lang,'流失','turnover')+' '+pc(res/hc,2):'')+((tin||tout)?' · '+lab(lang,'調動','Transfer')+' +'+tin+'/−'+tout:''));
+    {var jm={},rm={},who=function(r){return isSewingLine(r)?lab(lang,'車工','Sewer')+' '+lineName(r):String(r.sect||r.line||r.dept||'—').replace(/\s*[/／].*$/,'').trim();};
+     G.forEach(function(x){(x.rows||[]).forEach(function(r){if(r.isGrand||r.isSubtotal)return;if(n(r.join)>0)jm[who(r)]=(jm[who(r)]||0)+n(r.join);if(n(r.resign)>0)rm[who(r)]=(rm[who(r)]||0)+n(r.resign);});});
+     var lst=function(m,sg){return Object.keys(m).sort(function(a,b){return m[b]-m[a];}).map(function(k){return esc(k)+' '+sg+m[k];}).join(' · ');};
+     if(Object.keys(jm).length)L.push('   ➕ '+lab(lang,'入職','Joined')+'：'+lst(jm,'+'));
+     if(Object.keys(rm).length)L.push('   ➖ '+lab(lang,'離職','Resigned')+'：'+lst(rm,'−'));
+     var last=G[G.length-1].date,ym=last.slice(0,7),MD=(opt.monthDays||[]).filter(function(d){return d.date.slice(0,7)===ym&&d.date<=last;}).map(function(d){return d.rows.filter(function(r){return r.isGrand;})[0];}).filter(Boolean);
+     if(MD.length){var mj=sum(MD,function(g){return n(g.join);}),mr=sum(MD,function(g){return n(g.resign);});L.push('   📆 '+lab(lang,'本月累計','Month to date')+'（'+ym.slice(5)+'/01–'+last.slice(5).replace('-','/')+'）：'+lab(lang,'入','Join')+' <b>+'+mj+'</b> · '+lab(lang,'離','Resign')+' <b>−'+mr+'</b> · '+lab(lang,'淨','Net')+' '+(mj-mr>0?'+':'')+(mj-mr));}}
     if(!daily){var lc=leaveCodes(lv);if(lc)L.push('🗂 '+lab(lang,'期間合計人次','Period person-days')+'：'+lc);}
     /* 期間明細：週＝每天一行；月＝每週；年＝每月 */
     if(!daily){
@@ -116,19 +127,20 @@
     var gm={},order=[];G.forEach(function(x){x.gr.groups.forEach(function(g){if(!gm[g.name]){gm[g.name]={name:g.name,m:0,f:0,att:0,rep:0,join:0,resign:0,ti:0,to:0,days:0};LV.forEach(function(y){gm[g.name][y[0]]=0;});order.push(g.name);}var o=gm[g.name];o.days++;o.att+=n(g.att);o.rep+=report(g);o.m+=n(g.m);o.f+=n(g.f);o.join+=n(g.join);o.resign+=n(g.resign);LV.forEach(function(y){o[y[0]]+=n(g[y[0]]);});});});
     var gl=order.map(function(k){return gm[k];}).filter(function(o){return o.m+o.f>0;});
     if(gl.length){
-      L.push('');L.push('🏢 <b>'+lab(lang,'各部門','By department')+'</b>（🟢≥95% 🟡≥90% 🔴&lt;90%）');
-      gl.sort(function(a,b){return (b.m+b.f)-(a.m+a.f);}).forEach(function(o){var rt=o.rep>0?o.att/o.rep:null,c=leaveCodes(o);L.push(dot(rt)+' <b>'+esc(gname(o.name,lang))+'</b> '+r1(o.att/o.days)+'/'+r1(o.rep/o.days)+' · <b>'+pc(rt)+'</b>'+((o.join||o.resign)?' · '+(o.join?'+'+o.join:'')+(o.resign?'−'+o.resign:''):'')+(c?'\n      '+c:''));});
+      L.push('');L.push('🏢 <b>'+lab(lang,'各部門','By department')+'</b>（🟢≥92% 🟡≥88% 🔴&lt;88%）');
+      gl.sort(function(a,b){return (b.m+b.f)-(a.m+a.f);}).forEach(function(o){var rt=o.rep>0?o.att/o.rep:null,c=leaveCodes(o);L.push(dot(rt)+' <b>'+esc(gname(o.name,lang))+'</b> '+r1(o.att/o.days)+'/'+r1(o.rep/o.days)+' · <b>'+pc(rt)+'</b>'+(o.ml>0&&(o.rep-o.ml)>0?'（'+lab(lang,'不含產假','excl. ML')+' '+pc(o.att/(o.rep-o.ml))+'）':'')+((o.join||o.resign)?' · '+(o.join?'+'+o.join:'')+(o.resign?'−'+o.resign:''):'')+(c?'\n      '+c:''));});
       L.push('<i>'+lab(lang,'出勤／應到 · 出勤率 · 入離 · 假別人次','att./due · rate · join/resign · leave person-days')+'</i>');
     }
-    /* 各車縫組：一組一格，三格一行；低於 90% 的另外點名 */
-    var lm={},lo=[];G.forEach(function(x){(x.rows||[]).filter(isSewingLine).forEach(function(r){var k=lineName(r);if(!lm[k]){lm[k]={name:k,att:0,rep:0,np:0};lo.push(k);}lm[k].att+=n(r.att);lm[k].rep+=report(r);lm[k].np+=n(r.np);});});
+    /* 各車縫組：一組一行（等寬對齊）——人數／出勤／出勤率；低於 88% 的另外點名 */
+    var lm={},lo=[];G.forEach(function(x){(x.rows||[]).filter(isSewingLine).forEach(function(r){var k=lineName(r);if(!lm[k]){lm[k]={name:k,att:0,rep:0,np:0,hc:0,days:0};lo.push(k);}lm[k].att+=n(r.att);lm[k].rep+=report(r);lm[k].np+=n(r.np);lm[k].hc+=ttl(r);lm[k].days++;});});
     if(lo.length){
       lo.sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});
-      L.push('');L.push('🧵 <b>'+lab(lang,'各車縫組出勤率','Sewing lines')+'</b>');
-      var cells=lo.map(function(k){var o=lm[k],rt=o.rep>0?o.att/o.rep:null;return dot(rt)+esc(k)+' '+pc(rt,0);});
-      for(var ci=0;ci<cells.length;ci+=3)L.push(cells.slice(ci,ci+3).join('  '));
-      var low=lo.map(function(k){return lm[k];}).filter(function(o){return o.rep>0&&o.att/o.rep<0.9;}).sort(function(a,b){return a.att/a.rep-b.att/b.rep;});
-      if(low.length)L.push('🔴 '+lab(lang,'低於 90%','Below 90%')+'：'+low.map(function(o){return esc(o.name)+' '+pc(o.att/o.rep)+'（'+lab(lang,'缺','absent')+' '+r1((o.rep-o.att)/D)+(o.np?' · NP '+r1(o.np/D):'')+'）';}).join('、'));
+      var pad=function(v,w,left){v=String(v);while(v.length<w)v=left?' '+v:v+' ';return v;},th=0,ta=0,tr=0;
+      L.push('');L.push('🧵 <b>'+lab(lang,'各車縫組','Sewing lines')+'</b> · '+lab(lang,'人數／出勤／出勤率','HC / att. / rate')+(daily?'':' '+lab(lang,'（日均）','(daily avg)')));
+      lo.forEach(function(k){var o=lm[k],rt=o.rep>0?o.att/o.rep:null,h=o.hc/o.days,a=o.att/o.days;th+=h;ta+=a;tr+=o.rep/o.days;L.push(dot(rt)+' <code>'+pad(esc(k),5)+pad(r1(h),5,1)+pad(r1(a),6,1)+pad(pc(rt),8,1)+'</code>');});
+      L.push('🧮 <code>'+pad(lab(lang,'合計','Total').split(' ')[0],5)+pad(r1(th),5,1)+pad(r1(ta),6,1)+pad(pc(tr>0?ta/tr:null),8,1)+'</code>');
+      var low=lo.map(function(k){return lm[k];}).filter(function(o){return o.rep>0&&o.att/o.rep<0.88;}).sort(function(a,b){return a.att/a.rep-b.att/b.rep;});
+      if(low.length)L.push('🔴 '+lab(lang,'低於 88%','Below 88%')+'：'+low.map(function(o){return esc(o.name)+' '+pc(o.att/o.rep)+'（'+lab(lang,'缺','absent')+' '+r1((o.rep-o.att)/D)+(o.np?' · NP '+r1(o.np/D):'')+'）';}).join('、'));
     }
     /* 核對 */
     var ok=G.every(function(x){if(!x.gr.exact)return false;var gs=x.gr.groups;return Math.abs(sum(gs,ttl)-ttl(x.g))<0.5&&Math.abs(sum(gs,function(g){return n(g.att);})-n(x.g.att))<0.5;});
