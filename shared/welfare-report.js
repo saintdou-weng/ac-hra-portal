@@ -1,4 +1,5 @@
-/* v73 (2026-11-12)：交通車每台車載客色標——15–25 🟢；26–30、10–14 🟡；>30、<10 🔴；加全廠部門／職位總覽與每台車職位。
+/* v76 (2026-11-12)：男女不用人像（🚺 女／🚹 男）；Line1 寫 L1；每台車部門列改等寬對齊、依組別順序。
+   v73 (2026-11-12)：交通車每台車載客色標——15–25 🟢；26–30、10–14 🟡；>30、<10 🔴；加全廠部門／職位總覽與每台車職位。
    v72 (2026-11-06)：交通車改成每台車一段（部門各幾人、男女、年資列表）；柬文一律英柬並列。
    v71 (2026-11-06): 總覽在前（人數／車數／部門／比例條），名單不逐人列，只列新增・停止・未付；車輛用顏色點區分。
    v70: welfare Telegram cards rebuilt — union dues / transport / accommodation / suggestion box as separate cards,
@@ -7,7 +8,7 @@
    Based on v69 employee context resolution. */
 (function(root,factory){var api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.HRAWelfareReport=api;})(typeof window!=='undefined'?window:this,function(){
   'use strict';
-  var B1='\u0001',B2='\u0002';
+  var B1='\u0001',B2='\u0002',C1='\u0003',C2='\u0004';   /* C1/C2＝等寬字（表格對齊用） */
   function text(v){return String(v==null?'':v).trim();}
   function first(row,keys){for(var k of keys){if(text(row[k]))return text(row[k]);}return '';}
   function id(row){return first(row,['employeeId','empId','idNo','factoryId','vrtCode','cardId','工號']);}
@@ -34,7 +35,7 @@
   /* 「組別」與「部門」同一個地方（L10 ＝ Line 10）就只寫一次 */
   function placeKey(v){return text(v).toUpperCase().replace(/\s+/g,'').replace(/^LINE/,'L').replace(/[^A-Z0-9ក-៿一-鿿]/g,'');}
   /* 同一組寫法不一（Line 4／Line4／LINE 04）併成一個：Line4 */
-  function tidy(v){return text(v).replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'Line$1');}
+  function tidy(v){return text(v).replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'L$1');}   /* Paul 11/12：Line1 直接寫 L1 */
   function place(c){var d=tidy(c.department),s=tidy(c.section);if(!d)return s;if(!s)return d;return placeKey(d)===placeKey(s)?d:d+'/'+s;}
   function pct(n,total){return total?Math.round(n/total*100)+'%':'0%';}
   function usd(v){return 'USD '+Number(v||0).toFixed(2);}
@@ -42,8 +43,14 @@
   function L(lang,z,e,k){if(lang==='en')return e;if(lang==='km')return k&&k!==e?e+' / '+k:e;  /* 柬文＝英柬並列，不單獨柬文 */if(lang==='zh')return z;return z===e?z:z+' '+e;}
   function bold(s){return B1+s+B2;}
   function escapeHtml(s){return String(s).replace(/[&<>]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[c];});}
-  function plain(s){return String(s).split(B1).join('').split(B2).join('');}
-  function toHtml(s){return escapeHtml(String(s)).split(B1).join('<b>').split(B2).join('</b>');}
+  function plain(s){return String(s).split(B1).join('').split(B2).join('').split(C1).join('').split(C2).join('');}
+  function toHtml(s){return escapeHtml(String(s)).split(B1).join('<b>').split(B2).join('</b>').split(C1).join('<code>').split(C2).join('</code>');}
+  function mono(s){return C1+s+C2;}
+  /* 等寬對齊：中文字算 2 格 */
+  function wlen(s){var n=0;String(s).split('').forEach(function(c){n+=/[\u1100-\uffdc]/.test(c)?2:1;});return n;}
+  function padR(s,w){s=String(s);var k=w-wlen(s);return s+(k>0?new Array(k+1).join(' '):'');}
+  function padL(s,w){s=String(s);var k=w-wlen(s);return (k>0?new Array(k+1).join(' '):'')+s;}
+  function lineSort(a,b){var x=/^L(\d+)$/.exec(a),y=/^L(\d+)$/.exec(b);if(x&&y)return x[1]-y[1];if(x)return -1;if(y)return 1;return a.localeCompare(b,undefined,{numeric:true});}
   function statusWord(lang,s){var m={new:['新建','New','ថ្មី'],reviewing:['審查中','Reviewing','កំពុងពិនិត្យ'],action:['處理中','In action','កំពុងអនុវត្ត'],closed:['結案','Closed','បិទ'],rejected:['不採納','Rejected','មិនទទួល'],paid:['已付','Paid','បានបង់'],unpaid:['未付','Unpaid','មិនបានបង់'],active:['有效','Active','សកម្ម'],stopped:['停止','Stopped','បញ្ឈប់'],transport_apply:['加入交通','Join transport','ចូលដឹកជញ្ជូន'],transport_stop:['停止交通','Stop transport','ឈប់ដឹកជញ្ជូន'],dorm_in:['入住','Move in','ចូលស្នាក់នៅ'],dorm_out:['搬出','Move out','ចាកចេញ']};return m[s]?L(lang,m[s][0],m[s][1],m[s][2]):text(s);}
   function deptShare(lang,rows,ctx){
     var dm={};rows.forEach(function(r){var k=place(ctx(r))||'—';dm[k]=(dm[k]||0)+1;});
@@ -109,11 +116,13 @@
     var sex=function(r){var g=text(ctx(r).gender).toUpperCase();return /^(M|MALE|男|ប្រុស)/.test(g)?'M':/^(F|FEMALE|女|ស្រី)/.test(g)?'F':'';};
     var yrs=function(r){var j=text(ctx(r).joinDate).slice(0,10);if(!/^\d{4}-\d{2}-\d{2}$/.test(j))return null;return (ref-new Date(j+'T00:00:00'))/31557600000;};
     var TEN=[[0,1,'<1y'],[1,3,'1–3y'],[3,5,'3–5y'],[5,99,'5y+']];
-    function mf(m){var f=m.filter(function(r){return sex(r)==='F';}).length,ma=m.filter(function(r){return sex(r)==='M';}).length,u=m.length-f-ma;return '👩'+f+' 👨'+ma+(u?' ❔'+u:'');}
+    var FW=L(lang,'女','F','ស្រី'),MW=L(lang,'男','M','ប្រុស');if(lang==='both'){FW='女';MW='男';}
+    function mfn(m){var f=m.filter(function(r){return sex(r)==='F';}).length,ma=m.filter(function(r){return sex(r)==='M';}).length;return [f,ma,m.length-f-ma];}
+    function mf(m){var x=mfn(m);return '🚺 '+FW+' '+x[0]+' · 🚹 '+MW+' '+x[1]+(x[2]?' · ❔'+x[2]:'');}
     function tenure(m){var t=TEN.map(function(x){return [x[2],m.filter(function(r){var y=yrs(r);return y!=null&&y>=x[0]&&y<x[1];}).length];}),u=m.filter(function(r){return yrs(r)==null;}).length;return t.filter(function(x){return x[1];}).map(function(x){return x[0]+' '+x[1];}).join(' · ')+(u?' · ❔'+u:'');}
-    if(rows.length)out.push('👩 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 👨 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
-    var posOf=function(r){var p=text(ctx(r).position).replace(/\s+/g,' ');return /^[\x00-\x7f]+$/.test(p)?p.toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();}):p;},posLine=function(m,max){var pm=countBy(m.filter(posOf),posOf),pk=sortedKeys(pm);if(!pk.length)return '';return pk.slice(0,max).map(function(p){return p+' '+pm[p];}).join(' · ')+(pk.length>max?' · +'+(pk.length-max):'');};
-    if(rows.length){var adm=countBy(rows,function(r){return place(ctx(r))||'—';}),adk=sortedKeys(adm);
+    if(rows.length)out.push('🚺 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 🚹 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
+    var posOf=function(r){var p=text(ctx(r).position).replace(/\s+/g,' ');return /^[\x00-\x7f]+$/.test(p)?p.split(' ').map(function(w){return w.length<=3&&w===w.toUpperCase()?w:w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();}).join(' '):p;},posLine=function(m,max){var pm=countBy(m.filter(posOf),posOf),pk=sortedKeys(pm);if(!pk.length)return '';return pk.slice(0,max).map(function(p){return p+' '+pm[p];}).join(' · ')+(pk.length>max?' · +'+(pk.length-max):'');};
+    if(rows.length){var adm=countBy(rows,function(r){return place(ctx(r))||'—';}),adk=Object.keys(adm).sort(lineSort);
       out.push('🏢 '+L(lang,'部門','Depts','ផ្នែក')+' '+bold(adk.length)+'：'+adk.slice(0,16).map(function(d){return d+' '+adm[d];}).join(' · ')+(adk.length>16?' · +'+(adk.length-16):''));
       var apl=posLine(rows,8),noPos=rows.filter(function(r){return !posOf(r);}).length;if(apl)out.push('💼 '+L(lang,'職位','Positions','មុខតំណែង')+'：'+apl+(noPos?' · '+L(lang,'未填','blank','ទទេ')+' '+noPos:''));}
     vk.forEach(function(k){
@@ -123,7 +132,8 @@
       var blk=[dot(k)+icon(k)+' '+bold(k)+' · '+bold(m.length)+' '+L(lang,'人','ppl','នាក់')+(k===none?'':' / 30')+capTxt+'\n'+(k===none?bar(m.length,rows.length,10,'⬜'):capBar(m.length)),
         '   '+mf(m)+' · ⏳ '+tenure(m)];
       var pl=posLine(m,6);if(pl)blk.push('   💼 '+pl);
-      dk.forEach(function(d,i){var dd=m.filter(function(r){return (place(ctx(r))||'—')===d;});blk.push('   '+(i===dk.length-1?'└ ':'├ ')+d+' · '+bold(dm[d])+' ('+mf(dd).replace(/ ❔\d+/,'')+')');});
+      dk=dk.slice().sort(lineSort);var w=Math.min(14,Math.max.apply(null,dk.map(wlen).concat([4])));
+      dk.forEach(function(d){var dd=m.filter(function(r){return (place(ctx(r))||'—')===d;}),x=mfn(dd);blk.push(mono(' '+padR(d.length>14?d.slice(0,14):d,w)+' '+padL(dm[d],3)+'  '+FW+padL(x[0],3)+'  '+MW+padL(x[1],3)));});
       out.push(blk.join('\n'));
     });
     if(added.length)out.push(sec('🆕',L(lang,'新增','New','ថ្មី')+' · '+added.length)+'\n'+added.map(function(r){return '🆕 '+moveLine(r,ctx,text(r.driver)?dot(text(r.driver))+' '+text(r.driver):'');}).join('\n'));
