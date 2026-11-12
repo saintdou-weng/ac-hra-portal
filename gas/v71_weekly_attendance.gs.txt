@@ -62,7 +62,8 @@ function ensureWeeklyAttTrigger71_() {
 }
 
 /* ── shared/att-tg.js（與頁面同一份）── */
-/* AC HRA 考勤 Telegram 摘要 v4（2026-11-12）
+/* AC HRA 考勤 Telegram 摘要 v5（2026-11-13）
+   v5 Paul：總覽一項一行、數字在前對齊；人車比、流失率各自一行；男女用 🚺（紫）🚹（藍）兩種顏色的圖示，不可換成同色。
    v4 Paul：排列要整齊——入離明細、各部門、各車縫組都用「等寬數字在前、名稱在後」的表；車縫組後面加請假類型人數。
    v3 Paul：色標回到他定的 ≥92% 綠／≥88% 黃／<88% 紅；出勤率分含產假／不含產假；入離列出哪個職稱與本月累計（opt.monthDays）；車縫組一組一行列人數／出勤／出勤率。
    v2 Paul：不要過度簡化——補回應到／出勤／缺勤人數、各部門出勤人數與入離、各車縫組出勤率；人車比 🟢≤1.3 🟡≤1.8 🔴>1.8。
@@ -167,15 +168,20 @@ function ensureWeeklyAttTrigger71_() {
     L.push(bar(rate));
     /* 含產假／不含產假：產假的人算在應到裡會把出勤率拉低，兩個都列 */
     if(lv.ml>0){var rateX=(rep-lv.ml)>0?att/(rep-lv.ml):null;L.push(dot(rate)+' '+lab(lang,'含產假','incl. ML')+' '+pc(rate)+' · '+dot(rateX)+' <b>'+lab(lang,'不含產假','excl. ML')+' '+pc(rateX)+'</b>（ML '+r1(lv.ml/D)+'）');}
-    L.push('👥 '+avgTag+lab(lang,'在職','Headcount')+' '+r1(hc)+' · '+lab(lang,'應到','Due')+' '+r1(rep/D)+' · ✅ '+lab(lang,'出勤','Att.')+' <b>'+r1(att/D)+'</b> · '+lab(lang,'未到','Absent')+' '+r1((rep-att)/D));
+    /* v5（Paul 11/13）：總覽改成一項一行、數字在前對齊，手機上不再一長串換行 */
+    var ov=[[r1(hc),'👥 '+lab(lang,'在職','Headcount')],[r1(rep/D),'📌 '+lab(lang,'應到','Due')],[r1(att/D),'✅ <b>'+lab(lang,'出勤','Present')+'</b>'],[r1((rep-att)/D),'➖ '+lab(lang,'未到','Absent')],[r1(sum(G,function(x){return leave(x.g);})/D),'📋 '+lab(lang,'請假','On leave')],[r1(lv.np/D),(lv.np?'🔴':'🟢')+' NP '+lab(lang,'無故缺勤','no permission')]];
+    var ow=Math.max.apply(null,ov.map(function(x){return String(x[0]).length;}));
+    if(!daily)L.push('<i>'+lab(lang,'以下為日均','Daily averages below')+'</i>');
+    ov.forEach(function(x){L.push('<code>'+padL(x[0],ow)+'</code> '+x[1]);});
     var lvNoNp={};LV.forEach(function(x){if(x[0]!=='np')lvNoNp[x[0]]=lv[x[0]]/D;});var lcs=leaveCodes(lvNoNp);
-    L.push('📋 '+lab(lang,'請假','Leave')+' '+r1(sum(G,function(x){return leave(x.g);})/D)+(lcs?'（'+lcs+'）':'')+' · '+(lv.np?'🔴':'🟢')+' NP '+r1(lv.np/D)+(daily?'':' '+lab(lang,'／天','/day')));
+    if(lcs)L.push('   <i>'+lab(lang,'假別','Leave types')+'：'+lcs+'</i>');
     if(hc>0){var gk=Math.round(F/hc*10);if(F&&gk<1)gk=1;if(M&&gk>9)gk=9;var grow='';for(var gi=0;gi<10;gi++)grow+=gi<gk?'🚺':'🚹';
       L.push('🚺 '+lab(lang,'女','F')+' '+r1(F)+' ('+pc(F/hc,0)+') · 🚹 '+lab(lang,'男','M')+' '+r1(M)+' ('+pc(M/hc,0)+')');L.push(grow);}
     /* 人車比＝全廠 ÷ 車工。Paul 11/12 第二次定：1.6 還在黃色範圍，超過 1.8 才紅。🟢≤1.3 🟡≤1.8 🔴>1.8 */
-    if(S>0){var pr=ST/S;L.push('🧵 '+lab(lang,'車工','Sewers')+' '+r1(S)+' · '+lab(lang,'間接','Indirect')+' '+r1(ST-S)+' · '+(pr<=1.3?'🟢':pr<=1.8?'🟡':'🔴')+' <b>'+lab(lang,'人車比','Ratio')+' '+pr.toFixed(2)+'</b>'+(pr>1.8?' '+lab(lang,'過高','too high'):pr>1.3?' '+lab(lang,'略高','slightly high'):''));}
+    if(S>0){var pr=ST/S;L.push('🧵 '+lab(lang,'車工','Sewers')+' '+r1(S)+' · '+lab(lang,'間接','Indirect')+' '+r1(ST-S));L.push((pr<=1.3?'🟢':pr<=1.8?'🟡':'🔴')+' <b>'+lab(lang,'人車比','Ratio')+' '+pr.toFixed(2)+'</b>'+(pr>1.8?' '+lab(lang,'過高','too high'):pr>1.3?' '+lab(lang,'略高','slightly high'):''));}
     var tin=sum(G,function(x){return n(x.g.ti);}),tout=sum(G,function(x){return n(x.g.to);});
-    L.push('🔄 '+lab(lang,'入','Join')+' <b>+'+join+'</b> · '+lab(lang,'離','Resign')+' <b>−'+res+'</b>'+(hc>0?' · '+lab(lang,'流失','turnover')+' '+pc(res/hc,2):'')+((tin||tout)?' · '+lab(lang,'調動','Transfer')+' +'+tin+'/−'+tout:''));
+    L.push('🔄 '+lab(lang,'入','Join')+' <b>+'+join+'</b> · '+lab(lang,'離','Resign')+' <b>−'+res+'</b>');
+    if(hc>0||tin||tout)L.push('   '+(hc>0?lab(lang,'流失率','Turnover')+' '+pc(res/hc,1):'')+((tin||tout)?(hc>0?' · ':'')+lab(lang,'調動','Transfer')+' +'+tin+'/−'+tout:''));
     {var jm={},rm={},who=function(r){return isSewingLine(r)?lab(lang,'車工','Sewer')+' '+lineName(r):String(r.sect||r.line||r.dept||'—').replace(/\s*[/／].*$/,'').trim();};
      /* 「Shop A sewing Section｜A section」這一列其實是車工小計（數字和車工小計完全一樣），當天有各組明細時不重複算 */
      G.forEach(function(x){var hasLines=(x.rows||[]).some(isSewingLine);(x.rows||[]).forEach(function(r){if(r.isGrand||r.isSubtotal)return;if(hasLines&&/sewing/i.test(String(r.sect||''))&&/section\s*$/i.test(String(r.line||'')))return;if(n(r.join)>0)jm[who(r)]=(jm[who(r)]||0)+n(r.join);if(n(r.resign)>0)rm[who(r)]=(rm[who(r)]||0)+n(r.resign);});});
