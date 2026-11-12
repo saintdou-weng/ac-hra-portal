@@ -97,7 +97,8 @@
     L.push('👥 '+avgTag+lab(lang,'在職','Headcount')+' '+r1(hc)+' · '+lab(lang,'應到','Due')+' '+r1(rep/D)+' · ✅ '+lab(lang,'出勤','Att.')+' <b>'+r1(att/D)+'</b> · '+lab(lang,'未到','Absent')+' '+r1((rep-att)/D));
     var lvNoNp={};LV.forEach(function(x){if(x[0]!=='np')lvNoNp[x[0]]=lv[x[0]]/D;});var lcs=leaveCodes(lvNoNp);
     L.push('📋 '+lab(lang,'請假','Leave')+' '+r1(sum(G,function(x){return leave(x.g);})/D)+(lcs?'（'+lcs+'）':'')+' · '+(lv.np?'🔴':'🟢')+' NP '+r1(lv.np/D)+(daily?'':' '+lab(lang,'／天','/day')));
-    if(hc>0)L.push('👩 '+r1(F)+' ('+pc(F/hc,0)+') · 👨 '+r1(M)+' ('+pc(M/hc,0)+')');
+    if(hc>0){var gk=Math.round(F/hc*10);if(F&&gk<1)gk=1;if(M&&gk>9)gk=9;var grow='';for(var gi=0;gi<10;gi++)grow+=gi<gk?'🚺':'🚹';
+      L.push('🚺 '+lab(lang,'女','F')+' '+r1(F)+' ('+pc(F/hc,0)+') · 🚹 '+lab(lang,'男','M')+' '+r1(M)+' ('+pc(M/hc,0)+')');L.push(grow);}
     /* 人車比＝全廠 ÷ 車工。Paul 11/12 第二次定：1.6 還在黃色範圍，超過 1.8 才紅。🟢≤1.3 🟡≤1.8 🔴>1.8 */
     if(S>0){var pr=ST/S;L.push('🧵 '+lab(lang,'車工','Sewers')+' '+r1(S)+' · '+lab(lang,'間接','Indirect')+' '+r1(ST-S)+' · '+(pr<=1.3?'🟢':pr<=1.8?'🟡':'🔴')+' <b>'+lab(lang,'人車比','Ratio')+' '+pr.toFixed(2)+'</b>'+(pr>1.8?' '+lab(lang,'過高','too high'):pr>1.3?' '+lab(lang,'略高','slightly high'):''));}
     var tin=sum(G,function(x){return n(x.g.ti);}),tout=sum(G,function(x){return n(x.g.to);});
