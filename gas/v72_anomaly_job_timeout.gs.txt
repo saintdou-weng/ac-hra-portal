@@ -1,0 +1,12 @@
+/* ═══ v72（2026-11-12）dailyAnomalyJob 逾時修正 — 已直接套用在 GAS 編輯器（HEAD），此檔為紀錄 ═══
+   現象：每週五 17:00 的 dailyAnomalyJob 每次都跑滿 360 秒「Exceeded maximum execution time」，錯誤率 100%，異常報告發不出去。
+   原因：sendAnomalyReport 一開始先跑 reconcileApprovalBatches_(true)、repairClosedApprovalDocuments_(true) 兩個補發／修復，時間用完才輪到報告。
+   修正：排程改成「先發報告」，補發／修復／清理放後面並看剩餘秒數，每段 console.log 秒數（下次看得出哪段慢）。手動發異常（/anomaly）行為不變。 */
+function dailyAnomalyJob() {
+  var t0 = Date.now(), sec = function () { return Math.round((Date.now() - t0) / 1000); }, lap = function (n) { console.log('[anomaly] ' + n + ' done at ' + sec() + 's'); };
+  sendAnomalyReport(HRA_CFG.CHAT_ID, 'zh', true); lap('report');
+  if (sec() < 120) { try { reconcileApprovalBatches_(true); } catch (e) { console.log('[anomaly reconcile] ' + e); } lap('reconcile'); }
+  if (sec() < 200) { try { repairClosedApprovalDocuments_(true); } catch (e) { console.log('[anomaly repair] ' + e); } lap('repair'); }
+  if (sec() < 270) { try { if (typeof contractDeferredCleanup_ === 'function') contractDeferredCleanup_(); } catch (e) { console.log('[anomaly cleanup] ' + e); } lap('cleanup'); }
+}
+/* sendAnomalyReport(chatId, lang, skipRepair)：skipRepair 為 true 時跳過開頭的 reconcile／repair。 */

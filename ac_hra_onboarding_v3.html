@@ -2532,8 +2532,12 @@ function amtVerifyBlock_(its,bi){
   r.sort(function(a,b){return Math.abs(b.diff||0)-Math.abs(a.diff||0);});
   r.slice(0,10).forEach(function(x){t+='🔴 '+esc(x.id||'')+' '+esc(x.name||'')+' · '+esc(amtWhy_(x,bi))+'\n';});
   if(r.length>10)t+='🔴 … +'+(r.length-10)+'\n';
-  y.slice(0,8).forEach(function(x){t+='🟡 '+esc(x.id||'')+' '+esc(x.name||'')+' · '+esc(amtWhy_(x,bi))+'\n';});
-  if(y.length>8)t+='🟡 … +'+(y.length-8)+'\n';
+  /* 同一個原因的黃燈合成一行（例：5 筆都沒有結算明細），有金額差的才逐筆列 */
+  var yd=y.filter(function(x){return typeof x.diff==='number'&&Math.abs(x.diff)>AMT_TOL_OK;}), yo={};
+  y.filter(function(x){return yd.indexOf(x)<0;}).forEach(function(x){var k=amtWhy_(x,bi);(yo[k]=yo[k]||[]).push(x);});
+  yd.slice(0,8).forEach(function(x){t+='🟡 '+esc(x.id||'')+' '+esc(x.name||'')+' · '+esc(amtWhy_(x,bi))+'\n';});
+  if(yd.length>8)t+='🟡 … +'+(yd.length-8)+'\n';
+  Object.keys(yo).forEach(function(k){var l=yo[k];t+='🟡 '+l.length+' '+esc(BL('筆','items','',bi))+' · '+esc(k)+'：'+esc(l.slice(0,12).map(function(x){return x.id;}).join('、'))+(l.length>12?' …+'+(l.length-12):'')+'\n';});
   return t;
 }
 /* scope: 'join' | 'resign' | 'both' */
