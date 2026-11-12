@@ -4,13 +4,18 @@
    每天 08:00 檢查一次；同一週只發一次（att_weekly_sent_<週一日期>）。摘要格式＝頁面同一份 HRAAttTg。 */
 function weeklyAttendanceJob() { return weeklyAttendanceRun71_(false); }
 function weeklyAttCalendarRows71_() {
+  /* 行事曆雲端格式：pull('calendar') → meta.totalChunks；每塊 records[0].db = { '2026': [假日列…] } */
   var out = [];
   try {
-    var p = pullPayload('calendar');
-    var take = function (x) { if (!x) return; if (Array.isArray(x.records)) out = out.concat(x.records); else if (typeof x.data === 'string') { try { var d = JSON.parse(x.data); out = out.concat(Array.isArray(d) ? d : (d.records || [])); } catch (e) {} } };
-    take(p);
-    var n = p && (p.smartBuckets ? p.smartBuckets.length : (p.chunked ? p.chunks : 0));
-    if (!out.length && n) for (var i = 0; i < n && i < 80; i++) take(pullPayload('calendar', i));
+    var p = pullPayload('calendar') || {}, m = p.meta || {};
+    var n = Number(m.totalChunks) || (m.smartBuckets || p.smartBuckets || []).length || Number(p.chunks) || 1;
+    for (var i = 0; i < n && i < 80; i++) {
+      var c = pullPayload('calendar', i);
+      ((c && c.records) || []).forEach(function (rec) {
+        if (rec && rec.db && typeof rec.db === 'object') Object.keys(rec.db).forEach(function (y) { if (Array.isArray(rec.db[y])) out = out.concat(rec.db[y]); });
+        else if (rec && rec.date) out.push(rec);
+      });
+    }
   } catch (e) { console.warn('[ATT-WEEKLY] calendar load failed: ' + e); }
   return out;
 }
@@ -34,7 +39,7 @@ function weeklyAttendanceRun71_(preview) {
   var days = Object.keys(by).sort().map(function (dt) { return { date: dt, rows: by[dt] }; }).filter(function (x) { return x.rows.some(function (r) { return r.isGrand; }); });
   var label = days.length ? days[0].date.slice(5).replace('-', '/') + ' ~ ' + days[days.length - 1].date.slice(5).replace('-', '/') : key;
   var text = HRAAttTg.build({ mode: 'weekly', lang: 'both', key: key, periodLabel: label, days: days });
-  if (preview) return { today: today, week: key, workday: workday, holidays: off.size, days: days.length, alreadySent: !!cfg(guard), text: text };
+  if (preview) return { today: today, week: key, workday: workday, holidays: off.size, next: Array.from(off).filter(function (x) { return x >= today; }).sort().slice(0, 6), days: days.length, alreadySent: !!cfg(guard), text: text };
   if (cfg(guard)) return { skipped: 'sent' };
   if (!workday) { console.log('[ATT-WEEKLY] ' + today + ' is not a working day; wait'); return { skipped: 'holiday' }; }
   if (!days.length) { console.log('[ATT-WEEKLY] no attendance data for week ' + key); return { skipped: 'nodata' }; }
