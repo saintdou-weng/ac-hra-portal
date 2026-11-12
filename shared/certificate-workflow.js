@@ -149,7 +149,7 @@ function certificateChangeText(lang){
 /* 2026-11-12 Paul：摘要改短版——一行總覽、到期用紅黃綠（🔴 已過期或 14 天內、🟡 45 天內、🟢 更久），只列紅黃的項目，綠的只寫數量。 */
 function certDaysLeft_(e){if(typeof e.days==='number'&&isFinite(e.days))return e.days;const d=new Date(String(e.date).slice(0,10)+'T00:00:00'),t=new Date();t.setHours(0,0,0,0);return Math.round((d-t)/864e5);}
 function certTone_(e){if(e.completed)return '🟢';const n=certDaysLeft_(e);return n<=14?'🔴':n<=45?'🟡':'🟢';}
-function certEventLine_(e,lang){const n=certDaysLeft_(e);return certTone_(e)+' '+String(e.date).slice(5)+' · '+e.name+' · '+certificateEventLabel(e,lang)+' · '+(n<0?certificateL(lang,'已過 '+(-n)+' 天',(-n)+'d overdue','ហួស '+(-n)+' ថ្ងៃ'):certificateL(lang,'剩 '+n+' 天',n+'d left','នៅសល់ '+n+' ថ្ងៃ'));}
+function certEventLine_(e,lang){const n=certDaysLeft_(e);return certTone_(e)+' '+(String(e.date).slice(0,4)===String(new Date().getFullYear())?String(e.date).slice(5):String(e.date).slice(0,10))+' · '+e.name+' · '+certificateEventLabel(e,lang)+' · '+(n<0?certificateL(lang,'已過 '+(-n)+' 天',(-n)+'d overdue','ហួស '+(-n)+' ថ្ងៃ'):certificateL(lang,'剩 '+n+' 天',n+'d left','នៅសល់ '+n+' ថ្ងៃ'));}
 function tgSummaryText(lang,mode){
   const c=certificatesForMonth().filter(HRACertificateModel.current),p=peopleForMonth().filter(p=>p.status==='active'&&!p.notInLatest),ev=certificatePeriodEvents(mode).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))),actor=document.getElementById('tgActor')?.value||'';
   const red=ev.filter(e=>certTone_(e)==='🔴'),yel=ev.filter(e=>certTone_(e)==='🟡'),grn=ev.length-red.length-yel.length,stop=c.filter(x=>x.status==='stopped').length,pend=certificatePendingRequests().length;
