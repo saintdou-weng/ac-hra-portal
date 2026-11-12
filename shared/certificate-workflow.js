@@ -146,11 +146,28 @@ function certificateChangeText(lang){
   }
   return out;
 }
+/* 2026-11-12 Paul：摘要改短版——一行總覽、到期用紅黃綠（🔴 已過期或 14 天內、🟡 45 天內、🟢 更久），只列紅黃的項目，綠的只寫數量。 */
+function certDaysLeft_(e){if(typeof e.days==='number'&&isFinite(e.days))return e.days;const d=new Date(String(e.date).slice(0,10)+'T00:00:00'),t=new Date();t.setHours(0,0,0,0);return Math.round((d-t)/864e5);}
+function certTone_(e){if(e.completed)return '🟢';const n=certDaysLeft_(e);return n<=14?'🔴':n<=45?'🟡':'🟢';}
+function certEventLine_(e,lang){const n=certDaysLeft_(e);return certTone_(e)+' '+String(e.date).slice(5)+' · '+e.name+' · '+certificateEventLabel(e,lang)+' · '+(n<0?certificateL(lang,'已過 '+(-n)+' 天',(-n)+'d overdue','ហួស '+(-n)+' ថ្ងៃ'):certificateL(lang,'剩 '+n+' 天',n+'d left','នៅសល់ '+n+' ថ្ងៃ'));}
 function tgSummaryText(lang,mode){
-  const c=certificatesForMonth().filter(HRACertificateModel.current),p=peopleForMonth().filter(p=>p.status==='active'&&!p.notInLatest),ev=certificatePeriodEvents(mode),actor=document.getElementById('tgActor')?.value||'';
-  const out=['📄 '+certificateL(lang,'證書／簽證摘要','Certificate / Visa Summary','សង្ខេបវិញ្ញាបនបត្រ / ទិដ្ឋាការ'),certificateL(lang,'期間','Period','រយៈពេល')+'：'+periodLabel(mode),certificateL(lang,'公司清單','Certificate list','បញ្ជីវិញ្ញាបនបត្រ')+'：'+c.length+'（'+certificateL(lang,'停止','Stopped','បានបញ្ឈប់')+' '+c.filter(x=>x.status==='stopped').length+'）',certificateL(lang,'有效外幹','Active expats','បុគ្គលិកបរទេសសកម្ម')+'：'+p.length,p.map(x=>x.nickname||x.nameEn).join('、'),certificateL(lang,'期間到期／續期','Expiry / renewal in period','ផុតកំណត់ / បន្តក្នុងរយៈពេល')+'：'+ev.length,certificateL(lang,'待核可申請','Pending approval requests','សំណើរង់ចាំអនុម័ត')+'：'+certificatePendingRequests().length,certificateL(lang,'檢查人','Inspector','អ្នកត្រួតពិនិត្យ')+'：'+actor,...certificateChangeText(lang)];
-  ev.forEach(e=>out.push('• '+e.date+' | '+e.name+' | '+certificateEventLabel(e,lang)));
+  const c=certificatesForMonth().filter(HRACertificateModel.current),p=peopleForMonth().filter(p=>p.status==='active'&&!p.notInLatest),ev=certificatePeriodEvents(mode).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))),actor=document.getElementById('tgActor')?.value||'';
+  const red=ev.filter(e=>certTone_(e)==='🔴'),yel=ev.filter(e=>certTone_(e)==='🟡'),grn=ev.length-red.length-yel.length,stop=c.filter(x=>x.status==='stopped').length,pend=certificatePendingRequests().length;
+  const out=['📄 '+certificateL(lang,'證書／簽證摘要','Certificate / Visa Summary','សង្ខេបវិញ្ញាបនបត្រ / ទិដ្ឋាការ')+' · '+periodLabel(mode),'━━━━━━━━━━━━',
+    '🏢 '+certificateL(lang,'公司證書','Certificates','វិញ្ញាបនបត្រ')+' '+c.length+(stop?'（'+certificateL(lang,'停止','stopped','បានបញ្ឈប់')+' '+stop+'）':'')+' · 🌏 '+certificateL(lang,'有效外幹','Active expats','បុគ្គលិកបរទេស')+' '+p.length,
+    '🚦 '+certificateL(lang,'期間到期／續期','Expiry / renewal in period','ផុតកំណត់ / បន្ត')+' '+ev.length+'：🔴 '+red.length+' · 🟡 '+yel.length+' · 🟢 '+grn,
+    '   '+certificateL(lang,'🔴 已過期或 14 天內 · 🟡 45 天內 · 🟢 還久','🔴 overdue or ≤14d · 🟡 ≤45d · 🟢 later','🔴 ≤14 ថ្ងៃ · 🟡 ≤45 ថ្ងៃ · 🟢 យូរ'),
+    (pend?'⏳ ':'✅ ')+certificateL(lang,'待核可申請','Pending approval requests','សំណើរង់ចាំអនុម័ត')+' '+pend];
+  red.slice(0,12).forEach(e=>out.push(certEventLine_(e,lang)));if(red.length>12)out.push('🔴 … +'+(red.length-12));
+  yel.slice(0,12).forEach(e=>out.push(certEventLine_(e,lang)));if(yel.length>12)out.push('🟡 … +'+(yel.length-12));
+  if(!red.length&&!yel.length)out.push('🟢 '+certificateL(lang,'期間內沒有急件','Nothing urgent in this period','គ្មានអ្វីបន្ទាន់'));
+  const ch=certificateChangeText(lang).filter(x=>!/[：:]\s*0$/.test(x));if(ch.length)out.push('',...ch);
+  if(actor)out.push('👤 '+actor);
   return out.join('\n');
+}
+function tgReminderText(lang){
+  const rows=allEvents().filter(e=>!e.completed&&e.days<=Number(STATE.settings.reminderDays||45)).sort((a,b)=>String(a.date).localeCompare(String(b.date))),red=rows.filter(e=>certTone_(e)==='🔴').length;
+  return ['🔔 '+certificateL(lang,'證書／證件提醒','Document reminders','រំលឹកឯកសារ')+' · '+certificateViewMonth(),'━━━━━━━━━━━━','🚦 '+rows.length+'：🔴 '+red+' · 🟡 '+(rows.length-red),...rows.map(e=>certEventLine_(e,lang))].join('\n');
 }
 function tgApprovalText(lang){
   const requests=CertificateEvidence.requests(),out=['✅ '+certificateL(lang,'證書／證件核可申請','Certificate / Document Approval','សំណើអនុម័តឯកសារ'),certificateL(lang,'資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth()];
@@ -162,10 +179,6 @@ function tgApprovalText(lang){
     else out.push(certificateL(lang,'請先在表格勾選公司證書或外幹，再按「送出」。','Tick certificates or expats in the table, then Send.','សូមជ្រើសធាតុក្នុងតារាង រួចផ្ញើ។'));
   }
   return out.join('\n');
-}
-function tgReminderText(lang){
-  const rows=allEvents().filter(e=>!e.completed&&e.days<=Number(STATE.settings.reminderDays||45));
-  return ['🔔 '+certificateL(lang,'證書／證件提醒','Document reminders','រំលឹកឯកសារ'),certificateL(lang,'資料月份','Source month','ខែទិន្នន័យ')+'：'+certificateViewMonth(),...rows.map(e=>e.date+' | '+e.name+' | '+certificateEventLabel(e,lang)+(e.expiryDate?' | '+certificateL(lang,'證書到期','Certificate expiry','វិញ្ញាបនបត្រផុតកំណត់')+' '+e.expiryDate:''))].join('\n');
 }
 function certificateTextChunks(text,max=3000){
   const out=[];let part='';for(const line of String(text).split('\n')){for(const char of line+'\n'){if(esc(part+char).length>max){out.push(part);part='';}part+=char;}}if(part)out.push(part);return out;
