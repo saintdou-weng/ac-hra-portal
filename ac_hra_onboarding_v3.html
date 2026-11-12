@@ -2469,7 +2469,7 @@ function obLine_(map,fmtFn,max){
 function joinBlock(J,bi){
   var h=obHead_(J), dm={}; J.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
   var ppl=esc(BL('人','ppl','នាក់',bi));
-  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+' '+J.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(J.length-h.sew)+' · 👩 '+h.f+' 👨 '+h.m+'\n';
+  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+' '+J.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(J.length-h.sew)+((h.f+h.m)?' · 👩 '+h.f+' 👨 '+h.m:'')+'\n';
   if(J.length)t+='🏢 '+obLine_(dm,function(k){return esc(k)+' '+dm[k];},10)+'\n';
   t+=joinPayBlock(J,bi);
   return t;
@@ -2493,7 +2493,7 @@ function resignBlock(R,p,bi){
   var days=R.map(function(r){return +r.workingDays||0;}).filter(function(x){return x>0;});
   var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):0;
   var amtRows=R.filter(function(r){return (+r.amount||0)>0;}), totAmt=amtRows.reduce(function(s,r){return s+(+r.amount||0);},0);
-  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+' '+R.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(R.length-h.sew)+' · 👩 '+h.f+' 👨 '+h.m+'\n';
+  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+' '+R.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(R.length-h.sew)+((h.f+h.m)?' · 👩 '+h.f+' 👨 '+h.m:'')+'\n';
   if(totAmt>0)t+='💵 <b>'+esc(BL('結算','Settlement','ប្រាក់សរុប',bi))+' $'+fmt(totAmt)+'</b> · '+esc(BL('平均','avg','មធ្យម',bi))+' $'+fmt(totAmt/amtRows.length)+' ('+amtRows.length+'/'+R.length+')\n';
   var l2=[]; if(to&&isFinite(to.rate))l2.push('📉 '+esc(BL('流動率','Turnover','អត្រាចេញ',bi))+' <b>'+pct(to.rate)+'</b>'+(to.est?' '+esc(BL('推估','est.','ប៉ាន់',bi)):''));
   if(days.length){
@@ -2519,7 +2519,7 @@ function buildSummaryText(p,bi,scope){
   if(scope==='both'){
     var net=J.length-R.length, mx=Math.max(J.length,R.length,1), bar=function(n,sq){var k=Math.round(n/mx*10),o='';for(var i=0;i<k;i++)o+=sq;return o||'▫️';};
     t+='🟢 '+bar(J.length,'🟩')+' +'+J.length+'\n🔴 '+bar(R.length,'🟥')+' −'+R.length+'\n⚖️ <b>'+esc(BL('淨增減','Net','សុទ្ធ',bi))+' '+(net>0?'+':'')+net+'</b>\n\n';
-    t+=joinBlock(J,bi)+'\n'+resignBlock(R,p,bi);
+    t+=(J.length?joinBlock(J,bi)+'\n':'')+(R.length?resignBlock(R,p,bi):'');
   }else if(scope==='join') t+=joinBlock(J,bi);
   else t+=resignBlock(R,p,bi);
   var st=apprStats(p,scope);
