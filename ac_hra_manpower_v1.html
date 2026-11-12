@@ -3404,11 +3404,13 @@ function buildTelegramHtml(){
   if(el('tgPlan').checked){
     const rq=n(m.required),ac=n(m.actual),gp=n(m.gap);
     t+=`${tone(rq,ac)} <b>${B('需求','Required')} ${fmt(rq)}</b> · ${B('已補','Filled')} <b>${fmt(ac)}</b> · ${B('尚缺','Gap')} <b>${fmt(gp)}</b> · ${pct(m.fillRate)}\n${bar(rq,ac)}\n`;
+    /* 2026-11-13：已補是 0 而且這段期間根本沒有入職名單時，直接講原因，不要讓人以為真的一個都沒補 */
+    if(rq>0&&ac===0&&!DB.joins.some(r=>inState(r.joinDate,state))){const lastJ=DB.joins.map(r=>String(r.joinDate||'')).filter(Boolean).sort().pop()||'—';t+=`⚠️ ${B('這段期間沒有匯入入職名單（最後一筆 '+lastJ+'），所以「已補」算不出來','No join list imported for this period (last record '+lastJ+'), so “Filled” cannot be calculated')}\n`;}
     checked++;if(Math.abs((rq-ac)-gp)>=0.5)chkBad.push(`${B('需求','Required')} ${fmt(rq)} − ${B('已補','Filled')} ${fmt(ac)} = ${fmt(rq-ac)} ≠ ${B('尚缺','Gap')} ${fmt(gp)}`);
   }
   if(el('tgMovement').checked){
     const nn=n(m.joined)-n(m.resigned);
-    t+=`🔄 ${B('入','Join')} <b>+${fmt(m.joined)}</b> · ${B('離','Resign')} <b>−${fmt(m.resigned)}</b> · ${B('淨','Net')} <b>${m.net>0?'+':''}${fmt(m.net)}</b> · ${B('流動率','Turnover')} ${pct(m.turnover)}\n`;
+    t+=`🔄 ${B('入','Join')} <b>+${fmt(m.joined)}</b> · ${B('離','Resign')} <b>−${fmt(m.resigned)}</b> · ${B('淨','Net')} <b>${m.net>0?'+':''}${fmt(m.net)}</b> · ${B('流動率','Turnover')} ${m.avgActual?pct(m.turnover):'— '+B('（缺在職人數）','(no headcount)')}\n`;
     checked++;if(Math.abs(nn-n(m.net))>=0.5)chkBad.push(`${B('入','Join')} ${fmt(m.joined)} − ${B('離','Resign')} ${fmt(m.resigned)} = ${fmt(nn)} ≠ ${B('淨','Net')} ${fmt(m.net)}`);
   }
   if(el('tgDept').checked&&el('tgPlan').checked){
