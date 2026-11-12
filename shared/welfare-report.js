@@ -80,7 +80,10 @@
   /* 同一部門的列：「Line9 · 9 人 13% · 🔵5 🟢3 🟠1」 */
   function deptLines(lang,rows,ctx,extra,max){
     max=max||14;var dm=countBy(rows,function(r){return place(ctx(r))||'—';}),keys=sortedKeys(dm),out=[];
-    keys.slice(0,max).forEach(function(k){var mine=rows.filter(function(r){return (place(ctx(r))||'—')===k;});out.push('▸ '+bold(k)+' · '+bold(dm[k])+' '+L(lang,'人','ppl','នាក់')+' '+pct(dm[k],rows.length)+(extra?' · '+extra(mine):''));});
+    /* 2026-11-13：對齊表——人數、占比（等寬）在前，部門在後；車縫組照 L1、L2… 排 */
+    keys=keys.slice().sort(function(a,b){var x=/^L(\d+)$/.exec(a),y=/^L(\d+)$/.exec(b);if(x&&y)return x[1]-y[1];if(x)return -1;if(y)return 1;return dm[b]-dm[a]||a.localeCompare(b);});
+    var wn=String(Math.max.apply(null,keys.map(function(k){return dm[k];}).concat([1]))).length;
+    keys.slice(0,max).forEach(function(k){var mine=rows.filter(function(r){return (place(ctx(r))||'—')===k;});out.push(mono(padL(dm[k],wn+1)+padL(String(pct(dm[k],rows.length)).replace(/[()（）\s]/g,''),5))+' '+k+(extra?' · '+extra(mine):''));});
     if(keys.length>max){var rest=keys.slice(max).reduce(function(n,k){return n+dm[k];},0);out.push('▸ '+L(lang,'其他','Others','ផ្សេងៗ')+' '+(keys.length-max)+' · '+bold(rest)+' '+L(lang,'人','ppl','នាក់'));}
     return out;
   }

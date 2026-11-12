@@ -180,9 +180,11 @@ var HRAContractModel = (function () {
       if(sc.length){var avg=sc.reduce(function(a,b){return a+b;},0)/sc.length;out.push('📊 '+S('分數','Score','ពិន្ទុ')+' /'+SCORE_MAX+' · '+S('平均','avg','មធ្យម')+' '+B(Math.round(avg*10)/10)+' · '+S('最高','max','ខ្ពស់')+' '+B(Math.max.apply(null,sc))+' · '+S('最低','min','ទាប')+' '+B(Math.min.apply(null,sc)));
         SCORE_BANDS.forEach(function(b,i){var hi=i?SCORE_BANDS[i-1].min-1:SCORE_MAX,lo=b.min<0?0:b.min;out.push(b.dot+' '+S(b.z,b.e,b.km)+' '+(b.min<0?'&lt;25':lo+'–'+hi)+' · '+B(bands[b.k])+' '+ppl);});
         if(bands.none)out.push('⚪ '+S('無分數','No score','គ្មានពិន្ទុ')+' · '+B(bands.none)+' '+ppl);}
-      out.push('');out.push('━━ 🏢 '+B(S('部門','Departments','ផ្នែក'))+' ━━');
+      out.push('');out.push('━━ 🏢 '+B(S('部門','Departments','ផ្នែក'))+' ━━');out.push('<i>'+S('人數／通過／未過／待評／均分','n / pass / fail / pending / avg','ចំនួន')+'</i>');
+      var pl=function(v,w){v=String(v);while(v.length<w)v=' '+v;return v;};
       gs.forEach(function(g){var l2=g[1],ss=l2.map(function(x){return Number(x.after.score);}).filter(function(n){return isFinite(n)&&n>0;}),f=l2.filter(function(x){return x.after.result==='failed';}).length,ok=l2.filter(function(x){return x.after.result==='passed';}).length,o=l2.length-f-ok;
-        out.push('▸ '+B(g[0])+' · '+l2.length+' '+ppl+' · '+(ok?'✅'+ok:'')+(f?' ❌'+f:'')+(o?' ⏳'+o:'')+(ss.length?' · '+S('均','avg','មធ្យម')+' '+(Math.round(ss.reduce(function(a,b){return a+b;},0)/ss.length*10)/10):''));});
+        var av=ss.length?(Math.round(ss.reduce(function(a,b){return a+b;},0)/ss.length*10)/10):null;
+        out.push((f?'🔴':o?'🟡':'🟢')+' <code>'+pl(l2.length,3)+pl(ok,4)+pl(f,4)+pl(o,4)+pl(av==null?'—':av,6)+'</code> '+escH(String(g[0]).replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'L$1')));});
       out.push('');out.push('━━ 👤 '+B(S('名單','List','បញ្ជី'))+' ━━');
       gs.forEach(function(g){out.push('<b>'+escH(g[0])+'</b>');g[1].slice().sort(function(a,b){return (Number(b.after.score)||0)-(Number(a.after.score)||0);}).forEach(function(x){var a=x.after,bd=band(a.score);
         out.push((a.deleted?'🗑':mark[a.result]||'•')+' '+bd.dot+(a.score==null||a.score===''?'—':escH(a.score))+' · '+escH(a.employeeId||'—')+' '+escH(a.name||'—')+(a.result!=='passed'&&a.notes?' · '+escH(a.notes):'')+(a.result==='pending'&&a.endDate?' · '+S('到期','end','ផុត')+' '+md(a.endDate):'')+changes(x));});});

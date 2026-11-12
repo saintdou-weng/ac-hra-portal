@@ -2461,16 +2461,27 @@ function obHead_(list){
   var m=list.filter(function(r){return (r.gender||'').toUpperCase()==='M';}).length, f=list.filter(function(r){return (r.gender||'').toUpperCase()==='F';}).length;
   return {sew:sew,m:m,f:f};
 }
+/* 2026-11-13 Paul：排列要整齊——部門改成對齊表：等寬數字在前、名稱在後；車縫組照 L1、L2… 排，其餘照人數 */
+function obDeptKey_(v){return String(v||'—').replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'L$1');}
+function obTable_(map,cols,max){
+  var re=/^L(\d+)$/,ks=Object.keys(map),nOf=function(k){return map[k].n||map[k];};
+  ks.sort(function(a,b){var x=re.exec(a),y=re.exec(b);if(x&&y)return x[1]-y[1];if(x)return -1;if(y)return 1;return nOf(b)-nOf(a)||a.localeCompare(b);});
+  var rows=ks.map(function(k){return cols(k);}),w=rows[0]?rows[0].map(function(_,i){return Math.max.apply(null,rows.map(function(r){return String(r[i]).length;}));}):[],t='';
+  var line=function(r,name){return '<code>'+r.map(function(c,i){c=String(c);while(c.length<w[i])c=' '+c;return c;}).join('  ')+'</code> '+name+'\n';};
+  ks.slice(0,max||14).forEach(function(k,i){t+=line(rows[i],esc(k));});
+  if(ks.length>(max||14))t+='… +'+(ks.length-(max||14))+'\n';
+  return t;
+}
 function obLine_(map,fmtFn,max){
   var ks=Object.keys(map).sort(function(a,b){return (map[b].n||map[b])-(map[a].n||map[a]);}), out=ks.slice(0,max||10).map(fmtFn);
   if(ks.length>(max||10))out.push('+'+(ks.length-(max||10)));
   return out.join(' · ');
 }
 function joinBlock(J,bi){
-  var h=obHead_(J), dm={}; J.forEach(function(r){var k=r.dept||lineOf(r)||'—';dm[k]=(dm[k]||0)+1;});
+  var h=obHead_(J), dm={}; J.forEach(function(r){var k=obDeptKey_(r.dept||lineOf(r));dm[k]=(dm[k]||0)+1;});
   var ppl=esc(BL('人','ppl','នាក់',bi));
-  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+' '+J.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(J.length-h.sew)+((h.f+h.m)?' · 👩 '+h.f+' 👨 '+h.m:'')+'\n';
-  if(J.length)t+='🏢 '+obLine_(dm,function(k){return esc(k)+' '+dm[k];},10)+'\n';
+  var t='🟢 <b>'+esc(BL('入職','Joins','ចូលធ្វើការ',bi))+' '+J.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(J.length-h.sew)+((h.f+h.m)?' · 🚺 '+esc(BL('女','F','ស្រី',bi))+' '+h.f+' 🚹 '+esc(BL('男','M','ប្រុស',bi))+' '+h.m:'')+'\n';
+  if(J.length)t+='🏢 <b>'+esc(BL('各部門','By department','តាមផ្នែក',bi))+'</b> · '+esc(BL('人數／單位','headcount / unit','ចំនួន',bi))+'\n'+obTable_(dm,function(k){return [dm[k]];});
   t+=joinPayBlock(J,bi);
   return t;
 }
@@ -2487,13 +2498,13 @@ function joinPayBlock(J,bi){
 function resignBlock(R,p,bi){
   var h=obHead_(R), ppl=esc(BL('人','ppl','នាក់',bi));
   var tc={}; R.forEach(function(r){var k=r.resignType||'resign';tc[k]=(tc[k]||0)+1;});
-  var dm={}; R.forEach(function(r){var k=r.dept||'—';if(!dm[k])dm[k]={n:0,amt:0};dm[k].n++;dm[k].amt+=(+r.amount||0);});
+  var dm={}; R.forEach(function(r){var k=obDeptKey_(r.dept);if(!dm[k])dm[k]={n:0,amt:0};dm[k].n++;dm[k].amt+=(+r.amount||0);});
   var rc={}; R.forEach(function(r){var k=r.reasonCat||'Other';rc[k]=(rc[k]||0)+1;});
   var to=(p.length===7)?turnoverOf(p):null;
   var days=R.map(function(r){return +r.workingDays||0;}).filter(function(x){return x>0;});
   var avgD=days.length?Math.round(days.reduce(function(s,x){return s+x;},0)/days.length):0;
   var amtRows=R.filter(function(r){return (+r.amount||0)>0;}), totAmt=amtRows.reduce(function(s,r){return s+(+r.amount||0);},0);
-  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+' '+R.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(R.length-h.sew)+((h.f+h.m)?' · 👩 '+h.f+' 👨 '+h.m:'')+'\n';
+  var t='🔴 <b>'+esc(BL('離職','Resigns','ចេញពីការងារ',bi))+' '+R.length+'</b> '+ppl+' · 🧵 '+esc(BL('車縫','Sewing','ដេរ',bi))+' '+h.sew+' · '+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(R.length-h.sew)+((h.f+h.m)?' · 🚺 '+esc(BL('女','F','ស្រី',bi))+' '+h.f+' 🚹 '+esc(BL('男','M','ប្រុស',bi))+' '+h.m:'')+'\n';
   if(totAmt>0)t+='💵 <b>'+esc(BL('結算','Settlement','ប្រាក់សរុប',bi))+' $'+fmt(totAmt)+'</b> · '+esc(BL('平均','avg','មធ្យម',bi))+' $'+fmt(totAmt/amtRows.length)+' ('+amtRows.length+'/'+R.length+')\n';
   var l2=[]; if(to&&isFinite(to.rate))l2.push('📉 '+esc(BL('流動率','Turnover','អត្រាចេញ',bi))+' <b>'+pct(to.rate)+'</b>'+(to.est?' '+esc(BL('推估','est.','ប៉ាន់',bi)):''));
   if(days.length){
@@ -2503,7 +2514,7 @@ function resignBlock(R,p,bi){
   if(l2.length)t+=l2.join('\n')+'\n';
   var tks=Object.keys(RESIGN_TYPES).filter(function(k){return tc[k];});
   if(tks.length)t+='📋 '+tks.map(function(k){return esc(BL(RESIGN_TYPES[k][0],RESIGN_TYPES[k][1],'',bi))+' '+tc[k];}).join(' · ')+'\n';
-  if(R.length)t+='🏢 '+obLine_(dm,function(k){return esc(k)+' '+dm[k].n+(dm[k].amt>0?' ($'+fmt(dm[k].amt)+')':'');},10)+'\n';
+  if(R.length)t+='🏢 <b>'+esc(BL('各部門','By department','តាមផ្នែក',bi))+'</b> · '+esc(BL('人數／結算／單位','headcount / settlement / unit','ចំនួន / ប្រាក់',bi))+'\n'+obTable_(dm,function(k){return [dm[k].n,dm[k].amt>0?'$'+fmt(dm[k].amt):'—'];});
   if(R.length)t+='❓ '+obLine_(rc,function(k){return esc(BL(REASON_ZH[k]||k,k,REASON_KM[k]||'',bi))+' '+rc[k];},8)+'\n';
   return t;
 }
