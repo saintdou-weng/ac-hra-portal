@@ -33,7 +33,9 @@
   }
   /* 「組別」與「部門」同一個地方（L10 ＝ Line 10）就只寫一次 */
   function placeKey(v){return text(v).toUpperCase().replace(/\s+/g,'').replace(/^LINE/,'L').replace(/[^A-Z0-9ក-៿一-鿿]/g,'');}
-  function place(c){var d=text(c.department),s=text(c.section);if(!d)return s;if(!s)return d;return placeKey(d)===placeKey(s)?d:d+'/'+s;}
+  /* 同一組寫法不一（Line 4／Line4／LINE 04）併成一個：Line4 */
+  function tidy(v){return text(v).replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'Line$1');}
+  function place(c){var d=tidy(c.department),s=tidy(c.section);if(!d)return s;if(!s)return d;return placeKey(d)===placeKey(s)?d:d+'/'+s;}
   function pct(n,total){return total?Math.round(n/total*100)+'%':'0%';}
   function usd(v){return 'USD '+Number(v||0).toFixed(2);}
   function mmdd(d){d=text(d);return /^\d{4}-\d{2}-\d{2}/.test(d)?d.slice(5,10):d;}
@@ -110,10 +112,10 @@
     function mf(m){var f=m.filter(function(r){return sex(r)==='F';}).length,ma=m.filter(function(r){return sex(r)==='M';}).length,u=m.length-f-ma;return '👩'+f+' 👨'+ma+(u?' ❔'+u:'');}
     function tenure(m){var t=TEN.map(function(x){return [x[2],m.filter(function(r){var y=yrs(r);return y!=null&&y>=x[0]&&y<x[1];}).length];}),u=m.filter(function(r){return yrs(r)==null;}).length;return t.filter(function(x){return x[1];}).map(function(x){return x[0]+' '+x[1];}).join(' · ')+(u?' · ❔'+u:'');}
     if(rows.length)out.push('👩 '+L(lang,'女','Female','ស្រី')+' '+bold(rows.filter(function(r){return sex(r)==='F';}).length)+' · 👨 '+L(lang,'男','Male','ប្រុស')+' '+bold(rows.filter(function(r){return sex(r)==='M';}).length)+' · ⏳ '+L(lang,'年資','Tenure','អតីតភាព')+' '+tenure(rows));
-    var posOf=function(r){return text(ctx(r).position)||'';},posLine=function(m,max){var pm=countBy(m.filter(posOf),posOf),pk=sortedKeys(pm);if(!pk.length)return '';return pk.slice(0,max).map(function(p){return p+' '+pm[p];}).join(' · ')+(pk.length>max?' · +'+(pk.length-max):'');};
+    var posOf=function(r){var p=text(ctx(r).position).replace(/\s+/g,' ');return /^[\x00-\x7f]+$/.test(p)?p.toLowerCase().replace(/\b[a-z]/g,function(c){return c.toUpperCase();}):p;},posLine=function(m,max){var pm=countBy(m.filter(posOf),posOf),pk=sortedKeys(pm);if(!pk.length)return '';return pk.slice(0,max).map(function(p){return p+' '+pm[p];}).join(' · ')+(pk.length>max?' · +'+(pk.length-max):'');};
     if(rows.length){var adm=countBy(rows,function(r){return place(ctx(r))||'—';}),adk=sortedKeys(adm);
       out.push('🏢 '+L(lang,'部門','Depts','ផ្នែក')+' '+bold(adk.length)+'：'+adk.slice(0,16).map(function(d){return d+' '+adm[d];}).join(' · ')+(adk.length>16?' · +'+(adk.length-16):''));
-      var apl=posLine(rows,8);if(apl)out.push('💼 '+L(lang,'職位','Positions','មុខតំណែង')+'：'+apl);}
+      var apl=posLine(rows,8),noPos=rows.filter(function(r){return !posOf(r);}).length;if(apl)out.push('💼 '+L(lang,'職位','Positions','មុខតំណែង')+'：'+apl+(noPos?' · '+L(lang,'未填','blank','ទទេ')+' '+noPos:''));}
     vk.forEach(function(k){
       var m=rows.filter(function(r){return veh(r)===k;}),dm=countBy(m,function(r){return place(ctx(r))||'—';}),dk=sortedKeys(dm);
       /* 2026-11-12 Paul：每台車載客色標（15–25 綠；26–30、10–14 黃；>30、<10 紅） */
