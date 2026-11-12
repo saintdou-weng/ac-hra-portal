@@ -3414,7 +3414,11 @@ function buildTelegramHtml(){
   if(el('tgDept').checked&&el('tgPlan').checked){
     const latest=latestPlanRows(plansForState(state,true)),dm={};latest.forEach(r=>{const d=String(r.dept||r.section||'—').replace(/\b(?:line|l)\s*0*(\d{1,2})\b/gi,'L$1'),p=planProgress(r);if(!dm[d])dm[d]={required:0,filled:0};dm[d].required+=n(r.required);dm[d].filled+=p.filled;});
     const rows=Object.entries(dm).map(([d,v])=>({d,...v,gap:v.required-v.filled})).sort((a,b)=>b.gap-a.gap);
-    if(rows.length){t+=`\n🏢 <b>${B('各部門','By department')}</b>\n<i>${B('🟢 需求 30 人以上補 90%、10–29 人補 95%、不到 10 人補滿','🟢 need ≥30: 90% · 10–29: 95% · under 10: 100%')}</i>\n`;rows.slice(0,12).forEach(r=>{t+=`${tone(r.required,r.filled)} <b>${esc(r.d)}</b> ${B('需','need')} ${fmt(r.required)} · ${B('補','filled')} ${fmt(r.filled)} · ${B('缺','gap')} <b>${fmt(r.gap)}</b> · ${r.required>0?Math.round(r.filled/r.required*100):0}%\n`;});if(rows.length>12)t+=`… +${rows.length-12}\n`;
+    if(rows.length){const pl=(v,w)=>String(v).padStart(w,' '),w=Math.max(3,...rows.map(r=>Math.max(fmt(r.required).length,fmt(r.filled).length,fmt(r.gap).length)));
+      t+=`\n🏢 <b>${B('各部門','By department')}</b> · ${B('需／補／缺／完成','need / filled / gap / done')}\n`;
+      rows.slice(0,14).forEach(r=>{t+=`${tone(r.required,r.filled)} <code>${pl(fmt(r.required),w)} ${pl(fmt(r.filled),w)} ${pl(fmt(r.gap),w)} ${pl((r.required>0?Math.round(r.filled/r.required*100):0)+'%',4)}</code> ${esc(r.d)}\n`;});
+      if(rows.length>14)t+=`… +${rows.length-14}\n`;
+      t+=`🧮 <code>${pl(fmt(m.required),w)} ${pl(fmt(m.actual),w)} ${pl(fmt(m.gap),w)} ${pl((n(m.required)>0?Math.round(n(m.actual)/n(m.required)*100):0)+'%',4)}</code> <b>${B('合計','Total')}</b>\n<i>${B('🟢 需求 30 人以上補 90%、10–29 人補 95%、不到 10 人補滿','🟢 need ≥30: 90% · 10–29: 95% · under 10: 100%')}</i>\n`;
       const sr=rows.reduce((a,r)=>a+r.required,0);checked++;if(Math.abs(sr-n(m.required))>=0.5)chkBad.push(`${B('部門需求加總','Dept required sum')} ${fmt(sr)} ≠ ${B('總需求','total')} ${fmt(m.required)}`);}
   }
   if(el('tgRecruit').checked){const onlyRecruit=!el('tgPlan').checked&&!el('tgMovement').checked;t+=buildRecruitmentSummaryHtml(state,lang,el('tgDept').checked,onlyRecruit?12:5);}
