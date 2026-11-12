@@ -43,21 +43,43 @@ function weeklyAttendanceRun71_(preview) {
   var allDays = Object.keys(by).sort().map(function (dt) { return { date: dt, rows: by[dt] }; }).filter(function (x) { return x.rows.some(function (r) { return r.isGrand; }); });
   var days = allDays.filter(function (x) { return dates.indexOf(x.date) >= 0; }), monthDays = allDays.filter(function (x) { return mDates.indexOf(x.date) >= 0; });
   var label = days.length ? days[0].date.slice(5).replace('-', '/') + ' ~ ' + days[days.length - 1].date.slice(5).replace('-', '/') : key;
-  var text = HRAAttTg.build({ mode: 'weekly', lang: 'both', key: key, periodLabel: label, days: days, monthDays: monthDays });
+  var text = HRAAttTg.build({ mode: 'weekly', lang: 'enkm', key: key, periodLabel: label, days: days, monthDays: monthDays });
   if (preview) return { today: today, week: key, workday: workday, holidays: off.size, next: Array.from(off).filter(function (x) { return x >= today; }).sort().slice(0, 6), days: days.length, alreadySent: !!cfg(guard), text: text };
-  if (cfg(guard)) return { skipped: 'sent' };
+  if (cfg(guard)) return { skipped: 'sent' };   /* 自動發過，或有人已經手動發過這一週（見 weeklyAttMarkManual74_） */
   if (!workday) { console.log('[ATT-WEEKLY] ' + today + ' is not a working day; wait'); return { skipped: 'holiday' }; }
-  if (!days.length) { console.log('[ATT-WEEKLY] no attendance data for week ' + key); return { skipped: 'nodata' }; }
-  var sent = tgSend(HRA_CFG.CHAT_ID, text, summaryKeyboard('zh', 'attendance'));
+  /* v74（Paul 11/13）：每週一 09:00 發上週週報（英柬）；週一放假就順延到本週第一個上班日。
+     過了那一天不再補發，除非當天提醒過「上週沒更新」、之後資料補上了才補發一次。 */
+  var firstWork = true;
+  for (var b = 1; b <= (dow + 6) % 7; b++) { var pd = new Date(t); pd.setUTCDate(t.getUTCDate() - b); if (pd.getUTCDay() !== 0 && !off.has(pd.toISOString().slice(0, 10))) firstWork = false; }
+  var ndGuard = 'att_weekly_nodata_' + key;
+  if (!firstWork && !cfg(ndGuard)) return { skipped: 'not-first-workday' };
+  if (!days.length) {
+    if (cfg(ndGuard)) return { skipped: 'nodata-already-noticed' };
+    var rng = dates[0].slice(5).replace('-', '/') + ' ~ ' + dates[5].slice(5).replace('-', '/');
+    var note = '📊 <b>VRT Weekly Attendance វត្តមានប្រចាំសប្តាហ៍</b> · ' + rng + '\n━━━━━━━━━━━━\n⚠️ <b>Last week\'s attendance has not been updated.</b>\nទិន្នន័យវត្តមានសប្តាហ៍មុនមិនទាន់បានបញ្ចូលទេ។\n<i>The weekly report will be sent once the data is uploaded. របាយការណ៍នឹងផ្ញើពេលទិន្នន័យបានបញ្ចូល។</i>';
+    var ns = tgSend(HRA_CFG.CHAT_ID, note, summaryKeyboard('en', 'attendance'));
+    if (ns && ns.message_id) P().setProperty(ndGuard, nowIso());
+    return { sent: false, notice: !!(ns && ns.message_id), week: key };
+  }
+  var sent = tgSend(HRA_CFG.CHAT_ID, text, summaryKeyboard('en', 'attendance'));
   if (sent && sent.message_id) P().setProperty(guard, nowIso());
   return { sent: !!(sent && sent.message_id), week: key };
 }
+/* 有人在考勤頁手動發了某一週的週報 → 記下來，那一週就不再自動發 */
+function weeklyAttMarkManual74_(body) {
+  try {
+    if (!body || body.tool !== 'attendance' || body.periodType !== 'weekly') return;
+    var p = String(body.period || ''), m = /^(\d{4}-\d{2}-\d{2})/.exec(p); if (!m) return;
+    var d = new Date(m[1] + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+    P().setProperty('att_weekly_sent_' + d.toISOString().slice(0, 10), 'manual ' + nowIso());
+  } catch (e) { console.warn('[ATT-WEEKLY] mark manual failed: ' + e); }
+}
 function ensureWeeklyAttTrigger71_() {
-  if (cfg('att_weekly_trigger71')) return;
+  if (cfg('att_weekly_trigger74')) return;
   try {
     ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === 'weeklyAttendanceJob') ScriptApp.deleteTrigger(t); });
-    ScriptApp.newTrigger('weeklyAttendanceJob').timeBased().everyDays(1).atHour(8).inTimezone(HRA_CFG.TZ).create();
-    P().setProperty('att_weekly_trigger71', nowIso());
+    ScriptApp.newTrigger('weeklyAttendanceJob').timeBased().everyDays(1).atHour(9).inTimezone(HRA_CFG.TZ).create();   /* v74：改 09:00 */
+    P().setProperty('att_weekly_trigger74', nowIso());
   } catch (e) { console.warn('[ATT-WEEKLY] trigger install failed: ' + e); }
 }
 
@@ -77,7 +99,9 @@ function ensureWeeklyAttTrigger71_() {
   var WD={zh:['日','一','二','三','四','五','六'],en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat']};
   function n(v){return Number(v)||0;}
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-  function lab(lang,zh,en){return lang==='zh'?zh:(lang==='en'||lang==='km')?en:zh+' '+en;}
+  /* 英柬（enkm）：英文後面接高棉文；字典沒有的詞只出英文。語言只有 中文／English／中英／英柬，不單獨出柬文 */
+  var KM={'Daily Attendance':'វត្តមានប្រចាំថ្ងៃ','Weekly Attendance':'វត្តមានប្រចាំសប្តាហ៍','Monthly Attendance':'វត្តមានប្រចាំខែ','Annual Attendance':'វត្តមានប្រចាំឆ្នាំ','Attendance':'អត្រាវត្តមាន','incl. maternity':'រួមទាំងច្បាប់មាតុភាព','excl. maternity':'មិនរាប់ច្បាប់មាតុភាព','Daily averages below':'ខាងក្រោមជាមធ្យមប្រចាំថ្ងៃ','Headcount':'ចំនួនបុគ្គលិក','Due':'ត្រូវមក','Present':'មកធ្វើការ','Absent':'អវត្តមាន','On leave':'សុំច្បាប់','no permission':'ឈប់គ្មានច្បាប់','Leave types':'ប្រភេទច្បាប់','F':'ស្រី','M':'ប្រុស','Sewers':'ជាងដេរ','Indirect':'មិនមែនជាងដេរ','Ratio':'សមាមាត្របុគ្គលិក/ជាងដេរ','slightly high':'ខ្ពស់បន្តិច','too high':'ខ្ពស់ពេក','Join':'ចូល','Resign':'ចេញ','Turnover':'អត្រាចេញ','Transfer':'ផ្លាស់ប្តូរ','Joined':'ចូលធ្វើការ','Resigned':'លាឈប់','Month to date':'សរុបខែនេះ','Net':'ចំនួនសុទ្ធ','Join / resign detail':'លម្អិតចូល / ចេញ','join / resign / unit':'ចូល / ចេញ / ផ្នែក','Sewers total':'ជាងដេរសរុប','Total':'សរុប','Period person-days':'ចំនួនថ្ងៃច្បាប់សរុប','Daily':'ប្រចាំថ្ងៃ','Weekly':'ប្រចាំសប្តាហ៍','Monthly':'ប្រចាំខែ','By department':'តាមផ្នែក','att./due · rate':'មក/ត្រូវមក · អត្រា','(daily avg)':'(មធ្យមប្រចាំថ្ងៃ)','Sewing lines':'ក្រុមដេរ','HC / att. / rate / leave':'ចំនួន / មក / អត្រា / ច្បាប់','Below 88%':'ក្រោម 88%','absent':'អវត្តមាន','Verified':'បានផ្ទៀងផ្ទាត់ត្រឹមត្រូវ','depts = factory':'ផ្នែកសរុប = រោងចក្រ','No data':'គ្មានទិន្នន័យ','Sewer':'ជាងដេរ','Other ':'ផ្សេងៗ ',' units':' ផ្នែក','excl. ML':'មិនរាប់ ML','Dept totals ≠ factory — check platform':'ផ្នែកសរុប ≠ រោងចក្រ — សូមពិនិត្យ'};
+  function lab(lang,zh,en){if(lang==='enkm'){var k=KM[en]||KM[String(en).trim()];return k?en+' '+k:en;}return lang==='zh'?zh:(lang==='en'||lang==='km')?en:zh+' '+en;}
   function ttl(r){return n(r.m)+n(r.f);}
   function report(r){return ttl(r)-n(r.resign)+n(r.join)+n(r.ti)-n(r.to);}
   function leave(r){return n(r.al)+n(r.pl)+n(r.sl)+n(r.bus)+n(r.fl)+n(r.ml);}
@@ -144,7 +168,7 @@ function ensureWeeklyAttTrigger71_() {
   function padL(v,w){v=String(v);while(v.length<w)v=' '+v;return v;}
   function padR(v,w){v=String(v);while(v.length<w)v=v+' ';return v;}
   function leaveShort(o,div){div=div||1;return LV.filter(function(x){return r1(n(o[x[0]])/div)>0;}).map(function(x){return x[1]+r1(n(o[x[0]])/div);}).join(' ');}
-  function gname(nm,lang){var e=EN[nm];if(nm==='裁剪等 Cutting etc.')return lang==='zh'?'裁剪等':lang==='both'?nm:'Cutting etc.';if(!e)return nm;return lang==='zh'?nm:(lang==='en'||lang==='km')?e:(nm===e?nm:nm+' '+e);}
+  function gname(nm,lang){var e=EN[nm];if(nm==='裁剪等 Cutting etc.')return lang==='zh'?'裁剪等':lang==='both'?nm:'Cutting etc.';if(!e)return nm;return lang==='zh'?nm:(lang==='en'||lang==='km'||lang==='enkm')?e:(nm===e?nm:nm+' '+e);}
   function leaveCodes(o){return LV.filter(function(x){return r1(n(o[x[0]]))>0;}).map(function(x){return x[1]+' '+r1(n(o[x[0]]));}).join(' · ');}
   function sum(list,f){return list.reduce(function(s,x){return s+f(x);},0);}
   function build(opt){

@@ -13,7 +13,9 @@
   var WD={zh:['日','一','二','三','四','五','六'],en:['Sun','Mon','Tue','Wed','Thu','Fri','Sat']};
   function n(v){return Number(v)||0;}
   function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
-  function lab(lang,zh,en){return lang==='zh'?zh:(lang==='en'||lang==='km')?en:zh+' '+en;}
+  /* 英柬（enkm）：英文後面接高棉文；字典沒有的詞只出英文。語言只有 中文／English／中英／英柬，不單獨出柬文 */
+  var KM={'Daily Attendance':'វត្តមានប្រចាំថ្ងៃ','Weekly Attendance':'វត្តមានប្រចាំសប្តាហ៍','Monthly Attendance':'វត្តមានប្រចាំខែ','Annual Attendance':'វត្តមានប្រចាំឆ្នាំ','Attendance':'អត្រាវត្តមាន','incl. maternity':'រួមទាំងច្បាប់មាតុភាព','excl. maternity':'មិនរាប់ច្បាប់មាតុភាព','Daily averages below':'ខាងក្រោមជាមធ្យមប្រចាំថ្ងៃ','Headcount':'ចំនួនបុគ្គលិក','Due':'ត្រូវមក','Present':'មកធ្វើការ','Absent':'អវត្តមាន','On leave':'សុំច្បាប់','no permission':'ឈប់គ្មានច្បាប់','Leave types':'ប្រភេទច្បាប់','F':'ស្រី','M':'ប្រុស','Sewers':'ជាងដេរ','Indirect':'មិនមែនជាងដេរ','Ratio':'សមាមាត្របុគ្គលិក/ជាងដេរ','slightly high':'ខ្ពស់បន្តិច','too high':'ខ្ពស់ពេក','Join':'ចូល','Resign':'ចេញ','Turnover':'អត្រាចេញ','Transfer':'ផ្លាស់ប្តូរ','Joined':'ចូលធ្វើការ','Resigned':'លាឈប់','Month to date':'សរុបខែនេះ','Net':'ចំនួនសុទ្ធ','Join / resign detail':'លម្អិតចូល / ចេញ','join / resign / unit':'ចូល / ចេញ / ផ្នែក','Sewers total':'ជាងដេរសរុប','Total':'សរុប','Period person-days':'ចំនួនថ្ងៃច្បាប់សរុប','Daily':'ប្រចាំថ្ងៃ','Weekly':'ប្រចាំសប្តាហ៍','Monthly':'ប្រចាំខែ','By department':'តាមផ្នែក','att./due · rate':'មក/ត្រូវមក · អត្រា','(daily avg)':'(មធ្យមប្រចាំថ្ងៃ)','Sewing lines':'ក្រុមដេរ','HC / att. / rate / leave':'ចំនួន / មក / អត្រា / ច្បាប់','Below 88%':'ក្រោម 88%','absent':'អវត្តមាន','Verified':'បានផ្ទៀងផ្ទាត់ត្រឹមត្រូវ','depts = factory':'ផ្នែកសរុប = រោងចក្រ','No data':'គ្មានទិន្នន័យ','Sewer':'ជាងដេរ','Other ':'ផ្សេងៗ ',' units':' ផ្នែក','excl. ML':'មិនរាប់ ML','Dept totals ≠ factory — check platform':'ផ្នែកសរុប ≠ រោងចក្រ — សូមពិនិត្យ'};
+  function lab(lang,zh,en){if(lang==='enkm'){var k=KM[en]||KM[String(en).trim()];return k?en+' '+k:en;}return lang==='zh'?zh:(lang==='en'||lang==='km')?en:zh+' '+en;}
   function ttl(r){return n(r.m)+n(r.f);}
   function report(r){return ttl(r)-n(r.resign)+n(r.join)+n(r.ti)-n(r.to);}
   function leave(r){return n(r.al)+n(r.pl)+n(r.sl)+n(r.bus)+n(r.fl)+n(r.ml);}
@@ -80,7 +82,7 @@
   function padL(v,w){v=String(v);while(v.length<w)v=' '+v;return v;}
   function padR(v,w){v=String(v);while(v.length<w)v=v+' ';return v;}
   function leaveShort(o,div){div=div||1;return LV.filter(function(x){return r1(n(o[x[0]])/div)>0;}).map(function(x){return x[1]+r1(n(o[x[0]])/div);}).join(' ');}
-  function gname(nm,lang){var e=EN[nm];if(nm==='裁剪等 Cutting etc.')return lang==='zh'?'裁剪等':lang==='both'?nm:'Cutting etc.';if(!e)return nm;return lang==='zh'?nm:(lang==='en'||lang==='km')?e:(nm===e?nm:nm+' '+e);}
+  function gname(nm,lang){var e=EN[nm];if(nm==='裁剪等 Cutting etc.')return lang==='zh'?'裁剪等':lang==='both'?nm:'Cutting etc.';if(!e)return nm;return lang==='zh'?nm:(lang==='en'||lang==='km'||lang==='enkm')?e:(nm===e?nm:nm+' '+e);}
   function leaveCodes(o){return LV.filter(function(x){return r1(n(o[x[0]]))>0;}).map(function(x){return x[1]+' '+r1(n(o[x[0]]));}).join(' · ');}
   function sum(list,f){return list.reduce(function(s,x){return s+f(x);},0);}
   function build(opt){
