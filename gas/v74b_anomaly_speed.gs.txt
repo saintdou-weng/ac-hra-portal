@@ -1,0 +1,14 @@
+/* ═══ v74b（2026-11-13）異常報告加速 — 已直接套用在 GAS 編輯器並部署第 104 版，此檔為紀錄 ═══
+   原因：collectAnomalies 先跑 reconcileApprovalBatches_(false)，把 batch_index 裡全部 60 個批次從 Drive 各讀一次，
+         接著自己又把 60 個再讀一次；每次讀檔約 2 秒 → 單是報告就 256～262 秒，後面的補發／修復都被跳過，
+         批次再多就會逾時（11/6 就是 360 秒逾時）。
+   修正：
+   ① BATCH_MEMO74_：同一次執行裡每個批次只讀一次 Drive（collectAnomalies 與 dailyAnomalyJob 都會開）。
+      loadBatch 先看 memo；saveBatch 寫完同步更新 memo。
+   ② anomaly_settled74.json（Drive）：記下「已結案、不需補報告、月份早於本月」的批次與月份。
+      下次 anomalyBatchIds74_(ym) 直接跳過這些（它們不會產生逾期／堆積／資料異常，也不算本月金額）。
+      只要批次重新出現在 batch_open65（未結案）或 batch_fix65（待補報告）清單，就不會被跳過。
+   ③ reconcileApprovalBatches_(sendResult, ids) 新增 ids 參數；dailyAnomalyJob 傳同一份清單。
+      repairClosedApprovalDocuments_ 只處理 batch_fix65、最多 60 秒。
+      時間門檻放寬：reconcile < 240 秒、repair < 260 秒、cleanup < 320 秒。
+   實測（11/13 18:30）：60 個批次 → 檢查 7、跳過 53，collectAnomalies 32 秒（原本 262 秒）。 */
