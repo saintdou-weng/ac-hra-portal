@@ -148,6 +148,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
 /* Modals */
 .modal-bg{display:none;position:fixed;inset:0;z-index:500;background:rgba(8,22,40,.52);backdrop-filter:blur(2px);align-items:center;justify-content:center;padding:15px}
 .modal-bg.open{display:flex}
+.pc-link{color:var(--accent,#1d4ed8);text-decoration:none;border-bottom:1px dotted currentColor;cursor:pointer}.pc-link:hover{text-decoration:none;opacity:.8}.pc-grid{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;font-size:14px}.pc-k{color:#64748b}.pc-h{margin:16px 0 6px;font-size:14px}.pc-tl{display:flex;flex-direction:column;gap:6px}.pc-ti{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:6px 8px;border:1px solid #e2e8f0;border-radius:8px;font-size:13px;margin-bottom:4px}.pc-ti>.mono{min-width:84px;color:#475569}.pc-ti>button{margin-left:auto}
 .modal{width:720px;max-width:96vw;max-height:92vh;overflow:auto;background:#fff;border-radius:14px;box-shadow:0 20px 70px rgba(0,0,0,.28)}
 .modal-head{position:sticky;top:0;background:#fff;z-index:2;padding:14px 17px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
 .modal-title{font-size:14px;font-weight:850}.modal-close{border:0;background:transparent;color:var(--muted);font-size:20px}
@@ -392,6 +393,7 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
           <option value="" data-zh="全部性別" data-en="All genders" data-km="ភេទទាំងអស់">全部性別</option>
           <option value="F">F</option><option value="M">M</option>
         </select>
+        <button class="btn danger" onclick="deletePendingCandidates()">🗑 <span data-zh="刪除本期待確認" data-en="Delete pending (this period)" data-km="លុបរង់ចាំ">刪除本期待確認</span></button>
         <button class="btn primary" onclick="openRecordModal('candidate')">＋ <span data-zh="線上新增" data-en="Add online" data-km="បន្ថែម">線上新增</span></button>
       </div>
       <div class="table-wrap">
@@ -1089,13 +1091,13 @@ function allDataDates(tab=ACTIVE_TAB){
   if(['dashboard','report','analysis'].includes(tab)){
     out=[
       ...DB.plans.map(r=>recordDate('plan',r)),
-      ...DB.candidates.map(r=>recordDate('candidate',r)),
+      ...candLive().map(r=>recordDate('candidate',r)),
       ...DB.joins.map(r=>recordDate('join',r)),
       ...DB.resigns.map(r=>recordDate('resign',r)),
       ...DB.daily.map(r=>recordDate('daily',r))
     ];
   }else if(tab==='manpower'||tab==='approval')out=DB.plans.map(r=>recordDate('plan',r));
-  else if(tab==='recruit')out=DB.candidates.map(r=>recordDate('candidate',r));
+  else if(tab==='recruit')out=candLive().map(r=>recordDate('candidate',r));
   else if(tab==='movement')out=[...DB.joins.map(r=>recordDate('join',r)),...DB.resigns.map(r=>recordDate('resign',r))];
   return out.filter(Boolean);
 }
@@ -1376,7 +1378,7 @@ function saveDB(){
 }
 function flushSaves(){return SAVE_QUEUE}
 function counts(){
-  return{plan:DB.plans.length,candidate:DB.candidates.length,join:DB.joins.length,resign:DB.resigns.length,daily:DB.daily.length};
+  return{plan:DB.plans.length,candidate:candLive().length,join:DB.joins.length,resign:DB.resigns.length,daily:DB.daily.length};
 }
 function updateCounts(){
   const c=counts(),total=Object.values(c).reduce((a,b)=>a+b,0);
@@ -1492,7 +1494,7 @@ function relinkCandidates(){
     if(p)byPhone.set(p,j);
     if(name&&!byName.has(name))byName.set(name,j);
   });
-  DB.candidates.forEach(c=>{
+  candLive().forEach(c=>{
     const j=(digits(c.empId)&&byId.get(digits(c.empId)))||(digits(c.phone)&&byPhone.get(digits(c.phone)))||byName.get(normName(c.name));
     if(j){
       c.joined=true;c.joinDate=j.joinDate;c.empId=j.empId;
@@ -1912,7 +1914,7 @@ async function smartImport(input){
 // Metrics and grouping
 // ─────────────────────────────────────────────────────────────
 function kindRows(kind,state=currentState()){
-  const src=kind==='plan'?DB.plans:kind==='candidate'?DB.candidates:kind==='join'?DB.joins:kind==='resign'?DB.resigns:DB.daily;
+  const src=kind==='plan'?DB.plans:kind==='candidate'?candLive():kind==='join'?DB.joins:kind==='resign'?DB.resigns:DB.daily;
   return src.filter(r=>inState(recordDate(kind,r),state));
 }
 function latestPlanRows(rows){
@@ -1982,7 +1984,7 @@ function recruitmentForPlan(plan){
   DB.joins.forEach(r=>add(r,'join',r.joinDate||r.date));
   /* A recruitment row counts only after it has a confirmed join date or the
      row was explicitly marked joined; an interview pass alone is not hiring. */
-  DB.candidates.forEach(r=>{if(r.joined||r.joinDate)add(r,'recruit',r.joinDate||r.registerDate)});
+  candLive().forEach(r=>{if(r.joined||r.joinDate)add(r,'recruit',r.joinDate||r.registerDate)});
   return rows;
 }
 function resignationsForPlan(plan){
@@ -2037,7 +2039,7 @@ function mpJoinPool(){
     out.push({kind,id,name:r.name||r.employeeName||'',date,dept:r.dept||'',section:r.section||'',group:r.group||'',position:r.position||''});
   };
   DB.joins.forEach(r=>add(r,'join',r.joinDate||r.date));
-  DB.candidates.forEach(r=>{if(r.joined||r.joinDate)add(r,'recruit',r.joinDate||r.registerDate)});
+  candLive().forEach(r=>{if(r.joined||r.joinDate)add(r,'recruit',r.joinDate||r.registerDate)});
   return out.sort((a,b)=>a.date.localeCompare(b.date));
 }
 function mpChainFilled(c,asOf){
@@ -2191,7 +2193,7 @@ function metricsForState(state,group={dim:'overall',value:null}){
     latest=plansForState(state,true).filter(r=>matchesGroup('plan',r,group));
     latest=latestPlanRows(latest);
   }
-  const candidates=DB.candidates.filter(r=>inState(r.registerDate,state)&&matchesGroup('candidate',r,group));
+  const candidates=candLive().filter(r=>inState(r.registerDate,state)&&matchesGroup('candidate',r,group));
   const joins=DB.joins.filter(r=>inState(r.joinDate,state)&&matchesGroup('join',r,group));
   const resigns=DB.resigns.filter(r=>inState(r.resignDate,state)&&matchesGroup('resign',r,group));
   const daily=group.dim==='overall'?DB.daily.filter(r=>inState(r.date,state)):[];
@@ -2245,7 +2247,7 @@ function dimensionKinds(dim){
 function groupValuesFor(dim,states=[]){
   const kinds=dimensionKinds(dim),rows=[];
   kinds.forEach(kind=>{
-    const src=kind==='plan'?DB.plans:kind==='candidate'?DB.candidates:kind==='join'?DB.joins:DB.resigns;
+    const src=kind==='plan'?DB.plans:kind==='candidate'?candLive():kind==='join'?DB.joins:DB.resigns;
     src.forEach(r=>{
       if(!states.length||states.some(st=>inState(recordDate(kind,r),st)))rows.push(groupValue(kind,r,dim));
     });
@@ -2297,9 +2299,9 @@ function fillSelect(id,values,allZh,allEn,allKm){
   if(old&&!values.includes(old))s.value='';
 }
 function populateFilters(){
-  const depts=uniq([...DB.plans,...DB.candidates,...DB.joins,...DB.resigns]
+  const depts=uniq([...DB.plans,...candLive(),...DB.joins,...DB.resigns]
     .flatMap(r=>[r.dept,r.section,r.group]).filter(Boolean).map(deptLabel)).sort();
-  const positions=uniq([...DB.plans,...DB.candidates,...DB.joins,...DB.resigns].map(r=>r.position)).sort();
+  const positions=uniq([...DB.plans,...candLive(),...DB.joins,...DB.resigns].map(r=>r.position)).sort();
   fillSelect('mpDept',depts,'全部部門','All departments','ផ្នែកទាំងអស់');
   fillSelect('mpPosition',positions,'全部職位','All positions','តំណែងទាំងអស់');
   fillSelect('rcDept',depts,'全部部門','All departments','ផ្នែកទាំងអស់');
@@ -2429,13 +2431,14 @@ function renderManpower(){
     .sort((a,b)=>b.period.localeCompare(a.period)||String(a.dept).localeCompare(String(b.dept),undefined,{numeric:true})||String(a.position).localeCompare(String(b.position)));
   el('manpowerBody').innerHTML=rows.map(r=>{
     const p=planProgress(r),gap=p.gap,rate=p.rate;
-    const people=(p.rows||[]).slice(0,4).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');
-    const resignedPeople=(p.resignRows||[]).slice(0,4).map(x=>[x.name||x.id,x.date].filter(Boolean).join(' ')).join(', ');
+    MP_VIEW.set(r._k,r);
+    const people=(p.rows||[]).slice(0,4).map(x=>pcLinkBy(x.id,x.name,esc([x.name||x.id,x.date].filter(Boolean).join(' ')))).join(', ');
+    const resignedPeople=(p.resignRows||[]).slice(0,4).map(x=>pcLinkBy(x.id,x.name,esc([x.name||x.id,x.date].filter(Boolean).join(' ')))).join(', ');
     const sk=encodeURIComponent(r._k),carry=r._chain?[p.carried?`${L('沿用中','carried','បន្ត')}${p.merged?` · ${L('併入','merged','បញ្ចូល')} ${p.merged}`:''}`:(p.merged?`${L('併入','merged','បញ្ចូល')} ${p.merged}`:''),p.closedAt?`✔ ${L('滿額','filled','គ្រប់')} ${p.closedAt}`:''].filter(Boolean).join(' · '):'';
     return `<tr${MP_SEL.has(r._k)?' class="active-row"':''}>
       <td class="no-print"><input type="checkbox" data-mpsel="${sk}" ${MP_SEL.has(r._k)?'checked':''} onchange="mpToggle('${sk}',this.checked)"></td>
-      <td class="mono">${esc(r.period)}${carry?`<div class="muted" style="font-family:inherit">${esc(carry)}</div>`:''}</td><td>${esc(r.dept||'—')}</td><td>${esc(r.section||'—')}</td><td>${esc(r.position||'—')}</td>
-      <td class="num">${fmt(r.required)}</td><td class="num"><b>${fmt(p.filled)}</b>${people?`<div class="muted">${esc(people)}${p.rows.length>4?' …':''}</div>`:''}</td><td class="num" style="color:${p.resigned?'var(--danger)':'inherit'}">${fmt(p.resigned)}${resignedPeople?`<div class="muted">${esc(resignedPeople)}${p.resignRows.length>4?' …':''}</div>`:''}</td>
+      <td class="mono">${esc(r.period)}${carry?`<div class="muted" style="font-family:inherit">${esc(carry)}</div>`:''}</td><td>${esc(r.dept||'—')}</td><td>${esc(r.section||'—')}</td><td>${pcPlanLink(r,esc(r.position||'—'))}</td>
+      <td class="num">${fmt(r.required)}</td><td class="num"><b>${fmt(p.filled)}</b>${people?`<div class="muted">${people}${p.rows.length>4?' …':''}</div>`:''}</td><td class="num" style="color:${p.resigned?'var(--danger)':'inherit'}">${fmt(p.resigned)}${resignedPeople?`<div class="muted">${resignedPeople}${p.resignRows.length>4?' …':''}</div>`:''}</td>
       <td><span class="badge ${rate>=90?'ok':rate>=70?'warn':'danger'}">${pct(rate)}</span></td>
       <td class="num" style="color:${gap>0?'var(--danger)':'var(--ok)'}"><b>${fmt(gap)}</b></td>
       <td class="muted">${esc(planConditions(r,'both'))}</td><td class="muted">${esc(planReason(r,'both'))}</td>
@@ -2557,13 +2560,13 @@ function renderRecruit(){
     kpiCard(L('實際入職（共用）','Joined (shared)','បានចូល (រួម)'),fmt(m.joined),`${L('招募名單連動','Recruit linked','ភ្ជាប់បញ្ជីជ្រើស')} ${fmt(m.recruitJoined)} · ${m.applicants?pct(m.recruitJoined/m.applicants*100):'0.0%'}`,'ok')
   ].join('');
   const q=norm(el('rcSearch').value).toLowerCase(),dept=el('rcDept').value,res=el('rcResult').value,gender=el('rcGender').value;
-  const rows=DB.candidates.filter(r=>inState(r.registerDate,st))
+  const rows=candLive().filter(r=>inState(r.registerDate,st))
     .filter(r=>(!dept||deptMatches(r,dept))&&(!gender||r.gender===gender))
     .filter(r=>!res||(res==='joined'?r.joined:r.interviewResult===res))
     .filter(r=>!q||`${r.name} ${r.phone} ${r.dept} ${r.section} ${r.position}`.toLowerCase().includes(q))
     .sort((a,b)=>b.registerDate.localeCompare(a.registerDate)||a.name.localeCompare(b.name));
   el('recruitBody').innerHTML=rows.map(r=>`<tr>
-    <td class="mono">${esc(r.registerDate)}</td><td><b>${esc(r.name)}</b>${r.empId?`<div class="muted mono">${esc(r.empId)}</div>`:''}</td>
+    <td class="mono">${esc(r.registerDate)}</td><td><b>${pcLink('candidate',r,esc(r.name))}</b>${r.empId?`<div class="muted mono">${esc(r.empId)}</div>`:''}</td>
     <td>${esc([r.dept,r.section].filter(Boolean).join(' / ')||'—')}</td><td>${esc(r.position||'—')}</td>
     <td>${esc(r.gender||'—')}</td><td class="mono">${esc(r.phone||'—')}</td><td>${esc(r.referral||'—')}</td>
     <td>${resultBadge(r)}</td><td>${r.joined?`<span class="badge ok">${esc(r.joinDate||'✓')}</span>`:'—'}</td>
@@ -2601,7 +2604,7 @@ function renderMovement(){
     const obBadge=!matched?`<span class="badge gray">${L('未同步','Not synced','មិនទាន់សមកាលកម្ម')}</span>`:od==='ok'?`<span class="badge ok">✅ ${L('已核可','Approved','បានអនុម័ត')}</span>`:od==='no'?`<span class="badge danger">↩ ${L('退回','Rejected','បានបដិសេធ')}</span>`:od==='return'?`<span class="badge warn">↩ ${L('退回修改','Returned','បានត្រឡប់')}</span>`:`<span class="badge warn">⏳ ${L('待核可','Pending approval','រង់ចាំអនុម័ត')}</span>`;
     return `<tr>
       <td><span class="badge ${isJoin?'ok':'danger'}">${isJoin?L('入職','Join','ចូល'):L('離職','Resign','ចាកចេញ')}</span></td>
-      <td class="mono">${esc(r._date)}</td><td class="mono"><b>${esc(r.empId)}</b></td><td>${esc(r.name)}</td>
+      <td class="mono">${esc(r._date)}</td><td class="mono"><b>${pcLink(isJoin?'join':'resign',r,esc(r.empId))}</b></td><td>${pcLink(isJoin?'join':'resign',r,esc(r.name))}</td>
       <td>${esc([r.dept,r.section].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' / ')||'—')}</td><td>${esc(r.position||'—')}</td>
       <td>${isJoin?esc(r.referral||'—'):`<span class="badge ${rl[1]}">${esc(rl[0])}</span>`}</td>
       <td>${esc(isJoin?r.remark||'—':r.reason||r.remark||'—')}</td>
@@ -2634,7 +2637,7 @@ function setReportGrain(grain){
 }
 function reportGroupValues(dim,deptFilter){
   if(dim==='overall')return[null];
-  const rows=[...DB.plans.map(r=>['plan',r]),...DB.candidates.map(r=>['candidate',r]),...DB.joins.map(r=>['join',r]),...DB.resigns.map(r=>['resign',r])];
+  const rows=[...DB.plans.map(r=>['plan',r]),...candLive().map(r=>['candidate',r]),...DB.joins.map(r=>['join',r]),...DB.resigns.map(r=>['resign',r])];
   return uniq(rows.filter(([kind,r])=>!deptFilter||deptMatches(r,deptFilter)).map(([kind,r])=>groupValue(kind,r,dim))).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true}));
 }
 function jumpReportPeriod(key){
@@ -3013,13 +3016,62 @@ async function saveOnlineRecord(){
     :L('記錄已更新但尚未保存；請使用緊急備份','Record updated but not saved; use the emergency backup','កំណត់ត្រាបានកែ ប៉ុន្តែមិនបានរក្សាទុក'),
     saved.ok?'ok':'err');
 }
+function candLive(){return DB.candidates.filter(r=>r&&!r.deleted)}
+/* 批次刪除某期間的待確認應徵（標記刪除） */
+async function deletePendingCandidates(){
+  const st=NAV.recruit,rows=candLive().filter(r=>inState(r.registerDate,st)&&!r.joined&&!r.joinDate&&(!r.interviewResult||r.interviewResult==='pending'));
+  if(!rows.length){toast(L('這個期間沒有待確認的應徵','No pending candidates in this period','គ្មានបេក្ខជនរង់ចាំ'),'warn');return}
+  if(!confirm(L(`刪除這個期間 ${rows.length} 筆「待確認」應徵？`,`Delete ${rows.length} pending candidate(s) in this period?`,`លុប ${rows.length}?`)))return;
+  const now=new Date().toISOString();rows.forEach(r=>{r.deleted=true;r.deletedAt=now;r.updatedAt=now});
+  relinkCandidates();const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-deleted');renderAll();
+  toast(L(`已刪除 ${rows.length} 筆待確認`,`Deleted ${rows.length} pending`,`បានលុប ${rows.length}`),saved.ok?'ok':'err');
+}
+/* ── 資訊卡：點姓名／工號／需求單就跳出卡片 ── */
+var MP_VIEW=new Map();
+function pcModal(){let m=el('pcModal');if(m)return m;m=document.createElement('div');m.id='pcModal';m.className='modal-bg';m.onclick=e=>modalBackdrop(e,'pcModal');
+  m.innerHTML='<div class="modal" style="width:620px"><div class="modal-head"><div id="pcTitle" class="modal-title"></div><button class="modal-close" onclick="closeModal(\'pcModal\')">×</button></div><div id="pcBody" class="modal-body"></div></div>';document.body.appendChild(m);return m}
+function pcShow(title,body){pcModal();el('pcTitle').innerHTML=title;el('pcBody').innerHTML=body;el('pcModal').classList.add('open')}
+function pcRow(label,v){return v===undefined||v===null||v===''?'':`<div class="pc-k">${label}</div><div class="pc-v">${v}</div>`}
+function pcAge(r){if(r.age)return r.age;const d=String(r.dob||'').slice(0,10);if(!/^\d{4}-\d\d-\d\d$/.test(d))return'';const b=new Date(d+'T00:00:00'),t=new Date();let a=t.getFullYear()-b.getFullYear();if(t<new Date(t.getFullYear(),b.getMonth(),b.getDate()))a--;return a>0&&a<100?a:''}
+function pcFind(seed){const id=digits(seed.empId||seed.id),ph=digits(seed.phone),nm=normName(seed.name||'');
+  const m=r=>!!r&&((id&&digits(r.empId)===id)||(ph.length>=6&&digits(r.phone)===ph)||(!id&&nm&&normName(r.name)===nm));
+  return{cand:candLive().filter(m),joins:DB.joins.filter(m),resigns:DB.resigns.filter(m)}}
+function pcLink(kind,r,label){return `<a href="javascript:void 0" class="pc-link" onclick="openPersonCard('${kind}','${encodeURIComponent(r._k)}');return false">${label}</a>`}
+function pcLinkBy(id,name,label){return `<a href="javascript:void 0" class="pc-link" onclick="openPersonBy('${esc(String(id||''))}','${encodeURIComponent(name||'')}');return false">${label}</a>`}
+function openPersonCard(kind,ek){const r=collection(kind).find(x=>x._k===decodeURIComponent(ek));if(r)showPersonCard(r,kind)}
+function openPersonBy(id,en){const name=decodeURIComponent(en||''),seed={empId:digits(id).length>=2?id:'',name};const f=pcFind(seed);const r=f.joins[0]||f.resigns[0]||f.cand[0];if(r)showPersonCard(r);else pcShow(esc(name||id),`<p class="muted">${L('找不到這個人的其他記錄','No other records for this person','គ្មានកំណត់ត្រាផ្សេង')}</p>`)}
+function showPersonCard(seed){
+  const f=pcFind(seed),all=[...f.cand,...f.joins,...f.resigns,seed],pick=k=>{for(const r of all)if(r&&r[k])return r[k];return''};
+  const name=pick('name'),id=pick('empId'),lastJ=f.joins.map(r=>r.joinDate).sort().pop()||f.cand.map(r=>r.joinDate).filter(Boolean).sort().pop()||'',lastR=f.resigns.map(r=>r.resignDate).sort().pop()||'';
+  const status=lastR&&lastR>=lastJ?`<span class="badge danger">${L('已離職','Resigned','ចាកចេញ')}</span>`:lastJ?`<span class="badge ok">${L('在職','Active','សកម្ម')}</span>`:`<span class="badge warn">${L('應徵中','Applicant','បេក្ខជន')}</span>`;
+  const tl=[];
+  f.cand.forEach(r=>tl.push([r.registerDate,'🎯 '+L('應徵','Applied','ដាក់ពាក្យ'),`${resultBadge(r)} ${esc([r.position,r.referral&&L('介紹人：','Referral: ','')+r.referral].filter(Boolean).join(' · '))}`,['candidate',r]]));
+  f.joins.forEach(r=>tl.push([r.joinDate,'✅ '+L('入職','Joined','ចូល'),esc([[r.dept,r.section].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' / '),r.position].filter(Boolean).join(' · ')),['join',r]]));
+  f.resigns.forEach(r=>{const rl=resignLabel(r.resignType);tl.push([r.resignDate,'🚪 '+L('離職','Resigned','ចាកចេញ'),`<span class="badge ${rl[1]}">${esc(rl[0])}</span> ${esc(r.reason||r.remark||'')}`,['resign',r]])});
+  tl.sort((a,b)=>String(b[0]).localeCompare(String(a[0])));
+  const plans=DB.plans.filter(planAlive).filter(p=>f.joins.concat(f.cand.filter(c=>c.joined||c.joinDate)).some(j=>String(j.joinDate||'').slice(0,7)===planPeriod(p)&&samePlanOrg(p,j)));
+  const body=`<div class="pc-grid">${pcRow(L('工號','Emp ID','លេខ'),id?`<b class="mono">${esc(id)}</b>`:'')}${pcRow(L('狀態','Status','ស្ថានភាព'),status)}${pcRow(L('性別','Gender','ភេទ'),esc(pick('gender')))}${pcRow(L('年齡','Age','អាយុ'),esc(String(pcAge({age:pick('age'),dob:pick('dob')})))+(pick('dob')?` <span class="muted">(${esc(String(pick('dob')).slice(0,10))})</span>`:''))}${pcRow(L('電話','Phone','ទូរស័ព្ទ'),pick('phone')?`<span class="mono">${esc(pick('phone'))}</span>`:'')}${pcRow(L('部門／組別','Dept / Section','ផ្នែក'),esc([pick('dept'),pick('section')].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' / ')))}${pcRow(L('職位','Position','មុខតំណែង'),esc(pick('position')))}${pcRow(L('入職日','Join date','ថ្ងៃចូល'),esc(lastJ))}${pcRow(L('離職日','Resign date','ថ្ងៃចេញ'),esc(lastR))}</div>
+  <h4 class="pc-h">🕘 ${L('經歷','History','ប្រវត្តិ')}</h4>${tl.length?`<div class="pc-tl">${tl.map(t=>`<div class="pc-ti"><span class="mono">${esc(t[0]||'—')}</span><b>${t[1]}</b><span>${t[2]}</span><button class="btn ghost small no-print" onclick="closeModal('pcModal');openRecordModal('${t[3][0]}','${encodeURIComponent(t[3][1]._k)}')">✎</button></div>`).join('')}</div>`:`<p class="muted">—</p>`}
+  ${plans.length?`<h4 class="pc-h">🏭 ${L('對應需求單','Linked requisition','សំណើ')}</h4>${plans.map(p=>{const g=planProgress(p);return `<div class="pc-ti">${pcPlanLink(p,esc(planFullLabel(p)))}<span>${L('需求','Req','')} ${fmt(p.required)} · ${L('已入職','Filled','')} ${fmt(g.filled)} · ${L('缺口','Gap','')} ${fmt(g.gap)}</span></div>`}).join('')}`:''}`;
+  pcShow(`👤 ${esc(name||id||'—')}`,body);
+}
+function pcPlanLink(p,label){return `<a href="javascript:void 0" class="pc-link" onclick="openPlanCard('${encodeURIComponent(p._k)}');return false">${label}</a>`}
+function openPlanCard(ek){const k=decodeURIComponent(ek),p=MP_VIEW.get(k)||DB.plans.find(r=>r._k===k);if(!p)return;const g=planProgress(p),rate=g.rate;
+  const ppl=(rows,kind)=>rows.length?rows.map(x=>`<div class="pc-ti"><span class="mono">${esc(x.date||'')}</span>${pcLinkBy(x.id,x.name,esc(x.name||x.id||'—'))}<span class="muted">${esc([x.dept,x.position].filter(Boolean).join(' · '))}</span></div>`).join(''):`<p class="muted">—</p>`;
+  const body=`<div class="pc-grid">${pcRow(L('月份','Period','ខែ'),`<span class="mono">${esc(p.period||planPeriod(p))}</span>`)}${pcRow(L('部門／組別','Dept / Section','ផ្នែក'),esc([p.dept,p.section].filter((v,i,a)=>v&&a.indexOf(v)===i).join(' / ')))}${pcRow(L('職位','Position','មុខតំណែង'),esc(p.position||'—'))}${pcRow(L('需求','Required','ត្រូវការ'),`<b>${fmt(p.required)}</b>`)}${pcRow(L('已入職','Filled','បានចូល'),fmt(g.filled))}${pcRow(L('缺口','Gap','ចន្លោះ'),`<b style="color:${g.gap>0?'var(--danger)':'var(--ok)'}">${fmt(g.gap)}</b>`)}${pcRow(L('完成度','Completion','ភាគរយ'),`<span class="badge ${rate>=90?'ok':rate>=70?'warn':'danger'}">${pct(rate)}</span>`)}${pcRow(L('核可','Approval','អនុម័ត'),mpApprovalBadge(mpApprovalStatus(p)))}${pcRow(L('條件','Conditions','លក្ខខណ្ឌ'),esc(planConditions(p,'both')))}${pcRow(L('原因','Reason','មូលហេតុ'),esc(planReason(p,'both')))}</div>
+  <h4 class="pc-h">✅ ${L('已入職的人','Joined','បានចូល')} · ${fmt((g.rows||[]).length)}</h4>${ppl(g.rows||[])}<h4 class="pc-h">🚪 ${L('離職','Resigned','ចាកចេញ')} · ${fmt((g.resignRows||[]).length)}</h4>${ppl(g.resignRows||[])}
+  <div style="margin-top:12px" class="no-print"><button class="btn ghost small" onclick="closeModal('pcModal');openRecordModal('plan','${encodeURIComponent(p._k)}')">✎ ${L('編輯需求單','Edit request','កែ')}</button></div>`;
+  pcShow(`🏭 ${esc(planFullLabel(p))}`,body)}
 async function deleteRecord(kind,encodedKey){
   const key=decodeURIComponent(encodedKey);
   if(kind==='plan'){openMpDelete([key]);return}
   if(!confirm(L('確認刪除此筆記錄？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;
   const arr=collection(kind),i=arr.findIndex(r=>r._k===key),victim=i>=0?arr[i]:null;
   if((kind==='join'||kind==='resign')&&(victim||key))setMovementDeleted(kind,victim||key,true);
-  if(i>=0)arr.splice(i,1);
+  /* 2026-11-14：應徵記錄改成「標記刪除」留在雲端（跟需求單一樣），上傳是更新不是刪除，
+     不會被刪除保護擋下，下次同步或重匯 Excel 也不會再跑回來。 */
+  if(kind==='candidate'&&victim){const now=new Date().toISOString();victim.deleted=true;victim.deletedAt=now;victim.updatedAt=now;}
+  else if(i>=0)arr.splice(i,1);
   relinkCandidates();const saved=await saveDB();if(saved.ok)scheduleManpowerCloudUpload('record-deleted');renderAll();
   toast(saved.ok?L('已刪除並保存','Deleted and saved','បានលុប និងរក្សាទុក'):L('已從畫面刪除但尚未保存','Removed from the page but not saved','បានលុបពីទំព័រ ប៉ុន្តែមិនបានរក្សាទុក'),saved.ok?'ok':'err');
 }
@@ -3323,7 +3375,7 @@ function populateTgPeriods(){
   s.value=keys.includes(old)?old:keys.includes(cur)?cur:keys[0]||'';previewTelegram();
 }
 function recruitmentRowsForState(state){
-  return DB.candidates.filter(r=>inState(r.registerDate,state))
+  return candLive().filter(r=>inState(r.registerDate,state))
     .sort((a,b)=>String(a.registerDate||'').localeCompare(String(b.registerDate||''))||String(a.name||'').localeCompare(String(b.name||'')));
 }
 function recruitmentResultText(r,lang){
@@ -3538,7 +3590,7 @@ function exportExcel(){
   addSheet(wb,'Manpower',['Period','Snapshot Date','Department','Section','Position','Required','Joined / filled','Completion','Gap','Manual joined / hired','Manual resigned','Gender requirement','Min age','Max age','Relevant experience','Education','Request reason','Reason details','Approval','Approval Note'],
     DB.plans.filter(planAlive).map(r=>{const d=MP_DEC[mpApprovalKey(r)]||{},p=planProgress(r);return[r.period,r.snapshotDate,r.dept,r.section,r.position,n(r.required),n(p.filled),pct(p.rate),p.gap,r.manualJoined??'',r.manualResigned??'',r.genderReq||'',r.ageMin||'',r.ageMax||'',fieldOptionLabel('experienceReq',r.experienceReq||''),fieldOptionLabel('educationReq',r.educationReq||''),fieldOptionLabel('requestReason',r.requestReason||''),r.reasonDetail||'',d.d||'pending',d.note||'']}));
   addSheet(wb,'Candidates',['Register Date','Name','Department','Section','Position','Gender','DOB','Age','Phone','Referral','Interview Result','Joined','Employee ID','Join Date','Reason','Remark'],
-    DB.candidates.map(r=>[r.registerDate,r.name,r.dept,r.section,r.position,r.gender,r.dob,r.age,r.phone,r.referral,r.interviewResult,r.joined?'Yes':'No',r.empId,r.joinDate,r.noShowReason,r.remark]));
+    candLive().map(r=>[r.registerDate,r.name,r.dept,r.section,r.position,r.gender,r.dob,r.age,r.phone,r.referral,r.interviewResult,r.joined?'Yes':'No',r.empId,r.joinDate,r.noShowReason,r.remark]));
   addSheet(wb,'Join',['Join Date','Employee ID','Name','Department','Section','Position','Gender','DOB','Phone','Referral','Remark'],
     DB.joins.map(r=>[r.joinDate,r.empId,r.name,r.dept,r.section,r.position,r.gender,r.dob,r.phone,r.referral,r.remark]));
   addSheet(wb,'Resigned',['Resign Date','Employee ID','Name','Join Date','Department','Section','Position','Gender','Resign Type','Working Days','Reason','Remark'],
