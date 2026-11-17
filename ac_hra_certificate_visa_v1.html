@@ -21,6 +21,7 @@
 <script type="text/x-ac-after-storage" src="shared/certificate-workflow.js?v=81"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-attachments.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/certificate-evidence.js?v=77"></script>
+<script src="shared/card-viewer.js?v=1"></script>
 <link rel="stylesheet" href="shared/certificate-evidence.css?v=76">
 <title>AC HRA Certificate &amp; Visa</title>
 <script type="text/x-ac-after-storage" src="shared/xlsx.full.min.js?v=0.18.5"></script>
@@ -148,6 +149,26 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
 </style>
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/hra-unsent.js?v=6"></script>
+<style id="cv-compact">
+/* 2026-11-17 Paul：手機上方太佔空間、日週月年要精緻、間距縮小 */
+.seg button{padding:6px 12px}.nav-btn{width:34px;height:34px;font-size:14px}.control{height:34px}
+@media(max-width:640px){
+  .top{position:static!important}.top-in{padding:6px 8px!important}
+  .brand-row{gap:8px!important}.brand-icon{width:32px!important;height:32px!important;font-size:18px!important;border-radius:8px!important}
+  .brand h1{font-size:14px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100vw - 150px)}.brand p{display:none}
+  .lang{flex-direction:row!important}.lang button{padding:4px 9px!important;font-size:12px!important}
+  .actions{flex-wrap:nowrap!important;overflow-x:auto;gap:5px!important;margin-top:6px!important;scrollbar-width:none}
+  .actions>*{flex:0 0 auto}.icon-btn{min-width:38px!important;height:34px!important;padding:0 8px!important}.icon-btn span{font-size:16px!important}
+  .sync-note{display:none!important}
+  .tabs-wrap{top:0!important}.tabs{flex-wrap:nowrap!important}.tab{padding:9px 11px!important;font-size:12.5px!important;flex:0 0 auto}
+  .period-bar{margin-top:6px!important;gap:5px!important;padding:0 8px!important}
+  .seg button{padding:5px 11px!important;font-size:12.5px}.nav-btn{width:32px!important;height:32px!important}
+  #periodPicker{height:32px;max-width:150px;font-size:13px}#eventField{height:32px;font-size:12.5px;max-width:150px}
+  main{padding-left:8px!important;padding-right:8px!important}
+  .cards{gap:6px!important}.kpi{padding:8px 10px!important}.kpi .label{font-size:11px!important}.kpi .value{font-size:22px!important;margin-top:2px!important}.kpi .sub{font-size:10px!important}
+  .panel-head,.panel-body{padding:8px 10px!important}
+}
+</style>
 </head>
 <body>
 <div class="app">
@@ -226,7 +247,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
       <div class="grid2">
         <div class="panel">
           <div class="panel-head"><h2 data-i18n="upcoming45">45 天提醒清單</h2><span class="hint" data-i18n="reminderRule">提前完成／已核可者不提醒</span><div class="grow"></div><button class="btn small" onclick="openTelegram('reminder')" data-i18n="makeReminder">產生三語提醒</button></div>
-          <div class="table-wrap"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="itemPerson">項目／人員</th><th data-i18n="department">部門／分類</th><th data-i18n="days">天數</th><th data-i18n="status">狀態</th></tr></thead><tbody id="reminderBody"></tbody></table></div>
+          <div id="reminderCards"></div><div class="table-wrap hc-hide-m"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="itemPerson">項目／人員</th><th data-i18n="department">部門／分類</th><th data-i18n="days">天數</th><th data-i18n="status">狀態</th></tr></thead><tbody id="reminderBody"></tbody></table></div>
         </div>
         <div class="panel">
           <div class="panel-head"><h2 data-i18n="dataHealth">資料狀態</h2></div>
@@ -245,7 +266,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
     <section class="view" id="view-timeline">
       <div class="panel">
         <div class="panel-head"><h2 data-i18n="periodEvents">期間到期／續期項目</h2><span class="hint" id="timelineHint"></span><div class="grow"></div><select class="control" id="timelineDept" onchange="renderTimeline()"><option value="" data-i18n="allDepartments">全部部門／分類</option></select></div>
-        <div class="table-wrap"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="itemPerson">項目／人員</th><th data-i18n="department">部門／分類</th><th data-i18n="source">來源</th><th data-i18n="status">狀態</th></tr></thead><tbody id="timelineBody"></tbody></table></div>
+        <div id="timelineCards"></div><div class="table-wrap hc-hide-m"><table><thead><tr><th data-i18n="date">日期</th><th data-i18n="type">類型</th><th data-i18n="itemPerson">項目／人員</th><th data-i18n="department">部門／分類</th><th data-i18n="source">來源</th><th data-i18n="status">狀態</th></tr></thead><tbody id="timelineBody"></tbody></table></div>
       </div>
     </section>
 
@@ -279,7 +300,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <button class="btn" onclick="CertificateEvidence.openSelected()" data-cv-text="selected">✈ 所選項目／附件 · Selected / Files</button>
           <button class="btn blue" onclick="createBatchRequest('certificate')" data-i18n="batchApply">批次申請核可</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('certificate',this.checked)"></th><th data-i18n="category">分類</th><th data-i18n="certificate">證書／項目</th><th data-i18n="department">部門</th><th data-i18n="startDate">開始日</th><th data-i18n="expiryDate">到期日</th><th data-i18n="renewalDate">續期日</th><th data-i18n="cost">費用</th><th data-i18n="status">狀態</th><th data-cv-text="files">📎 附件 / Files</th><th data-i18n="action">操作</th></tr></thead><tbody id="certBody"></tbody></table></div>
+        <div id="certCards"></div><div class="table-wrap hc-hide-m"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('certificate',this.checked)"></th><th data-i18n="category">分類</th><th data-i18n="certificate">證書／項目</th><th data-i18n="department">部門</th><th data-i18n="startDate">開始日</th><th data-i18n="expiryDate">到期日</th><th data-i18n="renewalDate">續期日</th><th data-i18n="cost">費用</th><th data-i18n="status">狀態</th><th data-cv-text="files">📎 附件 / Files</th><th data-i18n="action">操作</th></tr></thead><tbody id="certBody"></tbody></table></div>
       </div>
     </section>
 
@@ -294,7 +315,7 @@ tbody tr:hover{background:#f7fbfe}.row-click{cursor:pointer}.muted{color:var(--m
           <button class="btn" onclick="CertificateEvidence.openSelected()" data-cv-text="selected">✈ 所選項目／附件 · Selected / Files</button>
           <button class="btn blue" onclick="createBatchRequest('person')" data-i18n="batchApply">批次申請核可</button>
         </div>
-        <div class="table-wrap"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="status">狀態</th><th data-cv-text="files">📎 附件 / Files</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
+        <div id="peopleCards"></div><div class="table-wrap hc-hide-m"><table><thead><tr><th><input class="check" type="checkbox" onchange="toggleAll('person',this.checked)"></th><th data-i18n="employeeId">工號</th><th data-i18n="name">姓名</th><th data-i18n="department">部門</th><th data-i18n="passport">護照</th><th data-i18n="passportExpiry">護照到期</th><th data-i18n="visaExpiry">簽證到期</th><th data-i18n="workPermitExpiry">工作證到期</th><th data-i18n="status">狀態</th><th data-cv-text="files">📎 附件 / Files</th><th data-i18n="action">操作</th></tr></thead><tbody id="peopleBody"></tbody></table></div>
       </div>
     </section>
 
@@ -717,6 +738,52 @@ function renderAnalysis(){
   if(chartStatus)chartStatus.destroy();if(window.Chart)chartStatus=new Chart(document.getElementById('statusChart'),{type:'doughnut',data:{labels:Object.keys(statuses).map(statusKey).map(tr),datasets:[{data:Object.values(statuses),backgroundColor:['#2d98c3','#e5a128','#d94b50','#2a996a']}]},options:{responsive:true,maintainAspectRatio:false}});
   document.getElementById('analysisSummary').innerHTML=Object.entries(statuses).map(([k,v])=>badge(k,`${tr(statusKey(k))} ${v}`)).join('')
 }
+
+/* 2026-11-17 Paul：手機改成卡片清單＋連續瀏覽（像 PSJHR 員工頁），有照片與全部欄位；
+   日＝不分組、週＝按日、月＝按週、年＝按月；45 天提醒按「已逾期／即將到期」分組 */
+function certCL(z,e){return LANG==='en'?e:z}
+function certRec(e){return e.kind==='certificate'?certificatesForMonth(e.snapshotMonth).find(x=>x.id===e.recordId):peopleForMonth(e.snapshotMonth).find(x=>x.id===e.recordId)}
+function certPhotos(r){if(!r)return [];return (CertificateEvidence.evidence(r)||[]).map(a=>({url:a.previewUrl||a.url||a.downloadUrl||a.src||'',img:/^image\//i.test(a.mimeType||'')}))}
+function certDaysTxt(d){return d<0?tr('daysOverdue',{n:Math.abs(d)}):d===0?tr('today'):tr('daysLeft',{n:d})}
+function certToneOf(st){return st==='expired'?'red':st==='due'?'amber':st==='complete'?'green':'blue'}
+function certPill(st,txt){return `<span class="hc-pill ${certToneOf(st)}">${esc(txt)}</span>`}
+function certRecFields(r,kind){if(!r)return [];if(kind==='person')return [[tr('employeeId'),esc(r.employeeId||'—')],[tr('department'),esc(r.department||'—')],[tr('name'),esc([r.nickname,r.nameEn,r.nameKh].filter(Boolean).join(' / ')||'—'),1],[tr('passport'),esc(r.passport||'—')],[tr('passportExpiry'),fmtDate(r.passportExpiry)],[tr('visaExpiry'),fmtDate(r.visaExpiry)],[tr('workPermitExpiry'),fmtDate(r.workPermitExpiry)],[tr('residenceExpiry'),fmtDate(r.residenceExpiry)],[tr('status'),badge(r.status||'active')]];
+  return [[tr('category'),esc(r.category||'—')],[tr('department'),esc(r.department||r.category||'—')],[tr('startDate'),fmtDate(r.startDate)],[tr('expiryDate'),fmtDate(r.expiryDate)],[tr('renewalDate'),fmtDate(r.renewalDate)],[tr('cost'),esc(r.costText||money(r.cost))],[certCL('聯絡','Contact'),esc(r.contact||'—')],[tr('status'),badge(HRACertificateModel.current(r)?(r.status||'active'):'not_in_latest')],[certCL('備註','Remark'),esc(r.remark||''),1]]}
+function certRecActions(r,kind){if(!r)return [];return kind==='person'?[[tr('edit'),x=>openPersonForm(r.id),'pri'],[certCL('📎 照片／附件','📎 Photos / files'),x=>CertificateEvidence.openGallery('person',r.id)]]:[[tr('edit'),x=>openCertForm(r.id),'pri'],[certCL('📎 照片／附件','📎 Photos / files'),x=>CertificateEvidence.openGallery('certificate',r.id)]]}
+function certEvCfg(id,group,empty){return{id,L:certCL,empty:tr(empty||'noEvents'),
+  icon:e=>e.kind==='person'?'🛂':'📜',photos:e=>certPhotos(certRec(e)),
+  title:e=>esc(e.name),sub:e=>esc(fmtDate(e.date)+' · '+typeLabel(e.type)+' · '+(e.department||'')),
+  right:e=>{const st=eventState(e);return certPill(st,e.completed?tr('statusComplete'):certDaysTxt(e.days))},
+  tone:e=>certToneOf(eventState(e)),group,
+  fields:e=>{const r=certRec(e);return [[tr('date'),'<b>'+fmtDate(e.date)+'</b>'],[tr('type'),esc(typeLabel(e.type))],[tr('days'),certPill(eventState(e),e.completed?tr('statusComplete'):certDaysTxt(e.days))],[tr('source'),esc(e.source||'—')]].concat(certRecFields(r,e.kind))},
+  actions:e=>certRecActions(certRec(e),e.kind)}}
+function certCards(){
+  if(!window.HRACards)return;const rem=Number(STATE.settings.reminderDays||45);
+  const ev=allEvents().filter(e=>!e.completed&&e.days<=rem).slice(0,80);
+  HRACards.list('reminderCards',ev,certEvCfg('rem',e=>e.days<0?{k:'x',label:'🔴 '+certCL('已逾期','Overdue')}:{k:'d',label:'🟡 '+certCL(rem+' 天內到期','Due within '+rem+' days')}));
+  const field=document.getElementById('eventField').value,dept=document.getElementById('timelineDept').value;
+  const tl=eventFilter(certificatePeriodEvents(PERIOD_MODE),field,dept);
+  HRACards.list('timelineCards',tl,certEvCfg('tl',PERIOD_MODE==='day'?null:e=>HRACards.periodGroup(PERIOD_MODE,e.date,certCL)));
+  const q=norm(document.getElementById('certSearch').value),dep=document.getElementById('certDept').value;
+  const cs=certificatesForMonth().filter(c=>certificateInView(c)&&(!q||norm([c.category,c.name,c.contact,c.remark].join(' ')).includes(q))&&(!dep||(c.department||c.category)===dep)).sort((a,b)=>String(a.category||'').localeCompare(String(b.category||''))||String(a.renewalDate||a.expiryDate||'9999').localeCompare(String(b.renewalDate||b.expiryDate||'9999')));
+  const due=c=>{const d=c.renewalDate||c.expiryDate;return d?dayDiff(d):Infinity};
+  HRACards.list('certCards',cs,{id:'cert',L:certCL,empty:tr('noData'),icon:()=>'📜',photos:certPhotos,
+    title:c=>esc(c.name||'—'),sub:c=>esc((c.department||c.category||'')+' · '+certCL('到期 ','Exp ')+fmtDate(c.expiryDate)),
+    right:c=>{const d=due(c);return d===Infinity?certPill('active','—'):certPill(d<0?'expired':d<=Number(STATE.settings.reminderDays||45)?'due':'active',certDaysTxt(d))},
+    tone:c=>{const d=due(c);return d===Infinity?'':d<0?'red':d<=Number(STATE.settings.reminderDays||45)?'amber':'green'},
+    group:c=>({k:c.category||'-',label:'🏷 '+(c.category||tr('unknown'))}),
+    fields:c=>certRecFields(c,'certificate'),actions:c=>certRecActions(c,'certificate')});
+  const pq=norm(document.getElementById('peopleSearch').value),pd=document.getElementById('peopleDept').value,pst=document.getElementById('peopleStatus').value;
+  const ps=peopleForMonth().filter(p=>(!pq||norm([p.employeeId,p.nameEn,p.nameKh,p.nickname,p.passport].join(' ')).includes(pq))&&(!pd||p.department===pd)&&(!pst||p.status===pst)).sort((a,b)=>String(a.department||'').localeCompare(String(b.department||''))||String(a.nameEn).localeCompare(String(b.nameEn)));
+  const pmin=p=>Math.min(...['passportExpiry','visaExpiry','workPermitExpiry'].map(k=>p[k]?dayDiff(p[k]):Infinity));
+  HRACards.list('peopleCards',ps,{id:'ppl',L:certCL,empty:tr('noData'),icon:()=>'🛂',photos:certPhotos,
+    title:p=>esc(p.nickname||p.nameEn||p.nameKh||'—'),sub:p=>esc([p.employeeId,p.department,p.nameEn].filter(Boolean).join(' · ')),
+    right:p=>{const d=pmin(p);return d===Infinity?badge(p.status||'active'):certPill(d<0?'expired':d<=Number(STATE.settings.reminderDays||45)?'due':'active',certDaysTxt(d))},
+    tone:p=>{const d=pmin(p);return p.status!=='active'?'':d<0?'red':d<=Number(STATE.settings.reminderDays||45)?'amber':'green'},
+    group:p=>({k:p.department||'-',label:'🏢 '+(p.department||tr('unknown'))}),
+    fields:p=>certRecFields(p,'person'),actions:p=>certRecActions(p,'person')});
+}
+['renderTimeline','renderCertificates','renderPeople'].forEach(n=>{const f=window[n];if(typeof f!=='function')return;window[n]=function(){const r=f.apply(this,arguments);clearTimeout(window._ccT);window._ccT=setTimeout(()=>{try{certCards()}catch(e){console.warn('[certCards]',e)}},40);return r}});
 /* 2026-10-29 未送核可提醒（Paul）：申請單狀態 Pending、還沒送 Telegram 核可（沒有批次編號），超過 3 天 → 紅框＋每天 08:00 群組提醒 */
 function certUnsentCheck(){
   if(!window.HRAUnsent||!STATE)return;
@@ -727,7 +794,7 @@ function certUnsentCheck(){
 function renderAll(){
   if(!STATE)return;syncPeriodPicker();try{certUnsentCheck();}catch(e){console.warn('[unsent]',e);}
   const deps=distinctDepartments();fillSelect('timelineDept',deps,'allDepartments');fillSelect('listDept',deps,'allDepartments');fillSelect('peopleDept',[...new Set(peopleForMonth().map(x=>x.department).filter(Boolean))].sort(),'allDepartments');fillSelect('certDept',[...new Set(certificatesForMonth().map(x=>x.department||x.category).filter(Boolean))].sort(),'allCategories');
-  renderDashboard();renderTimeline();renderPeriodList();renderCertificates();renderPeople();renderApprovals();renderAnalysis()
+  renderDashboard();renderTimeline();renderPeriodList();renderCertificates();renderPeople();renderApprovals();renderAnalysis();try{certCards();}catch(e){console.warn('[certCards]',e)}
 }
 
 /* ── One-step multi-file Excel import and deduplication ──────────────── */

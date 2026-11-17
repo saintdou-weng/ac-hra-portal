@@ -22,6 +22,7 @@
 <script type="text/x-ac-after-storage" src="shared/inspector.js"></script>
 <script type="text/x-ac-after-storage" src="shared/status-link.js"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-attachments.js?v=43"></script>
+<script src="shared/card-viewer.js?v=1"></script>
 <script type="text/x-ac-after-storage" src="shared/portal-actionbar.js" defer></script>
 <script src="https://cdn.tailwindcss.com"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -80,6 +81,38 @@ tbody tr:hover{background:#f8fafc}
 <script src="shared/settle-parse.js?v=2"></script>
 <script src="shared/hra-unsent.js?v=6"></script>
 <script src="shared/appr-precheck.js?v=1"></script>
+<style id="m-compact">
+/* 2026-11-17 Paul：手機上方太佔空間、間距太大 → 精簡 */
+.pnav{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:6px 8px}
+.pnav .seg{display:flex;background:#f1f5f9;border-radius:8px;padding:2px;gap:1px}
+.pnav .seg button{font-size:12px;padding:4px 10px;border-radius:6px;color:#64748b;border:0;background:transparent;font-weight:600}
+.pnav .seg button.on{background:#be185d;color:#fff;box-shadow:0 1px 3px rgba(190,24,93,.35)}
+.pnav .stp{display:flex;align-items:center;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#fff}
+.pnav .stp button{width:30px;height:30px;border:0;background:#fff;color:#475569;font-size:12px}
+.pnav .stp select{height:30px;border:0;border-left:1px solid #e2e8f0;border-right:1px solid #e2e8f0;font:600 12px ui-monospace,Menlo,monospace;padding:0 6px;background:#fff;min-width:96px}
+.pnav .cap{font-size:11px;color:#64748b}
+@media(max-width:640px){
+  header.sticky{position:static!important}
+  header .max-w-screen-2xl{padding:6px 8px!important;gap:6px!important}
+  header .leading-none p+p{display:none}
+  header [data-t="hdr_title"]{font-size:13px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:calc(100vw - 70px)}
+  header .no-print{width:100%;flex-wrap:nowrap!important;overflow-x:auto;gap:5px!important;scrollbar-width:none}
+  header .no-print>*{flex:0 0 auto}
+  header .no-print .flex.rounded-md.border{flex-direction:row!important}
+  header .portal-action-btn,header .no-print button,header .no-print label{min-height:30px!important;padding:5px 8px!important}
+  .tab-bar{top:0!important}
+  .tab-bar button{padding:8px 10px!important}
+  #dz{padding:8px 10px!important}#dz [data-t="dz2"]{display:none}
+  #import-report{max-height:64px!important;padding:6px 10px!important}
+  .bg-gradient-to-r>.max-w-screen-2xl{padding:6px 8px!important}
+  main,.pane{padding-left:0;padding-right:0}
+  .pane.space-y-4>*+*{margin-top:8px!important}
+  .kpi{padding:8px 10px!important}.kpi .v{font-size:20px!important;line-height:1.15}.kpi .l{font-size:10.5px!important;margin-top:2px!important}
+  [id$="-kpi"]{gap:6px!important}
+  .sect>h3{padding:8px 10px!important;font-size:13px!important}
+  .sect.p-3{padding:8px!important}
+}
+</style>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -285,7 +318,8 @@ tbody tr:hover{background:#f8fafc}
   </div>
   <div id="med-kpi" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
   <div class="sect"><h3>💊 <span data-t="t_meddet">醫療採購明細 Medical Purchase Records</span></h3>
-    <div class="tbl-wrap" id="med-tbl"></div></div>
+    <div id="med-cards" class="p-2"></div>
+    <div class="tbl-wrap hc-hide-m" id="med-tbl"></div></div>
 </section>
 
 <!-- ────────── 診所紀錄 ────────── -->
@@ -989,7 +1023,10 @@ function renderNav(key){
       opts.map(function(o){return '<option value="'+o+'"'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('')+'</select>'+
     '<button onclick="pStep(\''+key+'\',1)" class="px-2 py-1 text-sm rounded-md border border-slate-200 bg-white hover:bg-slate-50">&#9654;</button>'+
     '<button onclick="pToday(\''+key+'\')" title="回到今天" class="px-2 py-1 text-xs rounded-md border border-pink-200 bg-pink-50 text-pink-700 hover:bg-pink-100">&#9679;</button>';
-  host.innerHTML='<div class="sect p-2.5 flex flex-wrap items-center gap-2 no-print"><div class="flex bg-slate-100 rounded-lg p-0.5 gap-0.5">'+seg+'</div>'+sel+'<span class="text-xs text-slate-500 ml-1">'+esc(pLabel(st))+'</span></div>';
+  /* 2026-11-17 Paul：日週月年要精緻 → 一列小分段＋◀ 期間 ▶ 一體 */
+  seg=modes.map(function(m){return '<button class="'+(st.mode===m[0]?'on':'')+'" onclick="pMode(\''+key+'\',\''+m[0]+'\')">'+m[1]+'</button>';}).join('');
+  sel=st.mode==='all'?'':'<div class="stp"><button onclick="pStep(\''+key+'\',-1)">&#9664;</button><select onchange="pPick(\''+key+'\',this.value)">'+opts.map(function(o){return '<option value="'+o+'"'+(o===cur?' selected':'')+'>'+o+'</option>';}).join('')+'</select><button onclick="pStep(\''+key+'\',1)">&#9654;</button><button onclick="pToday(\''+key+'\')" title="'+L('回到今天','Today')+'" style="color:#be185d">&#9679;</button></div>';
+  host.innerHTML='<div class="sect pnav no-print"><div class="seg">'+seg+'</div>'+sel+'<span class="cap">'+esc(pLabel(st))+'</span></div>';
 }
 /* 每筆的期間代表日期：產假/回歸以產假起始日為準，孕婦以登記日為準 */
 function evDateEmp(r){
@@ -2284,7 +2321,28 @@ function renderMed(){
       var ev=medicineEvidenceFor(r);
       h+='<tr><td class="jmono">'+esc(r.period||'—')+'</td><td>'+esc(r.item||r.name||'—')+' '+maternityEvidenceLinks(ev)+'</td><td>'+esc(r.productName||'—')+'</td><td>'+esc(r.description||'—')+'</td><td class="text-right jmono">'+fmt(r.inStock||0)+'</td><td class="text-right jmono">'+fmt(r.quantity||0)+'</td><td>'+esc(r.unit||'—')+'</td><td class="text-right jmono">$'+fmt(r.unitPrice||0)+'</td><td class="text-right jmono font-semibold">$'+fmt(r.amount||0)+'</td><td class="text-[10px] text-slate-400">'+esc(r.sourceFile||r.source||'—')+'</td><td class="no-print"><button onclick="openMedical(\''+esc(r.id)+'\')" class="text-xs text-slate-600" title="'+L('編輯','Edit','កែ')+'">✏️</button> <button onclick="openMedicalEvidence(\''+esc(r.id)+'\')" class="text-xs text-cyan-600" title="'+L('藥品共用照片／PDF','Shared item photo / PDF','រូបភាពថ្នាំរួម')+'">📷</button> <button onclick="deleteMedical(\''+esc(r.id)+'\')" class="text-xs text-rose-400 hover:text-rose-700" title="'+L('刪除','Delete')+'">🗑</button></td></tr>';});
     h+='</tbody></table>';setHtml('med-tbl',h);
+    medCards(rows);
   }catch(e){console.error('[renderMed]',e);}
+}
+
+/* 2026-11-17 Paul：手機改卡片清單＋連續瀏覽（像 PSJHR 員工頁）；年／全部按月分組、月按部門分組 */
+function medPhotos(r){return (medicineEvidenceFor(r)||[]).map(function(a){return {url:a.previewUrl||a.url||a.downloadUrl||'',img:/^image\//i.test(a.mimeType||'')};});}
+function medCards(rows){
+  if(!window.HRACards)return;
+  var mode=(NAV.med||{}).mode||'month';
+  var list=rows.slice().sort(function(a,b){return String(b.period||'').localeCompare(String(a.period||''))||String(a.dept||a.department||'').localeCompare(String(b.dept||b.department||''))||(a.item||'').localeCompare(b.item||'');});
+  HRACards.list('med-cards',list,{id:'med',L:L,empty:L('此期間沒有醫療採購記錄','No medical purchase records'),
+    icon:function(){return '💊';},photos:medPhotos,
+    title:function(r){return esc(r.item||r.name||'—')+(r.productName&&r.productName!==r.item?' <span style="font-weight:600;color:#64748b">· '+esc(r.productName)+'</span>':'');},
+    sub:function(r){return esc([r.description,r.dept||r.department].filter(Boolean).join(' · ')||'—');},
+    right:function(r){return '$'+fmt(r.amount||0)+'<small>'+fmt0(r.quantity||0)+' '+esc(r.unit||'')+'</small>';},
+    tone:function(r){return (+r.amount||0)>0?'green':'';},
+    group:(mode==='year'||mode==='all')?function(r){return HRACards.periodGroup('year',r.period,L);}:mode==='month'?function(r){var d=r.dept||r.department||L('未填部門','No dept');return {k:d,label:'🏷 '+d};}:null,
+    groupSum:function(rs){return '$'+fmt(rs.reduce(function(s,r){return s+(+r.amount||0);},0));},
+    fields:function(r){return [[L('月份','Month'),esc(r.period||'—')],[L('部門','Dept'),esc(r.dept||r.department||'—')],[L('藥品','Item'),esc(r.item||r.name||'—')],[L('產品','Product'),esc(r.productName||'—')],[L('用途／說明','Description'),esc(r.description||'—'),1],
+      [L('庫存','Stock'),fmt(r.inStock||0)],[L('訂購數量','Qty'),fmt(r.quantity||0)+' '+esc(r.unit||'')],[L('單價','Unit price'),'$'+fmt(r.unitPrice||0)],[L('金額','Amount'),'<b style="color:#047857">$'+fmt(r.amount||0)+'</b>'],[L('來源','Source'),'<span style="font-size:11px;color:#64748b">'+esc(r.sourceFile||r.source||'—')+'</span>',1]];},
+    actions:function(r){return [[L('✏️ 編輯','✏️ Edit'),function(x){openMedical(x.id);},'pri'],[L('📷 照片／PDF','📷 Photo / PDF'),function(x){openMedicalEvidence(x.id);}]];}
+  });
 }
 
 /* ═══════════ 診所 Clinic ═══════════ */
