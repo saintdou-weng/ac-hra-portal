@@ -45,6 +45,7 @@
     '.hc-ph{width:76px;height:76px;flex:0 0 76px;border-radius:12px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:34px;overflow:hidden;cursor:pointer}' +
     '.hc-ph img{width:100%;height:100%;object-fit:cover}' +
     '.hc-top .t{font-size:15px;font-weight:850;line-height:1.25}.hc-top .s{font-size:12px;color:#64748b;margin-top:2px}' +
+    '.hc-top small{margin-left:6px;color:#64748b;font-size:11px;font-weight:600}' +
     '.hc-gal{display:flex;gap:6px;overflow-x:auto;margin-top:8px}.hc-gal a{flex:0 0 auto}.hc-gal img{height:120px;border-radius:9px;border:1px solid #e2e8f0}' +
     '.hc-gal .pdf{display:flex;align-items:center;justify-content:center;width:86px;height:120px;border-radius:9px;background:#fef2f2;color:#b91c1c;font-weight:800;font-size:12px;border:1px solid #fecaca}' +
     '.hc-kv{display:grid;grid-template-columns:1fr 1fr;gap:7px 12px;margin-top:10px}' +
