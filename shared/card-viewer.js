@@ -115,7 +115,7 @@
     var top = '<div class="hc-top"><div class="hc-ph" ' + (imgs.length ? 'onclick="HRACards.zoom(\'' + esc(imgs[0].url) + '\')"' : '') + '>' + (imgs.length ? '<img src="' + esc(imgs[0].url) + '" alt="" onerror="this.remove()">' : esc(call(cfg.icon, r, '📄') || '📄')) + '</div>' +
       '<div style="min-width:0;flex:1"><div class="t">' + (call(cfg.title, r, '') || '—') + '</div><div class="s">' + (call(cfg.sub, r, '') || '') + '</div><div style="margin-top:4px">' + (call(cfg.right, r, '') || '') + '</div></div></div>';
     var gal = ph.length > (imgs.length ? 1 : 0) ? '<div class="hc-gal">' + ph.map(function (a) { return a.img ? '<a href="javascript:void 0" onclick="HRACards.zoom(\'' + esc(a.url) + '\')"><img src="' + esc(a.url) + '" alt="" loading="lazy"></a>' : '<a href="' + esc(a.url) + '" target="_blank" rel="noopener"><span class="pdf">📄 PDF</span></a>'; }).join('') + '</div>' : '';
-    var f = (call(cfg.fields, r, []) || []).filter(function (x) { return x && x[1] !== undefined && x[1] !== null && x[1] !== ''; });
+    var f = (call(cfg.fields, r, []) || []).filter(function (x) { return x && x[1] !== undefined && x[1] !== null && x[1] !== '' && String(x[1]).trim() !== '—' && String(x[1]).trim() !== '$0.00'; });
     var kv = f.length ? '<dl class="hc-kv">' + f.map(function (x) { return '<div' + (x[2] ? ' class="w"' : '') + '><dt>' + esc(x[0]) + '</dt><dd>' + x[1] + '</dd></div>'; }).join('') + '</dl>' : '';
     var act = (call(cfg.actions, r, []) || []);
     var ah = act.length ? '<div class="hc-act">' + act.map(function (a, k) { return '<button class="' + (a[2] || '') + '" onclick="HRACards.act(\'' + id + '\',' + i + ',' + k + ')">' + esc(a[0]) + '</button>'; }).join('') + '</div>' : '';

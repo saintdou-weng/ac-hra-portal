@@ -21,7 +21,7 @@
 <script type="text/x-ac-after-storage" src="shared/certificate-workflow.js?v=81"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-attachments.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/certificate-evidence.js?v=77"></script>
-<script src="shared/card-viewer.js?v=1"></script>
+<script src="shared/card-viewer.js?v=2"></script>
 <link rel="stylesheet" href="shared/certificate-evidence.css?v=76">
 <title>AC HRA Certificate &amp; Visa</title>
 <script type="text/x-ac-after-storage" src="shared/xlsx.full.min.js?v=0.18.5"></script>
@@ -748,11 +748,11 @@ function certDaysTxt(d){return d<0?tr('daysOverdue',{n:Math.abs(d)}):d===0?tr('t
 function certToneOf(st){return st==='expired'?'red':st==='due'?'amber':st==='complete'?'green':'blue'}
 function certPill(st,txt){return `<span class="hc-pill ${certToneOf(st)}">${esc(txt)}</span>`}
 function certRecFields(r,kind){if(!r)return [];if(kind==='person')return [[tr('employeeId'),esc(r.employeeId||'—')],[tr('department'),esc(r.department||'—')],[tr('name'),esc([r.nickname,r.nameEn,r.nameKh].filter(Boolean).join(' / ')||'—'),1],[tr('passport'),esc(r.passport||'—')],[tr('passportExpiry'),fmtDate(r.passportExpiry)],[tr('visaExpiry'),fmtDate(r.visaExpiry)],[tr('workPermitExpiry'),fmtDate(r.workPermitExpiry)],[tr('residenceExpiry'),fmtDate(r.residenceExpiry)],[tr('status'),badge(r.status||'active')]];
-  return [[tr('category'),esc(r.category||'—')],[tr('department'),esc(r.department||r.category||'—')],[tr('startDate'),fmtDate(r.startDate)],[tr('expiryDate'),fmtDate(r.expiryDate)],[tr('renewalDate'),fmtDate(r.renewalDate)],[tr('cost'),esc(r.costText||money(r.cost))],[certCL('聯絡','Contact'),esc(r.contact||'—')],[tr('status'),badge(HRACertificateModel.current(r)?(r.status||'active'):'not_in_latest')],[certCL('備註','Remark'),esc(r.remark||''),1]]}
+  return [[tr('category'),esc(r.category||'—')],[tr('department'),r.department&&r.department!==r.category?esc(r.department):''],[tr('startDate'),fmtDate(r.startDate)],[tr('expiryDate'),fmtDate(r.expiryDate)],[tr('renewalDate'),fmtDate(r.renewalDate)],[tr('cost'),esc(r.costText||money(r.cost))],[certCL('聯絡','Contact'),esc(r.contact||'—')],[tr('status'),badge(HRACertificateModel.current(r)?(r.status||'active'):'not_in_latest')],[certCL('備註','Remark'),esc(r.remark||''),1]]}
 function certRecActions(r,kind){if(!r)return [];return kind==='person'?[[tr('edit'),x=>openPersonForm(r.id),'pri'],[certCL('📎 照片／附件','📎 Photos / files'),x=>CertificateEvidence.openGallery('person',r.id)]]:[[tr('edit'),x=>openCertForm(r.id),'pri'],[certCL('📎 照片／附件','📎 Photos / files'),x=>CertificateEvidence.openGallery('certificate',r.id)]]}
 function certEvCfg(id,group,empty){return{id,L:certCL,empty:tr(empty||'noEvents'),
   icon:e=>e.kind==='person'?'🛂':'📜',photos:e=>certPhotos(certRec(e)),
-  title:e=>esc(e.name),sub:e=>esc(fmtDate(e.date)+' · '+typeLabel(e.type)+' · '+(e.department||'')),
+  title:e=>esc(e.name),sub:e=>esc(fmtDate(e.date)+' · '+(e.kind==='person'?typeLabel(e.type)+' · ':'')+(e.department||'')),
   right:e=>{const st=eventState(e);return certPill(st,e.completed?tr('statusComplete'):certDaysTxt(e.days))},
   tone:e=>certToneOf(eventState(e)),group,
   fields:e=>{const r=certRec(e);return [[tr('date'),'<b>'+fmtDate(e.date)+'</b>'],[tr('type'),esc(typeLabel(e.type))],[tr('days'),certPill(eventState(e),e.completed?tr('statusComplete'):certDaysTxt(e.days))],[tr('source'),esc(e.source||'—')]].concat(certRecFields(r,e.kind))},
