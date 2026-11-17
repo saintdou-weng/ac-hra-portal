@@ -58,14 +58,14 @@
     // 上面那排（標題、語言、按鈕）超出畫面就換行
     var vw = doc.documentElement.clientWidth; var els = doc.querySelectorAll('header,nav,header *,nav *,body>div,body>div>div,body>div>div>div,.topbar,.toolbar');
     for (var j = 0; j < els.length && j < 400; j++) {
-      var el = els[j]; var r = el.getBoundingClientRect(); if (r.top > 260 || r.height === 0 || r.height > 160) continue;
+      var el = els[j]; if (el.closest && el.closest('.tf-keep')) continue; var r = el.getBoundingClientRect(); if (r.top > 260 || r.height === 0 || r.height > 160) continue;
       var d = g.getComputedStyle(el).display; if (!/flex/.test(d)) continue;
       if (el.scrollWidth > el.clientWidth + 2 || r.right > vw + 2) { el.classList.add('tf-flexwrap'); Array.prototype.forEach.call(el.children, function (ch) { ch.classList.add('tf-shrink'); }); }
     }
     // 其他超出畫面寬度的東西（固定寬度的輸入框、區塊）縮到畫面內；表格已經包在可左右滑的框裡，不動
     var all = doc.body.querySelectorAll('*');
     for (var k = 0; k < all.length && k < 6000; k++) {
-      var x = all[k]; if (x.closest && (x.closest('.tf-wrap') || x.closest('table') || x.closest('#tf-bar'))) continue;
+      var x = all[k]; if (x.closest && (x.closest('.tf-keep') || x.closest('.tf-wrap') || x.closest('table') || x.closest('#tf-bar'))) continue;
       var rr = x.getBoundingClientRect(); if (!rr.width || rr.right <= vw + 1 || rr.left < -1) continue;
       var dd = g.getComputedStyle(x); if (/(auto|scroll)/.test(dd.overflowX)) continue;
       if (/flex/.test(dd.display)) x.classList.add('tf-flexwrap');
