@@ -73,6 +73,7 @@ tbody tr:hover{background:#f8fafc}
 <script src="shared/hra-unsent.js?v=6"></script>
 <script src="shared/appr-precheck.js?v=1"></script>
 <script src="shared/join-pay.js?v=1"></script>
+<script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -2556,8 +2557,38 @@ function amtVerifyBlock_(its,bi){
   Object.keys(yo).forEach(function(k){var l=yo[k];t+='🟡 '+l.length+' '+esc(BL('筆','items','',bi))+' · '+esc(k)+'：'+esc(l.slice(0,12).map(function(x){return x.id;}).join('、'))+(l.length>12?' …+'+(l.length-12):'')+'\n';});
   return t;
 }
-/* scope: 'join' | 'resign' | 'both' */
+/* 2026-11-18 Paul：入離職摘要加入職本月／今年累計、男女色條，並附一張彩色圖；原內容、核可、統計行都不變 */
 function buildSummaryText(p,bi,scope){
+  scope=scope||_tgScope||'both';
+  var r=_obBaseSummary(p,bi,scope); if(r.err||!window.HRPayTGV)return r;
+  try{
+    var V=HRPayTGV,d=periodData(p),J=d.J||[],R=d.R||[],pool=(scope==='join'?J:scope==='resign'?R:J.concat(R));
+    var sewOf=function(x){return isSewLine(normalizeGroup(x.section||x.dept));};
+    var ref=cumRefMonth(p),y=String(ref).slice(0,4),add='';
+    if(/^\d{4}-\d{2}$/.test(ref)&&scope!=='resign'){
+      var jm=JOINS.filter(function(x){return String(x.joinDate||'').slice(0,7)===ref;}),jy=JOINS.filter(function(x){var m=String(x.joinDate||'').slice(0,7);return m.slice(0,4)===y&&m<=ref;});
+      add+='📆 '+esc(BL('本月入職','Joins this month','ចូលខែនេះ',bi))+' '+ref+'：<b>'+jm.length+'</b>（'+esc(BL('車工','Sewing','ដេរ',bi))+' '+jm.filter(sewOf).length+'・'+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(jm.length-jm.filter(sewOf).length)+'）\n'
+        +'🗓 '+esc(BL('今年累計入職','Joins year to date','ចូលឆ្នាំនេះ',bi))+' '+y+'-01～'+ref.slice(5)+'：<b>'+jy.length+'</b>（'+esc(BL('車工','Sewing','ដេរ',bi))+' '+jy.filter(sewOf).length+'・'+esc(BL('其他','Other','ផ្សេងៗ',bi))+' '+(jy.length-jy.filter(sewOf).length)+'）\n';
+    }
+    var f=pool.filter(function(x){return String(x.gender||'').toUpperCase()==='F';}).length,m=pool.filter(function(x){return String(x.gender||'').toUpperCase()==='M';}).length;
+    if(f+m)add+=V.share([{v:f,icon:'🟥'},{v:m,icon:'🟦'}])+' 🚺 '+f+' · 🚹 '+m+'\n';
+    if(add){var k=r.text.indexOf('\n📝 ');r.text=k>0?r.text.slice(0,k)+'\n'+add.replace(/\n$/,'')+r.text.slice(k):r.text+'\n'+add;}
+    var to=(String(p).length===7)?turnoverOf(p):null,gm={};
+    pool.forEach(function(x){var g=obDeptKey_(lineOf(x)||x.dept);if(!gm[g])gm[g]={j:0,r:0};if(J.indexOf(x)>=0)gm[g].j++;else gm[g].r++;});
+    var gl=Object.keys(gm).map(function(g){return [g,gm[g]];}).sort(function(a,b){return (b[1].j+b[1].r)-(a[1].j+a[1].r);}),top=gl.slice(0,14),oth=gl.slice(14);
+    var pLabel=isSettleKey(p)?String(p).slice(2)+' 結算':String(p);
+    r.chart={title:(scope==='join'?'🟢 Joins 入職':scope==='resign'?'🔴 Resigns 離職':'👥 Joins & Resigns 入離職')+' · '+pLabel,
+      subtitle:(/^\d{4}-\d{2}$/.test(ref)?'今年累計 入職 '+JOINS.filter(function(x){var mm=String(x.joinDate||'').slice(0,7);return mm.slice(0,4)===y&&mm<=ref;}).length+' · 離職 '+resignCum(ref).y.n:''),
+      color:scope==='resign'?'#be123c':scope==='join'?'#15803d':'#0f766e',color2:scope==='resign'?'#fb7185':scope==='join'?'#4ade80':'#38bdf8',
+      kpis:[{label:'入職 Joins',value:J.length,color:'#22c55e'},{label:'離職 Resigns',value:R.length,color:'#ef4444'},{label:'淨增減 Net',value:(J.length-R.length>0?'+':'')+(J.length-R.length),color:'#3b82f6'},{label:'流動率 Turnover',value:(to&&isFinite(to.rate))?pct(to.rate):'—',color:'#a855f7'}],
+      donut:(f+m)?{title:'男女 Gender',center:pool.length+' 人',items:[{label:'女 F',value:f,color:'#f9a8b4'},{label:'男 M',value:m,color:'#93c5fd'}]}:null,
+      bars:{title:'各組／部門 By Unit（+入職 / −離職）',items:top.map(function(a){var v=a[1];return {label:a[0],value:v.j+v.r,text:(v.j?'+'+v.j:'')+(v.j&&v.r?' / ':'')+(v.r?'−'+v.r:''),color:v.r&&!v.j?'#f87171':v.j&&!v.r?'#4ade80':'#a78bfa'};}).concat(oth.length?[{label:'其他 '+oth.length+' 組',value:oth.reduce(function(s2,a){return s2+a[1].j+a[1].r;},0),text:String(oth.reduce(function(s2,a){return s2+a[1].j+a[1].r;},0)),color:'#94a3b8'}]:[])},
+      foot:'🟩 只有入職　🟥 只有離職　🟪 兩者都有'};
+  }catch(e){console.warn('[TG visual]',e);}
+  return r;
+}
+function obChartAttachment_(r){try{if(!r||!r.chart||!window.HRPayTGV)return null;return {src:HRPayTGV.chart(r.chart),mimeType:'image/png',fileName:'summary_chart.png',name:'summary_chart.png',label:r.chart.title};}catch(e){return null;}}
+function _obBaseSummary(p,bi,scope){
   scope=scope||_tgScope||'both';
   var d=periodData(p), J=d.J, R=d.R;
   var need = scope==='join'?J.length : scope==='resign'?R.length : (J.length+R.length);
@@ -2671,7 +2702,9 @@ function previewTg(){
       }
     }
   }
-  pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'')
+  try{var im=el('tg-chart-pv');if(!im){im=document.createElement('img');im.id='tg-chart-pv';im.className='mt-2 w-full rounded-lg border border-slate-200';pv.insertAdjacentElement('afterend',im);}
+    if(r.chart&&window.HRPayTGV){im.src=HRPayTGV.chart(r.chart);im.style.display='';}else im.style.display='none';}catch(_e){}
+  pv.textContent=r.text.replace(/<\/?b>/g,'').replace(/<\/?i>/g,'').replace(/<\/?code>/g,'')
     .replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"')+extra;
   btn.disabled=false; syncTgSendBtn();
 }
@@ -2691,6 +2724,7 @@ function confirmTg(){
     var r=buildSummaryText(p,bi,scope);
     if(r.err){ toast(r.err,'error'); return; }
     var attachments=onboardingTgAttachments(p,scope);
+    var chA=obChartAttachment_(r); if(chA)attachments=[chA].concat(attachments||[]);   /* 2026-11-18：先附彩色摘要圖 */
     var sTag=scope==='join'?'J':scope==='resign'?'R':'B';
     if(_tgMode==='approval'){
       var items=buildApprovalItems(p,scope);
