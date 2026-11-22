@@ -73,6 +73,7 @@
     var ids=items.filter(function(x){return x.n===null||x.i===0||/工號|id|no\.?$|^#$|編號|期|date|日/i.test(x.l);});
     var cl=function(v){return String(v).replace(/^[◀▶►◄▸▹•\s]+|[◀▶►◄\s]+$/g,'');};
     var title=items.slice(0,3).filter(function(x,k){return k===0||x.n===null;}).map(function(x){return cl(x.v);}).slice(0,2).join(' · ');
+    title=lab(row)||title;
     var numsHtml='',rowsHtml='';
     items.forEach(function(x){
       var isId=x.i===0||/工號|factory id|emp|^id$|^#$|^no\.?$|編號|電話|phone|年$|year|期間|period/i.test(x.l);
@@ -125,7 +126,8 @@
       +'<div class="kn-ref" style="margin-top:6px">點任一條直接跳到那一筆 · 前 10 名'+(me&&rank>10?'＋這一筆':'')+'</div>';
   }
   /* 底部一排膠囊＝前後幾筆（像生產平台），點了直接跳到那一筆 */
-  function chipOf(r){var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
+  function lab(r){try{var v=typeof window.acKeynoteLabel==='function'?window.acKeynoteLabel(r,r.closest('table')):'';return v?String(v):'';}catch(e){return '';}}   /* 頁面可自訂每筆的名稱（標題、膠囊） */
+  function chipOf(r){var L0=lab(r);if(L0)return L0.slice(0,22);var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
   function jump(i){var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
   function step(d){
