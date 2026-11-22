@@ -18,10 +18,21 @@
   var NOBTN=':not(:disabled):not(.fx-tilt):not(.tab):not(.hra-tab):not([role="tab"]):not([class*="navbtn"]):not(.fx-top):not([data-fx="off"])';
 
   var css='';
+  /* ── 7 卡片互動微變色（2026-11-22 Paul）──
+     小卡片（模組卡、KPI、統計格）四色輪替：淺藍／淺綠／粉紅／粉橘。用「內陰影疊一層 12% 色光」的方式上色，
+     淺色主題看起來是柔和淺色，深色主題就是色光疊加，文字對比不變，也不會蓋掉卡片原本的底色或漸層。
+     電腦：@media(hover:hover) 才有 :hover，150ms 漸變。手機：不用 :hover（不會卡色），手指按下 :active 立刻變色、放開恢復。 */
+  var CARD='.mod-btn,.kpi,a.card,.mod-card,.tool-card,.stat-item,.hstat,.kn-n,[data-fx="tilt"],[data-fx="card"]';
+  var PAL=['59,130,246','16,185,129','236,72,153','249,115,22'];
+  function tintRule(state){return PAL.map(function(c,i){return CARD.split(',').map(function(x){return x+':nth-child(4n+'+(i+1)+')'+state;}).join(',')+'{box-shadow:inset 0 0 0 999px rgba('+c+',.12),0 4px 14px rgba('+c+',.18)!important;border-color:rgba('+c+',.55)!important}';}).join('');}
+  css+=CARD+'{transition:box-shadow .15s ease-out,border-color .15s ease-out,transform .3s ease-out;-webkit-tap-highlight-color:transparent}';
+  css+='@media (hover:hover){'+tintRule(':hover')+'}';
+  css+='@media (hover:none){'+CARD.split(',').map(function(x){return x+':active';}).join(',')+'{transition-duration:0s}'+tintRule(':active')+'}';
+  try{document.addEventListener('touchstart',function(){},{passive:true});}catch(e){}      /* 讓 iOS 也有 :active */
   if(fine){
     css+=BTN.split(',').map(function(s){return s+NOBTN;}).join(',')+'{transition:translate .15s ease-out,box-shadow .15s ease-out,filter .15s ease-out;cursor:pointer}';
     css+=BTN.split(',').map(function(s){return s+NOBTN+':hover';}).join(',')+'{translate:0 -2px;box-shadow:0 6px 16px rgba(15,23,42,.22);filter:brightness(.92)}';
-    css+='.fx-tilt{transition:transform .3s ease-out;will-change:transform;cursor:pointer}.fx-tilt.fx-on{transition:transform .08s linear}';
+    css+='.fx-tilt{transition:transform .3s ease-out,box-shadow .15s ease-out,border-color .15s ease-out;will-change:transform;cursor:pointer}.fx-tilt.fx-on{transition:transform .08s linear,box-shadow .15s ease-out,border-color .15s ease-out}';
     css+='.fx-lit{outline:1px solid rgba(255,255,255,calc(var(--fx-glow,0)*.55));outline-offset:-1px}';
     css+='#fx-spot{position:fixed;inset:0;pointer-events:none;z-index:40;opacity:0;transition:opacity .2s ease-out;background:radial-gradient(240px circle at var(--fx-x,-999px) var(--fx-y,-999px),rgba(255,255,255,.15),rgba(255,255,255,0) 100%)}#fx-spot.on{opacity:1}';
   }
