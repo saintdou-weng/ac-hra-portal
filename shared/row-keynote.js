@@ -31,6 +31,7 @@
    +'#kn-chips{position:sticky;bottom:58px;display:flex;gap:8px;overflow-x:auto;padding:8px 12px;background:#fff;border-top:1px solid #e2e8f0;scrollbar-width:none;-webkit-overflow-scrolling:touch}#kn-chips::-webkit-scrollbar{display:none}'
    +'.kn-chip{flex:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:999px;padding:7px 14px;font-size:13px;white-space:nowrap;cursor:pointer;max-width:180px;overflow:hidden;text-overflow:ellipsis}.kn-chip.on{background:#4f46e5;border-color:#4f46e5;color:#fff;font-weight:700}'
    +'@media(min-width:560px){#kn-rows{display:grid;grid-template-columns:1fr 1fr;column-gap:28px}.kn-r{flex-direction:column;gap:2px;border-bottom:0;padding:8px 0}.kn-rl{flex:none;font-size:12.5px}.kn-rv{font-size:16px;font-weight:700}}'
+   +'#kn-box{background:#f4f7fb;box-shadow:0 24px 60px rgba(15,23,42,.34),0 2px 8px rgba(15,23,42,.12)}#kn-head,#kn-tabs,#kn-foot,#kn-chips{background:#fff}.kn-n{background:#fff;box-shadow:0 3px 10px rgba(15,23,42,.09);border-color:#dfe6ee}#kn-rows{margin:12px 16px 16px;padding:6px 16px;background:#fff;border:1px solid #dfe6ee;border-radius:14px;box-shadow:0 3px 10px rgba(15,23,42,.08)}'
    +'tbody tr.kn-able{cursor:pointer}'
    +'#kn-tabs{position:sticky;top:62px;z-index:1;display:flex;background:#fff;border-bottom:1px solid #e2e8f0;overflow-x:auto;scrollbar-width:none}#kn-tabs::-webkit-scrollbar{display:none}'
    +'#kn-tabs button{flex:1;border:0;background:none;padding:11px 8px;font-size:13.5px;font-weight:600;color:#64748b;white-space:nowrap;cursor:pointer;border-bottom:3px solid transparent}#kn-tabs button.on{color:#4338ca;border-bottom-color:#4f46e5}'
@@ -85,7 +86,7 @@
         var ref='',bar='';
         if(col.length>=3){var sum=col.reduce(function(a,b){return a+b;},0),max=Math.max.apply(null,col.map(Math.abs))||1,rank=col.filter(function(v){return v>x.n;}).length+1,pct=/%$/.test(x.v);
           bar='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(x.n)/max*100))+'%"></i></div>';
-          ref='<div class="kn-ref">第 '+rank+' 名 / 共 '+col.length+' 筆 · 平均 '+fmt(sum/col.length)+'</div>';}
+          ref='<div class="kn-ref">'+vsAvg(x.n,sum/col.length)+'</div>';}
         numsHtml+='<div class="kn-n'+(x.n<0?' kn-neg':'')+'" data-c="'+x.i+'"><div class="kn-nl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-nv">'+esc(x.v)+'</div>'+bar+ref+'</div>';
       }else rowsHtml+='<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';
     });
@@ -132,7 +133,7 @@
     var numsHtml='<div id="kn-nums" style="grid-template-columns:1fr"><div class="kn-n"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
     var nums=all.filter(function(x){return x.n!==null;});
     if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
-      numsHtml+='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(P.n)/mx*100))+'%"></i></div><div class="kn-ref">同一組 '+nums.length+' 張裡第 '+rank+' 名 · 平均 '+fmt(sum/nums.length)+'</div>';}
+      numsHtml+='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(P.n)/mx*100))+'%"></i></div><div class="kn-ref">'+vsAvg(P.n,sum/nums.length)+'</div>';}
     numsHtml+='</div></div>';
     var rowsHtml=P.lines.map(function(x){var m=x.match(/^(.{1,30}?)[：:]\s*(.+)$/);return '<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+(m?icOf(m[1]):'🗒')+'</span>'+esc(m?m[1]:'說明')+'</div><div class="kn-rv">'+esc(m?m[2]:x)+'</div></div>';}).join('');
     var allHtml=all.map(function(x,i){return '<button type="button" class="kn-br'+(i===idx?' on':'')+'" data-i="'+i+'" style="grid-template-columns:1fr auto"><span class="n">'+(i===idx?'▶ ':'')+'<span class="kn-ic">'+icOf(x.label)+'</span>'+esc(x.label)+'</span><span class="v">'+esc(x.val)+'</span></button>';}).join('');
@@ -180,6 +181,9 @@
   function chipOf(r){var L0=lab(r);if(L0)return L0.slice(0,22);var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
   function jump(i){if(curCard){cardGo(i);return;}var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
+  /* 2026-11-23 Paul：重點卡的參考字要白話——不寫「第 N 名／共 79 筆」，只說平均多少、這一筆比平均多還是少 */
+  function vsAvg(n,avg){var d=n-avg,same=Math.abs(d)<Math.max(0.005,Math.abs(avg)*0.005);
+    return '平均 Avg '+fmt(avg)+'<br>'+(same?'＝ 跟平均一樣 same as average':(d>0?'▲ 比平均多 above avg ':'▼ 比平均少 below avg ')+fmt(Math.abs(d)));}
   function kfn(){var f=window.vrtFx;if(!f){try{f=window.top.vrtFx;}catch(e){}}return f;}
   function kfx(d,o,ax,sn){try{var f=kfn();if(f&&box)f(box,d,o,ax,sn);else if(sn&&sn.parentNode)sn.parentNode.removeChild(sn);}catch(e){}}   /* 2026-11-23 翻頁特效（music.js 的 vrtFx；沒載就什麼都不做） */
   function step(d,ax){var sn=null;if(ax==='y'){try{var f=kfn();sn=f&&f.snap&&box?f.snap(box):null;}catch(e){}}var r0=step0(d);if(r0!==false)kfx(d,0,ax,sn);else if(sn&&sn.parentNode)sn.parentNode.removeChild(sn);return r0;}
