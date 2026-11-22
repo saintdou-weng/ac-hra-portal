@@ -96,7 +96,7 @@
       +(rows.length>1&&idx>=0?'<div id="kn-chips">'+rows.slice(Math.max(0,idx-8),idx+9).map(function(r,k){var ri=Math.max(0,idx-8)+k;return '<button type="button" class="kn-chip'+(ri===idx?' on':'')+'" data-i="'+ri+'">'+esc(chipOf(r))+'</button>';}).join('')+'</div>':'')
       +(rows.length>1&&idx>=0?'<div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一筆 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+rows.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=rows.length-1?' disabled':'')+'>下一筆 Next ▼</button></div>':'');
     setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
-    curCard=null;curRow=row;curT=[].indexOf.call(document.querySelectorAll('table'),table);curKey=nk(txt(row.cells[0]));mask.classList.add('on');box.scrollTop=0;
+    curCard=null;curRow=row;curT=[].indexOf.call(document.querySelectorAll('table'),table);curKey=nk(txt(row.cells[0]));mask.classList.add('on');box.scrollTop=0;kfx(1,1);
   }
   function hide(){mask.classList.remove('on');curRow=null;curCard=null;}
   /* ── v2.1 儀表板卡片 Keynote（2026-11-22 Paul：各分頁儀表板的小卡按了沒反應）──
@@ -142,7 +142,7 @@
       +tabsHtml(numsHtml,rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'','<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">')
       +(sib.length>1?'<div id="kn-chips">'+all.map(function(x,i){return '<button type="button" class="kn-chip'+(i===idx?' on':'')+'" data-i="'+i+'">'+esc(String(x.label).slice(0,18))+'</button>';}).join('')+'</div><div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一張 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+sib.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=sib.length-1?' disabled':'')+'>下一張 Next ▼</button></div>':'');
     setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
-    curRow=null;curCard=el;mask.classList.add('on');box.scrollTop=0;
+    curRow=null;curCard=el;mask.classList.add('on');box.scrollTop=0;kfx(1,1);
   }
   function cardGo(i){if(!curCard)return false;var sib=sibsOf(curCard);if(sib.indexOf(curCard)<0)return false;if(i<0||i>=sib.length)return false;var d=sib.indexOf(curCard);showCard(sib[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');return true;}
   /* 分頁：重點（數字＋文字重點）／全部資料／比較 */
@@ -179,7 +179,9 @@
   function chipOf(r){var L0=lab(r);if(L0)return L0.slice(0,22);var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
   function jump(i){if(curCard){cardGo(i);return;}var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
-  function step(d){
+  function kfx(d,o){try{var f=window.vrtFx;if(!f){try{f=window.top.vrtFx;}catch(e){}}if(f&&box)f(box,d,o);}catch(e){}}   /* 2026-11-23 翻頁特效（music.js 的 vrtFx；沒載就什麼都不做） */
+  function step(d){var r0=step0(d);if(r0!==false)kfx(d);return r0;}
+  function step0(d){
     if(curCard){var sb=sibsOf(curCard);return cardGo(sb.indexOf(curCard)+d);}
     if(!curRow)return false;
     if(!document.body.contains(curRow)){   /* 頁面把表格重畫了（同步、切換期間）：用第幾張表＋第一欄文字找回目前這一列 */
