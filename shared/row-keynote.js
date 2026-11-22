@@ -51,6 +51,7 @@
   function nk(v){return String(v).replace(/[◀▶►◄▸▹•\s]/g,'');}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function txt(el){
+    if(el&&el.tagName==='TD'&&el.querySelector&&el.querySelector('button')&&!el.querySelector('input,select,textarea')){var c0=el.cloneNode(true);[].forEach.call(c0.querySelectorAll('button'),function(x){x.remove();});return (c0.textContent||'').replace(/\s+/g,' ').trim();}
     var f=el&&el.querySelector&&el.querySelector('input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea');
     if(f&&el.tagName==='TD'){var v=f.tagName==='SELECT'?(f.options[f.selectedIndex]?f.options[f.selectedIndex].text:''):f.value;var c=el.cloneNode(true);[].forEach.call(c.querySelectorAll('input,select,textarea,button'),function(x){x.remove();});var rest=(c.textContent||'').replace(/\s+/g,' ').trim();return (String(v||'').trim()+(rest?' '+rest:'')).trim();}
     return (el.innerText||el.textContent||'').replace(/\s*\n\s*/g,' ').replace(/\s+/g,' ').trim();}
@@ -63,7 +64,8 @@
     return out.map(function(x){return x?x.t:'';});
   }
   function dataRows(table){return [].filter.call(table.tBodies.length?table.querySelectorAll('tbody > tr'):table.rows,function(r){return r.cells.length>=2&&!r.querySelector('th')&&r.offsetParent!==null&&!(r.cells.length===1||r.cells[0].colSpan>2);});}
-  function show(row){
+  var KN_ROW=null;
+  function show(row){KN_ROW=row;
     var table=row.closest('table');if(!table)return;
     var H=heads(table),rows=dataRows(table),cells=[].slice.call(row.cells);
     var card=table.closest('.card,.sect,section,.panel,.box,[class*="card"]'),capEl=card&&card.querySelector('.ct,.ch,h2,h3,h4,.sect-title,.title,[class*="title"]'),cap=capEl&&!table.contains(capEl)?txt(capEl).slice(0,60):'';
@@ -98,8 +100,11 @@
   function tabsHtml(nums,rowsH,all,cmp){
     var T=[];if(nums||rowsH)T.push(['num','📊 重點 Key']);T.push(['all','📋 全部資料 All']);if(cmp)T.push(['cmp','📈 比較 Compare']);
     if(!T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=T[0][0];
+    /* 頁面自訂內容：window.acKeynoteTop／acKeynoteExtra(row,table) 回傳 HTML（照片、相關記錄、按鈕），放在「重點」分頁的上方／下方 */
+    var hk=function(n){try{return typeof window[n]==='function'&&KN_ROW?(window[n](KN_ROW,KN_ROW.closest('table'))||''):'';}catch(e){return '';}},hTop=hk('acKeynoteTop'),hEx=hk('acKeynoteExtra');
+    if((hTop||hEx)&&!T.some(function(t){return t[0]==='num';})){T.unshift(['num','📊 重點 Key']);}
     return '<div id="kn-tabs">'+T.map(function(t){return '<button type="button" data-tab="'+t[0]+'" class="'+(KN_TAB===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
-      +'<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num">'+(nums?'<div id="kn-nums">'+nums+'</div>':'')+(rowsH?'<div id="kn-rows">'+rowsH+'</div>':'')+'</div>'
+      +'<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num">'+hTop+(nums?'<div id="kn-nums">'+nums+'</div>':'')+(rowsH?'<div id="kn-rows">'+rowsH+'</div>':'')+hEx+'</div>'
       +'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-rows">'+all+'</div></div>'
       +(cmp?'<div class="kn-pane'+(KN_TAB==='cmp'?' on':'')+'" data-p="cmp"><div id="kn-cmp">'+cmp+'</div></div>':'');
   }
@@ -156,6 +161,7 @@
     document.addEventListener('click',function(e){
       var t=e.target;if(!t||!t.closest||t.closest('#kn-mask'))return;
       if(t.closest('button,a,input,select,textarea,label,summary,[contenteditable="true"],[role="button"],[data-keynote="off"]'))return;
+      var oc=t.closest('[onclick]');if(oc&&oc.tagName!=='TR'&&oc.closest('tr'))return;            /* 列裡面自己有功能的小格（例如點月份切換狀態）不跳 */
       var row=t.closest('tr');if(!row||row.closest('thead')||row.querySelector('th')||row.cells.length<2)return;
       var table=row.closest('table');if(!table||table.dataset.keynote==='off'||table.rows.length<2)return;
       var sel=window.getSelection&&String(window.getSelection());if(sel&&sel.length>1)return;
