@@ -47,7 +47,7 @@
   function icOf(l){for(var i=0;i<ICONS.length;i++)if(ICONS[i][0].test(l))return ICONS[i][1];return '';}
   function valIc(l,v){if(/性別|gender|sex/i.test(l)){if(/^(f|female|女|ស្រី)/i.test(v))return '🚺 ';if(/^(m|male|男|ប្រុស)/i.test(v))return '🚹 ';}
     if(/狀態|status/i.test(l)){if(/核可|approved|完成|done|ok|正常/i.test(v))return '✅ ';if(/退|reject|錯|fail/i.test(v))return '↩️ ';if(/待|pending/i.test(v))return '⏳ ';}return '';}
-  var KN_TAB='num',KN_COL='';
+  var KN_TAB='num',KN_COL='',curCard=null;
   function nk(v){return String(v).replace(/[◀▶►◄▸▹•\s]/g,'');}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function txt(el){
@@ -94,9 +94,55 @@
       +(rows.length>1&&idx>=0?'<div id="kn-chips">'+rows.slice(Math.max(0,idx-8),idx+9).map(function(r,k){var ri=Math.max(0,idx-8)+k;return '<button type="button" class="kn-chip'+(ri===idx?' on':'')+'" data-i="'+ri+'">'+esc(chipOf(r))+'</button>';}).join('')+'</div>':'')
       +(rows.length>1&&idx>=0?'<div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一筆 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+rows.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=rows.length-1?' disabled':'')+'>下一筆 Next ▼</button></div>':'');
     setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
-    curRow=row;curT=[].indexOf.call(document.querySelectorAll('table'),table);curKey=nk(txt(row.cells[0]));mask.classList.add('on');box.scrollTop=0;
+    curCard=null;curRow=row;curT=[].indexOf.call(document.querySelectorAll('table'),table);curKey=nk(txt(row.cells[0]));mask.classList.add('on');box.scrollTop=0;
   }
-  function hide(){mask.classList.remove('on');curRow=null;}
+  function hide(){mask.classList.remove('on');curRow=null;curCard=null;}
+  /* ── v2.1 儀表板卡片 Keynote（2026-11-22 Paul：各分頁儀表板的小卡按了沒反應）──
+     KPI 小卡、統計格、長條列（同一排／同一組有 2 張以上長得一樣的）點了 → 跳出大字卡：
+     這張的數字＋說明；「全部」列出同組每一張；「比較」同組數字排名，點了直接換那一張；◀ ▶／左右滑換下一張。
+     原本點了就有功能的卡（onclick、按鈕、連結）照舊，不攔。 */
+  var C_NOGO='#kn-mask,nav,header,thead,table,[role=tablist],[role=dialog],dialog,.hp-mask,#hp-pcards,[data-keynote="off"],[class*="modal" i],[class*="toast" i],canvas,svg';
+  var C_SEL='.kpi,.stat,.stat-card,.stat-item,.kcard,.metric,.kpi-card,.sum-card,.hstat,.card,.chart-row,[class*="kpi" i],[class*="stat" i]';
+  function sibsOf(el){var p=el.parentElement;if(!p)return [];var k=el.tagName+'|'+(el.getAttribute('class')||'').replace(/\b(anim(-\d)?|act|on|active|selected|fx-\S+|hp-tint|kn-\S+)\b/g,'').trim();
+    return [].filter.call(p.children,function(x){return x.tagName+'|'+(x.getAttribute('class')||'').replace(/\b(anim(-\d)?|act|on|active|selected|fx-\S+|hp-tint|kn-\S+)\b/g,'').trim()===k&&x.offsetParent!==null;});}
+  function cardish(el){
+    if(!el||el.nodeType!==1||el===document.body||el.closest(C_NOGO))return false;
+    if(el.matches('button,a,input,select,textarea,label,[onclick],[role=button]')||el.querySelector('button,a[href],input,select,textarea,[onclick],canvas,table'))return false;
+    var t=txt(el);if(t.length<1||t.length>240||!/\d/.test(t))return false;
+    var r=el.getBoundingClientRect();if(r.height>360||r.width<40||r.height<18)return false;
+    var NUMRE=/^[-+−$＄៛]?\s?[\d,]+(\.\d+)?\s?(%|人|件|項|次|天|筆|h|hr|hrs|d|ppl|k|K|M)?$/,hasNum=String(el.innerText||el.textContent||'').split(/\n+/).some(function(x){x=x.replace(/\s+/g,' ').trim();return x.length<=24&&NUMRE.test(x);})||[].some.call(el.querySelectorAll('*'),function(n){return !n.children.length&&NUMRE.test(txt(n));});if(!hasNum)return false;
+    return sibsOf(el).length>=2||el.matches(C_SEL);
+  }
+  function cardOf(t){var el=t;for(var i=0;i<6&&el&&el!==document.body;i++,el=el.parentElement){if(cardish(el))return el;}return null;}
+  function cardParts(el){
+    var best=null,bs=0;[].forEach.call(el.querySelectorAll('*'),function(n){if(n.children.length)return;var tx=txt(n);if(!/\d/.test(tx)||tx.length>30)return;var fs=parseFloat(getComputedStyle(n).fontSize)||0;if(fs>bs){bs=fs;best=n;}});
+    var val=best?txt(best):((txt(el).match(/[-+$＄]?[\d,]+(\.\d+)?%?/)||[''])[0]);
+    var lines=String(el.innerText||el.textContent||'').split(/\n+/).map(function(x){return x.replace(/\s+/g,' ').trim();}).filter(Boolean);
+    var rest=lines.filter(function(x){return x!==val;});
+    var label=rest.filter(function(x){return !/^[-+$＄]?[\d,.\s%]+$/.test(x);})[0]||rest[0]||val;
+    if(lines.length===1){var m1=label.match(/^(.*?[^\d\s,.$＄])\s+[-+$＄]?[\d,.\s%]+$/);if(m1)label=m1[1];}
+    return {val:val,label:label,lines:rest.filter(function(x){return x!==label;}),n:num(val)};
+  }
+  function capOf(el){var c=el.parentElement;for(var i=0;i<5&&c;i++,c=c.parentElement){var h=c.querySelector('h1,h2,h3,h4,.ct,.ch,.sect-title,[class*="title"]');if(h&&!el.contains(h)&&!h.contains(el))return txt(h).slice(0,60);}return '';}
+  function showCard(el){
+    var sib=sibsOf(el);if(sib.indexOf(el)<0)sib=[el];var idx=sib.indexOf(el),P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
+    var numsHtml='<div id="kn-nums" style="grid-template-columns:1fr"><div class="kn-n"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
+    var nums=all.filter(function(x){return x.n!==null;});
+    if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
+      numsHtml+='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(P.n)/mx*100))+'%"></i></div><div class="kn-ref">同一組 '+nums.length+' 張裡第 '+rank+' 名 · 平均 '+fmt(sum/nums.length)+'</div>';}
+    numsHtml+='</div></div>';
+    var rowsHtml=P.lines.map(function(x){var m=x.match(/^(.{1,30}?)[：:]\s*(.+)$/);return '<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+(m?icOf(m[1]):'🗒')+'</span>'+esc(m?m[1]:'說明')+'</div><div class="kn-rv">'+esc(m?m[2]:x)+'</div></div>';}).join('');
+    var allHtml=all.map(function(x,i){return '<button type="button" class="kn-br'+(i===idx?' on':'')+'" data-i="'+i+'" style="grid-template-columns:1fr auto"><span class="n">'+(i===idx?'▶ ':'')+'<span class="kn-ic">'+icOf(x.label)+'</span>'+esc(x.label)+'</span><span class="v">'+esc(x.val)+'</span></button>';}).join('');
+    var cmpHtml='';
+    if(nums.length>=2){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
+      cmpHtml=srt.map(function(o,k){var on=o.i===idx;return '<button type="button" class="kn-br'+(on?' on':'')+'" data-i="'+o.i+'"><span class="n">'+(on?'▶ ':'')+(k+1)+'. '+esc(o.x.label)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(o.x.n)/mx2*100))+'%"></i></span><span class="v">'+esc(o.x.val)+'</span></button>';}).join('')+'<div class="kn-ref" style="margin-top:6px">點任一條直接換到那一張</div>';}
+    box.innerHTML='<div id="kn-head"><div id="kn-title">'+esc(P.label)+'<div id="kn-sub">'+esc(cap)+(sib.length>1?(cap?' · ':'')+(idx+1)+' / '+sib.length:'')+'</div></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
+      +tabsHtml(numsHtml,rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'','<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">')
+      +(sib.length>1?'<div id="kn-chips">'+all.map(function(x,i){return '<button type="button" class="kn-chip'+(i===idx?' on':'')+'" data-i="'+i+'">'+esc(String(x.label).slice(0,18))+'</button>';}).join('')+'</div><div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一張 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+sib.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=sib.length-1?' disabled':'')+'>下一張 Next ▼</button></div>':'');
+    setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
+    curRow=null;curCard=el;mask.classList.add('on');box.scrollTop=0;
+  }
+  function cardGo(i){if(!curCard)return false;var sib=sibsOf(curCard);if(sib.indexOf(curCard)<0)return false;if(i<0||i>=sib.length)return false;var d=sib.indexOf(curCard);showCard(sib[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');return true;}
   /* 分頁：重點（數字＋文字重點）／全部資料／比較 */
   function tabsHtml(nums,rowsH,all,cmp){
     var T=[];if(nums||rowsH)T.push(['num','📊 重點 Key']);T.push(['all','📋 全部資料 All']);if(cmp)T.push(['cmp','📈 比較 Compare']);
@@ -128,9 +174,10 @@
   /* 底部一排膠囊＝前後幾筆（像生產平台），點了直接跳到那一筆 */
   function lab(r){try{var v=typeof window.acKeynoteLabel==='function'?window.acKeynoteLabel(r,r.closest('table')):'';return v?String(v):'';}catch(e){return '';}}   /* 頁面可自訂每筆的名稱（標題、膠囊） */
   function chipOf(r){var L0=lab(r);if(L0)return L0.slice(0,22);var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
-  function jump(i){var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
+  function jump(i){if(curCard){cardGo(i);return;}var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
   function step(d){
+    if(curCard){var sb=sibsOf(curCard);return cardGo(sb.indexOf(curCard)+d);}
     if(!curRow)return false;
     if(!document.body.contains(curRow)){   /* 頁面把表格重畫了（同步、切換期間）：用第幾張表＋第一欄文字找回目前這一列 */
       var t2=document.querySelectorAll('table')[curT],k=curKey,hit=t2?dataRows(t2).filter(function(r){return nk(txt(r.cells[0]))===k;})[0]:null;
@@ -164,7 +211,8 @@
       var t=e.target;if(!t||!t.closest||t.closest('#kn-mask'))return;
       if(t.closest('button,a,input,select,textarea,label,summary,[contenteditable="true"],[role="button"],[data-keynote="off"]'))return;
       var oc=t.closest('[onclick]');if(oc&&oc.tagName!=='TR'&&oc.closest('tr'))return;            /* 列裡面自己有功能的小格（例如點月份切換狀態）不跳 */
-      var row=t.closest('tr');if(!row||row.closest('thead')||row.querySelector('th')||row.cells.length<2)return;
+      var row=t.closest('tr');if(!row){var cd=cardOf(t);if(cd){var s0=window.getSelection&&String(window.getSelection());if(!(s0&&s0.length>1))setTimeout(function(){if(document.body.contains(cd))showCard(cd);},60);}return;}
+      if(row.closest('thead')||row.querySelector('th')||row.cells.length<2)return;
       var table=row.closest('table');if(!table||table.dataset.keynote==='off'||table.rows.length<2)return;
       var sel=window.getSelection&&String(window.getSelection());if(sel&&sel.length>1)return;
       /* 讓原本的點列功能先跑；如果它把表格重畫了（例如切換期間），用「第幾張表＋第一欄文字」找回同一列 */
