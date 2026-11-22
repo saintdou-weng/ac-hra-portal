@@ -72,8 +72,15 @@
       var table=row.closest('table');if(!table||table.dataset.keynote==='off'||table.rows.length<2)return;
       if(row.querySelector('input:not([type=checkbox]):not([type=radio]),select,textarea'))return;          /* 線上輸入列不跳 */
       var sel=window.getSelection&&String(window.getSelection());if(sel&&sel.length>1)return;
-      setTimeout(function(){if(document.body.contains(row))show(row);},0);                                   /* 讓原本的點列功能先跑 */
-    });
+      /* 讓原本的點列功能先跑；如果它把表格重畫了（例如切換期間），用「第幾張表＋第一欄文字」找回同一列 */
+      var tIdx=[].indexOf.call(document.querySelectorAll('table'),table),key=txt(row.cells[0]),rIdx=row.sectionRowIndex;
+      setTimeout(function(){
+        if(document.body.contains(row)){show(row);return;}
+        var t2=document.querySelectorAll('table')[tIdx];if(!t2)return;
+        var rs=dataRows(t2),hit=rs.filter(function(r){return txt(r.cells[0])===key;})[0]||null;
+        if(hit)show(hit);
+      },60);
+    },true);
     /* 第一欄短代碼不折行；可點的列顯示手型 */
     var tm=null;function tidy(){tm=null;var n=0;[].forEach.call(document.querySelectorAll('table'),function(tb){if(n>4000)return;[].forEach.call(tb.rows,function(r){n++;var c=r.cells[0];if(c&&!c.__kn){c.__kn=1;var s=txt(c);if(s&&s.length<=12&&!/\s/.test(s)&&!c.querySelector('input,button'))c.style.whiteSpace='nowrap';}if(r.parentElement&&r.parentElement.tagName==='TBODY'&&r.cells.length>=2)r.classList.add('kn-able');});});}
     tidy();try{new MutationObserver(function(){if(!tm)tm=setTimeout(tidy,600);}).observe(document.body,{childList:true,subtree:true});}catch(e){}
