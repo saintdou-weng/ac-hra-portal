@@ -5,6 +5,10 @@
    另外：第一欄的短代碼（工號、期間 2026-09）不再被折成一個字一行。 */
 /* v2（2026-11-22 Paul）：分頁（📊 重點／📋 全部資料／📈 比較），欄位加小圖示（日期、部門、請假種類、男女…），
    比較分頁可點長條直接跳到那一筆；有輸入框的列也能開；視窗內左右滑不會讓後面頁面換分頁（data-noswipe）。 */
+/* v3（2026-11-23 Paul）：版面照 SEC 貨櫃頁的物品頁（.gip-ov）重排——
+   最上面一條＝第幾筆／共幾筆＋‹ › ✕；表頭＝圖示（列裡有照片就用照片）＋編號＋名稱＋重點 chips（部門、職位、狀態、日期…）；
+   表頭固定、只捲內容；資料一律兩欄「標籤在上、值在下」；重點小卡的橫條寫明意思（＝這一筆 ÷ 表內最高那一筆）。
+   只改畫面，資料、點列原本的功能、acKeynoteTop／Extra／Label 掛點都不變。 */
 (function(){
   'use strict';
   if(window.__acKeynote)return;window.__acKeynote=1;
@@ -41,6 +45,20 @@
    +'.kn-st{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:6px 0 10px}.kn-st div{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:6px 8px;font-size:11px;color:#64748b}.kn-st b{display:block;font-size:15px;color:#0f172a;word-break:break-all}'
    +'.kn-br{display:grid;grid-template-columns:minmax(70px,36%) 1fr 74px;gap:8px;align-items:center;width:100%;border:0;background:none;padding:6px 4px;border-radius:8px;font:inherit;font-size:12.5px;text-align:left;cursor:pointer;color:inherit}.kn-br:active,.kn-br.on{background:#eef2ff}'
    +'.kn-br .n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kn-br .t{height:10px;background:#e2e8f0;border-radius:6px;overflow:hidden}.kn-br .t i{display:block;height:100%;background:#38bdf8;border-radius:6px}.kn-br.on .t i{background:#4f46e5}.kn-br .v{text-align:right;font-weight:700;white-space:nowrap}';
+  css+='#kn-head{display:block;padding:0;border-bottom:1px solid #dde5ee}'
+   +'#kn-bar{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid #edf1f5}'
+   +'#kn-sub{flex:1;min-width:0;margin:0;font-size:12.5px;font-weight:700;color:#5b6b7c;opacity:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#kn-sub b{color:#1d2b3a}'
+   +'#kn-nav button,#kn-x{width:42px;height:36px;border-radius:10px;border:1px solid #c9d5e2;background:#fff;color:#1d2b3a;font-size:16px;touch-action:manipulation}'
+   +'#kn-hd{display:flex;gap:12px;align-items:flex-start;padding:11px 14px 12px}'
+   +'.kn-ph{width:64px;height:64px;border-radius:14px;flex:none;object-fit:cover;border:1px solid #d6e0ea;background:linear-gradient(150deg,#ffffff,#e9eff5);display:flex;align-items:center;justify-content:center;font-size:30px;line-height:1;box-shadow:inset 0 1px 0 #fff,0 3px 8px rgba(15,23,42,.10)}'
+   +'.kn-hm{flex:1;min-width:0}.kn-code{font-family:ui-monospace,"IBM Plex Mono",Consolas,monospace;font-weight:800;font-size:12.5px;color:#4338ca;letter-spacing:.4px}'
+   +'#kn-title{flex:none;font-size:18px;font-weight:800;line-height:1.25;margin:1px 0 6px;word-break:break-word}'
+   +'.kn-hchips{display:flex;flex-wrap:wrap;gap:5px}.kn-hc{font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:#eef3f8;color:#36506a;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}'
+   +'.kn-hc.g{background:#dcfce7;color:#15803d}.kn-hc.y{background:#fef3c7;color:#a16207}.kn-hc.r{background:#fee2e2;color:#b91c1c}'
+   /* 資料：一律兩欄，標籤在上、值在下；太長的值佔整列 */
+   +'#kn-rows{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}.kn-r{flex-direction:column;gap:1px;border-bottom:0;padding:7px 0;min-width:0}.kn-rl{flex:none;font-size:11.5px;font-weight:600}.kn-rv{font-size:15px;font-weight:700;line-height:1.35}.kn-r.full{grid-column:1/-1}'
+   +'.kn-leg{grid-column:1/-1;font-size:11px;color:#64748b;display:flex;align-items:center;gap:6px;padding:0 2px}.kn-leg i{display:inline-block;width:26px;height:5px;border-radius:3px;background:#0ea5e9}'
+   +'@media(max-width:520px){.kn-ph{width:54px;height:54px;font-size:26px;border-radius:12px}#kn-title{font-size:16.5px}#kn-nums{grid-template-columns:1fr 1fr}.kn-st{grid-template-columns:1fr 1fr}}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
   var mask,box,curRow=null,curT=-1,curKey='';
   /* 欄位小圖示：看欄名（和值）挑一個 */
@@ -68,7 +86,24 @@
     return out.map(function(x){return x?x.t:'';});
   }
   function dataRows(table){return [].filter.call(table.tBodies.length?table.querySelectorAll('tbody > tr'):table.rows,function(r){return r.cells.length>=2&&!r.querySelector('th')&&r.offsetParent!==null&&!(r.cells.length===1||r.cells[0].colSpan>2);});}
-  var KN_ROW=null;
+  /* v3 表頭：最上面一條（位置＋換筆＋關閉）＋ 圖示／照片＋編號＋名稱＋chips */
+  var CHIP_RE=/部門|dept|department|職位|職稱|position|title|狀態|status|性別|gender|sex|組別|組$|line|section|種類|類別|類型|type|category|日期|date|期間|period|班別|shift/i;
+  function chipCls(l,v){if(/狀態|status|結果|result/i.test(l)){if(/核可|approved|完成|done|ok|正常|通過|pass/i.test(v))return ' g';if(/退|reject|錯|fail|逾期|overdue|異常/i.test(v))return ' r';if(/待|pending|審|review/i.test(v))return ' y';}return '';}
+  function headHtml(o){
+    var ph=o.photo?'<img class="kn-ph" src="'+esc(o.photo)+'" alt="">':'<div class="kn-ph" aria-hidden="true">'+(o.icon||'📋')+'</div>';
+    return '<div id="kn-head"><div id="kn-bar"><div id="kn-sub">'+(o.pos||'')+(o.cap?(o.pos?' · ':'')+esc(o.cap):'')+'</div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
+      +'<div id="kn-hd">'+(o.noPhoto?'':ph)+'<div class="kn-hm">'+(o.code?'<div class="kn-code">'+esc(o.code)+'</div>':'')+'<div id="kn-title">'+esc(o.title||'—')+'</div>'+(o.chips&&o.chips.length?'<div class="kn-hchips">'+o.chips.join('')+'</div>':'')+'</div></div></div>';
+  }
+  function rowHead(row,items,title,cap,idx,total){
+    var img=row.querySelector('img[src]'),photo=img&&img.getAttribute('src')&&(img.naturalWidth||0)!==1?img.src:'';
+    var codeIt=items.filter(function(x){return /工號|factory id|emp|staff ?(#|no|id)|^id$|^no\.?$|編號|代碼|code/i.test(x.l)&&x.v.length<=20;})[0],code=codeIt&&codeIt.v!==title?codeIt.v:'';
+    if(code&&title.indexOf(code)===0){var t2=title.slice(code.length).replace(/^\s*[·\-–]\s*/,'');if(t2)title=t2;}   /* 編號已經獨立一行，名稱裡不再重複 */
+    var chips=items.filter(function(x){return x.n===null&&x!==codeIt&&x.v.length<=22&&CHIP_RE.test(x.l)&&title.indexOf(x.v)<0;}).slice(0,4).map(function(x){return '<span class="kn-hc'+chipCls(x.l,x.v)+'">'+(valIc(x.l,x.v)||((icOf(x.l)||'')+' '))+esc(x.v)+'</span>';});
+    var ic='';for(var i=0;i<items.length&&!ic;i++)ic=icOf(items[i].l);if(cap){var m=cap.match(/^\s*([^\w\s一-鿿]{1,3})/);if(m)ic=m[1];}
+    var top=KN_HASTOP;   /* 頁面自己在上面放了照片區塊（acKeynoteTop）時，表頭不再重複放圖示 */
+    return headHtml({photo:photo,icon:ic,code:code,title:title,chips:chips,cap:cap,pos:idx>=0?'<b>'+(idx+1)+'</b> / '+total:'',noPhoto:!!top&&!photo});
+  }
+  var KN_ROW=null,KN_HASTOP=false;
   function show(row){KN_ROW=row;
     var table=row.closest('table');if(!table)return;
     var H=heads(table),rows=dataRows(table),cells=[].slice.call(row.cells);
@@ -78,23 +113,26 @@
     var cl=function(v){return String(v).replace(/^[◀▶►◄▸▹•\s]+|[◀▶►◄\s]+$/g,'');};
     var title=items.slice(0,3).filter(function(x,k){return k===0||x.n===null;}).map(function(x){return cl(x.v);}).slice(0,2).join(' · ');
     title=lab(row)||title;
-    var numsHtml='',rowsHtml='';
+    var numsHtml='',rowsHtml='',hasBar=false,fullCls=function(v){v=String(v);return v.length+(v.match(/[\u3000-\u9fff\uff00-\uffef]/g)||[]).length>26?' full':'';};   /* 中文字算兩格寬 */
     items.forEach(function(x){
       var isId=x.i===0||/工號|factory id|emp|^id$|^#$|^no\.?$|編號|電話|phone|年$|year|期間|period/i.test(x.l);
       if(x.n!==null&&!isId){
         var col=rows.map(function(r){return r.cells[x.i]?num(txt(r.cells[x.i])):null;}).filter(function(v){return v!==null;});
         var ref='',bar='';
         if(col.length>=3){var sum=col.reduce(function(a,b){return a+b;},0),max=Math.max.apply(null,col.map(Math.abs))||1,rank=col.filter(function(v){return v>x.n;}).length+1,pct=/%$/.test(x.v);
-          bar='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(x.n)/max*100))+'%"></i></div>';
-          ref='<div class="kn-ref">'+vsAvg(x.n,sum/col.length)+'</div>';}
+          var pctMax=Math.round(Math.abs(x.n)/max*100);hasBar=true;
+          bar='<div class="kn-bar"><i style="width:'+Math.max(3,pctMax)+'%"></i></div>';
+          ref='<div class="kn-ref">'+(pctMax>=100?'★ 這張表最高 highest':'最高值的 '+pctMax+'% of highest')+'<br>'+vsAvg(x.n,sum/col.length)+'</div>';}
         numsHtml+='<div class="kn-n'+(x.n<0?' kn-neg':'')+'" data-c="'+x.i+'"><div class="kn-nl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-nv">'+esc(x.v)+'</div>'+bar+ref+'</div>';
-      }else rowsHtml+='<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';
+      }else rowsHtml+='<div class="kn-r'+fullCls(x.v)+'"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';
     });
+    if(hasBar)numsHtml+='<div class="kn-leg"><i></i>橫條＝這一筆 ÷ 這張表最高的那一筆 · Bar = this row ÷ highest in the list</div>';
     var idx=rows.indexOf(row);
-    var allHtml=items.map(function(x){return '<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';}).join('');
+    var allHtml=items.map(function(x){return '<div class="kn-r'+fullCls(x.v)+'"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';}).join('');
     var cmpHtml=compareHtml(items,rows,row);
-    box.innerHTML='<div id="kn-head"><div id="kn-title">'+esc(title)+'<div id="kn-sub">'+esc(cap)+(idx>=0?(cap?' · ':'')+(idx+1)+' / '+rows.length:'')+'</div></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
-      +tabsHtml(numsHtml,rowsHtml,allHtml,cmpHtml)
+    var tabsH=tabsHtml(numsHtml,rowsHtml,allHtml,cmpHtml);   /* 先算（裡面會呼叫 acKeynoteTop 一次），表頭才知道頁面有沒有自己放照片 */
+    box.innerHTML=rowHead(row,items,title,cap,idx,rows.length)
+      +tabsH
       +(rows.length>1&&idx>=0?'<div id="kn-chips">'+rows.slice(Math.max(0,idx-8),idx+9).map(function(r,k){var ri=Math.max(0,idx-8)+k;return '<button type="button" class="kn-chip'+(ri===idx?' on':'')+'" data-i="'+ri+'">'+esc(chipOf(r))+'</button>';}).join('')+'</div>':'')
       +(rows.length>1&&idx>=0?'<div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一筆 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+rows.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=rows.length-1?' disabled':'')+'>下一筆 Next ▼</button></div>':'');
     setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
@@ -140,7 +178,7 @@
     var cmpHtml='';
     if(nums.length>=2){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
       cmpHtml=srt.map(function(o,k){var on=o.i===idx;return '<button type="button" class="kn-br'+(on?' on':'')+'" data-i="'+o.i+'"><span class="n">'+(on?'▶ ':'')+(k+1)+'. '+esc(o.x.label)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(o.x.n)/mx2*100))+'%"></i></span><span class="v">'+esc(o.x.val)+'</span></button>';}).join('')+'<div class="kn-ref" style="margin-top:6px">點任一條直接換到那一張</div>';}
-    box.innerHTML='<div id="kn-head"><div id="kn-title">'+esc(P.label)+'<div id="kn-sub">'+esc(cap)+(sib.length>1?(cap?' · ':'')+(idx+1)+' / '+sib.length:'')+'</div></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
+    box.innerHTML=headHtml({icon:icOf(P.label)||'📊',title:P.label,cap:cap,pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:P.val?['<span class="kn-hc">'+esc(P.val)+'</span>']:[]})
       +tabsHtml(numsHtml,rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'','<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">')
       +(sib.length>1?'<div id="kn-chips">'+all.map(function(x,i){return '<button type="button" class="kn-chip'+(i===idx?' on':'')+'" data-i="'+i+'">'+esc(String(x.label).slice(0,18))+'</button>';}).join('')+'</div><div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一張 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+sib.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=sib.length-1?' disabled':'')+'>下一張 Next ▼</button></div>':'');
     setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
@@ -155,6 +193,7 @@
        Top 放在分頁列的上面（不管看哪個分頁都看得到，2026-11-22 Paul：停在「全部資料」時看不到員工照片）；Extra 放在「重點」分頁最下面 */
     var hk=function(n){try{return typeof window[n]==='function'&&KN_ROW?(window[n](KN_ROW,KN_ROW.closest('table'))||''):'';}catch(e){return '';}},hTop=hk('acKeynoteTop'),hEx=hk('acKeynoteExtra');
     if(hEx&&!T.some(function(t){return t[0]==='num';})){T.unshift(['num','📊 重點 Key']);}
+    KN_HASTOP=!!hTop;
     return (hTop?'<div class="kn-top">'+hTop+'</div>':'')+'<div id="kn-tabs">'+T.map(function(t){return '<button type="button" data-tab="'+t[0]+'" class="'+(KN_TAB===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
       +'<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num">'+(nums?'<div id="kn-nums">'+nums+'</div>':'')+(rowsH?'<div id="kn-rows">'+rowsH+'</div>':'')+hEx+'</div>'
       +'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-rows">'+all+'</div></div>'
