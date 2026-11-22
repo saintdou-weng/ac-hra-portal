@@ -9,7 +9,7 @@
   'use strict';
   if(window.__acKeynote)return;window.__acKeynote=1;
   /* 柬文補齊（km-fill.js）跟著大字卡一起載入 */
-  try{var me=document.currentScript&&document.currentScript.src;if(me&&!document.querySelector('script[src*="km-fill.js"]')){var ks=document.createElement('script');ks.src=me.replace(/row-keynote\.js.*$/,'km-fill.js?v=1');ks.defer=true;document.head.appendChild(ks);}}catch(e){}
+  try{var me=document.currentScript&&document.currentScript.src;if(me&&!document.querySelector('script[src*="km-fill.js"]')){var ks=document.createElement('script');ks.src=me.replace(/row-keynote\.js.*$/,'km-fill.js?v=2');ks.defer=true;document.head.appendChild(ks);}}catch(e){}
   var css='#kn-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9990;display:none;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
    +'#kn-mask.on{display:flex}@media(min-width:720px){#kn-mask{align-items:center}}'
    +'#kn-box{background:#fff;color:#0f172a;width:min(680px,100%);max-height:86vh;overflow:auto;overscroll-behavior:contain;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.3);font-family:inherit;animation:knUp .22s ease-out}'

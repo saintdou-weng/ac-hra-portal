@@ -25,13 +25,13 @@
     'training subject':'ប្រធានបទបណ្តុះបណ្តាល','trainer':'គ្រូបង្គោល','hrs':'ម៉ោង','hours':'ម៉ោង','participant':'អ្នកចូលរួម','freq.':'ភាពញឹកញាប់','frequency':'ភាពញឹកញាប់',
     'att.':'ចូលរួម','abs.':'អវត្តមាន','click month cell to toggle status':'ចុចប្រអប់ខែដើម្បីប្ដូរស្ថានភាព',
     'jan':'មករា','feb':'កុម្ភៈ','mar':'មីនា','apr':'មេសា','may':'ឧសភា','jun':'មិថុនា','jul':'កក្កដា','aug':'សីហា','sep':'កញ្ញា','oct':'តុលា','nov':'វិច្ឆិកា','dec':'ធ្នូ',
-    'key':'សំខាន់','all data':'ទិន្នន័យទាំងអស់','compare':'ប្រៀបធៀប','prev':'មុន','next':'បន្ទាប់','swipe':'អូស','expected':'ត្រូវមក','present':'មានវត្តមាន','absent':'អវត្តមាន',
+    'statistics':'ស្ថិតិ','freq':'ភាពញឹកញាប់','sync again':'ធ្វើសមកាលកម្មម្ដងទៀត','synced ✓':'បានធ្វើសមកាលកម្ម ✓','times':'ដង','monthly':'ប្រចាំខែ','weekly':'ប្រចាំសប្តាហ៍','yearly':'ប្រចាំឆ្នាំ','all employees':'បុគ្គលិកទាំងអស់','new hire':'បុគ្គលិកថ្មី','key':'សំខាន់','all data':'ទិន្នន័យទាំងអស់','compare':'ប្រៀបធៀប','prev':'មុន','next':'បន្ទាប់','swipe':'អូស','expected':'ត្រូវមក','present':'មានវត្តមាន','absent':'អវត្តមាន',
     'photos / evidence':'រូបថត / ភស្តុតាង','monthly status':'ស្ថានភាពប្រចាំខែ','sessions held this year':'វគ្គដែលបានធ្វើក្នុងឆ្នាំនេះ','edit / add photos':'កែប្រែ / បន្ថែមរូបថត',
     'no matching training records yet':'មិនទាន់មានកំណត់ត្រាបណ្តុះបណ្តាលត្រូវគ្នា','sync all':'ធ្វើសមកាលកម្មទាំងអស់','sync selected':'ធ្វើសមកាលកម្មដែលបានជ្រើស'
   };
   function lang(){var v='';try{v=typeof LANG!=='undefined'?LANG:'';}catch(e){}if(!v)try{v=typeof lang_cur!=='undefined'?lang_cur:(typeof curLang!=='undefined'?curLang:(typeof currentLang!=='undefined'?currentLang:''));}catch(e){}
     if(!v)v=document.documentElement.getAttribute('data-lang')||'';v=String(v).toLowerCase();return /^(kh|km)/.test(v)?'km':/^en/.test(v)?'en':/^(zh|tc|cn)/.test(v)?'zh':'';}
-  var CJK=/[㐀-鿿＀-￯　-〿]/, EDGE=/^[\s←-⯿\u{1F000}-\u{1FAFF}️+•·:：|/\-–—()\[\]\d.,%✓✕✔✖↑↓←→‹›▲▼]*|[\s:：|·•()\[\]\d.,%/\-–—✓✕↑↓▲▼›‹]*$/gu;
+  var CJK=/[㐀-鿿＀-￯　-〿]/, EDGE=/^[\s←-⯿\u{1F000}-\u{1FAFF}️+•·:：|/\-–—()\[\]\d.,%✓✕✔✖↑↓←→‹›▲▼]*|[\s:：|·•()\[\]\d,%/\-–—✓✕↑↓▲▼›‹]*$/gu;
   /* 我們自己加的雙語標示：依語言只留一種 */
   var OWN='#kn-tabs button,#kn-foot button,#kn-hint,.kn-ref,.kn-nl,.kn-rl,#kn-sub,.tk-h,.tk-btn,.tk-rate,.tk-sec,#fx-home';
   function tidyOwn(L){
