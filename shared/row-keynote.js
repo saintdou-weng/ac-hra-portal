@@ -149,11 +149,12 @@
   function tabsHtml(nums,rowsH,all,cmp){
     var T=[];if(nums||rowsH)T.push(['num','📊 重點 Key']);T.push(['all','📋 全部資料 All']);if(cmp)T.push(['cmp','📈 比較 Compare']);
     if(!T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=T[0][0];
-    /* 頁面自訂內容：window.acKeynoteTop／acKeynoteExtra(row,table) 回傳 HTML（照片、相關記錄、按鈕），放在「重點」分頁的上方／下方 */
+    /* 頁面自訂內容：window.acKeynoteTop／acKeynoteExtra(row,table) 回傳 HTML（照片、相關記錄、按鈕）。
+       Top 放在分頁列的上面（不管看哪個分頁都看得到，2026-11-22 Paul：停在「全部資料」時看不到員工照片）；Extra 放在「重點」分頁最下面 */
     var hk=function(n){try{return typeof window[n]==='function'&&KN_ROW?(window[n](KN_ROW,KN_ROW.closest('table'))||''):'';}catch(e){return '';}},hTop=hk('acKeynoteTop'),hEx=hk('acKeynoteExtra');
-    if((hTop||hEx)&&!T.some(function(t){return t[0]==='num';})){T.unshift(['num','📊 重點 Key']);}
-    return '<div id="kn-tabs">'+T.map(function(t){return '<button type="button" data-tab="'+t[0]+'" class="'+(KN_TAB===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
-      +'<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num">'+hTop+(nums?'<div id="kn-nums">'+nums+'</div>':'')+(rowsH?'<div id="kn-rows">'+rowsH+'</div>':'')+hEx+'</div>'
+    if(hEx&&!T.some(function(t){return t[0]==='num';})){T.unshift(['num','📊 重點 Key']);}
+    return (hTop?'<div class="kn-top">'+hTop+'</div>':'')+'<div id="kn-tabs">'+T.map(function(t){return '<button type="button" data-tab="'+t[0]+'" class="'+(KN_TAB===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
+      +'<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num">'+(nums?'<div id="kn-nums">'+nums+'</div>':'')+(rowsH?'<div id="kn-rows">'+rowsH+'</div>':'')+hEx+'</div>'
       +'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-rows">'+all+'</div></div>'
       +(cmp?'<div class="kn-pane'+(KN_TAB==='cmp'?' on':'')+'" data-p="cmp"><div id="kn-cmp">'+cmp+'</div></div>':'');
   }
