@@ -179,8 +179,8 @@
   function chipOf(r){var L0=lab(r);if(L0)return L0.slice(0,22);var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
   function jump(i){if(curCard){cardGo(i);return;}var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
-  function kfx(d,o){try{var f=window.vrtFx;if(!f){try{f=window.top.vrtFx;}catch(e){}}if(f&&box)f(box,d,o);}catch(e){}}   /* 2026-11-23 翻頁特效（music.js 的 vrtFx；沒載就什麼都不做） */
-  function step(d){var r0=step0(d);if(r0!==false)kfx(d);return r0;}
+  function kfx(d,o,ax){try{var f=window.vrtFx;if(!f){try{f=window.top.vrtFx;}catch(e){}}if(f&&box)f(box,d,o,ax);}catch(e){}}   /* 2026-11-23 翻頁特效（music.js 的 vrtFx；沒載就什麼都不做） */
+  function step(d,ax){var r0=step0(d);if(r0!==false)kfx(d,0,ax);return r0;}
   function step0(d){
     if(curCard){var sb=sibsOf(curCard);return cardGo(sb.indexOf(curCard)+d);}
     if(!curRow)return false;
@@ -204,14 +204,14 @@
       var cc=e.target.closest('.kn-cc button');if(cc&&curRow){KN_COL=cc.dataset.col;show(curRow);return;}
       var nc=e.target.closest('.kn-n[data-c]');if(nc&&curRow){var lb=nc.querySelector('.kn-nl');KN_COL=lb?lb.textContent.replace(/^\S*\s?/,'').trim():'';KN_COL=(heads(curRow.closest('table'))[+nc.dataset.c])||KN_COL;KN_TAB='cmp';show(curRow);}
     });
-    document.addEventListener('keydown',function(e){if(!mask.classList.contains('on'))return;if(e.key==='Escape')hide();else if(e.key==='ArrowDown'||e.key==='ArrowRight'||e.key==='PageDown'){e.preventDefault();step(1);}else if(e.key==='ArrowUp'||e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();step(-1);}});
+    document.addEventListener('keydown',function(e){if(!mask.classList.contains('on'))return;if(e.key==='Escape')hide();else if(e.key==='ArrowDown'||e.key==='ArrowRight'||e.key==='PageDown'){e.preventDefault();step(1,/Right/.test(e.key)?'':'y');}else if(e.key==='ArrowUp'||e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();step(-1,/Left/.test(e.key)?'':'y');}});
     var tx=0,ty=0,atTop=false,atEnd=false;
     box.addEventListener('touchstart',function(e){var p=e.touches[0];tx=p.clientX;ty=p.clientY;atTop=box.scrollTop<=1;atEnd=box.scrollTop+box.clientHeight>=box.scrollHeight-2;},{passive:true});
     box.addEventListener('touchend',function(e){var p=e.changedTouches[0],dx=p.clientX-tx,dy=p.clientY-ty;
       if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)step(dx<0?1:-1);
-      else if(dy<-70&&atEnd&&Math.abs(dy)>Math.abs(dx)*1.5)step(1);          /* 已到底再往上滑＝下一筆（可一直滑下去） */
-      else if(dy>70&&atTop&&Math.abs(dy)>Math.abs(dx)*1.5)step(-1);},{passive:true});
-    var wl=0;box.addEventListener('wheel',function(e){var now=Date.now();if(now-wl<350)return;var end=box.scrollTop+box.clientHeight>=box.scrollHeight-2,top=box.scrollTop<=1;if(e.deltaY>30&&end){wl=now;step(1);}else if(e.deltaY<-30&&top){wl=now;step(-1);}},{passive:true});
+      else if(dy<-70&&atEnd&&Math.abs(dy)>Math.abs(dx)*1.5)step(1,'y');          /* 已到底再往上滑＝下一筆（可一直滑下去） */
+      else if(dy>70&&atTop&&Math.abs(dy)>Math.abs(dx)*1.5)step(-1,'y');},{passive:true});
+    var wl=0;box.addEventListener('wheel',function(e){var now=Date.now();if(now-wl<350)return;var end=box.scrollTop+box.clientHeight>=box.scrollHeight-2,top=box.scrollTop<=1;if(e.deltaY>30&&end){wl=now;step(1,'y');}else if(e.deltaY<-30&&top){wl=now;step(-1,'y');}},{passive:true});
     document.addEventListener('click',function(e){
       var t=e.target;if(!t||!t.closest||t.closest('#kn-mask'))return;
       if(t.closest('button,a,input,select,textarea,label,summary,[contenteditable="true"],[role="button"],[data-keynote="off"]'))return;
