@@ -39,7 +39,8 @@
     var card=table.closest('.card,.sect,section,.panel,.box,[class*="card"]'),capEl=card&&card.querySelector('.ct,.ch,h2,h3,h4,.sect-title,.title,[class*="title"]'),cap=capEl&&!table.contains(capEl)?txt(capEl).slice(0,60):'';
     var items=cells.map(function(td,i){return {l:H[i]||('#'+(i+1)),v:txt(td),n:num(txt(td)),i:i};}).filter(function(x){return x.v!==''&&!/^[—–-]$/.test(x.v)||x.n!==null;}).filter(function(x){return x.v!=='';});
     var ids=items.filter(function(x){return x.n===null||x.i===0||/工號|id|no\.?$|^#$|編號|期|date|日/i.test(x.l);});
-    var title=items.slice(0,3).filter(function(x){return x.n===null||x.i<2;}).map(function(x){return x.v;}).slice(0,2).join(' · ')||items[0]&&items[0].v||'';
+    var cl=function(v){return String(v).replace(/^[◀▶►◄▸▹•\s]+|[◀▶►◄\s]+$/g,'');};
+    var title=items.slice(0,3).filter(function(x,k){return k===0||x.n===null;}).map(function(x){return cl(x.v);}).slice(0,2).join(' · ');
     var numsHtml='',rowsHtml='';
     items.forEach(function(x){
       var isId=x.i===0||/工號|factory id|emp|^id$|^#$|^no\.?$|編號|電話|phone|年$|year|期間|period/i.test(x.l);
@@ -73,11 +74,11 @@
       if(row.querySelector('input:not([type=checkbox]):not([type=radio]),select,textarea'))return;          /* 線上輸入列不跳 */
       var sel=window.getSelection&&String(window.getSelection());if(sel&&sel.length>1)return;
       /* 讓原本的點列功能先跑；如果它把表格重畫了（例如切換期間），用「第幾張表＋第一欄文字」找回同一列 */
-      var tIdx=[].indexOf.call(document.querySelectorAll('table'),table),key=txt(row.cells[0]),rIdx=row.sectionRowIndex;
+      var tIdx=[].indexOf.call(document.querySelectorAll('table'),table),key=txt(row.cells[0]).replace(/[◀▶►◄▸▹•\s]/g,''),rIdx=row.sectionRowIndex;
       setTimeout(function(){
         if(document.body.contains(row)){show(row);return;}
         var t2=document.querySelectorAll('table')[tIdx];if(!t2)return;
-        var rs=dataRows(t2),hit=rs.filter(function(r){return txt(r.cells[0])===key;})[0]||null;
+        var rs=dataRows(t2),hit=rs.filter(function(r){return txt(r.cells[0]).replace(/[◀▶►◄▸▹•\s]/g,'')===key;})[0]||null;
         if(hit)show(hit);
       },60);
     },true);
