@@ -1,4 +1,4 @@
-/* AC HRA UI 動效 v1（2026-11-22，Paul 指定 5 項）
+/* AC HRA UI 動效 v5（2026-11-22 起；11-23 加第 8 項：標題列融合調色盤＋手機精簡）
    1 懸停回饋（按鈕）  2 游標聚光燈（深色卡片網格）  3 3D 傾斜（首頁模組卡、KPI 卡）
    4 導覽列吸頂（桌機、且頁面沒有其他吸頂列才啟用）  5 回到頂部按鈕
    原則：只加效果，不改任何現有結構、事件、資料。
@@ -145,8 +145,111 @@
     var bs=getComputedStyle(document.body),row=(bs.display==='flex'&&!/column/.test(bs.flexDirection))||bs.display==='grid';
     var base='font:600 13px/1 system-ui,"Noto Sans TC",sans-serif;color:#fff;background:#0f172a;text-decoration:none;display:flex;align-items:center;gap:6px;';
     if(row){a.style.cssText=base+'position:fixed;top:6px;left:6px;z-index:80;padding:8px 12px;border-radius:999px;box-shadow:0 2px 10px rgba(15,23,42,.3);opacity:.92';document.body.appendChild(a);}
-    else{a.style.cssText=base+'padding:9px 14px;width:100%;box-sizing:border-box';document.body.insertBefore(a,document.body.firstChild);}
+    else{
+      /* v5：外面包一條（不可點），連結只有文字那麼寬 → 右邊留空給 ♪ 音樂／🎨 調色盤停靠，不會浮到畫面中間蓋住資料 */
+      var bar=document.createElement('div');bar.id='fx-homebar';bar.style.cssText='background:#0f172a;display:flex;align-items:center;min-height:32px;width:100%;box-sizing:border-box';
+      a.style.cssText=base+'padding:8px 12px;background:transparent;display:inline-flex';bar.appendChild(a);document.body.insertBefore(bar,document.body.firstChild);
+    }
   }
-  function boot(){init();try{homeBar();}catch(e){}}
+
+  /* ── 8 標題列融合調色盤＋手機精簡 v5（2026-11-23 Paul：調色盤選了顏色，上方深色標題列還是一塊深色融不進去 → 學 PSJERP 的做法）──
+     融合：🎨 調色盤（PSJERP 的 music.js，整頁蓋一層色片）有選顏色時，把「淺色頁面上的深色標題列」改成淺底深字，
+           色片蓋上去就跟下面的卡片同一個色調。白色（沒選色）時維持原本的深色標題列；整頁本來就是深色的首頁不動。
+           只有「原本是白字、直接壓在標題列上」的字才改深色；本來有自己底色的按鈕（綠／黃／紅）保留原色。
+     精簡：手機（≤700px）標題列收矮 —— 拿掉大圖示和副標、標題字縮小、按鈕縮小排成一列（可左右滑）、分頁列與日期列收緊。
+     只動外觀，不碰事件與資料；Tailwind 白底標題列不處理。 */
+  var H=document.documentElement,hdrs=[],hdrObs=[],hdrTimer=0,INK='#14202b';
+  var HC='html.fx-pal .fx-hdk';
+  css='';
+  css+=HC+'{background:#e9eff4!important;background-image:none!important;color:'+INK+'!important;box-shadow:0 1px 0 #c5d0db!important;border-color:#c5d0db!important}';
+  css+=HC+' .fx-ink{color:'+INK+'!important;text-shadow:none!important;-webkit-text-fill-color:currentColor!important}'+HC+' .fx-ink2{color:#566779!important;text-shadow:none!important}';
+  css+=HC+' .fx-hb{background:#fff!important;background-image:none!important;border:1px solid #bccad7!important;color:'+INK+'!important;box-shadow:none!important;text-shadow:none!important}';
+  css+=HC+' .fx-hbd{border-color:#bccad7!important}'+HC+' .fx-hbg{background:rgba(20,32,43,.06)!important;background-image:none!important}';
+  css+='html.fx-pal #fx-homebar{background:#dde6ee!important;box-shadow:0 1px 0 #c5d0db!important}html.fx-pal #fx-homebar #fx-home{color:'+INK+'!important}';
+  css+='html.fx-nt *{transition:none!important;animation:none!important}';
+  css+='@media (max-width:700px){#fx-homebar #fx-home{font-size:12px!important;padding:7px 10px!important}'+
+    '.fx-hdr.fx-cp,.fx-hdr .fx-cp{padding-top:6px!important;padding-bottom:6px!important;min-height:0!important}'+
+    '.fx-hdr .fx-hide{display:none!important}'+
+    '.fx-hdr .fx-ttl{font-size:15px!important;line-height:1.25!important;margin:0!important;letter-spacing:0!important}'+
+    '.fx-hdr .fx-cb{min-height:30px!important;height:auto!important;min-width:34px!important;padding:3px 8px!important;border-radius:8px!important}'+
+    '.fx-hdr .fx-cb>span{font-size:15px!important}'+
+    '.fx-hdr .fx-row{flex-wrap:nowrap!important;overflow-x:auto!important;scrollbar-width:none;gap:6px!important;margin-top:6px!important;-webkit-overflow-scrolling:touch}.fx-hdr .fx-row::-webkit-scrollbar{display:none}.fx-hdr .fx-row>*{flex:0 0 auto!important;width:auto!important;white-space:nowrap}'+
+    '.tab-wrap .tabs{flex-wrap:nowrap!important}.tab-wrap .tab{padding:8px 11px!important;font-size:13px!important}'+
+    '.period-bar{gap:6px!important;margin-top:8px!important}.period-bar .seg button{padding:6px 10px!important;font-size:13px!important}.period-bar .nav-btn{width:34px!important;height:34px!important;font-size:14px!important}.period-bar .control{height:34px!important;font-size:13px!important;padding:0 8px!important}'+
+  '}';
+  var st8=document.createElement('style');st8.id='ac-ui-fx-hdr';st8.textContent=css;document.head.appendChild(st8);
+  function rgba(c){var m=String(c||'').match(/[\d.]+/g);if(!m||m.length<3)return null;return {r:+m[0],g:+m[1],b:+m[2],a:m.length>3?+m[3]:1};}
+  function lumOf(o){return (0.2126*o.r+0.7152*o.g+0.0722*o.b)/255;}
+  function bgOf(cs){var o=rgba(cs.backgroundColor);if(o&&o.a>=.5)return o;var im=cs.backgroundImage;if(im&&im!=='none'&&/gradient/.test(im)){var m=im.match(/rgba?\([^)]+\)/);var g=m&&rgba(m[0]);if(g&&g.a>=.5)return g;}return null;}
+  function pageLight(){var b=bgOf(getComputedStyle(document.body))||bgOf(getComputedStyle(H));return !b||lumOf(b)>.6;}
+  function findHdrs(){
+    var out=[],sel='body>header,body>.header,body>.hdr,body>.top,body>.topbar,body>.app-header,body>.ct-apphead';
+    var cand=[].slice.call(document.querySelectorAll(sel));
+    [].slice.call(document.querySelectorAll('header,.header,.hdr,.top,.topbar,#topbar,.app-header')).slice(0,6).forEach(function(e){if(cand.indexOf(e)<0&&e.getBoundingClientRect().width>=window.innerWidth*.9)cand.push(e);});
+    [].slice.call(document.body.children).slice(0,5).forEach(function(e){if(cand.indexOf(e)<0)cand.push(e);});
+    cand.forEach(function(e){
+      if(e.id==='fx-home'||e.id==='fx-homebar'||e.closest('#fx-homebar')||/^(SCRIPT|STYLE|LINK|NAV|MAIN)$/.test(e.tagName)||/\bbg-white\b/.test(e.className||''))return;
+      var cs=getComputedStyle(e);if(cs.display==='none'||cs.position==='fixed')return;
+      var r=e.getBoundingClientRect();if(r.top+window.scrollY>150||r.height>340||r.height<24)return;
+      var bg=bgOf(cs);if(!bg||lumOf(bg)>=.42)return;      /* 只認深色標題列 */
+      out.push(e);
+    });
+    return out;
+  }
+  function classify(h){
+    var mobile=window.innerWidth<=700;
+    var hcs=getComputedStyle(h);if(parseFloat(hcs.paddingTop)>8)h.classList.add('fx-cp');
+    [].slice.call(h.querySelectorAll('*')).forEach(function(e){
+      if(e.closest('#vmBox,#vmPanel,#vpPanel'))return;
+      e.classList.remove('fx-ink','fx-ink2','fx-hb','fx-hbd','fx-hbg');      /* 每次重判（語言鈕換「選中」時底色會變）*/
+      var cs=getComputedStyle(e),tag=e.tagName,ctl=/^(BUTTON|SELECT|INPUT|A)$/.test(tag);
+      /* 這個元素的字是壓在誰的底色上：往上找到標題列為止 */
+      var own=bgOf(cs),on=null,p=e;while(p&&p!==h){var b=p===e?own:bgOf(getComputedStyle(p));if(b){on=b;break;}p=p.parentElement;}
+      var col=rgba(cs.color),light=col&&lumOf(col)>.6;
+      if(!on&&light){
+        var bgc=rgba(cs.backgroundColor),veil=bgc&&bgc.a>0&&bgc.a<.5;
+        if(ctl&&(veil||parseFloat(cs.borderTopWidth)>0))e.classList.add('fx-hb');
+        else{e.classList.add(col.a<.85?'fx-ink2':'fx-ink');if(veil)e.classList.add('fx-hbg');}
+      }
+      if(!e.classList.contains('fx-hb')&&parseFloat(cs.borderTopWidth)>0){var bc=rgba(cs.borderTopColor);if(bc&&bc.a>0&&lumOf(bc)>.75&&!on)e.classList.add('fx-hbd');}
+      /* 手機精簡用的記號（只在 ≤700px 的樣式裡生效）*/
+      var cls=String(e.className&&e.className.baseVal!=null?e.className.baseVal:e.className||'');
+      if(parseFloat(cs.paddingTop)>8&&e.parentElement===h&&!ctl)e.classList.add('fx-cp');
+      if(/logo/i.test(cls)&&!e.querySelector('button,select,input,a'))e.classList.add('fx-hide');
+      if((tag==='H1'||tag==='H2'||/title/i.test(cls))&&!e.children.length&&parseFloat(cs.fontSize)>15)e.classList.add('fx-ttl');
+      if((tag==='H1'||tag==='H2')&&e.children.length&&parseFloat(cs.fontSize)>15)e.classList.add('fx-ttl');
+      if((tag==='P'||/(^|[-_ ])sub($|[-_ ])/i.test(cls))&&!e.querySelector('button,select,input,a')&&parseFloat(cs.fontSize)<=12.5&&!e.id)e.classList.add('fx-hide');
+      if(tag==='BUTTON'&&e.getBoundingClientRect().height>33)e.classList.add('fx-cb');
+      if(/flex/.test(cs.display)&&cs.flexWrap==='wrap'&&e.querySelectorAll(':scope>button').length>=4)e.classList.add('fx-row');
+    });
+  }
+  function stickyFix(){
+    var h=hdrs[0];if(!h)return;
+    var n=h.nextElementSibling,k=0;
+    while(n&&k++<3){var cs=getComputedStyle(n);if(cs.position==='sticky'&&(n.dataset.fxTop||parseFloat(cs.top)>=40)){n.dataset.fxTop=1;n.style.top=(getComputedStyle(h).position==='sticky'?h.offsetHeight:0)+'px';}n=n.nextElementSibling;}
+  }
+  function palState(){return !!document.getElementById('vpTint')||H.classList.contains('vp-dark');}
+  var lightPg=true;
+  function syncPal(){var on=palState()&&lightPg;if(H.classList.contains('fx-pal')!==on)H.classList.toggle('fx-pal',on);stickyFix();}
+  function scanHdr(){
+    if(!document.body)return;
+    var had=H.classList.contains('fx-pal');H.classList.remove('fx-pal');H.classList.add('fx-nt');
+    try{
+      var light=lightPg=pageLight();
+      findHdrs().forEach(function(h){if(hdrs.indexOf(h)<0){hdrs.push(h);h.classList.add('fx-hdr');if(light)h.classList.add('fx-hdk');
+        try{var mo=new MutationObserver(function(){clearTimeout(hdrTimer);hdrTimer=setTimeout(scanHdr,200);});mo.observe(h,{childList:true,subtree:true,attributes:true,attributeFilter:['class']});hdrObs.push(mo);}catch(e){}}});
+      hdrs.forEach(classify);
+    }catch(e){}
+    H.classList.remove('fx-nt');if(had)H.classList.add('fx-pal');
+    syncPal();
+    hdrObs.forEach(function(m){try{m.takeRecords();}catch(e){}});      /* 自己加的記號不算變動，免得一直重掃 */
+  }
+  function hdrBoot(){
+    scanHdr();[600,1800,4000].forEach(function(ms){setTimeout(scanHdr,ms);});
+    try{new MutationObserver(syncPal).observe(document.body,{childList:true});new MutationObserver(syncPal).observe(H,{attributes:true,attributeFilter:['class']});}catch(e){}
+    window.addEventListener('resize',function(){clearTimeout(hdrTimer);hdrTimer=setTimeout(function(){stickyFix();},150);},{passive:true});
+    try{if(window.ResizeObserver)new ResizeObserver(stickyFix).observe(hdrs[0]||document.body);}catch(e){}
+  }
+  function boot(){init();try{homeBar();}catch(e){}try{hdrBoot();}catch(e){}}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();
