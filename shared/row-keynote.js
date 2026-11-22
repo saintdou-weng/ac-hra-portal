@@ -25,7 +25,8 @@
    +'#kn-box.kn-next{animation:knNext .18s ease-out}#kn-box.kn-prev{animation:knPrev .18s ease-out}@keyframes knNext{from{transform:translateY(28px);opacity:.3}to{transform:none;opacity:1}}@keyframes knPrev{from{transform:translateY(-28px);opacity:.3}to{transform:none;opacity:1}}'
    +'tbody tr.kn-able{cursor:pointer}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
-  var mask,box,curRow=null;
+  var mask,box,curRow=null,curT=-1,curKey='';
+  function nk(v){return String(v).replace(/[◀▶►◄▸▹•\s]/g,'');}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function txt(el){return (el.innerText||el.textContent||'').replace(/\s*\n\s*/g,' ').replace(/\s+/g,' ').trim();}
   function num(s){var t=String(s).replace(/[,\s$＄]/g,'');if(!/^[-+−]?\d+(\.\d+)?(%|人|人次|項|天|筆|d|ppl)?$/.test(t))return null;var v=parseFloat(t.replace('−','-'));return isFinite(v)?v:null;}
@@ -61,12 +62,17 @@
     box.innerHTML='<div id="kn-head"><div id="kn-title">'+esc(title)+'<div id="kn-sub">'+esc(cap)+(idx>=0?(cap?' · ':'')+(idx+1)+' / '+rows.length:'')+'</div></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
       +(numsHtml?'<div id="kn-nums">'+numsHtml+'</div>':'')+(rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'')
       +(rows.length>1&&idx>=0?'<div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一筆 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+rows.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=rows.length-1?' disabled':'')+'>下一筆 Next ▼</button></div>':'');
-    curRow=row;mask.classList.add('on');box.scrollTop=0;
+    curRow=row;curT=[].indexOf.call(document.querySelectorAll('table'),table);curKey=nk(txt(row.cells[0]));mask.classList.add('on');box.scrollTop=0;
   }
   function hide(){mask.classList.remove('on');curRow=null;}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
   function step(d){
-    if(!curRow)return false;var t=curRow.closest('table'),rs=t?dataRows(t):[],i=rs.indexOf(curRow)+d;
+    if(!curRow)return false;
+    if(!document.body.contains(curRow)){   /* 頁面把表格重畫了（同步、切換期間）：用第幾張表＋第一欄文字找回目前這一列 */
+      var t2=document.querySelectorAll('table')[curT],k=curKey,hit=t2?dataRows(t2).filter(function(r){return nk(txt(r.cells[0]))===k;})[0]:null;
+      if(!hit)return false;curRow=hit;
+    }
+    var t=curRow.closest('table'),rs=t?dataRows(t):[],i=rs.indexOf(curRow)+d;
     if(i<0||i>=rs.length)return false;
     show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(d>0?'kn-next':'kn-prev');
     try{rs[i].scrollIntoView({block:'nearest'});}catch(e){}
