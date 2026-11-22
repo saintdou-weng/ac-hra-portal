@@ -122,5 +122,20 @@
     document.addEventListener('scroll',function(e){var t=e.target;if(t&&t.nodeType===1&&t!==scroller&&t.clientHeight>=innerHeight*.7&&t.scrollHeight>t.clientHeight+40&&t.clientWidth>=innerWidth*.6){scroller=t;}req();},{passive:true,capture:true});
     setTimeout(function(){try{initNav();}catch(e){}req();},600);
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
+  /* ── 6 回平台選單（2026-11-22 Paul：每頁最上面一條，不用退出再進來）── */
+  function homeBar(){
+    var path=location.pathname,pay=/\/ac-hra-pay\//.test(path),file=path.split('/').pop()||'index.html';
+    if(document.getElementById('fx-home'))return;
+    if(pay?/^(index\.html)?$/.test(file):/^hra_portal_v2\.html$/.test(file))return;      /* 選單頁自己不用 */
+    if(!pay&&!/\/ac-hra-portal\//.test(path))return;
+    var href=pay?'./index.html':'./hra_portal_v2.html',name=pay?'HRA-PAY':'HRA Portal';
+    var a=document.createElement('a');a.id='fx-home';a.href=href;a.setAttribute('data-fx','off');
+    a.innerHTML='<span style="font-size:15px">‹</span> 🏠 <b>'+name+'</b> 選單 Menu';
+    var bs=getComputedStyle(document.body),row=(bs.display==='flex'&&!/column/.test(bs.flexDirection))||bs.display==='grid';
+    var base='font:600 13px/1 system-ui,"Noto Sans TC",sans-serif;color:#fff;background:#0f172a;text-decoration:none;display:flex;align-items:center;gap:6px;';
+    if(row){a.style.cssText=base+'position:fixed;top:6px;left:6px;z-index:80;padding:8px 12px;border-radius:999px;box-shadow:0 2px 10px rgba(15,23,42,.3);opacity:.92';document.body.appendChild(a);}
+    else{a.style.cssText=base+'padding:9px 14px;width:100%;box-sizing:border-box';document.body.insertBefore(a,document.body.firstChild);}
+  }
+  function boot(){init();try{homeBar();}catch(e){}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
 })();

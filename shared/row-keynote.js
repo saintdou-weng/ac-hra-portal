@@ -8,7 +8,7 @@
   if(window.__acKeynote)return;window.__acKeynote=1;
   var css='#kn-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9990;display:none;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
    +'#kn-mask.on{display:flex}@media(min-width:720px){#kn-mask{align-items:center}}'
-   +'#kn-box{background:#fff;color:#0f172a;width:min(680px,100%);max-height:86vh;overflow:auto;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.3);font-family:inherit;animation:knUp .22s ease-out}'
+   +'#kn-box{background:#fff;color:#0f172a;width:min(680px,100%);max-height:86vh;overflow:auto;overscroll-behavior:contain;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.3);font-family:inherit;animation:knUp .22s ease-out}'
    +'@media(min-width:720px){#kn-box{border-radius:18px}}@keyframes knUp{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}'
    +'#kn-head{position:sticky;top:0;background:#0f172a;color:#fff;padding:14px 16px;display:flex;gap:10px;align-items:center;z-index:1}'
    +'#kn-title{font-size:17px;font-weight:700;line-height:1.3;flex:1;word-break:break-word}#kn-sub{font-size:11px;opacity:.7;font-weight:400;margin-top:2px}'
@@ -19,6 +19,10 @@
    +'.kn-bar{height:5px;border-radius:3px;background:#e2e8f0;margin:6px 0 4px;overflow:hidden}.kn-bar i{display:block;height:100%;border-radius:3px;background:#0ea5e9}'
    +'.kn-ref{font-size:10.5px;color:#64748b;line-height:1.45}.kn-neg .kn-nv{color:#dc2626}.kn-neg .kn-bar i{background:#ef4444}'
    +'#kn-rows{padding:8px 16px 18px}.kn-r{display:flex;gap:12px;padding:9px 0;border-bottom:1px solid #f1f5f9;font-size:14px}.kn-r:last-child{border-bottom:0}.kn-rl{flex:0 0 38%;color:#64748b;font-size:12.5px}.kn-rv{flex:1;font-weight:600;word-break:break-word;white-space:pre-wrap}'
+   +'#kn-foot{position:sticky;bottom:0;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#f1f5f9;border-top:1px solid #e2e8f0}'
+   +'#kn-foot button{flex:1;border:0;border-radius:10px;padding:11px 8px;font-size:14px;font-weight:700;background:#0f172a;color:#fff;cursor:pointer}#kn-foot button:disabled{opacity:.3}'
+   +'#kn-pos{flex:0 0 auto;font-size:12px;color:#475569;text-align:center;min-width:64px;line-height:1.3}#kn-hint{font-size:10px;color:#94a3b8}'
+   +'#kn-box.kn-next{animation:knNext .18s ease-out}#kn-box.kn-prev{animation:knPrev .18s ease-out}@keyframes knNext{from{transform:translateY(28px);opacity:.3}to{transform:none;opacity:1}}@keyframes knPrev{from{transform:translateY(-28px);opacity:.3}to{transform:none;opacity:1}}'
    +'tbody tr.kn-able{cursor:pointer}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
   var mask,box,curRow=null;
@@ -55,17 +59,33 @@
     });
     var idx=rows.indexOf(row);
     box.innerHTML='<div id="kn-head"><div id="kn-title">'+esc(title)+'<div id="kn-sub">'+esc(cap)+(idx>=0?(cap?' · ':'')+(idx+1)+' / '+rows.length:'')+'</div></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
-      +(numsHtml?'<div id="kn-nums">'+numsHtml+'</div>':'')+(rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'');
+      +(numsHtml?'<div id="kn-nums">'+numsHtml+'</div>':'')+(rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'')
+      +(rows.length>1&&idx>=0?'<div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一筆 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+rows.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=rows.length-1?' disabled':'')+'>下一筆 Next ▼</button></div>':'');
     curRow=row;mask.classList.add('on');box.scrollTop=0;
   }
   function hide(){mask.classList.remove('on');curRow=null;}
+  /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
+  function step(d){
+    if(!curRow)return false;var t=curRow.closest('table'),rs=t?dataRows(t):[],i=rs.indexOf(curRow)+d;
+    if(i<0||i>=rs.length)return false;
+    show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(d>0?'kn-next':'kn-prev');
+    try{rs[i].scrollIntoView({block:'nearest'});}catch(e){}
+    return true;
+  }
   function init(){
     mask=document.createElement('div');mask.id='kn-mask';box=document.createElement('div');box.id='kn-box';mask.appendChild(box);document.body.appendChild(mask);
     mask.addEventListener('click',function(e){
       if(e.target===mask||e.target.id==='kn-x'){hide();return;}
-      var b=e.target.closest('#kn-nav button');if(b&&curRow){var t=curRow.closest('table'),rs=t?dataRows(t):[],i=rs.indexOf(curRow)+(+b.dataset.d);if(i>=0&&i<rs.length)show(rs[i]);}
+      var b=e.target.closest('#kn-nav button,#kn-foot button');if(b)step(+b.dataset.d);
     });
-    document.addEventListener('keydown',function(e){if(e.key==='Escape'&&mask.classList.contains('on'))hide();});
+    document.addEventListener('keydown',function(e){if(!mask.classList.contains('on'))return;if(e.key==='Escape')hide();else if(e.key==='ArrowDown'||e.key==='ArrowRight'||e.key==='PageDown'){e.preventDefault();step(1);}else if(e.key==='ArrowUp'||e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();step(-1);}});
+    var tx=0,ty=0,atTop=false,atEnd=false;
+    box.addEventListener('touchstart',function(e){var p=e.touches[0];tx=p.clientX;ty=p.clientY;atTop=box.scrollTop<=1;atEnd=box.scrollTop+box.clientHeight>=box.scrollHeight-2;},{passive:true});
+    box.addEventListener('touchend',function(e){var p=e.changedTouches[0],dx=p.clientX-tx,dy=p.clientY-ty;
+      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)step(dx<0?1:-1);
+      else if(dy<-70&&atEnd&&Math.abs(dy)>Math.abs(dx)*1.5)step(1);          /* 已到底再往上滑＝下一筆（可一直滑下去） */
+      else if(dy>70&&atTop&&Math.abs(dy)>Math.abs(dx)*1.5)step(-1);},{passive:true});
+    var wl=0;box.addEventListener('wheel',function(e){var now=Date.now();if(now-wl<350)return;var end=box.scrollTop+box.clientHeight>=box.scrollHeight-2,top=box.scrollTop<=1;if(e.deltaY>30&&end){wl=now;step(1);}else if(e.deltaY<-30&&top){wl=now;step(-1);}},{passive:true});
     document.addEventListener('click',function(e){
       var t=e.target;if(!t||!t.closest||t.closest('#kn-mask'))return;
       if(t.closest('button,a,input,select,textarea,label,summary,[contenteditable="true"],[role="button"],[data-keynote="off"]'))return;
