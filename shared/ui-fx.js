@@ -42,7 +42,8 @@
     if(el.dataset.fx==='off'||el.closest('[data-fx="off"]'))return false;
     if(el.querySelector('table,input,select,textarea,canvas'))return false;      /* 內容卡不傾斜 */
     var r=el.getBoundingClientRect();if(r.width<60||r.height<36||r.width>560||r.height>320)return false;
-    var t=getComputedStyle(el).transform;return !t||t==='none'||el.classList.contains('fx-tilt');
+    /* 卡片自己原本只有「上移」這類位移的懸停效果時，改由傾斜接手（兩者不疊加） */
+    var t=getComputedStyle(el).transform;return !t||t==='none'||el.classList.contains('fx-tilt')||/^matrix\(1, 0, 0, 1, /.test(t);
   }
   if(fine&&!calm){
     var spot=document.createElement('div');spot.id='fx-spot';(document.body||document.documentElement).appendChild(spot);
