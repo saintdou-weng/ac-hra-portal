@@ -3030,7 +3030,9 @@ async function deletePendingCandidates(){
 var MP_VIEW=new Map();
 function pcModal(){let m=el('pcModal');if(m)return m;m=document.createElement('div');m.id='pcModal';m.className='modal-bg';m.onclick=e=>modalBackdrop(e,'pcModal');
   m.innerHTML='<div class="modal" style="width:620px"><div class="modal-head"><div id="pcTitle" class="modal-title"></div><button class="modal-close" onclick="closeModal(\'pcModal\')">×</button></div><div id="pcBody" class="modal-body"></div></div>';document.body.appendChild(m);return m}
-function pcShow(title,body){pcModal();el('pcTitle').innerHTML=title;el('pcBody').innerHTML=body;el('pcModal').classList.add('open')}
+/* 2026-11-22 這一頁嵌在 VRT HR 裡時，人員卡最上面加 VRT HR 的員工照片＋重點資料＋分頁鈕（本平台自己沒有照片）；單獨開這一頁時不變 */
+let PC_EMP=null;
+function pcShow(title,body){pcModal();let top='';try{if(PC_EMP&&window.parent!==window&&typeof parent.psjEmpHTML==='function')top=parent.psjEmpHTML(PC_EMP[0],PC_EMP[1],document)||''}catch(e){}PC_EMP=null;el('pcTitle').innerHTML=title;el('pcBody').innerHTML=top+body;el('pcModal').classList.add('open')}
 function pcRow(label,v){return v===undefined||v===null||v===''?'':`<div class="pc-k">${label}</div><div class="pc-v">${v}</div>`}
 function pcAge(r){if(r.age)return r.age;const d=String(r.dob||'').slice(0,10);if(!/^\d{4}-\d\d-\d\d$/.test(d))return'';const b=new Date(d+'T00:00:00'),t=new Date();let a=t.getFullYear()-b.getFullYear();if(t<new Date(t.getFullYear(),b.getMonth(),b.getDate()))a--;return a>0&&a<100?a:''}
 function pcFind(seed){const id=digits(seed.empId||seed.id),ph=digits(seed.phone),nm=normName(seed.name||'');
@@ -3042,7 +3044,7 @@ function openPersonCard(kind,ek){const r=collection(kind).find(x=>x._k===decodeU
 function openPersonBy(id,en){const name=decodeURIComponent(en||''),seed={empId:digits(id).length>=2?id:'',name};const f=pcFind(seed);const r=f.joins[0]||f.resigns[0]||f.cand[0];if(r)showPersonCard(r);else pcShow(esc(name||id),`<p class="muted">${L('找不到這個人的其他記錄','No other records for this person','គ្មានកំណត់ត្រាផ្សេង')}</p>`)}
 function showPersonCard(seed){
   const f=pcFind(seed),all=[...f.cand,...f.joins,...f.resigns,seed],pick=k=>{for(const r of all)if(r&&r[k])return r[k];return''};
-  const name=pick('name'),id=pick('empId'),lastJ=f.joins.map(r=>r.joinDate).sort().pop()||f.cand.map(r=>r.joinDate).filter(Boolean).sort().pop()||'',lastR=f.resigns.map(r=>r.resignDate).sort().pop()||'';
+  const name=pick('name'),id=pick('empId');PC_EMP=[id,name];const lastJ=f.joins.map(r=>r.joinDate).sort().pop()||f.cand.map(r=>r.joinDate).filter(Boolean).sort().pop()||'',lastR=f.resigns.map(r=>r.resignDate).sort().pop()||'';
   const status=lastR&&lastR>=lastJ?`<span class="badge danger">${L('已離職','Resigned','ចាកចេញ')}</span>`:lastJ?`<span class="badge ok">${L('在職','Active','សកម្ម')}</span>`:`<span class="badge warn">${L('應徵中','Applicant','បេក្ខជន')}</span>`;
   const tl=[];
   f.cand.forEach(r=>tl.push([r.registerDate,'🎯 '+L('應徵','Applied','ដាក់ពាក្យ'),`${resultBadge(r)} ${esc([r.position,r.referral&&L('介紹人：','Referral: ','')+r.referral].filter(Boolean).join(' · '))}`,['candidate',r]]));
