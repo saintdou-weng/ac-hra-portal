@@ -71,6 +71,11 @@
    +'.kn-sec #kn-hd{border-bottom:1px solid #edf1f5}.kn-no{flex:none;align-self:flex-start;font-size:12px;font-weight:700;background:#eef3f8;color:#5b6b7c;border-radius:999px;padding:3px 10px;white-space:nowrap}.kn-no b{color:#1d2b3a}'
    +'.kn-sec .kn-top{border-bottom:1px solid #edf1f5}.kn-sec #kn-rows{margin:10px 12px 12px;box-shadow:none}'
    +'.kn-end{text-align:center;color:#94a3b8;font-size:12px;padding:6px 0 26px}';
+  /* v5（2026-11-23 Paul：字不一定全黑，但一頁最好不超過 3 種）：深色＝標題和一般的值；灰＝標籤和說明；藍＝重點數字、代號、目前選到的。負數的紅字保留（那是警示）。 */
+  css+='#kn-box{color:#1d2b3a}.kn-nv,.kn-code,.kn-no b,#kn-sub b,#kn-tabs button.on,.kn-br.on .v,.kn-st b{color:#1e40af}.kn-neg .kn-nv{color:#dc2626}'
+   +'#kn-tabs button.on{border-bottom-color:#1e40af}.kn-br.on .t i{background:#1e40af}.kn-cc button.on,.kn-chip.on{background:#1e40af;border-color:#1e40af;color:#fff}'
+   +'.kn-rl,.kn-nl,.kn-ref,#kn-sub,.kn-no,#kn-tabs button,.kn-leg,#kn-pos,#kn-hint,.kn-end{color:#64748b}.kn-rv,#kn-title,#kn-nav button,#kn-x{color:#1d2b3a}'
+   +'.kn-hc,.kn-hc.g,.kn-hc.y,.kn-hc.r{color:#1d2b3a}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
   var mask,box,curRow=null,curT=-1,curKey='';
   /* 欄位小圖示：看欄名（和值）挑一個 */
@@ -199,6 +204,7 @@
     return sibsOf(el).length>=2||el.matches(C_SEL);
   }
   function cardOf(t){var el=t;for(var i=0;i<6&&el&&el!==document.body;i++,el=el.parentElement){if(cardish(el))return el;}return null;}
+  try{window.acKnCardOf=function(t){return cardOf(t);};}catch(e){}
   function cardParts(el){
     var best=null,bs=0;[].forEach.call(el.querySelectorAll('*'),function(n){if(n.children.length)return;var tx=txt(n);if(!/\d/.test(tx)||tx.length>30)return;var fs=parseFloat(getComputedStyle(n).fontSize)||0;if(fs>bs){bs=fs;best=n;}});
     var val=best?txt(best):((txt(el).match(/[-+$＄]?[\d,]+(\.\d+)?%?/)||[''])[0]);
@@ -216,7 +222,7 @@
     if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
       numsHtml+='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(P.n)/mx*100))+'%"></i></div><div class="kn-ref">'+vsAvg(P.n,sum/nums.length)+'</div>';}
     numsHtml+='</div>';   /* 外面 tabsHtml 會包一層 #kn-nums；這張大數字卡佔整列 */
-    var rowsHtml=P.lines.map(function(x){var m=x.match(/^(.{1,30}?)[：:]\s*(.+)$/);return '<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+(m?icOf(m[1]):'🗒')+'</span>'+esc(m?m[1]:'說明')+'</div><div class="kn-rv">'+esc(m?m[2]:x)+'</div></div>';}).join('');
+    var rowsHtml=P.lines.map(function(x){var m=x.match(/^(.{1,30}?)[：:]\s*(.+)$/);return '<div class="kn-r'+((!m||P.lines.length===1)?' full':'')+'"><div class="kn-rl"><span class="kn-ic">'+(m?icOf(m[1]):'🗒')+'</span>'+esc(m?m[1]:'說明')+'</div><div class="kn-rv">'+esc(m?m[2]:x)+'</div></div>';}).join('');
     var allHtml=all.map(function(x,i){return '<button type="button" class="kn-br'+(i===idx?' on':'')+'" data-i="'+i+'" style="grid-template-columns:1fr auto"><span class="n">'+(i===idx?'▶ ':'')+'<span class="kn-ic">'+icOf(x.label)+'</span>'+esc(x.label)+'</span><span class="v">'+esc(x.val)+'</span></button>';}).join('');
     var cmpHtml='';
     if(nums.length>=2){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
