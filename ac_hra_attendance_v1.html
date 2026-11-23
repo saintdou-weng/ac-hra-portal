@@ -1064,8 +1064,34 @@ function renderAttendancePeriodList(){
   box.innerHTML=chips+html;
   if(mk0==='rate'){box.querySelectorAll('tr.acpl-r').forEach((tr,i)=>{const x=attendancePeriodMetrics(ATT_LIST_GRAIN,rows[i].k),td=tr.querySelector('.acpl-v');if(td)td.textContent=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';});}
 }
+/* 組別名稱整理：LINE3／L3／Line 3 都算 LINE3；其他（Cutting、QC、中文部門）照原名 */
+function attGrp(s){let n=String(s||'').trim();if(!n)return '—';const u=n.toUpperCase().replace(/[\s\u3000]+/g,'');let m=u.match(/^(?:SEWING)?(?:LINE|L)0*(\d{1,2})$/);if(m)return 'LINE'+(+m[1]);return n;}
+/* 2026-11-23 Paul：考勤裡點某一組（例如 LINE3）的卡 → 下面接著列「這一期 LINE3 入職／離職的人」。用入離職原本的部門名稱比對，對不到就不顯示。 */
+(function(){
+  const own=typeof window.acKeynoteExtra==='function'?window.acKeynoteExtra:null;
+  window.acKeynoteExtra=function(row,table){
+    let h='';try{h=own?(own(row,table)||''):'';}catch(e){}
+    try{
+      if(!row||!row.cells||!row.cells.length)return h;
+      const cells=[...row.cells].map(c=>(c.innerText||c.textContent||'').trim());
+      let grp='';for(const c of cells.slice(0,3)){const g=attGrp(c);if(/^LINE\d+$/.test(g)){grp=g;break;}}
+      const J=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[],R=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[];
+      if(!grp){const names={};J.concat(R).forEach(r=>{names[attGrp(r.section||r.dept)]=1;});for(const c of cells.slice(0,2)){if(names[c]){grp=c;break;}}}
+      if(!grp)return h;
+      let key='';for(const c of cells){const m=c.match(/(20\d\d)[-\/](\d{2})(?:[-\/]\d{2})?/);if(m){key=m[1]+'-'+m[2];break;}}
+      if(!key){const tab=typeof ACTIVE_TAB!=='undefined'?ACTIVE_TAB:'';if(tab==='yearly'){key=(document.getElementById('ysel')||{}).value||'';}else if(tab==='daily'){key=String((document.getElementById('dsel')||{}).value||'').slice(0,7);}else{key=(document.getElementById('msel')||{}).value||'';}}
+      if(!key)key=new Date().toISOString().slice(0,7);
+      const n=key.length,jj=J.filter(r=>attGrp(r.section||r.dept)===grp&&String(r.joinDate||'').slice(0,n)===key),rr=R.filter(r=>attGrp(r.section||r.dept)===grp&&String(r.resignDate||'').slice(0,n)===key);
+      const e=v=>String(v==null?'':v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+      const li=(r,isR)=>'<div style="display:flex;gap:8px;align-items:baseline;padding:6px 2px;border-top:1px solid rgba(15,23,42,.08)"><span style="color:'+(isR?'#be123c':'#047857')+';font-weight:700;min-width:2.6em">'+(isR?T('離','Out','ចេញ'):T('入','In','ចូល'))+'</span><span style="font-variant-numeric:tabular-nums;color:#1e40af;min-width:4.5em">'+e(r.empId||r.id||'')+'</span><span style="flex:1;min-width:0">'+e(r.name||'')+' <span style="color:#64748b;font-size:12px">'+e(r.position||'')+'</span></span><span style="font-variant-numeric:tabular-nums;color:#475569;font-size:12px">'+e(isR?r.resignDate:r.joinDate)+'</span></div>';
+      h+='<div class="kn-r full" style="display:block"><div class="kn-rl"><span class="kn-ic">🔁</span>'+e(key)+' · '+e(grp)+' '+T('入職','joined','ចូល')+' '+jj.length+' · '+T('離職','resigned','ចេញ')+' '+rr.length+'</div>'+
+        ((jj.length||rr.length)?'<div class="kn-rv" style="font-size:13.5px;font-weight:500">'+jj.map(r=>li(r,false)).join('')+rr.map(r=>li(r,true)).join('')+'</div>':'<div class="kn-rv" style="color:#64748b;font-size:13px">'+T('這一期這一組沒有入離職','No joins or resignations in this group this period','គ្មាន')+'</div>')+'</div>';
+    }catch(e){console.error(e);}
+    return h;
+  };
+})();
 function attMovers(key){
-  const out={j:[],r:[]};
+  const out={j:[],r:[],byDept:{}};
   try{
     const J=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[],R=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[],n=key.length;
     let hold=document.getElementById('att-mv-hold');if(!hold){hold=document.createElement('div');hold.id='att-mv-hold';hold.style.cssText='position:absolute;left:-99999px;top:0;width:1100px;pointer-events:none';document.body.appendChild(hold);}
@@ -1075,6 +1101,7 @@ function attMovers(key){
     hold.innerHTML=tb([T('工號','ID','លេខ'),T('姓名','Name','ឈ្មោះ'),T('部門','Department','ផ្នែក'),T('職稱','Job','តួនាទី'),T('入職日','Join date','ថ្ងៃចូល')],jj.map(r=>[r.empId||r.id||'',r.name||'',r.section||r.dept||'—',r.position||'',r.joinDate||'']))+
       tb([T('工號','ID','លេខ'),T('姓名','Name','ឈ្មោះ'),T('部門','Department','ផ្នែក'),T('職稱','Job','តួនាទី'),T('入職日','Join date','ថ្ងៃចូល'),T('離職日','Resign date','ថ្ងៃចេញ'),T('在職天數','Days worked','ថ្ងៃធ្វើការ'),T('原因','Reason','មូលហេតុ')],rr.map(r=>[r.empId||r.id||'',r.name||'',r.section||r.dept||'—',r.position||'',r.joinDate||'',r.resignDate||'',r.workingDays!=null?r.workingDays:'',r.reason||'']));
     const tbs=hold.querySelectorAll('table');out.j=[...tbs[0].querySelectorAll('tbody tr')];out.r=[...tbs[1].querySelectorAll('tbody tr')];
+    out.byDept={};jj.forEach((r,i)=>{const d=attGrp(r.section||r.dept);(out.byDept[d]=out.byDept[d]||{j:[],r:[]}).j.push(out.j[i]);});rr.forEach((r,i)=>{const d=attGrp(r.section||r.dept);(out.byDept[d]=out.byDept[d]||{j:[],r:[]}).r.push(out.r[i]);});
   }catch(e){console.error(e);}
   return out;
 }
@@ -1092,13 +1119,15 @@ function attPeriodCard(grain,key){
       else if(mk0==='abs'){v=s.absent;text=String(v);}else if(mk0==='join'){v=s.join;text=String(v);}else{v=s.resign;text=String(v);}
       return {k:s.name,v:v,text:text,color:color,rows:[trs[i]]};}).filter(it=>mk0==='rate'||mk0==='hc'||it.v>0).sort((a,b)=>mk0==='rate'?a.v-b.v:b.v-a.v);
     /* 這一期入職／離職的人（來自同平台的入離職頁）：點了看名單，往下滑會一直接下去 */
-    const mv=attMovers(key),mvItems=[];
+    const mv=attMovers(key),mvItems=[],mvDept=[];
     if(mv.j.length)mvItems.push({k:'🟢 '+T('入職','Joined','ចូលថ្មី'),v:mv.j.length,text:mv.j.length+' '+T('人','ppl','នាក់'),color:'#10b981',rows:mv.j});
     if(mv.r.length)mvItems.push({k:'🔴 '+T('離職','Resigned','លាឈប់'),v:mv.r.length,text:mv.r.length+' '+T('人','ppl','នាក់'),color:'#f43f5e',rows:mv.r});
+    /* 依部門／組別（用入離職資料原本的名稱，例如 LINE3、Cutting）：點一條只看那一組這一期入離職的人 */
+    Object.keys(mv.byDept).sort((a,b)=>(mv.byDept[b].j.length+mv.byDept[b].r.length)-(mv.byDept[a].j.length+mv.byDept[a].r.length)).forEach(d=>{const g=mv.byDept[d];mvDept.push({k:d,v:g.j.length+g.r.length,text:T('入','In','ចូល')+' '+g.j.length+' · '+T('離','Out','ចេញ')+' '+g.r.length,color:'#6366f1',rows:g.j.concat(g.r)});});
     const tot=mk0==='rate'?(x.rate==null?'—':(x.rate*100).toFixed(1)+'%'):String(attMetricVal(x,mk0));
     window.acKeynoteBars({title:key+' · '+T(M[1],M[2],M[3])+' '+tot,icon:'🕐',chips:[x.days+' '+T('天有資料','days of data','ថ្ងៃ')],tab:T('各組','By section','តាមផ្នែក'),
       nums:[{icon:'👥',label:T('平均在職','Avg headcount','បុគ្គលិកមធ្យម'),value:String(Math.round(x.avgHC))},{icon:'✅',label:T('出勤率','Attendance rate','អត្រាវត្តមាន'),value:x.rate==null?'—':(x.rate*100).toFixed(1)+'%'}],
-      blocks:[{label:T('各組的','By section — ','តាមផ្នែក — ')+T(M[1],M[2],M[3])+(mk0==='rate'?T('（低的在上）',' (lowest first)',''):'')+' · '+T('點一條看那一組的明細','tap a bar for details','ចុចដើម្បីមើល'),items:items,total:tot,totalLabel:mk0==='rate'||mk0==='hc'?T('全廠','Factory','រោងចក្រ'):T('合計','Total','សរុប')}].concat(mvItems.length?[{label:T('這一期入職／離職的人 · 點了看名單','Joined / resigned this period · tap for the list','ចូល / ចេញ'),items:mvItems}]:[])});
+      blocks:[{label:T('各組的','By section — ','តាមផ្នែក — ')+T(M[1],M[2],M[3])+(mk0==='rate'?T('（低的在上）',' (lowest first)',''):'')+' · '+T('點一條看那一組的明細','tap a bar for details','ចុចដើម្បីមើល'),items:items,total:tot,totalLabel:mk0==='rate'||mk0==='hc'?T('全廠','Factory','រោងចក្រ'):T('合計','Total','សរុប')}].concat(mvItems.length?[{label:T('這一期入職／離職的人 · 點了看名單','Joined / resigned this period · tap for the list','ចូល / ចេញ'),items:mvItems}]:[]).concat(mvDept.length?[{label:T('入離職依部門／組別 · 點一組看那一組的人','Joined / resigned by department · tap a group','តាមផ្នែក'),items:mvDept}]:[])});
   }catch(e){console.error(e);}
 }
 function jumpAttendancePeriod(key){
