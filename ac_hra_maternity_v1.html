@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
-<head><script src="shared/hra-gate.js?v=20261117"></script>
+<head><script src="shared/hra-gate.js?v=20261123c"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>AC HRA · 孕婦產假護理費管理 Maternity</title>
@@ -121,6 +121,7 @@ tbody tr:hover{background:#f8fafc}
   .pnav .stp select{min-width:0;max-width:96px}.pnav .stp button{width:28px}.pnav .cap{display:none}
 }
 </style>
+<script src="shared/period-list.js?v=1"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -782,7 +783,7 @@ var I18N={
  zh:{hdr_title:'孕婦 · 產假 · 護理費 · 健檢費管理 Maternity',up:'上傳',down:'下載',exp:'匯出',imp:'還原',
      tab_ov:'總覽',tab_preg:'🤰 孕婦',tab_mat:'🍼 產假',tab_nur:'💊 護理費',tab_health:'🏥 健檢費',tab_med:'💊 醫療採購',tab_clinic:'🩺 診所',tab_anly:'📊 分析',tab_appr:'核可',tab_set:'⚙️ 設定',k_medamt:'💊 醫療採購合計',t_meddet:'醫療採購明細',t_clinicmonth:'診所月摘要',t_clinicdiag:'診斷統計',t_clinicdet:'看診明細',
      k_preg:'🤰 懷孕中 Pregnant',k_mat:'🍼 產假中 On Leave',k_ret:'📅 30天回歸 Return≤30d',k_nurppl:'💊 護理費在領 Nursing',k_nuramt:'💵 本期護理費 Fee Paid',k_total:'👥 名冊總數 Total',
-     c_trend:'孕婦登記 / 護理費趨勢',c_status:'狀態分佈',c_rpt:'期間報表',c_rpt2:'點選任一列可切換期間',
+     c_trend:'孕婦登記 / 護理費趨勢',c_status:'狀態分佈',c_rpt:'期間報表',c_rpt2:'點一列看那個月的卡（人數／金額明細）',
      c_deptdist:'部門分佈',c_edd:'預產期近況 (60天)',c_return:'回歸排程',c_dim:'維度分佈',c_mtrend:'月度趨勢',c_dimtbl:'維度明細',
      t_pregdet:'孕婦明細',t_matdet:'產假明細',t_nurdet:'護理費明細',t_hfdet:'健檢費明細',t_appr:'核可清單',
      dim:'統計維度',dimside:'對象',s_cloud:'雲端 / Telegram',s_about:'相容性',
@@ -792,7 +793,7 @@ var I18N={
  en:{hdr_title:'Maternity & Health Fee Management',up:'Upload',down:'Download',exp:'Export',imp:'Restore',
      tab_ov:'Overview',tab_preg:'🤰 Pregnant',tab_mat:'🍼 Maternity',tab_nur:'💊 Nursing',tab_health:'🏥 Health Fee',tab_med:'💊 Medical Purchase',tab_clinic:'🩺 Clinic',tab_anly:'📊 Analysis',tab_appr:'Approval',tab_set:'⚙️ Settings',k_medamt:'💊 Medical Purchase',t_meddet:'Medical Purchase Records',t_clinicmonth:'Clinic Monthly Summary',t_clinicdiag:'Diagnosis Summary',t_clinicdet:'Clinic Visit Records',
      k_preg:'🤰 Pregnant',k_mat:'🍼 On Leave',k_ret:'📅 Return ≤30d',k_nurppl:'💊 Nursing People',k_nuramt:'💵 Fee Paid',k_total:'👥 Total',
-     c_trend:'Registration / Nursing Trend',c_status:'Status',c_rpt:'Period Report',c_rpt2:'Click a row to switch period',
+     c_trend:'Registration / Nursing Trend',c_status:'Status',c_rpt:'Period Report',c_rpt2:'Tap a row for that period’s card',
      c_deptdist:'Dept Distribution',c_edd:'Upcoming EDD (60d)',c_return:'Return Schedule',c_dim:'Distribution',c_mtrend:'Monthly Trend',c_dimtbl:'Dimension Table',
      t_pregdet:'Pregnant Records',t_matdet:'Maternity Records',t_nurdet:'Nursing Records',t_hfdet:'Health Check Fee Records',t_appr:'Approval List',
      dim:'Dimension',dimside:'Scope',s_cloud:'Cloud / Telegram',s_about:'Compatibility',
@@ -1004,7 +1005,7 @@ function pJump(key,mode,val){ NAV[key].mode=mode; pPick(key,val); }
 function allDates(){
   var s={};
   EMP.forEach(function(r){ var d=evDateEmp(r); if(d)s[d]=1; });
-  NUR.forEach(function(r){ if(r.payMonth)s[r.payMonth+'-01']=1; });
+  nurView().forEach(function(r){ if(r.payMonth)s[r.payMonth+'-01']=1; });
   HF.forEach(function(r){ if(r.period)s[r.period+'-01']=1; });
   MED.forEach(function(r){ if(r.period)s[r.period+'-01']=1; });
   CLINIC.forEach(function(r){ var d=r.date||r.visitDate||((r.period||'')+'-01'); if(d&&d.length>=7)s[d.slice(0,7)+'-01']=1; });
@@ -1164,6 +1165,16 @@ function parseNurMonth(sheetName){
   if(!m||!NUR_MON[m[1]])return '';
   var y=+m[2]; if(y<100)y+=2000;
   return y+'-'+p2(NUR_MON[m[1]]);
+}
+/* 2026-11-23：護理費有一批舊匯入的記錄，月份存成分頁名稱（Sep'20、Apr'2026…），而且大多跟後來正規月份（2020-09）的那一批重複。
+   顯示／加總一律用 nurView()：月份轉成 YYYY-MM；同一人同一月已有正規記錄的舊記錄不重複算。只影響畫面與加總，不動已存的資料。 */
+function nurView(){
+  if(nurView._s===NUR&&nurView._n===NUR.length)return nurView._v;
+  var iso=/^20\d\d-\d\d$/,seen={},out=[];
+  NUR.forEach(function(r){if(iso.test(r.payMonth||'')){seen[(r.cardId||'')+'|'+r.payMonth]=1;out.push(r);}});
+  NUR.forEach(function(r){if(iso.test(r.payMonth||''))return;var k=parseNurMonth(r.payMonth||r.sheetName);if(!k)return;
+    if(r.cardId&&seen[r.cardId+'|'+k])return;if(r.cardId)seen[r.cardId+'|'+k]=1;var o=Object.assign({},r);o.payMonth=k;out.push(o);});
+  nurView._s=NUR;nurView._n=NUR.length;nurView._v=out;return out;
 }
 function detectType(wb,fileName){
   var names=wb.SheetNames||[];
@@ -1815,7 +1826,7 @@ function rebuildFilterOptions(){
 
 /* ═══════════ 資料選取（依期間） ═══════════ */
 function empIn(st){ return EMP.filter(function(r){ return pIn(evDateEmp(r),st); }); }
-function nurIn(st){ return NUR.filter(function(r){ return pIn(r.payMonth?r.payMonth+'-01':'',st); }); }
+function nurIn(st){ return nurView().filter(function(r){ return pIn(r.payMonth?r.payMonth+'-01':'',st); }); }
 function monthIn(st,m){
   if(!m)return false; var b=pBounds(st); if(!b)return true;
   var first=String(m).slice(0,7)+'-01', last=String(m).slice(0,7)+'-31';
@@ -1854,61 +1865,51 @@ function barCell(n,t,c){ var w=t?Math.round(n/t*100):0; return '<td class="text-
 
 /* ═══════════ payroll 式期間報表 ═══════════ */
 function periodReportHTML(key){
+  /* 2026-11-23 Paul：按的是哪一項就只看那一項——每個月（年）一列＝期間｜該項總和｜長條；點一列跳那一期的卡（依部門／項目＋總和 → 名單 → 個人）。 */
   var st=NAV[key]; if(st.mode!=='month'&&st.mode!=='year')return '';
   var cur=pKey(st),isYear=st.mode==='year';
   var keys=monthsWithData(); if(isYear)keys=yearsWithData();
+  keys=keys.filter(function(k){return /^20\d\d(-\d\d)?$/.test(k);});
   if(keys.indexOf(cur)<0){keys=keys.concat([cur]);keys.sort();}
   keys=keys.slice().reverse();
-  var rows=keys.map(function(k){
-    var reg=EMP.filter(function(r){var d=evDateEmp(r);return d&&d.slice(0,k.length)===k;});
-    var preg=reg.filter(function(r){return r.status==='pregnant';}).length;
-    var mat=reg.filter(function(r){return r.status==='maternity';}).length;
-    var ret=EMP.filter(function(r){return r.returnDate&&r.returnDate.slice(0,k.length)===k;}).length;
-    var payRows=EMP.filter(function(r){var d=r.leaveStart||r.applyDate||r.registerTime||'';return d&&d.slice(0,k.length)===k&&(+r.matAmount||0)!==0;});
-    var payAmt=payRows.reduce(function(s,r){return s+(+r.matAmount||0);},0);
-    var nrows=NUR.filter(function(r){return r.payMonth&&r.payMonth.slice(0,k.length)===(isYear?k:k);});
-    var namt=nrows.reduce(function(s,r){return s+(+r.amount||0);},0);
-    var hrows=HF.filter(function(r){return r.period&&r.period.slice(0,k.length)===(isYear?k:k);});
-    var hamt=hrows.reduce(function(s,r){return s+(+r.amount||0);},0);
-    var mrows=MED.filter(function(r){return r.period&&r.period.slice(0,k.length)===(isYear?k:k);});
-    var mamt=mrows.reduce(function(s,r){return s+(+r.amount||0);},0);
-    var crows=CLINIC.filter(function(r){return r.type==='clinic_summary'&&r.period&&r.period.slice(0,k.length)===(isYear?k:k);});
-    var cvis=crows.reduce(function(s,r){return s+(+r.visitCount||+r.total||0);},0);
-    var camt=crows.reduce(function(s,r){return s+(+r.medicalFee||0);},0), cknown=crows.some(function(r){return r.medicalFeeProvided!==false;});
-    return {k:k,reg:reg.length,preg:preg,mat:mat,ret:ret,payn:payRows.length,payamt:payAmt,nn:nrows.length,namt:namt,hn:hrows.length,hamt:hamt,mn:mrows.length,mamt:mamt,cn:cvis,camt:camt,cknown:cknown};
-  });
-  var mode=isYear?'year':'month';
-  var h='<div class="tbl-wrap" style="max-height:300px"><table><thead><tr>'+
-    '<th>'+L('期間','Period')+'</th><th class="text-right">'+L('名冊登記','Registry')+'</th>'+
-    '<th class="text-right">'+L('孕婦','Pregnant')+'</th><th class="text-right">'+L('產假','Maternity')+'</th>'+
-    '<th class="text-right">'+L('回歸','Return')+'</th><th class="text-right">'+L('產假給付筆數','Maternity Pay #')+'</th><th class="text-right">'+L('產假給付金額','Maternity Pay $')+'</th><th class="text-right">'+L('護理費筆數','Nursing #')+'</th>'+
-    '<th class="text-right">'+L('護理費金額','Fee $')+'</th><th class="text-right">'+L('健檢費筆數','Health #')+'</th><th class="text-right">'+L('健檢費金額','Health $')+'</th><th class="text-right">'+L('醫療採購筆數','Medical #')+'</th><th class="text-right">'+L('醫療採購金額','Medical $')+'</th><th class="text-right">'+L('診所人次','Clinic Visits')+'</th><th class="text-right">'+L('診所醫療費','Clinic Fee $')+'</th></tr></thead><tbody>';
-  rows.forEach(function(r){
-    var on=r.k===cur;
-    h+='<tr class="rpt-row'+(on?' row-cur':'')+'" onclick="pJump(\''+key+'\',\''+mode+'\',\''+(mode==='year'?r.k:r.k+'-01')+'\')">'+
-      '<td class="jmono">'+(on?'&#9664; ':'')+esc(r.k)+'</td>'+
-      '<td class="text-right jmono">'+fmt0(r.reg)+'</td>'+
-      '<td class="text-right jmono text-pink-600">'+fmt0(r.preg)+'</td>'+
-      '<td class="text-right jmono text-violet-600">'+fmt0(r.mat)+'</td>'+
-      '<td class="text-right jmono text-emerald-600">'+fmt0(r.ret)+'</td>'+ 
-      '<td class="text-right jmono text-fuchsia-600">'+fmt0(r.payn)+'</td>'+ 
-      '<td class="text-right jmono">$'+fmt(r.payamt)+'</td>'+ 
-      '<td class="text-right jmono text-sky-600">'+fmt0(r.nn)+'</td>'+ 
-      '<td class="text-right jmono">$'+fmt(r.namt)+'</td>'+ 
-      '<td class="text-right jmono text-amber-600">'+fmt0(r.hn)+'</td>'+ 
-      '<td class="text-right jmono">$'+fmt(r.hamt)+'</td>'+ 
-      '<td class="text-right jmono text-cyan-600">'+fmt0(r.mn)+'</td>'+ 
-      '<td class="text-right jmono">$'+fmt(r.mamt)+'</td>'+ 
-      '<td class="text-right jmono text-teal-600">'+fmt0(r.cn)+'</td>'+ 
-      '<td class="text-right jmono">'+(r.cknown?'$'+fmt(r.camt):'—')+'</td></tr>';
-  });
-  h+='</tbody></table></div>';
-  return h;
+  if(!window.ACPL)return '';
+  var rows=keys.map(function(k){var d=periodData(k),v=0,sub='';
+    if(key==='preg'){v=d.P.length;}
+    else if(key==='mat'){v=d.M.length;var a=d.M.reduce(function(t,r){return t+(+r.matAmount||0);},0);sub=a?'$'+fmt(a):'';}
+    else if(key==='nur'){v=d.Nr.reduce(function(t,r){return t+(+r.amount||0);},0);sub=d.Nr.length?fmt0(d.Nr.length)+' '+L('筆','rec'):'';}
+    else{var n=0;FEE_CATS.forEach(function(c){var rr=c.rows(d);n+=rr.length;v+=rr.reduce(function(t,r){return t+c.amt(r);},0);});sub=n?fmt0(n)+' '+L('筆','rec'):'';}
+    return {k:k,v:v,sub:sub};});
+  var cfg={preg:{head:L('孕婦登記人數','Pregnant'),color:'#ec4899',unit:L('人','ppl')},mat:{head:L('產假人數','On maternity'),color:'#8b5cf6',unit:L('人','ppl'),subHead:L('產假給付','Maternity pay')},
+           nur:{head:L('護理費金額','Nursing fee'),color:'#0ea5e9',money:true,subHead:L('筆數','Records')},ov:{head:L('各項費用合計','All fees total'),color:'#10b981',money:true,subHead:L('筆數','Records')}}[key]||{};
+  cfg.rows=rows;cfg.cur=cur;cfg.fn='matPeriodCard';cfg.arg=key;cfg.period=L('期間','Period');cfg.chart=L('圖表','Chart');cfg.empty=L('沒有資料','No data');
+  return ACPL.list(cfg);
+}
+/* 那一期的卡：把那一期的記錄交給共用統計卡 */
+function matPeriodCard(key,k){
+  var mode=String(k).length===4?'year':'month';
+  try{pJump(key,mode,mode==='year'?k:k+'-01');}catch(e){}
+  setTimeout(function(){try{
+    var d=periodData(k),o;
+    if(key==='preg')o={title:k+' · '+L('孕婦登記','Pregnant')+' '+d.P.length+' '+L('人','ppl'),group:L('部門','Department'),
+      heads:[L('工號','ID'),L('姓名','Name'),L('部門','Department'),L('組別','Group'),L('職位','Position'),L('預產期','EDD'),L('登記日','Registered')],
+      rows:d.P.map(function(r){return [r.idNo,r.name,r.dept||'—',r.group,r.position,r.edd,String(r.registerTime||'').slice(0,10)];})};
+    else if(key==='mat')o={title:k+' · '+L('產假','Maternity')+' '+d.M.length+' '+L('人','ppl'),group:L('部門','Department'),amt:true,
+      heads:[L('工號','ID'),L('姓名','Name'),L('部門','Department'),L('職位','Position'),L('產假開始','Leave start'),L('回歸日','Return'),L('產假給付金額','Maternity pay $')],
+      rows:d.M.map(function(r){return [r.idNo,r.name,r.dept||'—',r.position,r.leaveStart,r.returnDate,(+r.matAmount||0).toFixed(2)];})};
+    else if(key==='nur')o={title:k+' · '+L('護理費','Nursing fee')+' $'+fmt(d.Nr.reduce(function(t,r){return t+(+r.amount||0);},0)),group:L('部門','Department'),amt:true,
+      heads:[L('工號','ID'),L('姓名','Name'),L('部門','Department'),L('給付月份','Pay month'),L('第幾個月','Month no.'),L('金額','Amount $')],
+      rows:d.Nr.map(function(r){return [r.cardId,r.name,r.dept||'—',r.payMonth,r.monthNo,(+r.amount||0).toFixed(2)];})};
+    else{var rr=[],tot=0;FEE_CATS.forEach(function(c){c.rows(d).forEach(function(r){var a=c.amt(r);tot+=a;
+        rr.push([c.ico+' '+L(c.zh,c.en,c.km),r.idNo||r.cardId||r.empId||'',r.name||r.item||r.productName||r.description||'',r.dept||r.department||'—',r.payMonth||r.period||String(evDateEmp(r)||'').slice(0,7),a.toFixed(2)]);});});
+      o={title:k+' · '+L('各項費用','All fees')+' $'+fmt(tot),group:L('項目','Item'),amt:true,
+        heads:[L('項目','Item'),L('工號','ID'),L('姓名／品名','Name / item'),L('部門','Department'),L('月份','Month'),L('金額','Amount $')],rows:rr};}
+    ACPL.card(o);
+  }catch(e){console.error(e);}},120);
 }
 function monthsWithData(){
   var s={};
   EMP.forEach(function(r){var d=evDateEmp(r);if(d)s[d.slice(0,7)]=1;});
-  NUR.forEach(function(r){if(r.payMonth)s[r.payMonth]=1;});
+  nurView().forEach(function(r){if(r.payMonth)s[r.payMonth]=1;});
   HF.forEach(function(r){if(r.period)s[r.period]=1;});
   MED.forEach(function(r){if(r.period)s[r.period]=1;});
   CLINIC.forEach(function(r){var d=clinicDateOf(r);if(d)s[d.slice(0,7)]=1;});
@@ -1992,7 +1993,7 @@ function renderOv(){
       ms.forEach(function(m){
         labels.push(m);
         reg.push(EMP.filter(function(r){var d=evDateEmp(r);return d&&d.slice(0,7)===m;}).length);
-        nur.push(NUR.filter(function(r){return r.payMonth===m;}).length);
+        nur.push(nurView().filter(function(r){return r.payMonth===m;}).length);
         health.push(HF.filter(function(r){return r.period===m;}).length);
         med.push(MED.filter(function(r){return r.period===m;}).length);
       });
@@ -2197,7 +2198,7 @@ function renderNur(){
 function renderNurKpi(rows){
   var ppl=new Set(rows.map(function(r){return r.cardId;})).size;
   var amt=rows.reduce(function(s,r){return s+(+r.amount||0);},0);
-  var totAmt=NUR.reduce(function(s,r){return s+(+r.amount||0);},0);
+  var totAmt=nurView().reduce(function(s,r){return s+(+r.amount||0);},0);
   var mn=rows.map(function(r){return +r.monthNo;}).filter(function(x){return isFinite(x)&&x>0;});
   var avgMn=mn.length?(mn.reduce(function(s,x){return s+x;},0)/mn.length).toFixed(1):'—';
   setHtml('nur-kpi', kpiCard(fmt0(rows.length),'',L('本期筆數','Records'),'text-sky-600')+
@@ -2428,7 +2429,7 @@ function renderAnly(){
     var ms=monthsWithData().slice(-12),reg=[],nur=[],health=[],med=[];
     ms.forEach(function(mm){
       reg.push(EMP.filter(function(r){var d=evDateEmp(r);return d&&d.slice(0,7)===mm&&(side==='preg'?r.status==='pregnant':side==='mat'?(r.status==='maternity'||r.status==='returned'):true);}).length);
-      nur.push(NUR.filter(function(r){return r.payMonth===mm;}).length);
+      nur.push(nurView().filter(function(r){return r.payMonth===mm;}).length);
       health.push(HF.filter(function(r){return r.period===mm;}).length);
       med.push(MED.filter(function(r){return r.period===mm;}).length);
     });
@@ -2740,7 +2741,7 @@ function periodData(p){
   var isYear=String(p).length===4;
   var E=EMP.filter(function(r){var d=evDateEmp(r);return inPeriod(d,p);});
   var _ms=monthsOfKey(p);
-  var Nr=NUR.filter(function(r){
+  var Nr=nurView().filter(function(r){
     if(!r.payMonth) return false;
     return _ms ? _ms.indexOf(r.payMonth)>=0 : r.payMonth.slice(0,String(p).length)===String(p);
   });
