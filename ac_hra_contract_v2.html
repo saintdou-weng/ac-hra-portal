@@ -256,6 +256,33 @@ table tbody tr:hover{background:#fbf9f0}
 <link rel="stylesheet" href="shared/contract-ui.css?v=74">
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/hra-unsent.js?v=6"></script>
+<style id="ct-compact-1123">
+/* 2026-11-23 Paul：上方介面佔太多空間 → 頁首一列、智慧匯入一列（匯入鈕留在外面）、每頁的按鈕排成一列可左右滑、期間列一列 */
+.ct-apphead{padding:6px 12px!important;gap:8px!important}
+.ct-brand h1{font-size:15px!important;margin:0!important;line-height:1.2}.ct-brand p{display:none!important}.ct-logo{width:28px!important;height:28px!important;font-size:11px!important;border-radius:7px!important}
+#contractSmartImportPanel{display:flex!important;align-items:center;gap:10px;padding:6px 12px!important;margin:6px 12px!important;min-height:0!important}
+#contractSmartImportPanel .module-head{flex:0 0 auto;gap:8px!important;flex-wrap:nowrap!important}
+#contractSmartImportPanel [data-ct-label="importHelp"]{display:none!important}
+#contractSmartImportPanel .module-title{font-size:13px!important;white-space:nowrap}
+#contractSmartImportResult{flex:1;min-width:0;padding:0!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important;font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+main .module-head{margin-bottom:6px!important;gap:6px!important}
+main .module-actions{flex-wrap:nowrap!important;overflow-x:auto;justify-content:flex-start!important;-webkit-overflow-scrolling:touch;padding:2px 2px 4px;max-width:100%;scrollbar-width:thin}
+main .module-actions .btn{flex:0 0 auto;white-space:nowrap}
+.dash-period-bar{padding:6px 8px!important;margin:0 0 8px!important;gap:5px!important}
+.dash-period-bar .ptabs button{white-space:nowrap}
+.kpi-strip{margin-bottom:8px!important}
+@media(max-width:760px){
+ .dash-period-bar .ptabs{width:auto!important;display:inline-flex!important}.dash-period-bar .ptabs button{padding:6px 9px!important}
+ .dash-period-bar .period-step-label{display:none}.dash-period-bar .period-select{min-width:96px!important;flex:1}
+ .dash-period-bar .nav-arrow,.dash-period-bar .today-btn{min-width:32px!important;padding:0 6px!important}
+ .ct-headtools{flex-wrap:wrap}
+ body>nav{flex-wrap:nowrap!important;overflow-x:auto}body>nav button{flex:0 0 auto;white-space:nowrap;padding:8px 11px!important}
+ .ct-headtools .ct-telegram,.ct-headtools .btn.ghost{padding:6px 10px!important;min-height:0!important}
+ .ct-brand h1{font-size:14px!important}
+}
+.ct-plist{margin:0 0 10px}.ct-plist-h{font-size:12px;font-weight:700;color:#475569;margin:0 0 4px;display:flex;gap:8px;align-items:baseline}.ct-plist-h small{font-weight:400;color:#64748b}
+</style>
+<script src="shared/period-list.js?v=1"></script>
 </head>
 <body>
 
@@ -396,6 +423,7 @@ table tbody tr:hover{background:#fbf9f0}
     </div>
     <!-- KPI card strip -->
     <div id="probKpiStrip" class="kpi-strip" style="margin-bottom:12px"></div>
+    <div id="probPeriodList" class="ct-plist"></div>
     <div class="filter-row">
       <input type="text" id="dashProbSearch" placeholder="" data-i18n-ph="probSearchPh" oninput="renderDashProb()" style="flex:1;min-width:200px">
       <select id="dashProbResult" onchange="renderDashProb()">
@@ -465,6 +493,7 @@ table tbody tr:hover{background:#fbf9f0}
     </div>
     <!-- KPI card strip -->
     <div id="contKpiStrip" class="kpi-strip" style="margin-bottom:12px"></div>
+    <div id="contPeriodList" class="ct-plist"></div>
     <div class="filter-row">
       <input type="text" id="dashContSearch" placeholder="" data-i18n-ph="contSearchPh" oninput="renderDashCont()" style="flex:1;min-width:200px">
       <select id="dashContStatus" onchange="renderDashCont()">
@@ -1346,6 +1375,7 @@ function renderDashProb(){
   if(search)list=list.filter(r=>[r.factoryId,HRAContractModel.name(r),r.dept,r.section].join(" ").toLowerCase().includes(search));
   list.sort((a,b)=>(getProbDate(b)||"").localeCompare(getProbDate(a)||""));
 
+  ctPeriodList('prob');
   const tbody=document.getElementById("dashProbBody");
   if(!tbody)return;
   tbody.innerHTML=list.map((r,i)=>{
@@ -1375,6 +1405,48 @@ function renderDashProb(){
   document.getElementById("dashProbSummary").textContent=(probMode==='all'?`共 ${list.length} 筆 / Total ${DASH_PROBS.length}`:`本期間 ${list.length} 筆 / Period ${periodList.length} · All ${DASH_PROBS.length}`);
 }
 
+/* ═══ 2026-11-23 月／年列表「一次一張」：每月（年）一列＝期間｜該項人數｜長條；點一列 → 那一期的卡（依部門＋總和）→ 名單 → 個人 ═══ */
+function ctL(zh,en,km){return LANG==='en'?en:LANG==='km'?(km||en):zh}
+function ctPeriodList(type){
+  try{
+    const box=document.getElementById(type==='prob'?'probPeriodList':'contPeriodList');if(!box)return;
+    const mode=type==='prob'?probMode:contMode;
+    if((mode!=='month'&&mode!=='year')||!window.ACPL){box.innerHTML='';return;}
+    const arr=type==='prob'?DASH_PROBS:DASH_CONTS,getter=type==='prob'?getProbDate:getContDate,cur=currentDashKey(type),m={};
+    arr.forEach(r=>{const k=periodKey(getter(r),mode);if(k)m[k]=(m[k]||0)+1;});
+    if(!m[cur])m[cur]=0;
+    const rows=Object.keys(m).sort().reverse().map(k=>{let sub='';
+      if(type==='cont'){try{const a=contractSettlementEntriesForPeriod(k).reduce((s,x)=>s+safeNum(x.settlement&&x.settlement.netPay),0);if(a)sub='$'+a.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}catch(e){}}
+      return {k:k,v:m[k],sub:sub};});
+    const head=type==='prob'?ctL('試用到期人數','Probation due','សាកល្បងផុតកំណត់'):ctL('合約到期筆數','Contracts due','កិច្ចសន្យាផុតកំណត់');
+    box.innerHTML='<div class="ct-plist-h">📅 '+(mode==='year'?ctL('每年','By year','ប្រចាំឆ្នាំ'):ctL('每月','By month','ប្រចាំខែ'))+' · '+head+'<small>'+ctL('點一列看那一期的卡','Tap a row for that period’s card','ចុចជួរដើម្បីមើលកាត')+'</small></div>'+
+      ACPL.list({rows:rows,cur:cur,head:head,unit:ctL('人','ppl','នាក់'),color:type==='prob'?'#f59e0b':'#3b82f6',fn:'ctPeriodCard',arg:type,subHead:type==='cont'?ctL('5% 結算','5% payable','5% ត្រូវបង់'):'',period:ctL('期間','Period','រយៈពេល'),chart:ctL('圖表','Chart','ក្រាហ្វ')});
+  }catch(e){console.error(e);}
+}
+function ctRemCard(_,k){try{const list=(window.__ctRem&&window.__ctRem.get(k))||[];
+  ACPL.card({title:k+' · '+ctL('到期提醒','Due')+' '+list.length+' '+ctL('人','ppl'),
+    heads:[ctL('類型','Type'),ctL('部門','Department'),'VRT',ctL('姓名','Name'),ctL('到期日','Due date'),ctL('剩餘天數','Days left')],
+    rows:list.map(e=>{const d=daysFromToday(e.date);return [e.type,e.emp.department||'—',e.emp.vrtCode||'',e.emp.englishName||e.emp.khmerName||'',e.date,d===null?'':d];})});}catch(e){console.error(e);}}
+function ctPeriodCard(type,k){
+  try{selectDashPeriod(type,k);}catch(e){}
+  setTimeout(()=>{try{
+    const mode=type==='prob'?probMode:contMode,today=todayISO();
+    if(type==='prob'){
+      const list=DASH_PROBS.filter(r=>periodKey(getProbDate(r),mode)===k);
+      ACPL.card({title:k+' · '+ctL('試用到期','Probation due')+' '+list.length+' '+ctL('人','ppl'),
+        heads:[ctL('廠內編號','Factory ID'),ctL('姓名','Name'),ctL('部門','Department'),ctL('入職日','Join date'),ctL('試用到期','Probation end'),ctL('分數','Score'),ctL('狀態','Status')],
+        rows:list.map(r=>{const n=normalizeProbResult(r);return [r.factoryId||'',HRAContractModel.name(r),r.dept||'—',fmtDate(getProbJoinDate(r)),fmtDate(r.probEnd),r.score!=null?r.score:'',t('status'+n.charAt(0).toUpperCase()+n.slice(1))||n];})});
+    }else{
+      const list=DASH_CONTS.filter(r=>periodKey(getContDate(r),mode)===k);
+      ACPL.card({title:k+' · '+ctL('合約到期','Contracts due')+' '+list.length+' '+ctL('筆','rec'),
+        heads:[ctL('廠內編號','Factory ID'),ctL('姓名','Name'),ctL('部門','Department'),ctL('職位','Position'),ctL('合約類型','Contract type'),ctL('到期日','End date'),ctL('狀態','Status')],
+        rows:list.map(r=>{let st=r.status||'active';if(st==='active'&&r.endDate&&r.contractType&&r.contractType!=='UDC'&&r.endDate<today)st='expired';
+          const lab={active:t('statusActiveContract'),expired:t('statusExpired'),renewed:t('statusRenewed'),terminated:t('statusTerminated')}[st]||st;
+          return [r.factoryId||'',r.name||'',r.dept||'—',r.position||'',r.contractType||'—',r.contractType==='UDC'?'—':fmtDate(r.endDate),lab];})});
+    }
+  }catch(e){console.error(e);}},120);
+}
+document.addEventListener('DOMContentLoaded',function(){try{document.querySelectorAll('main .module-actions,.dash-period-bar,body>nav').forEach(function(e){e.classList.add('tf-keep');});}catch(e){}});
 // ── Render contract table ─────────────────────────────────
 function renderDashCont(){
   const remDays2=SETTINGS.reminderDays||15; const today=todayISO();
@@ -1397,6 +1469,7 @@ function renderDashCont(){
   const settleAmtLabel=LANG==='en'?'Payable Total':LANG==='km'?'សរុបត្រូវបង់':'應付總額';
   const feeRef=contractFeeRef(settlePeriod),feeCum=contractFeeCum(feeRef),feeY=feeRef.slice(0,4);   /* 2026-10-27 今年累計 */
   const ytdLabel=(LANG==='en'?'5% YTD ':LANG==='km'?'5% ឆ្នាំ ':'5% 今年累計 ')+(feeRef?feeY+'-01～'+feeRef.slice(5):'')+' · '+feeCum.y.n+(LANG==='en'?' ppl':LANG==='km'?' នាក់':' 人');
+  ctPeriodList('cont');
   const cstrip=document.getElementById("contKpiStrip");
   if(cstrip)cstrip.innerHTML=[
     {l:t("contKpiTotal"),v:ctotal,c:"#1e3a8a"},{l:t("contKpiActive"),v:cactive,c:"#059669"},{l:t("contKpiExpired"),v:cexpired,c:"#dc2626"},{l:t("contKpiSoon"),v:csoon,c:"#d97706"},{l:t("contKpiFDC"),v:cfdc,c:"#b8860b"},{l:t("contKpiUDC"),v:cudc,c:"#0369a1"},
@@ -2182,6 +2255,12 @@ function renderReminders(){
 
   const el=document.getElementById("reminderContent");
   if(buckets.size===0){el.innerHTML='<div class="alert info">沒有資料 / No data</div>';return}
+  /* 2026-11-23：月／年＝每期一列（期間｜到期人數｜長條），點一列出那一期的卡（依類型、部門＋總和 → 名單 → 個人）；日／週照舊 */
+  if((reminderMode==="month"||reminderMode==="year")&&window.ACPL){
+    window.__ctRem=buckets;const nowK=keyFn(todayISO());
+    el.innerHTML=ACPL.list({rows:[...buckets].map(([k,l])=>({k:k,v:l.length})),cur:nowK,head:ctL('到期人數','Due','ផុតកំណត់'),unit:ctL('人','ppl','នាក់'),color:'#f59e0b',fn:'ctRemCard',arg:'',period:ctL('期間','Period','រយៈពេល'),chart:ctL('圖表','Chart','ក្រាហ្វ')}).replace('max-height:360px','max-height:none');
+    return;
+  }
   let html="";
   for(const [k,list] of buckets){
     html+=`<div class="panel" style="margin-bottom:12px"><h2 style="font-size:14px">📅 ${k} <span class="small-text">(${list.length} 項)</span></h2>

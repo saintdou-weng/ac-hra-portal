@@ -17,7 +17,7 @@
     if(document.querySelector('link[data-portal-actionbar-css]')) return;
     var link=document.createElement('link');
     link.rel='stylesheet';
-    link.href='shared/portal-actionbar.css';
+    link.href='shared/portal-actionbar.css?v=2';
     link.setAttribute('data-portal-actionbar-css','1');
     (document.head||document.documentElement).appendChild(link);
   }
@@ -160,6 +160,7 @@
       setupMain();
     }
   }
-  function ready(){addCss();setupExisting();}
+  function plang(){try{var l=localStorage.getItem('ac_hra_lang')||localStorage.getItem('hra_lang')||'';l=/^en/i.test(l)?'en':/^km/i.test(l)?'km':'zh';if(document.documentElement.getAttribute('data-pl')!==l)document.documentElement.setAttribute('data-pl',l);}catch(e){}}
+  function ready(){addCss();setupExisting();plang();setInterval(plang,1200);}
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',ready); else ready();
 })();

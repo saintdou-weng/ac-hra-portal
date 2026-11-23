@@ -23,7 +23,7 @@
     '.acpl .acpl-k{white-space:nowrap;word-break:keep-all;font-weight:700;color:#1e40af;font-variant-numeric:tabular-nums;width:1%}' +
     '.acpl .acpl-v{white-space:nowrap;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;width:1%}' +
     '.acpl .acpl-s{white-space:nowrap;text-align:right;font-size:11px;color:#64748b;width:1%}' +
-    '.acpl .acpl-b{min-width:90px}.acpl .acpl-t{height:12px;border-radius:6px;background:#e2e8f0;overflow:hidden}' +
+    '.acpl .acpl-b{min-width:90px}.acpl .acpl-t{max-width:520px;height:12px;border-radius:6px;background:#e2e8f0;overflow:hidden}' +
     '.acpl .acpl-t i{display:block;height:100%;border-radius:6px}' +
     '.acpl-hint{font-size:11px;color:#64748b;padding:6px 10px}';
   function css() { if (document.getElementById('acpl-css')) return; var s = document.createElement('style'); s.id = 'acpl-css'; s.textContent = CSS; (document.head || document.documentElement).appendChild(s); }
