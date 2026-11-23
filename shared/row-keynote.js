@@ -219,7 +219,10 @@
     openAt({kind:'sum',n:1,els:[table],inf:inf,rows:rows,table:table,title:title,build:function(){last=sumSec(inf,rows,title,cap);this.last=last;return last;}},0);}
   function sumClick(c){if(!SRC||SRC.kind!=='sum'||!SRC.last)return false;var g=c.getAttribute('data-g'),m=c.getAttribute('data-m'),S=SRC;
     if(m!=null){var hm=S.last.byM.filter(function(x){return x.k===m;})[0];if(hm){KN_TAB='num';showSum(S.table,hm.rows,m+' · '+S.title.replace(/^20\d\d-\d\d · /,''));}return true;}
-    if(g!=null){var hg=S.last.byG[g];if(hg){var sub=hg.rows;KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},0);}return true;}
+    if(g!=null){var hg=S.last.byG[g];if(hg){
+      /* 2026-11-23 Paul「循序漸進」：點某一組 → 從那一組的第一個人開始，往下滑完這一組會接著下一組，一路到最後一個人，不是到這一組就停 */
+      var pre=String(g).split('|')[0]+'|',sub=[],st=0,seen=false;Object.keys(S.last.byG).forEach(function(k){if(k.indexOf(pre)!==0)return;if(k===g){st=sub.length;seen=true;}sub=sub.concat(S.last.byG[k].rows||[]);});
+      if(!seen||!sub.length){sub=hg.rows;st=0;}KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},st);}return true;}
     return false;}
   try{window.acKeynoteSummary=function(t,o){KN_TAB='num';showSum(t,null,o&&o.title,o);};}catch(e){}
   /* v8（2026-11-23）通用長條卡 acKeynoteBars：頁面自己給「標題＋大數字＋每一條的名稱／數值」；某一條有帶 rows（表格列）時，點它 → 那幾列的明細卡。

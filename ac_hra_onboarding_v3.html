@@ -1639,9 +1639,28 @@ function baseInfo(){
   return {date:ds.length?ds[0]:lds(new Date()), hc:0, est:true};
 }
 /* 以基準日往後（或往前）滾動推算指定日期的在職人數 */
-function hcAt(dateStr){
+function attHcMap(){
+  var raw='';try{raw=localStorage.getItem('ac_hra_att_hc_v1')||'';}catch(e){}
+  if(attHcMap._r===raw&&attHcMap._v)return attHcMap._v;
+  var m={};try{m=JSON.parse(raw||'{}')||{};}catch(e){m={};}
+  attHcMap._r=raw;attHcMap._v={map:m,keys:Object.keys(m).sort()};return attHcMap._v;
+}
+function hcAt(dateStr,mode){
   var b=baseInfo();
-  if(b.est)return NaN;   /* 2026-11-23：還沒在「設定」填基準日＋基準人數時，不再從 0 往下扣出負的在職人數（-515），一律顯示「—」 */
+  /* 2026-11-23 Paul：基準日＝每月 1 日（年＝每年 1 月 1 日）。基準人數取考勤那一天（當天沒資料就往後找第一個有資料的工作日）的在職人數，
+     再用入離職記錄推到指定日期。考勤頁開過一次才會有這份人數；沒有就顯示「—」。設定裡有手動填基準的照舊優先。 */
+  if(b.est){
+    if(!dateStr)return NaN;
+    var A=attHcMap(),ks=A.keys;if(!ks.length)return NaN;
+    var start=(mode==='year'?dateStr.slice(0,4)+'-01-01':dateStr.slice(0,7)+'-01'),bd='';
+    for(var i=0;i<ks.length;i++){if(ks[i]>=start){bd=ks[i];break;}}
+    if(!bd||bd.slice(0,mode==='year'?4:7)!==start.slice(0,mode==='year'?4:7)){   /* 那個月（年）考勤沒資料 → 用它之前最後一天的人數往後推 */
+      bd='';for(var j=ks.length-1;j>=0;j--){if(ks[j]<start){bd=ks[j];break;}}if(!bd)return NaN;}
+    var h2=A.map[bd];
+    if(dateStr>=bd){JOINS.forEach(function(r){if(r.joinDate&&r.joinDate>bd&&r.joinDate<=dateStr)h2++;});RESIGNS.forEach(function(r){if(r.resignDate&&r.resignDate>bd&&r.resignDate<=dateStr)h2--;});}
+    else{JOINS.forEach(function(r){if(r.joinDate&&r.joinDate>dateStr&&r.joinDate<=bd)h2--;});RESIGNS.forEach(function(r){if(r.resignDate&&r.resignDate>dateStr&&r.resignDate<=bd)h2++;});}
+    return h2;
+  }
   if(!dateStr)return b.hc;
   var hc=b.hc;
   if(dateStr>=b.date){
@@ -1714,7 +1733,7 @@ function periodReportHTML(key){
       var ms=monthsWithData().filter(function(m){return m.slice(0,4)===k;});
       var acc=0,cnt=0;
       ms.forEach(function(m){ var t=turnoverOf(m); if(isFinite(t.rate)){acc+=t.rate;cnt++;} });
-      to=cnt?acc:NaN; hcC=hcAt(k+'-12-31');
+      to=cnt?acc:NaN; hcC=hcAt(k+'-12-31'>lds(new Date())?lds(new Date()):k+'-12-31','year');
     }else{
       var t2=turnoverOf(k); to=t2.rate; hcC=t2.close;
     }
@@ -1837,14 +1856,14 @@ function renderOv(){
     kn.className='v '+(net>=0?'text-emerald-600':'text-rose-600');
     var endDate=b?b.e:(allDates().slice(-1)[0]||lds(new Date()));
     var hc=hcAt(endDate), bi=baseInfo();
-    setTxt('k-hc', bi.est?L('未設基準','no base'):fmt0(hc));
+    setTxt('k-hc', isFinite(hc)?fmt0(hc):L('先開一次考勤頁','open Attendance once'));
     /* 流動率：期間內離職數 ÷ 期間平均在職人數 */
     var openDate=b?lds(new Date(new Date(b.s+'T00:00:00').getTime()-86400000)):'';
     var den;
     if(!b){ den=NaN; }
     else{ var o=hcAt(openDate), c=hcAt(b.e); den=(SETS.basis==='open')?o:(o+c)/2; }
     var rate=(den>0)?R.length/den:NaN;
-    setTxt('k-to', (bi.est||!isFinite(rate))?'—':pct(rate));
+    setTxt('k-to', !isFinite(rate)?'—':pct(rate));
     var avgD=R.length?Math.round(R.reduce(function(s,r){return s+(+r.workingDays||0);},0)/R.length):0;
     setTxt('k-ten', R.length?fmt0(avgD):'—');
 
@@ -3204,6 +3223,6 @@ if(window.HRAAutoSync)HRAAutoSync.install({key:'onboarding',pull:cloudDownload,p
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="shared/ui-fx.js?v=5" defer></script>
-<script src="shared/row-keynote.js?v=32" defer></script>
+<script src="shared/row-keynote.js?v=33" defer></script>
 </body>
 </html>
