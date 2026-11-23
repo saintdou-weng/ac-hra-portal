@@ -1721,6 +1721,18 @@ function periodReportHTML(key){
     return {k:k,j:jj,r:rr,net:jj-rr,sew:sew,to:to,hc:hcC,avgD:avgD};
   });
   var mode=isYear?'year':'month';
+  /* 2026-11-23 Paul：按的是「離職」就只看離職（入職同理）——每期一列＝那一期的人數＋一條長條；
+     點一列跳出那一期的卡：依部門的人數和總和，再點部門看名單、點人看他的資料。一次一張，不要一次塞一堆欄位。總覽分頁照舊。 */
+  if(key==='resign'||key==='join'){
+    var isR=key==='resign',mx=Math.max.apply(null,rows.map(function(r){return isR?r.r:r.j;}).concat([1]));
+    var h2='<div class="tbl-wrap" style="max-height:340px"><table data-keynote="off"><thead><tr><th>'+L('期間','Period')+'</th><th class="text-right" style="width:90px">'+(isR?L('離職人數','Resigned'):L('入職人數','Joined'))+'</th><th>'+L('圖表','Chart')+'</th></tr></thead><tbody>';
+    rows.forEach(function(r){var on=r.k===cur,v=isR?r.r:r.j;
+      h2+='<tr class="rpt-row'+(on?' row-cur':'')+'" style="cursor:pointer" onclick="periodCard(\''+key+'\',\''+mode+'\',\''+r.k+'\')">'+
+        '<td class="jmono" style="color:#1e40af;font-weight:700">'+(on?'&#9664; ':'')+esc(r.k)+'</td>'+
+        '<td class="text-right jmono" style="font-weight:700;color:'+(isR?'#be123c':'#047857')+'">'+fmt0(v)+'</td>'+
+        '<td><div style="height:12px;border-radius:6px;background:#e2e8f0;overflow:hidden;min-width:120px"><i style="display:block;height:100%;width:'+Math.max(v?3:0,Math.round(v/mx*100))+'%;border-radius:6px;background:'+(isR?'#f43f5e':'#10b981')+'"></i></div></td></tr>';});
+    return h2+'</tbody></table></div>';
+  }
   var h='<div class="tbl-wrap" style="max-height:300px"><table><thead><tr>'+
     '<th>'+L('期間','Period')+'</th><th class="text-right">'+L('入職','Join')+'</th><th class="text-right">'+L('離職','Resign')+'</th>'+
     '<th class="text-right">'+L('淨增減','Net')+'</th><th class="text-right">'+L('車縫離職','Sewing Res.')+'</th>'+
@@ -1740,6 +1752,23 @@ function periodReportHTML(key){
   });
   h+='</tbody></table></div>';
   return h;
+}
+
+/* 那一期的離職／入職卡：把那一期的人放進一張看不到的表，交給共用的統計卡（依部門人數＋總和 → 名單 → 個人） */
+function periodCard(key,mode,k){
+  try{pJump(key,mode,mode==='year'?k:k+'-01');}catch(e){}
+  setTimeout(function(){try{
+    var isR=key==='resign',list=(isR?RESIGNS:JOINS).filter(function(r){return ((isR?r.resignDate:r.joinDate)||'').slice(0,k.length)===k;});
+    if(!list.length||typeof window.acKeynoteSummary!=='function')return;
+    var hold=document.getElementById('pc-hold');if(!hold){hold=document.createElement('div');hold.id='pc-hold';hold.style.cssText='position:absolute;left:-99999px;top:0;width:1000px;pointer-events:none';document.body.appendChild(hold);}
+    var H=[L('工號','ID'),L('姓名','Name'),L('部門','Department'),L('職位','Position'),L('入職日','Join date')].concat(isR?[L('離職日','Resign date'),L('離職類型','Type'),L('在職天數','Days worked'),L('原因','Reason')]:[]);
+    var h='<table data-keynote="off" data-kn-min="1"><thead><tr>'+H.map(function(x){return '<th>'+esc(x)+'</th>';}).join('')+'</tr></thead><tbody>';
+    list.forEach(function(r){var c=[r.empId||r.id||'',r.name||'',normalizeGroup(r.section||r.dept)||r.dept||'',r.position||'',r.joinDate||''];
+      if(isR){var ty=RESIGN_TYPES[r.resignType||'resign']||RESIGN_TYPES.resign;c=c.concat([r.resignDate||'',L(ty[0],ty[1]),r.workingDays!=null?String(r.workingDays):'',r.reason||'']);}
+      h+='<tr>'+c.map(function(x){return '<td>'+esc(String(x==null?'':x))+'</td>';}).join('')+'</tr>';});
+    hold.innerHTML=h+'</tbody></table>';
+    window.acKeynoteSummary(hold.querySelector('table'),{title:k+' · '+(isR?L('離職','Resigned'):L('入職','Joined'))+' '+list.length+' '+L('人','ppl'),group:L('部門','Department'),noMonth:true,noAmt:true});
+  }catch(e){console.error(e);}},120);
 }
 
 /* ═══════════ 總覽 ═══════════ */
@@ -3160,6 +3189,6 @@ if(window.HRAAutoSync)HRAAutoSync.install({key:'onboarding',pull:cloudDownload,p
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="shared/ui-fx.js?v=5" defer></script>
-<script src="shared/row-keynote.js?v=28" defer></script>
+<script src="shared/row-keynote.js?v=29" defer></script>
 </body>
 </html>

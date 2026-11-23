@@ -193,7 +193,7 @@
         點月份 → 那個月依部門的統計；點部門 → 那些人的名單；點人 → 他的重點卡。只看畫面上這張表，不動資料。 ── */
   var GRP_RE=/部門|組別|^組$|單位|車間|dept|department|section|^line$|team|group|ផ្នែក/i,GRP2_RE=/類型|類別|種類|狀態|項目|type|category|status|item/i,AMT_RE=/金額|usd|\$|薪|salary|pay|amount|費|cost|合計|total|riel|khr/i,DATE_RE=/日期|date|到期|入職|離職|月份|month|期間|ថ្ងៃ/i;
   function sumInfo(table){var H=heads(table),g=-1,g2=-1,d=-1,am=[],gs=[],ds=[];H.forEach(function(h,i){h=String(h||'');if(GRP_RE.test(h)){if(g<0)g=i;gs.push(i);}else if(GRP2_RE.test(h)||/職位|職稱|position|title|性別|gender|廠別|factory$|customer|客戶|buyer/i.test(h)){if(g2<0)g2=i;gs.push(i);}if(DATE_RE.test(h)||/^end$|^start$|expiry|expire/i.test(h)){if(d<0)d=i;ds.push(i);}});
-    var rows=dataRows(table);if(rows.length<4)return null;
+    var rows=dataRows(table);if(rows.length<(table.getAttribute('data-kn-min')?+table.getAttribute('data-kn-min'):4))return null;
     H.forEach(function(h,i){if(i===g||i===d)return;if(!AMT_RE.test(String(h||'')))return;var ok=0;for(var k=0;k<rows.length&&k<30;k++){if(rows[k].cells[i]&&num(txt(rows[k].cells[i]))!==null)ok++;}if(ok>=Math.min(rows.length,30)*.6)am.push(i);});
     if(g<0)g=g2;if(g<0&&d<0)return null;return {H:H,g:g,d:d,gs:gs.slice(0,5),ds:ds,am:am.slice(0,2),rows:rows};}
   function mKey(s){var m=String(s).match(/(20\d{2})[-\/.年](\d{1,2})/);if(m)return m[1]+'-'+('0'+m[2]).slice(-2);m=String(s).match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})/);return m?m[3]+'-'+('0'+m[2]).slice(-2):'';}
@@ -214,13 +214,13 @@
     if(!T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=T[0][0];KN_T=T;KN_HASTOP=false;
     var body='<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num"><div id="kn-nums">'+nums+'</div>'+(gH||(!T.some(function(t){return t[0]==='all';})?mH:''))+'</div>'+(mH&&gH?'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-nums">'+nums+'</div>'+mH+'</div>':(mH&&!gH?'':''));
     return {hd:headHtml({icon:'📊',title:title,pos:'',chips:['<span class="kn-hc">'+rows.length+' 筆</span>']}),body:body,T:T,title:title,cap:cap,byG:byG,byM:byM};}
-  function showSum(table,rows,title){var inf=sumInfo(table);if(!inf)return;rows=rows||inf.rows;var cap=capOf(table)||'';title=title||(cap||'統計 Summary');var last=null;
+  function showSum(table,rows,title,opt){var inf=sumInfo(table);if(!inf)return;if(opt&&opt.group!=null){var gi=-1;inf.H.forEach(function(h,i){if(gi<0&&String(h).indexOf(opt.group)>=0)gi=i;});if(gi>=0){inf.gs=[gi];inf.g=gi;}}if(opt&&opt.noMonth)inf.ds=[];if(opt&&opt.noAmt)inf.am=[];rows=rows||inf.rows;var cap=capOf(table)||'';title=title||(cap||'統計 Summary');var last=null;
     openAt({kind:'sum',n:1,els:[table],inf:inf,rows:rows,table:table,title:title,build:function(){last=sumSec(inf,rows,title,cap);this.last=last;return last;}},0);}
   function sumClick(c){if(!SRC||SRC.kind!=='sum'||!SRC.last)return false;var g=c.getAttribute('data-g'),m=c.getAttribute('data-m'),S=SRC;
     if(m!=null){var hm=S.last.byM.filter(function(x){return x.k===m;})[0];if(hm){KN_TAB='num';showSum(S.table,hm.rows,m+' · '+S.title.replace(/^20\d\d-\d\d · /,''));}return true;}
     if(g!=null){var hg=S.last.byG[g];if(hg){var sub=hg.rows;KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},0);}return true;}
     return false;}
-  try{window.acKeynoteSummary=function(t){showSum(t);};}catch(e){}
+  try{window.acKeynoteSummary=function(t,o){KN_TAB='num';showSum(t,null,o&&o.title,o);};}catch(e){}
   function hide(){mask.classList.remove('on');curRow=null;curCard=null;SRC=null;}
   /* ── v2.1 儀表板卡片 Keynote（2026-11-22 Paul：各分頁儀表板的小卡按了沒反應）──
      KPI 小卡、統計格、長條列（同一排／同一組有 2 張以上長得一樣的）點了 → 跳出大字卡：
