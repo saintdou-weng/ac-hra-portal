@@ -74,6 +74,7 @@ tbody tr:hover{background:#f8fafc}
 <script src="shared/appr-precheck.js?v=1"></script>
 <script src="shared/join-pay.js?v=1"></script>
 <script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
+<script src="shared/period-list.js?v=2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -553,7 +554,7 @@ var I18N={
  zh:{hdr_title:'入離職管理 Onboarding & Turnover',up:'上傳',down:'下載',exp:'匯出',imp:'還原',
      tab_ov:'總覽',tab_join:'入職',tab_resign:'離職',tab_anly:'流動分析',tab_appr:'核可',tab_set:'設定',
      k_join:'入職 Join',k_resign:'離職 Resign',k_net:'淨增減 Net',k_hc:'期末在職 HC',k_to:'流動率 Turnover',k_ten:'平均在職天數',
-     c_trend:'入離職趨勢',c_type:'離職類型',c_rpt:'期間報表',c_rpt2:'點選任一列可切換期間',
+     c_trend:'入離職趨勢',c_type:'離職類型',c_rpt:'期間報表',c_rpt2:'點一列看那一期的卡（人數明細）',
      c_reasondist:'離職原因分佈',c_deptten:'部門 / 年資分佈',c_deptdist:'部門 / 線別分佈',c_refdist:'介紹人統計',
      t_joindet:'入職明細',t_resdet:'離職明細',t_settle:'結算單對照',t_appr:'核可清單',
      dim:'統計維度',dimside:'對象',c_dim:'維度分佈',c_to:'流動率趨勢',c_dimtbl:'維度明細',c_totbl:'月度流動率',
@@ -1733,6 +1734,10 @@ function periodReportHTML(key){
         '<td><div style="height:12px;border-radius:6px;background:#e2e8f0;overflow:hidden;min-width:120px"><i style="display:block;height:100%;width:'+Math.max(v?3:0,Math.round(v/mx*100))+'%;border-radius:6px;background:'+(isR?'#f43f5e':'#10b981')+'"></i></div></td></tr>';});
     return h2+'</tbody></table></div>';
   }
+  /* 2026-11-23 總覽分頁也改成一次一張：每期一列＝期間｜人員異動人數（入＋離）｜長條；點一列 → 那一期的卡（依入職／離職、依部門＋總和）→ 名單 → 個人 */
+  if(window.ACPL){
+    return ACPL.list({rows:rows.map(function(r){return {k:r.k,v:r.j+r.r,sub:L('入','Join')+' '+r.j+' · '+L('離','Resign')+' '+r.r};}),cur:cur,head:L('人員異動','Movements'),unit:L('人','ppl'),subHead:L('入職／離職','Join / Resign'),color:'#6366f1',fn:'periodCardOv',arg:mode,period:L('期間','Period'),chart:L('圖表','Chart')});
+  }
   var h='<div class="tbl-wrap" style="max-height:300px"><table><thead><tr>'+
     '<th>'+L('期間','Period')+'</th><th class="text-right">'+L('入職','Join')+'</th><th class="text-right">'+L('離職','Resign')+'</th>'+
     '<th class="text-right">'+L('淨增減','Net')+'</th><th class="text-right">'+L('車縫離職','Sewing Res.')+'</th>'+
@@ -1754,6 +1759,15 @@ function periodReportHTML(key){
   return h;
 }
 
+function periodCardOv(mode,k){
+  try{pJump('ov',mode,mode==='year'?k:k+'-01');}catch(e){}
+  setTimeout(function(){try{
+    var rows=[];
+    JOINS.forEach(function(r){if((r.joinDate||'').slice(0,k.length)===k)rows.push([L('入職','Joined'),r.empId||r.id||'',r.name||'',normalizeGroup(r.section||r.dept)||r.dept||'—',r.position||'',r.joinDate||'']);});
+    RESIGNS.forEach(function(r){if((r.resignDate||'').slice(0,k.length)===k)rows.push([L('離職','Resigned'),r.empId||r.id||'',r.name||'',normalizeGroup(r.section||r.dept)||r.dept||'—',r.position||'',r.resignDate||'']);});
+    ACPL.card({title:k+' · '+L('人員異動','Movements')+' '+rows.length+' '+L('人','ppl'),heads:[L('類型','Type'),L('工號','ID'),L('姓名','Name'),L('部門','Department'),L('職稱','Job'),L('日期','Date')],rows:rows});
+  }catch(e){console.error(e);}},120);
+}
 /* 那一期的離職／入職卡：把那一期的人放進一張看不到的表，交給共用的統計卡（依部門人數＋總和 → 名單 → 個人） */
 function periodCard(key,mode,k){
   try{pJump(key,mode,mode==='year'?k:k+'-01');}catch(e){}
