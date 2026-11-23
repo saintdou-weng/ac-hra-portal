@@ -76,6 +76,8 @@
    +'#kn-tabs button.on{border-bottom-color:#1e40af}.kn-br.on .t i{background:#1e40af}.kn-cc button.on,.kn-chip.on{background:#1e40af;border-color:#1e40af;color:#fff}'
    +'.kn-rl,.kn-nl,.kn-ref,#kn-sub,.kn-no,#kn-tabs button,.kn-leg,#kn-pos,#kn-hint,.kn-end{color:#64748b}.kn-rv,#kn-title,#kn-nav button,#kn-x{color:#1d2b3a}'
    +'.kn-hc,.kn-hc.g,.kn-hc.y,.kn-hc.r{color:#1d2b3a}';
+  /* v6（2026-11-23 Paul：放得下 2、3 張就並排，不要一張佔一整列）：寬螢幕外框放寬，卡片自動排 2～3 欄；窄螢幕照舊一欄 */
+  css+='@media(min-width:1000px){#kn-box{width:min(1560px,96vw)}#kn-scroll{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:12px;grid-auto-rows:max-content;align-items:start;align-content:start}.kn-sec{margin:0}.kn-end{grid-column:1/-1}}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
   var mask,box,curRow=null,curT=-1,curKey='';
   /* 欄位小圖示：看欄名（和值）挑一個 */
