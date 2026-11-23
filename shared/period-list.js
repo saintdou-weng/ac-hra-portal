@@ -16,7 +16,8 @@
   function n2(v) { return (+v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
   var CSS = '.acpl-wrap{max-height:360px;overflow:auto;border-radius:10px}' +
     '.acpl{width:100%;border-collapse:collapse;table-layout:auto}' +
-    '.acpl th{position:sticky;top:0;z-index:1;text-align:left;font-size:12px;font-weight:700;padding:7px 10px;white-space:nowrap;background:#eef2f7;color:#475569}' +
+    '.acpl-wrap table.acpl th{position:sticky;top:0;z-index:1;text-align:left;font-size:12px!important;font-weight:700;padding:7px 10px!important;white-space:nowrap;background:#eef2f7!important;background-image:none!important;color:#475569!important;border:0!important;text-transform:none!important;letter-spacing:0!important}' +
+    '.acpl-wrap table.acpl td{background-image:none}' +
     '.acpl td{padding:8px 10px;border-top:1px solid rgba(15,23,42,.08);vertical-align:middle}' +
     '.acpl tr.acpl-r{cursor:pointer}.acpl tr.acpl-r:hover td{background:rgba(30,64,175,.06)}' +
     '.acpl tr.acpl-cur td{background:rgba(30,64,175,.09)}' +
