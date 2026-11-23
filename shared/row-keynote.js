@@ -9,6 +9,10 @@
    最上面一條＝第幾筆／共幾筆＋‹ › ✕；表頭＝圖示（列裡有照片就用照片）＋編號＋名稱＋重點 chips（部門、職位、狀態、日期…）；
    表頭固定、只捲內容；資料一律兩欄「標籤在上、值在下」；重點小卡的橫條寫明意思（＝這一筆 ÷ 表內最高那一筆）。
    只改畫面，資料、點列原本的功能、acKeynoteTop／Extra／Label 掛點都不變。 */
+/* v4（2026-11-23 Paul）：往下滑要「無縫接下一筆」（像 SEC 摩托車那種一張接一張），不要閃一下換整張；卡片也不要縮在畫面下方。
+   · 卡片改成從上面開始、佔滿高度（電腦是置中的大視窗）。最上面一條（第幾筆／‹ ›／✕）＋分頁固定不動。
+   · 下面是一張一張接起來的卡：捲到快到底就自動接下一筆，上面的「3 / 46」跟著變；‹ › 是捲到上一筆／下一筆。
+   · 原本底部那排膠囊和「上一筆／下一筆」大按鈕拿掉（用捲的就好，畫面留給資料）。KPI 小卡的重點卡同一套。 */
 (function(){
   'use strict';
   if(window.__acKeynote)return;window.__acKeynote=1;
@@ -59,6 +63,14 @@
    +'#kn-rows{display:grid;grid-template-columns:1fr 1fr;column-gap:20px}.kn-r{flex-direction:column;gap:1px;border-bottom:0;padding:7px 0;min-width:0}.kn-rl{flex:none;font-size:11.5px;font-weight:600}.kn-rv{font-size:15px;font-weight:700;line-height:1.35}.kn-r.full{grid-column:1/-1}'
    +'.kn-leg{grid-column:1/-1;font-size:11px;color:#64748b;display:flex;align-items:center;gap:6px;padding:0 2px}.kn-leg i{display:inline-block;width:26px;height:5px;border-radius:3px;background:#0ea5e9}'
    +'@media(max-width:520px){.kn-ph{width:54px;height:54px;font-size:26px;border-radius:12px}#kn-title{font-size:16.5px}#kn-nums{grid-template-columns:1fr 1fr}.kn-st{grid-template-columns:1fr 1fr}}';
+  css+='#kn-mask{align-items:stretch}@media(min-width:720px){#kn-mask{align-items:center}}'
+   +'#kn-box{display:flex;flex-direction:column;height:100%;max-height:100%;overflow:hidden;border-radius:0;animation:knUp .2s ease-out}@media(min-width:720px){#kn-box{height:min(92vh,980px);border-radius:18px}}'
+   +'#kn-head{position:static;flex:none}#kn-tabs{position:static}#kn-tabs:empty{display:none}'
+   +'#kn-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:10px 10px 8px}'
+   +'.kn-sec{background:#fff;border:1px solid #dfe6ee;border-radius:16px;margin:0 0 12px;overflow:hidden;box-shadow:0 3px 10px rgba(15,23,42,.08)}'
+   +'.kn-sec #kn-hd{border-bottom:1px solid #edf1f5}.kn-no{flex:none;align-self:flex-start;font-size:12px;font-weight:700;background:#eef3f8;color:#5b6b7c;border-radius:999px;padding:3px 10px;white-space:nowrap}.kn-no b{color:#1d2b3a}'
+   +'.kn-sec .kn-top{border-bottom:1px solid #edf1f5}.kn-sec #kn-rows{margin:10px 12px 12px;box-shadow:none}'
+   +'.kn-end{text-align:center;color:#94a3b8;font-size:12px;padding:6px 0 26px}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
   var mask,box,curRow=null,curT=-1,curKey='';
   /* 欄位小圖示：看欄名（和值）挑一個 */
@@ -91,8 +103,7 @@
   function chipCls(l,v){if(/狀態|status|結果|result/i.test(l)){if(/核可|approved|完成|done|ok|正常|通過|pass/i.test(v))return ' g';if(/退|reject|錯|fail|逾期|overdue|異常/i.test(v))return ' r';if(/待|pending|審|review/i.test(v))return ' y';}return '';}
   function headHtml(o){
     var ph=o.photo?'<img class="kn-ph" src="'+esc(o.photo)+'" alt="">':'<div class="kn-ph" aria-hidden="true">'+(o.icon||'📋')+'</div>';
-    return '<div id="kn-head"><div id="kn-bar"><div id="kn-sub">'+(o.pos||'')+(o.cap?(o.pos?' · ':'')+esc(o.cap):'')+'</div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div>'
-      +'<div id="kn-hd">'+(o.noPhoto?'':ph)+'<div class="kn-hm">'+(o.code?'<div class="kn-code">'+esc(o.code)+'</div>':'')+'<div id="kn-title">'+esc(o.title||'—')+'</div>'+(o.chips&&o.chips.length?'<div class="kn-hchips">'+o.chips.join('')+'</div>':'')+'</div></div></div>';
+    return '<div id="kn-hd">'+(o.noPhoto?'':ph)+'<div class="kn-hm">'+(o.code?'<div class="kn-code">'+esc(o.code)+'</div>':'')+'<div id="kn-title">'+esc(o.title||'—')+'</div>'+(o.chips&&o.chips.length?'<div class="kn-hchips">'+o.chips.join('')+'</div>':'')+'</div>'+(o.pos?'<span class="kn-no">'+o.pos+'</span>':'')+'</div>';
   }
   function rowHead(row,items,title,cap,idx,total){
     var img=row.querySelector('img[src]'),photo=img&&img.getAttribute('src')&&(img.naturalWidth||0)!==1?img.src:'';
@@ -103,10 +114,10 @@
     var top=KN_HASTOP;   /* 頁面自己在上面放了照片區塊（acKeynoteTop）時，表頭不再重複放圖示 */
     return headHtml({photo:photo,icon:ic,code:code,title:title,chips:chips,cap:cap,pos:idx>=0?'<b>'+(idx+1)+'</b> / '+total:'',noPhoto:!!top&&!photo});
   }
-  var KN_ROW=null,KN_HASTOP=false;
-  function show(row){KN_ROW=row;
-    var table=row.closest('table');if(!table)return;
-    var H=heads(table),rows=dataRows(table),cells=[].slice.call(row.cells);
+  var KN_ROW=null,KN_HASTOP=false,KN_T=[];
+  function rowSec(row,rows0){KN_ROW=row;
+    var table=row.closest('table');if(!table)return null;
+    var H=heads(table),rows=rows0||dataRows(table),cells=[].slice.call(row.cells);
     var card=table.closest('.card,.sect,section,.panel,.box,[class*="card"]'),capEl=card&&card.querySelector('.ct,.ch,h2,h3,h4,.sect-title,.title,[class*="title"]'),cap=capEl&&!table.contains(capEl)?txt(capEl).slice(0,60):'';
     var items=cells.map(function(td,i){return {l:H[i]||('#'+(i+1)),v:txt(td),n:num(txt(td)),i:i};}).filter(function(x){return x.v!==''&&!/^[—–-]$/.test(x.v)||x.n!==null;}).filter(function(x){return x.v!=='';});
     var ids=items.filter(function(x){return x.n===null||x.i===0||/工號|id|no\.?$|^#$|編號|期|date|日/i.test(x.l);});
@@ -131,14 +142,46 @@
     var allHtml=items.map(function(x){return '<div class="kn-r'+fullCls(x.v)+'"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';}).join('');
     var cmpHtml=compareHtml(items,rows,row);
     var tabsH=tabsHtml(numsHtml,rowsHtml,allHtml,cmpHtml);   /* 先算（裡面會呼叫 acKeynoteTop 一次），表頭才知道頁面有沒有自己放照片 */
-    box.innerHTML=rowHead(row,items,title,cap,idx,rows.length)
-      +tabsH
-      +(rows.length>1&&idx>=0?'<div id="kn-chips">'+rows.slice(Math.max(0,idx-8),idx+9).map(function(r,k){var ri=Math.max(0,idx-8)+k;return '<button type="button" class="kn-chip'+(ri===idx?' on':'')+'" data-i="'+ri+'">'+esc(chipOf(r))+'</button>';}).join('')+'</div>':'')
-      +(rows.length>1&&idx>=0?'<div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一筆 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+rows.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=rows.length-1?' disabled':'')+'>下一筆 Next ▼</button></div>':'');
-    setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
-    curCard=null;curRow=row;curT=[].indexOf.call(document.querySelectorAll('table'),table);curKey=nk(txt(row.cells[0]));mask.classList.add('on');box.scrollTop=0;kfx(1,1);
+    return {hd:rowHead(row,items,title,cap,idx,rows.length),body:tabsH,T:KN_T,title:title,cap:cap};
   }
-  function hide(){mask.classList.remove('on');curRow=null;curCard=null;}
+  /* ── v4 外框：上面固定一條＋分頁；下面一張接一張 ── */
+  var SRC=null,IDX=0,NEXT=0,FIRST=0,sc=null;
+  function secEl(i){return sc?sc.querySelector('.kn-sec[data-i="'+i+'"]'):null;}
+  function append(){
+    if(!SRC||NEXT>=SRC.n)return false;var o=null;try{o=SRC.build(NEXT);}catch(e){}
+    var el=document.createElement('section');el.className='kn-sec';el.setAttribute('data-i',NEXT);
+    el.innerHTML=o?o.hd+o.body:'';el.__T=o?o.T:[];el.__title=o?o.title:'';el.__cap=o?o.cap:'';
+    var end=sc.querySelector('.kn-end');if(end)sc.insertBefore(el,end);else sc.appendChild(el);
+    showPane(el);NEXT++;
+    if(NEXT>=SRC.n&&!sc.querySelector('.kn-end')){var p=document.createElement('p');p.className='kn-end';p.textContent='— 最後一筆 End of list —';sc.appendChild(p);}
+    return true;
+  }
+  function fill(){var g=0;while(sc&&sc.scrollTop+sc.clientHeight>=sc.scrollHeight-600&&g++<5&&append()){}}
+  function showPane(el){var ps=el.querySelectorAll('.kn-pane'),hit=false;[].forEach.call(ps,function(p){var on=p.dataset.p===KN_TAB;p.classList.toggle('on',on);if(on)hit=true;});if(!hit&&ps[0])ps[0].classList.add('on');}
+  function paintTop(){
+    if(!SRC||!box)return;var el=secEl(IDX),sub=box.querySelector('#kn-sub'),tb=box.querySelector('#kn-tabs'),nv=box.querySelectorAll('#kn-nav button');
+    if(sub)sub.innerHTML=(SRC.n>1?'<b>'+(IDX+1)+'</b> / '+SRC.n+' · ':'')+esc((el&&el.__title)||'')+((el&&el.__cap)?' · '+esc(el.__cap):'');
+    var T=(el&&el.__T)||[];if(tb){if(T.length&&!T.some(function(t){return t[0]===KN_TAB;})){}tb.innerHTML=T.length>1?T.map(function(t){var has=el&&el.querySelector('.kn-pane.on[data-p="'+t[0]+'"]');return '<button type="button" data-tab="'+t[0]+'" class="'+(has?'on':'')+'">'+t[1]+'</button>';}).join(''):'';}
+    if(nv[0])nv[0].disabled=IDX<=0;if(nv[1])nv[1].disabled=IDX>=SRC.n-1;
+    curRow=SRC.kind==='row'?SRC.els[IDX]:null;curCard=SRC.kind==='card'?SRC.els[IDX]:null;
+    if(curRow){try{curKey=nk(txt(curRow.cells[0]));}catch(e){}}
+  }
+  function openAt(src,i){
+    SRC=src;i=Math.max(0,Math.min(src.n-1,i));IDX=FIRST=NEXT=i;
+    box.innerHTML='<div id="kn-head"><div id="kn-bar"><div id="kn-sub"></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div><div id="kn-tabs"></div></div><div id="kn-scroll"></div>';
+    sc=box.querySelector('#kn-scroll');mask.classList.add('on');append();fill();sc.scrollTop=0;paintTop();
+    var tk=0;sc.addEventListener('scroll',function(){if(tk)return;tk=requestAnimationFrame(function(){tk=0;fill();
+      var line=sc.scrollTop+sc.clientHeight*0.3,k=IDX,e2;
+      while(k<NEXT-1&&(e2=secEl(k+1))&&e2.offsetTop-sc.offsetTop<=line)k++;
+      while(k>FIRST&&(e2=secEl(k))&&e2.offsetTop-sc.offsetTop>line)k--;
+      if(k!==IDX){IDX=k;paintTop();}});},{passive:true});
+  }
+  function show(row){
+    var table=row.closest('table');if(!table)return;var rows=dataRows(table),i=rows.indexOf(row);if(i<0){rows=[row];i=0;}
+    curT=[].indexOf.call(document.querySelectorAll('table'),table);
+    openAt({kind:'row',n:rows.length,els:rows,build:function(k){return rowSec(rows[k],rows);}},i);
+  }
+  function hide(){mask.classList.remove('on');curRow=null;curCard=null;SRC=null;}
   /* ── v2.1 儀表板卡片 Keynote（2026-11-22 Paul：各分頁儀表板的小卡按了沒反應）──
      KPI 小卡、統計格、長條列（同一排／同一組有 2 張以上長得一樣的）點了 → 跳出大字卡：
      這張的數字＋說明；「全部」列出同組每一張；「比較」同組數字排名，點了直接換那一張；◀ ▶／左右滑換下一張。
@@ -166,8 +209,8 @@
     return {val:val,label:label,lines:rest.filter(function(x){return x!==label;}),n:num(val)};
   }
   function capOf(el){var c=el.parentElement;for(var i=0;i<5&&c;i++,c=c.parentElement){var h=c.querySelector('h1,h2,h3,h4,.ct,.ch,.sect-title,[class*="title"]');if(h&&!el.contains(h)&&!h.contains(el))return txt(h).slice(0,60);}return '';}
-  function showCard(el){
-    var sib=sibsOf(el);if(sib.indexOf(el)<0)sib=[el];var idx=sib.indexOf(el),P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
+  function cardSec(el,sib){KN_ROW=null;
+    var idx=sib.indexOf(el),P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
     var numsHtml='<div id="kn-nums" style="grid-template-columns:1fr"><div class="kn-n"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
     var nums=all.filter(function(x){return x.n!==null;});
     if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
@@ -178,13 +221,11 @@
     var cmpHtml='';
     if(nums.length>=2){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
       cmpHtml=srt.map(function(o,k){var on=o.i===idx;return '<button type="button" class="kn-br'+(on?' on':'')+'" data-i="'+o.i+'"><span class="n">'+(on?'▶ ':'')+(k+1)+'. '+esc(o.x.label)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(o.x.n)/mx2*100))+'%"></i></span><span class="v">'+esc(o.x.val)+'</span></button>';}).join('')+'<div class="kn-ref" style="margin-top:6px">點任一條直接換到那一張</div>';}
-    box.innerHTML=headHtml({icon:icOf(P.label)||'📊',title:P.label,cap:cap,pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:P.val?['<span class="kn-hc">'+esc(P.val)+'</span>']:[]})
-      +tabsHtml(numsHtml,rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'','<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">')
-      +(sib.length>1?'<div id="kn-chips">'+all.map(function(x,i){return '<button type="button" class="kn-chip'+(i===idx?' on':'')+'" data-i="'+i+'">'+esc(String(x.label).slice(0,18))+'</button>';}).join('')+'</div><div id="kn-foot"><button type="button" data-d="-1"'+(idx<=0?' disabled':'')+'>▲ 上一張 Prev</button><div id="kn-pos"><b>'+(idx+1)+'</b> / '+sib.length+'<div id="kn-hint">↕ 滑動 swipe</div></div><button type="button" data-d="1"'+(idx>=sib.length-1?' disabled':'')+'>下一張 Next ▼</button></div>':'');
-    setTimeout(function(){var on=box.querySelector('.kn-chip.on'),cs=on&&on.parentElement;if(cs)cs.scrollLeft=on.offsetLeft-cs.clientWidth/2+on.offsetWidth/2;var hd=box.querySelector('#kn-head'),tb=box.querySelector('#kn-tabs');if(hd&&tb)tb.style.top=hd.offsetHeight+'px';},0);
-    curRow=null;curCard=el;mask.classList.add('on');box.scrollTop=0;kfx(1,1);
+    var body=tabsHtml(numsHtml,rowsHtml?'<div id="kn-rows">'+rowsHtml+'</div>':'','<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">');
+    return {hd:headHtml({icon:icOf(P.label)||'📊',title:P.label,pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:P.val?['<span class="kn-hc">'+esc(P.val)+'</span>']:[]}),body:body,T:KN_T,title:P.label,cap:cap};
   }
-  function cardGo(i){if(!curCard)return false;var sib=sibsOf(curCard);if(sib.indexOf(curCard)<0)return false;if(i<0||i>=sib.length)return false;var d=sib.indexOf(curCard);showCard(sib[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');return true;}
+  function showCard(el){var sib=sibsOf(el);if(sib.indexOf(el)<0)sib=[el];
+    openAt({kind:'card',n:sib.length,els:sib,build:function(k){return cardSec(sib[k],sib);}},sib.indexOf(el));}
   /* 分頁：重點（數字＋文字重點）／全部資料／比較 */
   function tabsHtml(nums,rowsH,all,cmp){
     var T=[];if(nums||rowsH)T.push(['num','📊 重點 Key']);T.push(['all','📋 全部資料 All']);if(cmp)T.push(['cmp','📈 比較 Compare']);
@@ -193,8 +234,8 @@
        Top 放在分頁列的上面（不管看哪個分頁都看得到，2026-11-22 Paul：停在「全部資料」時看不到員工照片）；Extra 放在「重點」分頁最下面 */
     var hk=function(n){try{return typeof window[n]==='function'&&KN_ROW?(window[n](KN_ROW,KN_ROW.closest('table'))||''):'';}catch(e){return '';}},hTop=hk('acKeynoteTop'),hEx=hk('acKeynoteExtra');
     if(hEx&&!T.some(function(t){return t[0]==='num';})){T.unshift(['num','📊 重點 Key']);}
-    KN_HASTOP=!!hTop;
-    return (hTop?'<div class="kn-top">'+hTop+'</div>':'')+'<div id="kn-tabs">'+T.map(function(t){return '<button type="button" data-tab="'+t[0]+'" class="'+(KN_TAB===t[0]?'on':'')+'">'+t[1]+'</button>';}).join('')+'</div>'
+    KN_HASTOP=!!hTop;KN_T=T;
+    return (hTop?'<div class="kn-top">'+hTop+'</div>':'')
       +'<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num">'+(nums?'<div id="kn-nums">'+nums+'</div>':'')+(rowsH?'<div id="kn-rows">'+rowsH+'</div>':'')+hEx+'</div>'
       +'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-rows">'+all+'</div></div>'
       +(cmp?'<div class="kn-pane'+(KN_TAB==='cmp'?' on':'')+'" data-p="cmp"><div id="kn-cmp">'+cmp+'</div></div>':'');
@@ -218,45 +259,38 @@
   /* 底部一排膠囊＝前後幾筆（像生產平台），點了直接跳到那一筆 */
   function lab(r){try{var v=typeof window.acKeynoteLabel==='function'?window.acKeynoteLabel(r,r.closest('table')):'';return v?String(v):'';}catch(e){return '';}}   /* 頁面可自訂每筆的名稱（標題、膠囊） */
   function chipOf(r){var L0=lab(r);if(L0)return L0.slice(0,22);var a=nk(txt(r.cells[0])),b=r.cells[1]?txt(r.cells[1]):'';return ((/^\d{1,3}$/.test(a)||!a)&&b?b:a+(b&&num(b)===null&&/^\d+$/.test(a)?' '+b:'')).slice(0,22)||'—';}
-  function jump(i){if(curCard){cardGo(i);return;}var t=curRow&&document.body.contains(curRow)?curRow.closest('table'):document.querySelectorAll('table')[curT],rs=t?dataRows(t):[];if(rs[i]){var d=rs.indexOf(curRow);show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(i>=d?'kn-next':'kn-prev');}}
+  function jump(i){if(SRC)openAt(SRC,i);}
   /* 上一筆／下一筆：按鈕、鍵盤方向鍵、手指上下或左右滑、滑鼠滾輪滾到底再滾 */
   /* 2026-11-23 Paul：重點卡的參考字要白話——不寫「第 N 名／共 79 筆」，只說平均多少、這一筆比平均多還是少 */
   function vsAvg(n,avg){var d=n-avg,same=Math.abs(d)<Math.max(0.005,Math.abs(avg)*0.005);
     return '平均 Avg '+fmt(avg)+'<br>'+(same?'＝ 跟平均一樣 same as average':(d>0?'▲ 比平均多 above avg ':'▼ 比平均少 below avg ')+fmt(Math.abs(d)));}
   function kfn(){var f=window.vrtFx;if(!f){try{f=window.top.vrtFx;}catch(e){}}return f;}
   function kfx(d,o,ax,sn){try{var f=kfn();if(f&&box)f(box,d,o,ax,sn);else if(sn&&sn.parentNode)sn.parentNode.removeChild(sn);}catch(e){}}   /* 2026-11-23 翻頁特效（music.js 的 vrtFx；沒載就什麼都不做） */
-  function step(d,ax){var sn=null;if(ax==='y'){try{var f=kfn();sn=f&&f.snap&&box?f.snap(box):null;}catch(e){}}var r0=step0(d);if(r0!==false)kfx(d,0,ax,sn);else if(sn&&sn.parentNode)sn.parentNode.removeChild(sn);return r0;}
-  function step0(d){
-    if(curCard){var sb=sibsOf(curCard);return cardGo(sb.indexOf(curCard)+d);}
-    if(!curRow)return false;
-    if(!document.body.contains(curRow)){   /* 頁面把表格重畫了（同步、切換期間）：用第幾張表＋第一欄文字找回目前這一列 */
-      var t2=document.querySelectorAll('table')[curT],k=curKey,hit=t2?dataRows(t2).filter(function(r){return nk(txt(r.cells[0]))===k;})[0]:null;
-      if(!hit)return false;curRow=hit;
-    }
-    var t=curRow.closest('table'),rs=t?dataRows(t):[],i=rs.indexOf(curRow)+d;
-    if(i<0||i>=rs.length)return false;
-    show(rs[i]);box.classList.remove('kn-next','kn-prev');void box.offsetWidth;box.classList.add(d>0?'kn-next':'kn-prev');
-    try{rs[i].scrollIntoView({block:'nearest'});}catch(e){}
+  function step(d){
+    if(!SRC||!sc)return false;var i=IDX+d;if(i<0||i>=SRC.n)return false;
+    if(i<FIRST){openAt(SRC,i);return true;}                       /* 往回超過目前畫出來的第一張：從那一張重新接 */
+    while(NEXT<=i&&append()){}
+    var el=secEl(i);if(!el)return false;sc.scrollTo({top:el.offsetTop-sc.offsetTop-2,behavior:'smooth'});
+    try{if(SRC.kind==='row'&&document.body.contains(SRC.els[i]))SRC.els[i].scrollIntoView({block:'nearest'});}catch(e){}
     return true;
   }
   function init(){
     mask=document.createElement('div');mask.id='kn-mask';mask.setAttribute('data-noswipe','');box=document.createElement('div');box.id='kn-box';mask.appendChild(box);document.body.appendChild(mask);
     mask.addEventListener('click',function(e){
       if(e.target===mask||e.target.id==='kn-x'){hide();return;}
-      var b=e.target.closest('#kn-nav button,#kn-foot button');if(b)step(+b.dataset.d);
-      var c=e.target.closest('.kn-chip,.kn-br');if(c){jump(+c.dataset.i);return;}
-      var tb=e.target.closest('#kn-tabs button');if(tb){KN_TAB=tb.dataset.tab;[].forEach.call(box.querySelectorAll('#kn-tabs button'),function(x){x.classList.toggle('on',x===tb);});[].forEach.call(box.querySelectorAll('.kn-pane'),function(p){p.classList.toggle('on',p.dataset.p===KN_TAB);});return;}
-      var cc=e.target.closest('.kn-cc button');if(cc&&curRow){KN_COL=cc.dataset.col;show(curRow);return;}
-      var nc=e.target.closest('.kn-n[data-c]');if(nc&&curRow){var lb=nc.querySelector('.kn-nl');KN_COL=lb?lb.textContent.replace(/^\S*\s?/,'').trim():'';KN_COL=(heads(curRow.closest('table'))[+nc.dataset.c])||KN_COL;KN_TAB='cmp';show(curRow);}
+      var b=e.target.closest('#kn-nav button');if(b){step(+b.dataset.d);return;}
+      var c=e.target.closest('.kn-br');if(c){jump(+c.dataset.i);return;}
+      var tb=e.target.closest('#kn-tabs button');if(tb){KN_TAB=tb.dataset.tab;[].forEach.call(sc.querySelectorAll('.kn-sec'),showPane);paintTop();var e0=secEl(IDX);if(e0)sc.scrollTop=e0.offsetTop-sc.offsetTop-2;return;}
+      var sec=e.target.closest('.kn-sec'),si=sec?+sec.getAttribute('data-i'):IDX,rw=SRC&&SRC.kind==='row'?SRC.els[si]:null;
+      var cc=e.target.closest('.kn-cc button');if(cc&&rw){KN_COL=cc.dataset.col;openAt(SRC,si);return;}
+      var nc=e.target.closest('.kn-n[data-c]');if(nc&&rw){var lb=nc.querySelector('.kn-nl');KN_COL=lb?lb.textContent.replace(/^\S*\s?/,'').trim():'';try{KN_COL=(heads(rw.closest('table'))[+nc.dataset.c])||KN_COL;}catch(_){}KN_TAB='cmp';openAt(SRC,si);}
     });
-    document.addEventListener('keydown',function(e){if(!mask.classList.contains('on'))return;if(e.key==='Escape')hide();else if(e.key==='ArrowDown'||e.key==='ArrowRight'||e.key==='PageDown'){e.preventDefault();step(1,/Right/.test(e.key)?'':'y');}else if(e.key==='ArrowUp'||e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();step(-1,/Left/.test(e.key)?'':'y');}});
-    var tx=0,ty=0,atTop=false,atEnd=false;
-    box.addEventListener('touchstart',function(e){var p=e.touches[0];tx=p.clientX;ty=p.clientY;atTop=box.scrollTop<=1;atEnd=box.scrollTop+box.clientHeight>=box.scrollHeight-2;},{passive:true});
-    box.addEventListener('touchend',function(e){var p=e.changedTouches[0],dx=p.clientX-tx,dy=p.clientY-ty;
-      if(Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.5)step(dx<0?1:-1);
-      else if(dy<-70&&atEnd&&Math.abs(dy)>Math.abs(dx)*1.5)step(1,'y');          /* 已到底再往上滑＝下一筆（可一直滑下去） */
-      else if(dy>70&&atTop&&Math.abs(dy)>Math.abs(dx)*1.5)step(-1,'y');},{passive:true});
-    var wl=0;box.addEventListener('wheel',function(e){var now=Date.now();if(now-wl<350)return;var end=box.scrollTop+box.clientHeight>=box.scrollHeight-2,top=box.scrollTop<=1;if(e.deltaY>30&&end){wl=now;step(1,'y');}else if(e.deltaY<-30&&top){wl=now;step(-1,'y');}},{passive:true});
+    document.addEventListener('keydown',function(e){if(!mask.classList.contains('on'))return;if(e.key==='Escape')hide();else if(e.key==='ArrowRight'||e.key==='PageDown'){e.preventDefault();step(1);}else if(e.key==='ArrowLeft'||e.key==='PageUp'){e.preventDefault();step(-1);}});
+    /* 左右滑＝上一筆／下一筆；上下就是一般的捲動（會自己接下一筆） */
+    var tx=0,ty=0,tt=0;
+    box.addEventListener('touchstart',function(e){if(e.touches.length!==1){tt=0;return;}var p=e.touches[0];tx=p.clientX;ty=p.clientY;tt=Date.now();},{passive:true});
+    box.addEventListener('touchend',function(e){if(!tt)return;var p=e.changedTouches[0],dx=p.clientX-tx,dy=p.clientY-ty,dt=Date.now()-tt;tt=0;
+      if(dt<700&&Math.abs(dx)>60&&Math.abs(dx)>Math.abs(dy)*1.8&&!(e.target.closest&&e.target.closest('.kn-cc,[data-noswipe-x]')))step(dx<0?1:-1);},{passive:true});
     document.addEventListener('click',function(e){
       var t=e.target;if(!t||!t.closest||t.closest('#kn-mask'))return;
       if(t.closest('button,a,input,select,textarea,label,summary,[contenteditable="true"],[role="button"],[data-keynote="off"]'))return;
