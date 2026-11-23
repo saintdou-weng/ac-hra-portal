@@ -211,11 +211,11 @@
   function capOf(el){var c=el.parentElement;for(var i=0;i<5&&c;i++,c=c.parentElement){var h=c.querySelector('h1,h2,h3,h4,.ct,.ch,.sect-title,[class*="title"]');if(h&&!el.contains(h)&&!h.contains(el))return txt(h).slice(0,60);}return '';}
   function cardSec(el,sib){KN_ROW=null;
     var idx=sib.indexOf(el),P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
-    var numsHtml='<div id="kn-nums" style="grid-template-columns:1fr"><div class="kn-n"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
+    var numsHtml='<div class="kn-n" style="grid-column:1/-1"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
     var nums=all.filter(function(x){return x.n!==null;});
     if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
       numsHtml+='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(P.n)/mx*100))+'%"></i></div><div class="kn-ref">'+vsAvg(P.n,sum/nums.length)+'</div>';}
-    numsHtml+='</div></div>';
+    numsHtml+='</div>';   /* 外面 tabsHtml 會包一層 #kn-nums；這張大數字卡佔整列 */
     var rowsHtml=P.lines.map(function(x){var m=x.match(/^(.{1,30}?)[：:]\s*(.+)$/);return '<div class="kn-r"><div class="kn-rl"><span class="kn-ic">'+(m?icOf(m[1]):'🗒')+'</span>'+esc(m?m[1]:'說明')+'</div><div class="kn-rv">'+esc(m?m[2]:x)+'</div></div>';}).join('');
     var allHtml=all.map(function(x,i){return '<button type="button" class="kn-br'+(i===idx?' on':'')+'" data-i="'+i+'" style="grid-template-columns:1fr auto"><span class="n">'+(i===idx?'▶ ':'')+'<span class="kn-ic">'+icOf(x.label)+'</span>'+esc(x.label)+'</span><span class="v">'+esc(x.val)+'</span></button>';}).join('');
     var cmpHtml='';
