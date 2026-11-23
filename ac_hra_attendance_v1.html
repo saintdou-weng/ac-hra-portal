@@ -137,6 +137,7 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
 <!-- v58 Attendance Telegram compact non-zero leave display -->
 <script src="shared/hra-report.js?v=2" defer></script>
 <script src="shared/att-tg.js?v=12"></script>
+<script src="shared/period-list.js?v=1"></script>
 </head>
 <body>
 
@@ -324,8 +325,9 @@ select{background:#fff;border:1px solid #d0d5e8;color:#1e2640;padding:6px 10px;b
         <span id="attPeriodCount" style="font-size:10px;color:#8b95b8"></span>
       </div>
     </div>
-    <div class="twrap" style="max-height:360px">
-      <table class="dtbl period-list-table">
+    <div id="attPL"></div>
+    <div class="twrap" style="max-height:360px;display:none">
+      <table class="dtbl period-list-table" data-keynote="off">
         <thead><tr>
           <th data-zh="期間" data-en="Period" data-km="រយៈពេល">期間</th>
           <th data-zh="天數" data-en="Days" data-km="ថ្ងៃ">天數</th>
@@ -1036,25 +1038,48 @@ function setAttendanceListGrain(grain){
   ATT_LIST_GRAIN=grain==='year'?'year':'month';
   renderAttendancePeriodList();
 }
+/* 2026-11-23 Paul：月／年列表「按哪一項就只看哪一項」——上面選一項（出勤率／平均在職／缺勤／新進／離職），
+   每個月（年）一列＝期間｜那一項的數字｜長條；點一列跳出那一期的卡：各組那一項的數字＋總和，再點某一組看它這一期的明細。 */
+var ATT_LIST_METRIC='rate';
+var ATT_METRICS=[['rate','出勤率','Attendance rate','អត្រាវត្តមាន','#10b981'],['hc','平均在職','Avg headcount','បុគ្គលិកមធ្យម','#3b82f6'],['abs','缺勤人次','Absence','អវត្តមាន','#f59e0b'],['join','新進','Join','ចូលថ្មី','#06b6d4'],['resign','離職','Resign','លាឈប់','#f43f5e']];
+function setAttendanceListMetric(k){ATT_LIST_METRIC=k;renderAttendancePeriodList();}
+function attMetricVal(x,k){return k==='rate'?(x.rate==null?0:x.rate*100):k==='hc'?Math.round(x.avgHC):k==='abs'?x.absence:k==='join'?x.join:x.resign;}
 function renderAttendancePeriodList(){
-  const body=document.getElementById('attPeriodBody');if(!body)return;
+  const box=document.getElementById('attPL');if(!box)return;
   const monthBtn=document.getElementById('attListMonthBtn'),yearBtn=document.getElementById('attListYearBtn');
   if(monthBtn)monthBtn.classList.toggle('on',ATT_LIST_GRAIN==='month');
   if(yearBtn)yearBtn.classList.toggle('on',ATT_LIST_GRAIN==='year');
   const keys=(ATT_LIST_GRAIN==='month'?[...ensureDataIndex().months]:[...ensureDataIndex().years]).reverse();
   const active=ATT_LIST_GRAIN==='month'?document.getElementById('msel')?.value:document.getElementById('ysel')?.value;
-  document.getElementById('attPeriodCount').textContent=T(`${keys.length} 個${ATT_LIST_GRAIN==='month'?'月份':'年度'}`,`${keys.length} ${ATT_LIST_GRAIN==='month'?'months':'years'}`,`${keys.length}`);
-  body.innerHTML=keys.map(key=>{
-    const x=attendancePeriodMetrics(ATT_LIST_GRAIN,key);
-    const rate=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';
-    const turnover=x.turnover==null?'—':(x.turnover*100).toFixed(2)+'%';
-    return`<tr class="${key===active?'active':''}" onclick="jumpAttendancePeriod('${key}')">
-      <td style="text-align:left">${key===active?'◀ ':''}<b>${key}</b></td>
-      <td>${x.days}</td><td>${Math.round(x.avgHC)}</td><td>${Math.round(x.avgAttendance)}</td>
-      <td>${rateBadge(x.rate)}</td><td>${x.absence}</td><td>${x.join}</td><td>${x.resign}</td><td>${turnover}</td>
-    </tr>`;
-  }).join('');
-  if(!keys.length)body.innerHTML=`<tr><td colspan="9">${T('尚無期間資料','No period data','មិនមានទិន្នន័យ')}</td></tr>`;
+  const cnt=document.getElementById('attPeriodCount');if(cnt)cnt.textContent=T(`${keys.length} 個${ATT_LIST_GRAIN==='month'?'月份':'年度'}`,`${keys.length} ${ATT_LIST_GRAIN==='month'?'months':'years'}`,`${keys.length}`);
+  const M=ATT_METRICS.find(m=>m[0]===ATT_LIST_METRIC)||ATT_METRICS[0],mk0=M[0];
+  const chips='<div class="segmented tf-keep" style="margin:0 0 8px;flex-wrap:wrap">'+ATT_METRICS.map(m=>`<button type="button" class="${m[0]===mk0?'on':''}" onclick="setAttendanceListMetric('${m[0]}')">${T(m[1],m[2],m[3])}</button>`).join('')+'</div>';
+  if(!window.ACPL||!keys.length){box.innerHTML=chips+`<div style="color:#8b95b8;font-size:12px;padding:8px">${T('尚無期間資料','No period data','មិនមានទិន្នន័យ')}</div>`;return;}
+  const rows=keys.map(key=>{const x=attendancePeriodMetrics(ATT_LIST_GRAIN,key),v=attMetricVal(x,mk0);
+    return {k:key,v:v,sub:x.days+' '+T('天','days','ថ្ងៃ'),color:mk0==='rate'?(x.rate==null?'#94a3b8':x.rate>=.92?'#10b981':x.rate>=.88?'#f59e0b':'#ef4444'):M[4]};});
+  let html=ACPL.list({rows:rows,cur:active,head:T(M[1],M[2],M[3]),subHead:T('有資料天數','Days','ថ្ងៃ'),fn:'attPeriodCard',arg:ATT_LIST_GRAIN,color:M[4],period:T('期間','Period','រយៈពេល'),chart:T('圖表','Chart','ក្រាហ្វ')});
+  if(mk0==='rate')html=html.replace(/(<td class="acpl-v"[^>]*>)([\d,]+)(<)/g,(a,b,c,d)=>b+c+'%'+d);
+  box.innerHTML=chips+html;
+  if(mk0==='rate'){box.querySelectorAll('tr.acpl-r').forEach((tr,i)=>{const x=attendancePeriodMetrics(ATT_LIST_GRAIN,rows[i].k),td=tr.querySelector('.acpl-v');if(td)td.textContent=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';});}
+}
+function attPeriodCard(grain,key){
+  try{
+    const dates=periodDates(grain,key),x=attendancePeriodMetrics(grain,key),sects=aggregateSections(dates),mk0=ATT_LIST_METRIC,M=ATT_METRICS.find(m=>m[0]===mk0)||ATT_METRICS[0];
+    let hold=document.getElementById('att-hold');if(!hold){hold=document.createElement('div');hold.id='att-hold';hold.style.cssText='position:absolute;left:-99999px;top:0;width:1100px;pointer-events:none';document.body.appendChild(hold);}
+    const H=[T('組別','Section','ផ្នែក'),T('部門','Department','នាយកដ្ឋាន'),T('平均在職','Avg headcount','បុគ្គលិកមធ្យម'),T('出勤率','Attendance rate','អត្រាវត្តមាន'),T('應出勤人日','Report man-days','គួរមក'),T('出勤人日','Attended man-days','បានមក'),T('缺勤人次','Absence','អវត្តមាន'),'AL','PL','SL','NP','ML',T('新進','Join','ចូលថ្មី'),T('離職','Resign','លាឈប់')];
+    hold.innerHTML='<table data-keynote="off"><thead><tr>'+H.map(h=>'<th>'+h+'</th>').join('')+'</tr></thead><tbody>'+sects.map(s=>{const r=s.report>0?(s.att/s.report*100).toFixed(1)+'%':'—';
+      return '<tr>'+[s.name,s.dept,s.days?Math.round(s.ttl/s.days):0,r,s.report,s.att,s.absent,s.al,s.pl,s.sl,s.np,s.ml,s.join,s.resign].map(v=>'<td>'+String(v==null?'':v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))+'</td>').join('')+'</tr>';}).join('')+'</tbody></table>';
+    const trs=[...hold.querySelectorAll('tbody tr')];
+    const items=sects.map((s,i)=>{const rate=s.report>0?s.att/s.report:null;let v,text,color=M[4];
+      if(mk0==='rate'){v=rate==null?0:rate*100;text=rate==null?'—':(rate*100).toFixed(1)+'%';color=rate==null?'#94a3b8':rate>=.92?'#10b981':rate>=.88?'#f59e0b':'#ef4444';}
+      else if(mk0==='hc'){v=s.days?Math.round(s.ttl/s.days):0;text=String(v);}
+      else if(mk0==='abs'){v=s.absent;text=String(v);}else if(mk0==='join'){v=s.join;text=String(v);}else{v=s.resign;text=String(v);}
+      return {k:s.name,v:v,text:text,color:color,rows:[trs[i]]};}).filter(it=>mk0==='rate'||mk0==='hc'||it.v>0).sort((a,b)=>mk0==='rate'?a.v-b.v:b.v-a.v);
+    const tot=mk0==='rate'?(x.rate==null?'—':(x.rate*100).toFixed(1)+'%'):String(attMetricVal(x,mk0));
+    window.acKeynoteBars({title:key+' · '+T(M[1],M[2],M[3])+' '+tot,icon:'🕐',chips:[x.days+' '+T('天有資料','days of data','ថ្ងៃ')],tab:T('各組','By section','តាមផ្នែក'),
+      nums:[{icon:'👥',label:T('平均在職','Avg headcount','បុគ្គលិកមធ្យម'),value:String(Math.round(x.avgHC))},{icon:'✅',label:T('出勤率','Attendance rate','អត្រាវត្តមាន'),value:x.rate==null?'—':(x.rate*100).toFixed(1)+'%'}],
+      blocks:[{label:T('各組的','By section — ','តាមផ្នែក — ')+T(M[1],M[2],M[3])+(mk0==='rate'?T('（低的在上）',' (lowest first)',''):'')+' · '+T('點一條看那一組的明細','tap a bar for details','ចុចដើម្បីមើល'),items:items,total:tot,totalLabel:mk0==='rate'||mk0==='hc'?T('全廠','Factory','រោងចក្រ'):T('合計','Total','សរុប')}]});
+  }catch(e){console.error(e);}
 }
 function jumpAttendancePeriod(key){
   if(ATT_LIST_GRAIN==='month'){
@@ -3233,6 +3258,6 @@ if(window.HRAAutoSync)HRAAutoSync.install({key:'attendance',push:function(o){ret
 <!-- VRT swipe-tabs：左右滑動（手指／滑鼠拖曳）切換分頁，只聽手勢、不改資料 -->
 <script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
 <script src="shared/ui-fx.js?v=5" defer></script>
-<script src="shared/row-keynote.js?v=30" defer></script>
+<script src="shared/row-keynote.js?v=31" defer></script>
 </body>
 </html>

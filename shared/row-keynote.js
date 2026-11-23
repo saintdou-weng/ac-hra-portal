@@ -221,6 +221,17 @@
     if(g!=null){var hg=S.last.byG[g];if(hg){var sub=hg.rows;KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},0);}return true;}
     return false;}
   try{window.acKeynoteSummary=function(t,o){KN_TAB='num';showSum(t,null,o&&o.title,o);};}catch(e){}
+  /* v8（2026-11-23）通用長條卡 acKeynoteBars：頁面自己給「標題＋大數字＋每一條的名稱／數值」；某一條有帶 rows（表格列）時，點它 → 那幾列的明細卡。
+     給考勤這種「沒有名單、只有各組數字」的月卡用。只畫畫面。 */
+  try{window.acKeynoteBars=function(o){o=o||{};KN_TAB='num';var blocks=o.blocks||[],byG={};
+    var nums=(o.nums||[]).map(function(x){return '<div class="kn-n"><div class="kn-nl"><span class="kn-ic">'+(x.icon||'📊')+'</span>'+esc(x.label)+'</div><div class="kn-nv" style="font-size:28px">'+esc(x.value)+'</div></div>';}).join('');
+    var bh=blocks.map(function(b,bi){var mx=Math.max.apply(null,b.items.map(function(x){return Math.abs(+x.v||0);}).concat([0]))||1;
+      return '<div class="kn-ref" style="margin:'+(bi?'12px':'0')+' 0 6px;font-weight:700">'+esc(b.label||'')+'</div>'+b.items.map(function(x,i){var key=bi+'|'+i,has=x.rows&&x.rows.length;byG[key]={rows:x.rows||[]};
+        return '<button type="button" class="kn-br" '+(has?'data-g="'+key+'"':'style="cursor:default"')+'><span class="n">'+esc(x.k)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(+x.v||0)/mx*100))+'%'+(x.color?';background:'+esc(x.color):'')+'"></i></span><span class="v">'+esc(x.text!=null?x.text:x.v)+'</span></button>';}).join('')+
+        (b.total!=null?'<div class="kn-br on" style="cursor:default;margin-top:8px"><span class="n">'+esc(b.totalLabel||'合計 Total')+'</span><span class="t"></span><span class="v">'+esc(b.total)+'</span></div>':'');}).join('');
+    var T=[['num','📊 '+(o.tab||'統計')]];
+    openAt({kind:'sum',n:1,els:[document.body],title:o.title||'',table:null,build:function(){KN_ROW=null;KN_T=T;KN_HASTOP=false;
+      var r={hd:headHtml({icon:o.icon||'📊',title:o.title||'',pos:'',chips:(o.chips||[]).map(function(c){return '<span class="kn-hc">'+esc(c)+'</span>';})}),body:'<div class="kn-pane on" data-p="num">'+(nums?'<div id="kn-nums">'+nums+'</div>':'')+'<div id="kn-cmp">'+bh+'</div></div>',T:T,title:o.title||'',cap:'',byG:byG,byM:[]};this.last=r;return r;}},0);};}catch(e){}
   function hide(){mask.classList.remove('on');curRow=null;curCard=null;SRC=null;}
   /* ── v2.1 儀表板卡片 Keynote（2026-11-22 Paul：各分頁儀表板的小卡按了沒反應）──
      KPI 小卡、統計格、長條列（同一排／同一組有 2 張以上長得一樣的）點了 → 跳出大字卡：
