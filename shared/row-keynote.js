@@ -192,19 +192,24 @@
   /* ── v7（2026-11-23 Paul）列表旁邊加「📊 圖表」：依部門／組別的人數（或金額）長條＋總和、每月合計；
         點月份 → 那個月依部門的統計；點部門 → 那些人的名單；點人 → 他的重點卡。只看畫面上這張表，不動資料。 ── */
   var GRP_RE=/部門|組別|^組$|單位|車間|dept|department|section|^line$|team|group|ផ្នែក/i,GRP2_RE=/類型|類別|種類|狀態|項目|type|category|status|item/i,AMT_RE=/金額|usd|\$|薪|salary|pay|amount|費|cost|合計|total|riel|khr/i,DATE_RE=/日期|date|到期|入職|離職|月份|month|期間|ថ្ងៃ/i;
-  function sumInfo(table){var H=heads(table),g=-1,g2=-1,d=-1,am=[];H.forEach(function(h,i){h=String(h||'');if(g<0&&GRP_RE.test(h))g=i;else if(g2<0&&GRP2_RE.test(h))g2=i;if(d<0&&DATE_RE.test(h))d=i;});
+  function sumInfo(table){var H=heads(table),g=-1,g2=-1,d=-1,am=[],gs=[],ds=[];H.forEach(function(h,i){h=String(h||'');if(GRP_RE.test(h)){if(g<0)g=i;gs.push(i);}else if(GRP2_RE.test(h)||/職位|職稱|position|title|性別|gender|廠別|factory$|customer|客戶|buyer/i.test(h)){if(g2<0)g2=i;gs.push(i);}if(DATE_RE.test(h)||/^end$|^start$|expiry|expire/i.test(h)){if(d<0)d=i;ds.push(i);}});
     var rows=dataRows(table);if(rows.length<4)return null;
     H.forEach(function(h,i){if(i===g||i===d)return;if(!AMT_RE.test(String(h||'')))return;var ok=0;for(var k=0;k<rows.length&&k<30;k++){if(rows[k].cells[i]&&num(txt(rows[k].cells[i]))!==null)ok++;}if(ok>=Math.min(rows.length,30)*.6)am.push(i);});
-    if(g<0)g=g2;if(g<0&&d<0)return null;return {H:H,g:g,d:d,am:am.slice(0,2),rows:rows};}
+    if(g<0)g=g2;if(g<0&&d<0)return null;return {H:H,g:g,d:d,gs:gs.slice(0,5),ds:ds,am:am.slice(0,2),rows:rows};}
   function mKey(s){var m=String(s).match(/(20\d{2})[-\/.年](\d{1,2})/);if(m)return m[1]+'-'+('0'+m[2]).slice(-2);m=String(s).match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})/);return m?m[3]+'-'+('0'+m[2]).slice(-2):'';}
   function tally(rows,ci,fn,am){var o={},ord=[];rows.forEach(function(r){var k=r.cells[ci]?fn(txt(r.cells[ci])):'';if(!k)k='（未填 —）';if(!o[k]){o[k]={k:k,n:0,a:0,rows:[]};ord.push(k);}o[k].n++;o[k].rows.push(r);if(am!=null&&r.cells[am]){var v=num(txt(r.cells[am]));if(v!==null)o[k].a+=v;}});return ord.map(function(k){return o[k];});}
   function barsHtml(list,attr,useAmt,unit){var mx=Math.max.apply(null,list.map(function(x){return Math.abs(useAmt?x.a:x.n);}))||1;
-    return list.map(function(x){var v=useAmt?x.a:x.n;return '<button type="button" class="kn-br" data-'+attr+'="'+esc(x.k)+'"><span class="n">'+esc(x.k)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(v)/mx*100))+'%"></i></span><span class="v">'+(useAmt?'$'+fmt(v):v+(unit||''))+'</span></button>';}).join('');}
+    return list.map(function(x){var v=useAmt?x.a:x.n;return '<button type="button" class="kn-br" data-'+attr+'="'+esc(x.k)+'"><span class="n">'+esc(x.lab||x.k)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(v)/mx*100))+'%"></i></span><span class="v">'+(useAmt?'$'+fmt(v):v+(unit||''))+'</span></button>';}).join('');}
   function sumSec(inf,rows,title,cap){KN_ROW=null;var am=inf.am.length?inf.am[0]:null,tot=0;if(am!=null)rows.forEach(function(r){var v=r.cells[am]?num(txt(r.cells[am])):null;if(v!==null)tot+=v;});
     var nums='<div class="kn-n" style="grid-column:'+(am!=null?'auto':'1/-1')+'"><div class="kn-nl"><span class="kn-ic">👥</span>筆數／人數 Count</div><div class="kn-nv" style="font-size:30px">'+rows.length+'</div></div>'+(am!=null?'<div class="kn-n"><div class="kn-nl"><span class="kn-ic">💵</span>'+esc(inf.H[am])+' 合計 Total</div><div class="kn-nv" style="font-size:30px">$'+fmt(tot)+'</div></div>':'');
-    var byG=inf.g>=0?tally(rows,inf.g,function(x){return x;},am).sort(function(a,b){return b.n-a.n;}):[],byM=inf.d>=0?tally(rows,inf.d,mKey,am).filter(function(x){return /^20/.test(x.k);}).sort(function(a,b){return a.k<b.k?1:-1;}):[];
-    var gH=byG.length?'<div id="kn-cmp"><div class="kn-ref" style="margin-bottom:6px">依「'+esc(inf.H[inf.g])+'」· 點一條看名單 Tap a bar for the list</div>'+barsHtml(byG,'g',false,'')+(am!=null?'<div class="kn-ref" style="margin:10px 0 6px">'+esc(inf.H[am])+'</div>'+barsHtml(byG.slice().sort(function(a,b){return b.a-a.a;}),'g',true):'')+'<div class="kn-br on" style="cursor:default"><span class="n">合計 Total</span><span class="t"></span><span class="v">'+rows.length+(am!=null?' · $'+fmt(tot):'')+'</span></div></div>':'';
-    var mH=byM.length>1?'<div id="kn-cmp"><div class="kn-ref" style="margin-bottom:6px">每月合計（依「'+esc(inf.H[inf.d])+'」）· 點月份看那個月 Tap a month</div>'+barsHtml(byM,'m',am!=null&&!byG.length,'')+'</div>':'';
+    /* 每個分組欄（部門、職位、類型、狀態…）各一組長條；只有一種值的那一欄排到後面 */
+    var blocks=(inf.gs||[]).map(function(ci){return {ci:ci,list:tally(rows,ci,function(x){return x.length>26?x.slice(0,26)+'…':x;},am).sort(function(a,b){return b.n-a.n;})};}).filter(function(o){return o.list.length>=1&&o.list.length<=24;}).sort(function(a,b){return (a.list.length<2)-(b.list.length<2);});
+    var byG={};blocks.forEach(function(o){o.list.forEach(function(x){byG[o.ci+'|'+x.k]=x;});});
+    var byM=[];(inf.ds||[]).some(function(ci){var l=tally(rows,ci,mKey,am).filter(function(x){return /^20/.test(x.k);}).sort(function(a,b){return a.k<b.k?1:-1;});if(l.length>1){byM=l;inf.d=ci;return true;}return false;});
+    var gH=blocks.length?'<div id="kn-cmp">'+blocks.map(function(o,bi){var L=o.list.map(function(x){return {k:o.ci+'|'+x.k,lab:x.k,n:x.n,a:x.a};});
+      return '<div class="kn-ref" style="margin:'+(bi?'12px':'0')+' 0 6px;font-weight:700">依「'+esc(inf.H[o.ci])+'」'+(bi?'':' · 點一條看名單 Tap a bar for the list')+'</div>'+barsHtml(L,'g',false,'')+(am!=null&&!bi?'<div class="kn-ref" style="margin:10px 0 6px">'+esc(inf.H[am])+'</div>'+barsHtml(L.slice().sort(function(a,b){return b.a-a.a;}),'g',true):'');}).join('')
+      +'<div class="kn-br on" style="cursor:default;margin-top:8px"><span class="n">合計 Total</span><span class="t"></span><span class="v">'+rows.length+(am!=null?' · $'+fmt(tot):'')+'</span></div></div>':'';
+    var mH=byM.length>1?'<div id="kn-cmp"><div class="kn-ref" style="margin-bottom:6px">每月合計（依「'+esc(inf.H[inf.d])+'」）· 點月份看那個月 Tap a month</div>'+barsHtml(byM,'m',am!=null&&!blocks.length,'')+'</div>':'';
     var T=[];if(gH)T.push(['num','📊 依部門 By group']);if(mH)T.push(['all','📅 每月 By month']);if(!T.length)T.push(['num','📊 統計']);
     if(!T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=T[0][0];KN_T=T;KN_HASTOP=false;
     var body='<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num"><div id="kn-nums">'+nums+'</div>'+(gH||(!T.some(function(t){return t[0]==='all';})?mH:''))+'</div>'+(mH&&gH?'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-nums">'+nums+'</div>'+mH+'</div>':(mH&&!gH?'':''));
@@ -213,7 +218,7 @@
     openAt({kind:'sum',n:1,els:[table],inf:inf,rows:rows,table:table,title:title,build:function(){last=sumSec(inf,rows,title,cap);this.last=last;return last;}},0);}
   function sumClick(c){if(!SRC||SRC.kind!=='sum'||!SRC.last)return false;var g=c.getAttribute('data-g'),m=c.getAttribute('data-m'),S=SRC;
     if(m!=null){var hm=S.last.byM.filter(function(x){return x.k===m;})[0];if(hm){KN_TAB='num';showSum(S.table,hm.rows,m+' · '+S.title.replace(/^20\d\d-\d\d · /,''));}return true;}
-    if(g!=null){var hg=S.last.byG.filter(function(x){return x.k===g;})[0];if(hg){var sub=hg.rows;KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},0);}return true;}
+    if(g!=null){var hg=S.last.byG[g];if(hg){var sub=hg.rows;KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},0);}return true;}
     return false;}
   try{window.acKeynoteSummary=function(t){showSum(t);};}catch(e){}
   function hide(){mask.classList.remove('on');curRow=null;curCard=null;SRC=null;}
