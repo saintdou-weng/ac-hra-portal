@@ -40,6 +40,7 @@
    +'.kn-chip{flex:none;border:1px solid #cbd5e1;background:#fff;color:#0f172a;border-radius:999px;padding:7px 14px;font-size:13px;white-space:nowrap;cursor:pointer;max-width:180px;overflow:hidden;text-overflow:ellipsis}.kn-chip.on{background:#4f46e5;border-color:#4f46e5;color:#fff;font-weight:700}'
    +'@media(min-width:560px){#kn-rows{display:grid;grid-template-columns:1fr 1fr;column-gap:28px}.kn-r{flex-direction:column;gap:2px;border-bottom:0;padding:8px 0}.kn-rl{flex:none;font-size:12.5px}.kn-rv{font-size:16px;font-weight:700}}'
    +'#kn-box{background:#f4f7fb;box-shadow:0 24px 60px rgba(15,23,42,.34),0 2px 8px rgba(15,23,42,.12)}#kn-head,#kn-tabs,#kn-foot,#kn-chips{background:#fff}.kn-n{background:#fff;box-shadow:0 3px 10px rgba(15,23,42,.09);border-color:#dfe6ee}#kn-rows{margin:12px 16px 16px;padding:6px 16px;background:#fff;border:1px solid #dfe6ee;border-radius:14px;box-shadow:0 3px 10px rgba(15,23,42,.08)}'
+   +'.kn-sumbtn{display:block;margin:4px 0 6px auto;border:1px solid #c9d5e2;background:#fff;color:#14233a;font:700 12.5px/1 inherit;padding:7px 12px;border-radius:8px;cursor:pointer}'
    +'tbody tr.kn-able{cursor:pointer}tbody tr.kn-able>td:first-child{color:#1e40af;font-weight:700}'
    +'#kn-tabs{position:sticky;top:62px;z-index:1;display:flex;background:#fff;border-bottom:1px solid #e2e8f0;overflow-x:auto;scrollbar-width:none}#kn-tabs::-webkit-scrollbar{display:none}'
    +'#kn-tabs button{flex:1;border:0;background:none;padding:11px 8px;font-size:13.5px;font-weight:600;color:#64748b;white-space:nowrap;cursor:pointer;border-bottom:3px solid transparent}#kn-tabs button.on{color:#4338ca;border-bottom-color:#4f46e5}'
@@ -77,7 +78,7 @@
    +'.kn-rl,.kn-nl,.kn-ref,#kn-sub,.kn-no,#kn-tabs button,.kn-leg,#kn-pos,#kn-hint,.kn-end{color:#64748b}.kn-rv,#kn-title,#kn-nav button,#kn-x{color:#1d2b3a}'
    +'.kn-hc,.kn-hc.g,.kn-hc.y,.kn-hc.r{color:#1d2b3a}';
   /* v6（2026-11-23 Paul：放得下 2、3 張就並排，不要一張佔一整列）：寬螢幕外框放寬，卡片自動排 2～3 欄；窄螢幕照舊一欄 */
-  css+='@media(min-width:1000px){#kn-box{width:min(1560px,96vw)}#kn-scroll{display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:12px;grid-auto-rows:max-content;align-items:start;align-content:start}.kn-sec{margin:0}.kn-end{grid-column:1/-1}}';
+  css+='@media(min-width:1000px){#kn-box{width:min(1560px,96vw)}#kn-scroll.one{display:block}#kn-scroll.one .kn-sec{max-width:900px;margin:0 auto 12px}#kn-scroll:not(.one){display:grid;grid-template-columns:repeat(auto-fit,minmax(440px,1fr));gap:12px;grid-auto-rows:max-content;align-items:start;align-content:start}.kn-sec{margin:0}.kn-end{grid-column:1/-1}}';
   var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);
   var mask,box,curRow=null,curT=-1,curKey='';
   /* 欄位小圖示：看欄名（和值）挑一個 */
@@ -176,7 +177,7 @@
   function openAt(src,i){
     SRC=src;i=Math.max(0,Math.min(src.n-1,i));IDX=FIRST=NEXT=i;
     box.innerHTML='<div id="kn-head"><div id="kn-bar"><div id="kn-sub"></div><div id="kn-nav"><button type="button" data-d="-1" aria-label="prev">‹</button><button type="button" data-d="1" aria-label="next">›</button></div><button type="button" id="kn-x" aria-label="close">✕</button></div><div id="kn-tabs"></div></div><div id="kn-scroll"></div>';
-    sc=box.querySelector('#kn-scroll');mask.classList.add('on');append();fill();sc.scrollTop=0;paintTop();
+    sc=box.querySelector('#kn-scroll');if(src.n===1)sc.classList.add('one');mask.classList.add('on');append();fill();sc.scrollTop=0;paintTop();
     var tk=0;sc.addEventListener('scroll',function(){if(tk)return;tk=requestAnimationFrame(function(){tk=0;fill();
       var line=sc.scrollTop+sc.clientHeight*0.3,k=IDX,e2;
       while(k<NEXT-1&&(e2=secEl(k+1))&&e2.offsetTop-sc.offsetTop<=line)k++;
@@ -188,6 +189,33 @@
     curT=[].indexOf.call(document.querySelectorAll('table'),table);
     openAt({kind:'row',n:rows.length,els:rows,build:function(k){return rowSec(rows[k],rows);}},i);
   }
+  /* ── v7（2026-11-23 Paul）列表旁邊加「📊 圖表」：依部門／組別的人數（或金額）長條＋總和、每月合計；
+        點月份 → 那個月依部門的統計；點部門 → 那些人的名單；點人 → 他的重點卡。只看畫面上這張表，不動資料。 ── */
+  var GRP_RE=/部門|組別|^組$|單位|車間|dept|department|section|^line$|team|group|ផ្នែក/i,GRP2_RE=/類型|類別|種類|狀態|項目|type|category|status|item/i,AMT_RE=/金額|usd|\$|薪|salary|pay|amount|費|cost|合計|total|riel|khr/i,DATE_RE=/日期|date|到期|入職|離職|月份|month|期間|ថ្ងៃ/i;
+  function sumInfo(table){var H=heads(table),g=-1,g2=-1,d=-1,am=[];H.forEach(function(h,i){h=String(h||'');if(g<0&&GRP_RE.test(h))g=i;else if(g2<0&&GRP2_RE.test(h))g2=i;if(d<0&&DATE_RE.test(h))d=i;});
+    var rows=dataRows(table);if(rows.length<4)return null;
+    H.forEach(function(h,i){if(i===g||i===d)return;if(!AMT_RE.test(String(h||'')))return;var ok=0;for(var k=0;k<rows.length&&k<30;k++){if(rows[k].cells[i]&&num(txt(rows[k].cells[i]))!==null)ok++;}if(ok>=Math.min(rows.length,30)*.6)am.push(i);});
+    if(g<0)g=g2;if(g<0&&d<0)return null;return {H:H,g:g,d:d,am:am.slice(0,2),rows:rows};}
+  function mKey(s){var m=String(s).match(/(20\d{2})[-\/.年](\d{1,2})/);if(m)return m[1]+'-'+('0'+m[2]).slice(-2);m=String(s).match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](20\d{2})/);return m?m[3]+'-'+('0'+m[2]).slice(-2):'';}
+  function tally(rows,ci,fn,am){var o={},ord=[];rows.forEach(function(r){var k=r.cells[ci]?fn(txt(r.cells[ci])):'';if(!k)k='（未填 —）';if(!o[k]){o[k]={k:k,n:0,a:0,rows:[]};ord.push(k);}o[k].n++;o[k].rows.push(r);if(am!=null&&r.cells[am]){var v=num(txt(r.cells[am]));if(v!==null)o[k].a+=v;}});return ord.map(function(k){return o[k];});}
+  function barsHtml(list,attr,useAmt,unit){var mx=Math.max.apply(null,list.map(function(x){return Math.abs(useAmt?x.a:x.n);}))||1;
+    return list.map(function(x){var v=useAmt?x.a:x.n;return '<button type="button" class="kn-br" data-'+attr+'="'+esc(x.k)+'"><span class="n">'+esc(x.k)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(v)/mx*100))+'%"></i></span><span class="v">'+(useAmt?'$'+fmt(v):v+(unit||''))+'</span></button>';}).join('');}
+  function sumSec(inf,rows,title,cap){KN_ROW=null;var am=inf.am.length?inf.am[0]:null,tot=0;if(am!=null)rows.forEach(function(r){var v=r.cells[am]?num(txt(r.cells[am])):null;if(v!==null)tot+=v;});
+    var nums='<div class="kn-n" style="grid-column:'+(am!=null?'auto':'1/-1')+'"><div class="kn-nl"><span class="kn-ic">👥</span>筆數／人數 Count</div><div class="kn-nv" style="font-size:30px">'+rows.length+'</div></div>'+(am!=null?'<div class="kn-n"><div class="kn-nl"><span class="kn-ic">💵</span>'+esc(inf.H[am])+' 合計 Total</div><div class="kn-nv" style="font-size:30px">$'+fmt(tot)+'</div></div>':'');
+    var byG=inf.g>=0?tally(rows,inf.g,function(x){return x;},am).sort(function(a,b){return b.n-a.n;}):[],byM=inf.d>=0?tally(rows,inf.d,mKey,am).filter(function(x){return /^20/.test(x.k);}).sort(function(a,b){return a.k<b.k?1:-1;}):[];
+    var gH=byG.length?'<div id="kn-cmp"><div class="kn-ref" style="margin-bottom:6px">依「'+esc(inf.H[inf.g])+'」· 點一條看名單 Tap a bar for the list</div>'+barsHtml(byG,'g',false,'')+(am!=null?'<div class="kn-ref" style="margin:10px 0 6px">'+esc(inf.H[am])+'</div>'+barsHtml(byG.slice().sort(function(a,b){return b.a-a.a;}),'g',true):'')+'<div class="kn-br on" style="cursor:default"><span class="n">合計 Total</span><span class="t"></span><span class="v">'+rows.length+(am!=null?' · $'+fmt(tot):'')+'</span></div></div>':'';
+    var mH=byM.length>1?'<div id="kn-cmp"><div class="kn-ref" style="margin-bottom:6px">每月合計（依「'+esc(inf.H[inf.d])+'」）· 點月份看那個月 Tap a month</div>'+barsHtml(byM,'m',am!=null&&!byG.length,'')+'</div>':'';
+    var T=[];if(gH)T.push(['num','📊 依部門 By group']);if(mH)T.push(['all','📅 每月 By month']);if(!T.length)T.push(['num','📊 統計']);
+    if(!T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=T[0][0];KN_T=T;KN_HASTOP=false;
+    var body='<div class="kn-pane'+(KN_TAB==='num'?' on':'')+'" data-p="num"><div id="kn-nums">'+nums+'</div>'+(gH||(!T.some(function(t){return t[0]==='all';})?mH:''))+'</div>'+(mH&&gH?'<div class="kn-pane'+(KN_TAB==='all'?' on':'')+'" data-p="all"><div id="kn-nums">'+nums+'</div>'+mH+'</div>':(mH&&!gH?'':''));
+    return {hd:headHtml({icon:'📊',title:title,pos:'',chips:['<span class="kn-hc">'+rows.length+' 筆</span>']}),body:body,T:T,title:title,cap:cap,byG:byG,byM:byM};}
+  function showSum(table,rows,title){var inf=sumInfo(table);if(!inf)return;rows=rows||inf.rows;var cap=capOf(table)||'';title=title||(cap||'統計 Summary');var last=null;
+    openAt({kind:'sum',n:1,els:[table],inf:inf,rows:rows,table:table,title:title,build:function(){last=sumSec(inf,rows,title,cap);this.last=last;return last;}},0);}
+  function sumClick(c){if(!SRC||SRC.kind!=='sum'||!SRC.last)return false;var g=c.getAttribute('data-g'),m=c.getAttribute('data-m'),S=SRC;
+    if(m!=null){var hm=S.last.byM.filter(function(x){return x.k===m;})[0];if(hm){KN_TAB='num';showSum(S.table,hm.rows,m+' · '+S.title.replace(/^20\d\d-\d\d · /,''));}return true;}
+    if(g!=null){var hg=S.last.byG.filter(function(x){return x.k===g;})[0];if(hg){var sub=hg.rows;KN_TAB='num';openAt({kind:'row',n:sub.length,els:sub,build:function(k){return rowSec(sub[k],sub);}},0);}return true;}
+    return false;}
+  try{window.acKeynoteSummary=function(t){showSum(t);};}catch(e){}
   function hide(){mask.classList.remove('on');curRow=null;curCard=null;SRC=null;}
   /* ── v2.1 儀表板卡片 Keynote（2026-11-22 Paul：各分頁儀表板的小卡按了沒反應）──
      KPI 小卡、統計格、長條列（同一排／同一組有 2 張以上長得一樣的）點了 → 跳出大字卡：
@@ -287,7 +315,7 @@
     mask.addEventListener('click',function(e){
       if(e.target===mask||e.target.id==='kn-x'){hide();return;}
       var b=e.target.closest('#kn-nav button');if(b){step(+b.dataset.d);return;}
-      var c=e.target.closest('.kn-br');if(c){jump(+c.dataset.i);return;}
+      var c=e.target.closest('.kn-br');if(c){if(c.hasAttribute('data-g')||c.hasAttribute('data-m')){sumClick(c);return;}if(c.dataset.i==null)return;jump(+c.dataset.i);return;}
       var tb=e.target.closest('#kn-tabs button');if(tb){KN_TAB=tb.dataset.tab;[].forEach.call(sc.querySelectorAll('.kn-sec'),showPane);paintTop();var e0=secEl(IDX);if(e0)sc.scrollTop=e0.offsetTop-sc.offsetTop-2;return;}
       var sec=e.target.closest('.kn-sec'),si=sec?+sec.getAttribute('data-i'):IDX,rw=SRC&&SRC.kind==='row'?SRC.els[si]:null;
       var cc=e.target.closest('.kn-cc button');if(cc&&rw){KN_COL=cc.dataset.col;openAt(SRC,si);return;}
@@ -318,6 +346,10 @@
     },true);
     /* 第一欄短代碼不折行；可點的列顯示手型 */
     var tm=null;function tidy(){tm=null;var n=0;[].forEach.call(document.querySelectorAll('table'),function(tb){if(n>4000)return;[].forEach.call(tb.rows,function(r){n++;var c=r.cells[0];if(c&&!c.__kn){c.__kn=1;var s=txt(c);if(s&&s.length<=12&&!/\s/.test(s)&&!c.querySelector('input,button'))c.style.whiteSpace='nowrap';}if(r.parentElement&&r.parentElement.tagName==='TBODY'&&r.cells.length>=2)r.classList.add('kn-able');});});}
+    function sumBtns(){try{[].forEach.call(document.querySelectorAll('table'),function(tb){if(tb.__knS||tb.dataset.keynote==='off'||tb.closest('#kn-mask')||tb.offsetParent===null)return;if(tb.__knSc===tb.rows.length)return;tb.__knSc=tb.rows.length;var inf=null;try{inf=sumInfo(tb);}catch(e){}if(!inf||inf.rows.length<5)return;tb.__knS=1;
+        var b=document.createElement('button');b.type='button';b.className='kn-sumbtn';b.setAttribute('data-keynote','off');b.textContent='📊 圖表 Chart';b.onclick=function(ev){ev.stopPropagation();KN_TAB='num';showSum(tb);};
+        var host=tb.parentElement&&/auto|scroll/.test(getComputedStyle(tb.parentElement).overflowX)?tb.parentElement:tb;host.parentElement.insertBefore(b,host);});}catch(e){}}
+    var tidy0=tidy;tidy=function(){tidy0();sumBtns();};
     tidy();try{new MutationObserver(function(){if(!tm)tm=setTimeout(tidy,600);}).observe(document.body,{childList:true,subtree:true});}catch(e){}
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
