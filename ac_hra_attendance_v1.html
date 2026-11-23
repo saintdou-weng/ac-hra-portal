@@ -1064,6 +1064,20 @@ function renderAttendancePeriodList(){
   box.innerHTML=chips+html;
   if(mk0==='rate'){box.querySelectorAll('tr.acpl-r').forEach((tr,i)=>{const x=attendancePeriodMetrics(ATT_LIST_GRAIN,rows[i].k),td=tr.querySelector('.acpl-v');if(td)td.textContent=x.rate==null?'—':(x.rate*100).toFixed(1)+'%';});}
 }
+function attMovers(key){
+  const out={j:[],r:[]};
+  try{
+    const J=JSON.parse(localStorage.getItem('ac_hra_joins')||'[]')||[],R=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')||[],n=key.length;
+    let hold=document.getElementById('att-mv-hold');if(!hold){hold=document.createElement('div');hold.id='att-mv-hold';hold.style.cssText='position:absolute;left:-99999px;top:0;width:1100px;pointer-events:none';document.body.appendChild(hold);}
+    const e=v=>String(v==null?'':v).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    const tb=(heads,rows)=>'<table data-keynote="off"><thead><tr>'+heads.map(h=>'<th>'+e(h)+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr>'+r.map(c=>'<td>'+e(c)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
+    const jj=J.filter(r=>String(r.joinDate||'').slice(0,n)===key).sort((a,b)=>String(a.section||a.dept||'').localeCompare(String(b.section||b.dept||''))),rr=R.filter(r=>String(r.resignDate||'').slice(0,n)===key).sort((a,b)=>String(a.section||a.dept||'').localeCompare(String(b.section||b.dept||'')));
+    hold.innerHTML=tb([T('工號','ID','លេខ'),T('姓名','Name','ឈ្មោះ'),T('部門','Department','ផ្នែក'),T('職稱','Job','តួនាទី'),T('入職日','Join date','ថ្ងៃចូល')],jj.map(r=>[r.empId||r.id||'',r.name||'',r.section||r.dept||'—',r.position||'',r.joinDate||'']))+
+      tb([T('工號','ID','លេខ'),T('姓名','Name','ឈ្មោះ'),T('部門','Department','ផ្នែក'),T('職稱','Job','តួនាទី'),T('入職日','Join date','ថ្ងៃចូល'),T('離職日','Resign date','ថ្ងៃចេញ'),T('在職天數','Days worked','ថ្ងៃធ្វើការ'),T('原因','Reason','មូលហេតុ')],rr.map(r=>[r.empId||r.id||'',r.name||'',r.section||r.dept||'—',r.position||'',r.joinDate||'',r.resignDate||'',r.workingDays!=null?r.workingDays:'',r.reason||'']));
+    const tbs=hold.querySelectorAll('table');out.j=[...tbs[0].querySelectorAll('tbody tr')];out.r=[...tbs[1].querySelectorAll('tbody tr')];
+  }catch(e){console.error(e);}
+  return out;
+}
 function attPeriodCard(grain,key){
   try{
     const dates=periodDates(grain,key),x=attendancePeriodMetrics(grain,key),sects=aggregateSections(dates),mk0=ATT_LIST_METRIC,M=ATT_METRICS.find(m=>m[0]===mk0)||ATT_METRICS[0];
@@ -1077,10 +1091,14 @@ function attPeriodCard(grain,key){
       else if(mk0==='hc'){v=s.days?Math.round(s.ttl/s.days):0;text=String(v);}
       else if(mk0==='abs'){v=s.absent;text=String(v);}else if(mk0==='join'){v=s.join;text=String(v);}else{v=s.resign;text=String(v);}
       return {k:s.name,v:v,text:text,color:color,rows:[trs[i]]};}).filter(it=>mk0==='rate'||mk0==='hc'||it.v>0).sort((a,b)=>mk0==='rate'?a.v-b.v:b.v-a.v);
+    /* 這一期入職／離職的人（來自同平台的入離職頁）：點了看名單，往下滑會一直接下去 */
+    const mv=attMovers(key),mvItems=[];
+    if(mv.j.length)mvItems.push({k:'🟢 '+T('入職','Joined','ចូលថ្មី'),v:mv.j.length,text:mv.j.length+' '+T('人','ppl','នាក់'),color:'#10b981',rows:mv.j});
+    if(mv.r.length)mvItems.push({k:'🔴 '+T('離職','Resigned','លាឈប់'),v:mv.r.length,text:mv.r.length+' '+T('人','ppl','នាក់'),color:'#f43f5e',rows:mv.r});
     const tot=mk0==='rate'?(x.rate==null?'—':(x.rate*100).toFixed(1)+'%'):String(attMetricVal(x,mk0));
     window.acKeynoteBars({title:key+' · '+T(M[1],M[2],M[3])+' '+tot,icon:'🕐',chips:[x.days+' '+T('天有資料','days of data','ថ្ងៃ')],tab:T('各組','By section','តាមផ្នែក'),
       nums:[{icon:'👥',label:T('平均在職','Avg headcount','បុគ្គលិកមធ្យម'),value:String(Math.round(x.avgHC))},{icon:'✅',label:T('出勤率','Attendance rate','អត្រាវត្តមាន'),value:x.rate==null?'—':(x.rate*100).toFixed(1)+'%'}],
-      blocks:[{label:T('各組的','By section — ','តាមផ្នែក — ')+T(M[1],M[2],M[3])+(mk0==='rate'?T('（低的在上）',' (lowest first)',''):'')+' · '+T('點一條看那一組的明細','tap a bar for details','ចុចដើម្បីមើល'),items:items,total:tot,totalLabel:mk0==='rate'||mk0==='hc'?T('全廠','Factory','រោងចក្រ'):T('合計','Total','សរុប')}]});
+      blocks:[{label:T('各組的','By section — ','តាមផ្នែក — ')+T(M[1],M[2],M[3])+(mk0==='rate'?T('（低的在上）',' (lowest first)',''):'')+' · '+T('點一條看那一組的明細','tap a bar for details','ចុចដើម្បីមើល'),items:items,total:tot,totalLabel:mk0==='rate'||mk0==='hc'?T('全廠','Factory','រោងចក្រ'):T('合計','Total','សរុប')}].concat(mvItems.length?[{label:T('這一期入職／離職的人 · 點了看名單','Joined / resigned this period · tap for the list','ចូល / ចេញ'),items:mvItems}]:[])});
   }catch(e){console.error(e);}
 }
 function jumpAttendancePeriod(key){
