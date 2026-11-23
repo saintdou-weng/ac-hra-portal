@@ -352,8 +352,9 @@
     /* 第一欄短代碼不折行；可點的列顯示手型 */
     var tm=null;function tidy(){tm=null;var n=0;[].forEach.call(document.querySelectorAll('table'),function(tb){if(n>4000)return;[].forEach.call(tb.rows,function(r){n++;var c=r.cells[0];if(c&&!c.__kn){c.__kn=1;var s=txt(c);if(s&&s.length<=12&&!/\s/.test(s)&&!c.querySelector('input,button'))c.style.whiteSpace='nowrap';}if(r.parentElement&&r.parentElement.tagName==='TBODY'&&r.cells.length>=2)r.classList.add('kn-able');});});}
     function sumBtns(){try{[].forEach.call(document.querySelectorAll('table'),function(tb){if(tb.__knS||tb.dataset.keynote==='off'||tb.closest('#kn-mask')||tb.offsetParent===null)return;if(tb.__knSc===tb.rows.length)return;tb.__knSc=tb.rows.length;var inf=null;try{inf=sumInfo(tb);}catch(e){}if(!inf||inf.rows.length<5)return;tb.__knS=1;
-        var b=document.createElement('button');b.type='button';b.className='kn-sumbtn';b.setAttribute('data-keynote','off');b.textContent='📊 圖表 Chart';b.onclick=function(ev){ev.stopPropagation();KN_TAB='num';showSum(tb);};
-        var host=tb.parentElement&&/auto|scroll/.test(getComputedStyle(tb.parentElement).overflowX)?tb.parentElement:tb;host.parentElement.insertBefore(b,host);});}catch(e){}}
+        var host=tb.parentElement&&/auto|scroll/.test(getComputedStyle(tb.parentElement).overflowX)?tb.parentElement:tb,pv=host.previousElementSibling,b=pv&&pv.classList&&pv.classList.contains('kn-sumbtn')?pv:null;   /* 表格被頁面重畫時沿用原本那顆，不要越疊越多 */
+        if(!b){b=document.createElement('button');b.type='button';b.className='kn-sumbtn';b.setAttribute('data-keynote','off');b.textContent='📊 圖表 Chart';host.parentElement.insertBefore(b,host);}
+        b.onclick=function(ev){ev.stopPropagation();KN_TAB='num';showSum(tb);};});}catch(e){}}
     var tidy0=tidy;tidy=function(){tidy0();sumBtns();};
     tidy();try{new MutationObserver(function(){if(!tm)tm=setTimeout(tidy,600);}).observe(document.body,{childList:true,subtree:true});}catch(e){}
   }
