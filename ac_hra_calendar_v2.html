@@ -9,6 +9,7 @@
 <link rel="preload" as="script" href="shared/calendar-model.js?v=76">
 <link rel="preload" as="script" href="shared/calendar-source-v76.js?v=76">
 <link rel="preload" as="script" href="shared/calendar-update-v76.js?v=76">
+<link rel="preload" as="script" href="shared/calendar-inspect-v1.js?v=1">
 <link rel="preload" as="script" href="shared/hra-smart-sync.js?v=49">
 <link rel="preload" as="script" href="shared/telegram-evidence.js?v=45">
 <link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
@@ -18,6 +19,7 @@
 <script type="text/x-ac-after-storage" src="shared/calendar-model.js?v=76"></script>
 <script type="text/x-ac-after-storage" src="shared/calendar-source-v76.js?v=76"></script>
 <script type="text/x-ac-after-storage" src="shared/calendar-update-v76.js?v=76"></script>
+<script type="text/x-ac-after-storage" src="shared/calendar-inspect-v1.js?v=1"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=49"></script>
 <script type="text/x-ac-after-storage" src="shared/telegram-evidence.js?v=45"></script>
 <script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
@@ -333,6 +335,7 @@ select#yearSel{display:none!important}
     </div>
   </div>
   <!-- LEGEND -->
+  <div id="inspect-panel" style="margin-bottom:10px"></div>
   <div class="legend" id="legend" style="margin-bottom:10px"></div>
   <!-- VIEWS -->
   <div id="view-year"></div>
@@ -661,6 +664,8 @@ const TYPE_CFG = {
   postponed: { zh:'延後假日', en:'Postponed Holiday',km:'ថ្ងៃឈប់ពន្យារ',    icon:'🔶', bg:'#e0f2f1', border:'#80cbc4', text:'#00695c', dot:'#00897b' },
   vrt:       { zh:'VRT工廠假期',en:'VRT Factory Holiday',km:'ឈប់ VRT',        icon:'🏭', bg:'#ede7f6', border:'#9575cd', text:'#4527a0', dot:'#5e35b1' },
   stopwork:  { zh:'工廠停工',   en:'Factory Stoppage',  km:'ផ្អាករោងចក្រ',    icon:'⛔', bg:'#fff3e0', border:'#ffb74d', text:'#bf360c', dot:'#e64a19' },
+  inspect:   { zh:'政府檢查／稽核',en:'Inspection / Audit',km:'អធិការកិច្ច / សវនកម្ម', icon:'🏛️', bg:'#e3f2fd', border:'#64b5f6', text:'#0d47a1', dot:'#1e88e5' },
+  remind:    { zh:'一週前提醒',en:'1-week reminder',km:'រំលឹកមុន ១ សប្តាហ៍', icon:'⏰', bg:'#fff8e1', border:'#ffd54f', text:'#8d6e00', dot:'#ffb300' },
 };
 
 const TYPE_HINTS = {
@@ -674,6 +679,8 @@ const TYPE_HINTS = {
   cancelled: '取消假日：原定假日被取消，需正常上班',
   postponed: '延後假日：假日推遲至其他日期執行',
   vrt:       'VRT工廠假期：VRT工廠依實際情況自行安排之放假期間，可涵蓋並超出法定假日範圍；以管理部紀錄為主',
+  inspect:   '政府檢查／稽核：勞工部、跨部會、外籍、自我申報、健檢、消防、WRAP 等；不算放假，會自動在 7 天前加一筆提醒',
+  remind:    '一週前提醒：系統依「政府檢查／稽核」自動產生，提醒人事提前準備；不算放假',
   stopwork:  '工廠停工：因訂單不足或特殊情況安排工人停工，期間薪資依當時協議辦理',
 };
 
@@ -1379,6 +1386,7 @@ function repairCalendarData(){
 // ═══════════════════ INIT ═══════════════════
 loadDB();
 const CAL_SOURCE_CHANGED=applyCalendarSource76();
+const CAL_INSPECT_CHANGED=(typeof applyInspectSeed==='function')?applyInspectSeed():false;
 const CAL_REPAIRED_ON_LOAD=repairCalendarData();
 
 
@@ -1482,7 +1490,23 @@ function renderRibbon(){
 }
 
 // ═══════════════════ LEGEND ═══════════════════
+function renderInspectPanel(){
+  const el=document.getElementById('inspect-panel');if(!el)return;
+  const now=ymd(new Date()),lim=(()=>{const d=new Date();d.setDate(d.getDate()+60);return ymd(d)})();
+  const all=Object.keys(DB).flatMap(y=>DB[y]||[]);
+  const up=all.filter(h=>h.type==='inspect'&&h.date>=now&&h.date<=lim).sort((a,b)=>a.date.localeCompare(b.date));
+  const rem=all.filter(h=>h.type==='remind'&&h.date<=now&&(h.refdate||'')>=now).sort((a,b)=>a.refdate.localeCompare(b.refdate));
+  const nextAll=all.filter(h=>h.type==='inspect'&&h.date>lim).sort((a,b)=>a.date.localeCompare(b.date)).slice(0,3);
+  if(!up.length&&!rem.length&&!nextAll.length){el.innerHTML='';return;}
+  const L3=(zh,en)=>lang==='en'?en:zh;
+  const row=(h,hot)=>{const d=Math.ceil((parseDate(h.date)-parseDate(now))/86400000);return `<div style="display:flex;gap:8px;align-items:flex-start;padding:6px 8px;border-radius:8px;background:${hot?'#fff8e1':'#fff'};border:1px solid ${hot?'#ffd54f':'#bbdefb'};margin-top:5px"><b style="white-space:nowrap;font-family:monospace">${h.date}</b><div style="flex:1;min-width:0"><div style="font-weight:700;color:#0d47a1">🏛️ ${esc(holName(h))}</div>${h.note?`<div style="font-size:.72rem;color:var(--text2);white-space:pre-wrap">${esc(h.note)}</div>`:''}</div><span style="white-space:nowrap;font-size:.72rem;font-weight:700;color:${d<=7?'#c62828':'#e65100'}">${d<=0?L3('今天','Today'):L3('還有 '+d+' 天',d+' days')}</span></div>`};
+  el.innerHTML=`<details ${up.length||rem.length?'open':''} style="background:#e3f2fd;border:1.5px solid #64b5f6;border-radius:10px;padding:8px 10px"><summary style="cursor:pointer;font-weight:800;color:#0d47a1">🏛️ ${L3('政府檢查／稽核／健檢 — 人事注意','Inspections / audits — HR watch list')} ${rem.length?`<span style="background:#c62828;color:#fff;border-radius:10px;padding:1px 8px;font-size:.72rem;margin-left:6px">⏰ ${L3('一週內','within 1 week')} ${rem.length}</span>`:''}</summary>
+  ${up.length?`<div style="font-size:.74rem;color:#1565c0;margin-top:6px">${L3('未來 60 天','Next 60 days')}</div>${up.map(h=>row(h,rem.some(r=>r.refdate===h.date&&r.id===h.id+'-r7'))).join('')}`:''}
+  ${nextAll.length?`<div style="font-size:.74rem;color:#1565c0;margin-top:8px">${L3('之後','Later')}</div>${nextAll.map(h=>row(h,false)).join('')}`:''}
+  <div style="font-size:.7rem;color:var(--text3);margin-top:6px">${L3('每筆檢查會在 7 天前自動出現「⏰ 一週後」提醒；預估日期收到正式通知後請直接改。','Each inspection gets an automatic ⏰ reminder 7 days before; update estimated dates when the official notice arrives.')}</div></details>`;
+}
 function renderLegend(){
+  renderInspectPanel();
   document.getElementById('legend').innerHTML=Object.entries(TYPE_CFG).map(([k,v])=>
     `<div class="legend-item" style="background:${v.bg};border:1px solid ${v.border}">
       <div class="dot" style="background:${v.dot}"></div>
@@ -3002,7 +3026,7 @@ init();
       if(snap&&snap.db){DB=snap.db;CHANGE_LOG=Array.isArray(snap.changeLog)?snap.changeLog:CHANGE_LOG;const removed76=[...new Set([...(CAL_SETTINGS.sourceCalendarRemoved76||[]),...(snap.settings?.sourceCalendarRemoved76||[])])];CAL_SETTINGS=Object.assign(CAL_SETTINGS,snap.settings||{},{sourceCalendarRemoved76:removed76});}
       else if(Array.isArray(recs)&&recs.length){DB=dbFromFlat(recs);}
       else throw new Error(lang==='en'?'No calendar snapshot found':'雲端沒有可用的日曆資料');
-      const sourced=applyCalendarSource76(),repaired=repairCalendarData()||sourced;LAST_SAVED_DB=clone(DB);saveDB(false);init();if(repaired)setTimeout(()=>scheduleCalendarCloudUpload('calendar-swap-repaired'),0);
+      const sourced=applyCalendarSource76();if(typeof applyInspectSeed==='function')applyInspectSeed();const repaired=repairCalendarData()||sourced;LAST_SAVED_DB=clone(DB);saveDB(false);init();if(repaired)setTimeout(()=>scheduleCalendarCloudUpload('calendar-swap-repaired'),0);
       HRACloudGuard.markState('calendar_state',{db:DB,changeLog:CHANGE_LOG,settings:CAL_SETTINGS});
       var count=flatDB().length,meta={};try{meta=JSON.parse(localStorage.getItem(META_KEY)||'{}')}catch(e){}
       localStorage.setItem(META_KEY, JSON.stringify(Object.assign(meta,{lastCloudAt:Date.now(),smartDownloadedAt:new Date().toISOString(),count:count,changeCount:CHANGE_LOG.length})));
