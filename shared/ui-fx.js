@@ -141,16 +141,26 @@
     if(!pay&&!/\/ac-hra-portal\//.test(path))return;
     var href=pay?'./index.html':'./hra_portal_v2.html',name=pay?'HRA-PAY':'HRA Portal';
     var a=document.createElement('a');a.id='fx-home';a.href=href;a.setAttribute('data-fx','off');
-    a.innerHTML='<span style="font-size:15px">‹</span> 🏠 <b>'+name+'</b> 選單 Menu';
-    var bs=getComputedStyle(document.body),row=(bs.display==='flex'&&!/column/.test(bs.flexDirection))||bs.display==='grid';
-    var base='font:600 13px/1 system-ui,"Noto Sans TC",sans-serif;color:#fff;background:#0f172a;text-decoration:none;display:flex;align-items:center;gap:6px;';
-    if(row){a.style.cssText=base+'position:fixed;top:6px;left:6px;z-index:80;padding:8px 12px;border-radius:999px;box-shadow:0 2px 10px rgba(15,23,42,.3);opacity:.92';document.body.appendChild(a);}
-    else{
-      /* v5：外面包一條（不可點），連結只有文字那麼寬 → 右邊留空給 ♪ 音樂／🎨 調色盤停靠，不會浮到畫面中間蓋住資料 */
-      var bar=document.createElement('div');bar.id='fx-homebar';bar.style.cssText='background:#0f172a;display:flex;align-items:center;min-height:32px;width:100%;box-sizing:border-box';
-      a.style.cssText=base+'padding:8px 12px;background:transparent;display:inline-flex';bar.appendChild(a);document.body.insertBefore(bar,document.body.firstChild);
-    }
+    __fxPlaceHome(a,name);
   }
+/* 2026-11-24 Paul：回平台選單改成 🏠 小圖示（＋名稱）跟 ‹ 箭頭，放在上方標題列 logo 旁邊，不再佔一整條 */
+  function __fxPlaceHome(a,name){
+ a.innerHTML='<span style="font-size:15px;line-height:1">‹</span><span style="font-size:15px;line-height:1">🏠</span><b>'+name+'</b>';
+ a.title='回 '+name+' 選單 Back to menu';
+ var base='font:700 12px/1 system-ui,"Noto Sans TC",sans-serif;text-decoration:none;display:inline-flex;align-items:center;gap:4px;padding:6px 10px;border-radius:999px;white-space:nowrap;flex:none;';
+ var light='color:#0f172a;background:#fff;border:1px solid rgba(15,23,42,.18);box-shadow:0 1px 4px rgba(15,23,42,.12);',dark='color:#fff;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);';
+ function lum(c){var m=String(c||'').match(/[\d.]+/g);if(!m||m.length<3||(m.length>3&&+m[3]<.5))return null;return (0.2126*m[0]+0.7152*m[1]+0.0722*m[2])/255}
+ function bgL(el){while(el&&el!==document.documentElement){var cs=getComputedStyle(el),l=lum(cs.backgroundColor);if(l===null&&/gradient/.test(cs.backgroundImage)){var g=cs.backgroundImage.match(/rgba?\([^)]+\)/);l=g&&lum(g[0])}if(l!==null)return l;el=el.parentElement}return 1}
+ var W=innerWidth,hdr=null,c=document.querySelectorAll('header,.header,.hdr,.top,.topbar,#topbar,.app-header,.ct-apphead,.hd,.head,.appbar,.app-bar');
+ for(var i=0;i<c.length&&!hdr;i++){var r=c[i].getBoundingClientRect(),cs=getComputedStyle(c[i]);if(cs.display!=='none'&&r.width>=W*.6&&r.top<120&&r.height>=28&&r.height<260)hdr=c[i]}
+ var spot=null;
+ if(hdr){var hr=hdr.getBoundingClientRect(),y=hr.top+Math.min(hr.height/2,40),x=hr.left+Math.min(30,hr.width*.05);
+  /* 找左上角那塊（logo／VRT／標題）→ 放在它前面 */
+  var p=document.elementFromPoint(Math.max(x,4),Math.max(y,4));
+  if(p&&hdr.contains(p)&&p!==hdr){while(p.parentElement&&p.parentElement!==hdr){var ps=getComputedStyle(p.parentElement);if(/flex|grid/.test(ps.display)&&!/column/.test(ps.flexDirection))break;p=p.parentElement}spot=p}
+  else{var f=hdr.firstElementChild;while(f&&/^(SCRIPT|STYLE)$/.test(f.tagName))f=f.nextElementSibling;spot=f}}
+ if(spot&&spot.parentElement){var pd=getComputedStyle(spot.parentElement).display;a.style.cssText=base+(bgL(spot.parentElement)<.45?dark:light)+'margin-right:8px;'+(/flex|grid/.test(pd)?'':'vertical-align:middle;');spot.parentElement.insertBefore(a,spot);return true}
+ a.style.cssText=base+light+'position:fixed;top:6px;left:6px;z-index:80;opacity:.95';document.body.appendChild(a);return false}
 
   /* ── 8 標題列融合調色盤＋手機精簡 v5（2026-11-23 Paul：調色盤選了顏色，上方深色標題列還是一塊深色融不進去 → 學 PSJERP 的做法）──
      融合：🎨 調色盤（PSJERP 的 music.js，整頁蓋一層色片）有選顏色時，把「淺色頁面上的深色標題列」改成淺底深字，
@@ -166,6 +176,7 @@
   css+=HC+' .fx-hb{background:#fff!important;background-image:none!important;border:1px solid #bccad7!important;color:'+INK+'!important;box-shadow:none!important;text-shadow:none!important}';
   css+=HC+' .fx-hbd{border-color:#bccad7!important}'+HC+' .fx-hbg{background:rgba(20,32,43,.06)!important;background-image:none!important}';
   css+='html.fx-pal #fx-homebar{background:#dde6ee!important;box-shadow:0 1px 0 #c5d0db!important}html.fx-pal #fx-homebar #fx-home{color:'+INK+'!important}';
+  css+='html.fx-pal #fx-home{color:#14202b!important;background:#fff!important;border-color:#bccad7!important;text-shadow:none!important}';
   css+='html.fx-nt *{transition:none!important;animation:none!important}';
   css+='@media (max-width:700px){#fx-homebar #fx-home{font-size:12px!important;padding:7px 10px!important}'+
     '.fx-hdr.fx-cp,.fx-hdr .fx-cp{padding-top:6px!important;padding-bottom:6px!important;min-height:0!important}'+
