@@ -48,6 +48,14 @@ var HRAInspectSeed=(function(){
     h('wrap-2026','2026-01-12','WRAP 驗廠窗口開始','WRAP audit window opens','12 月先報價、網站指派驗廠公司、付款後才排窗口。'),
     e('wrap-2026-quote','2026-12-14','WRAP 續證：報價／指派驗廠公司／付款','WRAP renewal: quote, appoint auditor, pay','每年 12 月中先辦，驗廠窗口約隔年 1 月中開始。'),
     e('wrap-2027','2027-01-11','WRAP 驗廠窗口（預估）','WRAP audit window (estimated)','以驗廠公司確認日期為準；先做自我評估、整理逃生通道。'),
+    // ── 法規生效／截止（詳細在 PSJHR「法規與重大通知」；這幾筆提醒由 PSJHR 那邊私訊，行事曆只顯示）
+    h('law-pension-2022','2022-10-01','📜 NSSF 退休金開始（公司 2%＋員工 2%）','NSSF pension starts (2% + 2%)','Prakas 170；11/10 發 10 月薪時第一次扣繳。'),
+    h('law-allow-2026','2026-04-01','📜 交通／住宿津貼 +2.5 美元（7 → 9.5）','Transport / housing +US$2.50 (7 → 9.5)','直到政府公告停止；2027 繼續，獨立 pay code。'),
+    h('law-nssf-2026-11','2026-11-01','📜 NSSF 繳費工資上下限 60 萬～150 萬瑞爾生效','NSSF wage band KHR 600k–1.5M effective','通知 3135/26；費率不變 7.4%；每月約多 1,829 美元。'),
+    e('law-mw-switch','2026-12-01','📜 2027 最低工資：Payroll／合約／系統切換 212／210','2027 minimum wage: switch payroll / contracts / system','12 月前完成切換；US$2.50 補助獨立 pay code 不可重複。'),
+    e('law-nssf-file','2026-12-10','📜 NSSF 新上下限第一次申報（11 月份）','First NSSF filing with the new band (November)','申報前四類人各抽 2–3 人跟 NSSF 系統核對；HRA 審查 → 廠協理核可。'),
+    e('law-mw-2027','2027-01-01','📜 2027 最低工資生效：正式 212／試用 210','2027 minimum wage effective: 212 / 210','既有人員職務未變只 +2。'),
+    e('law-pension-2027','2027-10-01','📜 退休金第二階段 4% → 8%（預估）','Pension phase 2: 4% → 8% (expected)','等官方公告確認；每月約再多 6,555 美元。'),
     // ── 工人代表、工會
     e('rep-2028','2028-05-28','工人代表任期到期／改選（每 2 年 6 月）','Worker representative term ends / election','每 2 年 6 月改選；結果填到「安全／員工關係 → 委員會」。'),
     h('union-2018','2018-01-01','原有工會成立（2018）','Existing trade union since 2018','現存會員約 12 人；會費名單在「福利／意見箱 → 工會費」。'),
