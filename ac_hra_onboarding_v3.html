@@ -78,7 +78,7 @@ tbody tr:hover{background:#f8fafc}
 <script src="shared/join-pay.js?v=1"></script>
 <script src="shared/hrpay-tg-visual.js?v=20261118a"></script>
 <script src="shared/period-list.js?v=2"></script>
-<script src="shared/exit-interview.js?v=1"></script>
+<script src="shared/exit-interview.js?v=2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen">
 
@@ -94,7 +94,7 @@ tbody tr:hover{background:#f8fafc}
         <span id="cloud-stat" class="ml-1 text-slate-300 jmono"></span></p>
     </div>
     <div class="flex-1"></div>
-    <div class="flex items-center gap-2 no-print">
+    <div class="flex flex-wrap items-center gap-2 no-print" style="max-width:100%">
       <div class="flex items-center rounded-md border border-sky-200 bg-sky-50 overflow-hidden">
         <button id="btn-cloud-up" onclick="cloudUpload()" title="上傳至雲端 Upload to cloud"
           class="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 text-sky-700 hover:bg-sky-100 transition">
@@ -2977,7 +2977,7 @@ function setTab(k){
 }
 var _exitMounted=false;
 function renderExitPane(){if(TAB!=='exit'||!window.VRTExit)return;var box=el('exitNative');if(!box)return;
-  if(!_exitMounted){_exitMounted=true;VRTExit.mount(box,{lang:function(){return LANG;},resigns:function(){return RESIGNS||[];},onChange:function(){try{renderResign();}catch(_){}}});}
+  if(!_exitMounted){_exitMounted=true;VRTExit.mount(box,{lang:function(){return LANG;},resigns:function(){return RESIGNS||[];},joins:function(){return JOINS||[];},onChange:function(){try{renderResign();}catch(_){}}});}
   else VRTExit.render();}
 function renderAll(){
   try{
@@ -3225,6 +3225,8 @@ function init(){
     setupDrop();
     rebuildFilterOptions();
     setTab(/^#exit/.test(location.hash||'')?'exit':'ov');
+  /* PSJHR／Admin OS 員工頁的「填離職面談」連結：#exit=工號 直接打開那個人的表單 */
+  (function(){var m=(location.hash||'').match(/^#exit=([^&]+)/);if(m)setTimeout(function(){try{openExit(decodeURIComponent(m[1]));}catch(e){}},600);})();
     if(META.updatedAt) setTxt('cloud-stat', '☁ '+(META.cloudUpdatedAt||META.updatedAt));
     if(!window.HRAAutoSync)autoSync();
   }catch(e){ console.error(e); toast('初始化錯誤：'+e.message,'error'); }
