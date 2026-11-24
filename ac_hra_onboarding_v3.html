@@ -143,6 +143,7 @@ tbody tr:hover{background:#f8fafc}
     <button id="tb-ov"     onclick="setTab('ov')"     class="px-3 py-2.5 tab-active"   data-t="tab_ov">總覽 Overview</button>
     <button id="tb-join"   onclick="setTab('join')"   class="px-3 py-2.5 tab-inactive" data-t="tab_join">入職 Join</button>
     <button id="tb-resign" onclick="setTab('resign')" class="px-3 py-2.5 tab-inactive" data-t="tab_resign">離職 Resign</button>
+    <button id="tb-exit"   onclick="setTab('exit')"   class="px-3 py-2.5 tab-inactive" data-t="tab_exit">🚪 離職面談 Exit interview</button>
     <button id="tb-anly"   onclick="setTab('anly')"   class="px-3 py-2.5 tab-inactive" data-t="tab_anly">流動分析 Turnover</button>
     <button id="tb-appr"   onclick="setTab('appr')"   class="px-3 py-2.5 tab-inactive" data-t="tab_appr">核可 Approval
       <span id="bdg-appr" class="ml-1 px-1.5 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold" style="display:none">0</span></button>
@@ -237,6 +238,10 @@ tbody tr:hover{background:#f8fafc}
 </section>
 
 <!-- ────────── 流動分析 ────────── -->
+<!-- 2026-11-24 Paul：離職面談放入離職這邊、直接連動離職名單。表單照 VRT-F-HR02；資料存 HRA 雲端 tool safety（職安衛模組同一份） -->
+<section id="pn-exit" class="pane" style="display:none">
+  <div class="bg-white rounded-xl border border-slate-200 overflow-hidden"><iframe id="exitFrame" title="Exit interview" style="width:100%;height:calc(100vh - 150px);min-height:620px;border:0;display:block;background:#f2f7fa"></iframe></div>
+</section>
 <section id="pn-anly" class="pane space-y-4" style="display:none">
   <div id="nav-anly"></div>
   <div class="sect p-3 flex flex-wrap gap-2 items-center no-print">
@@ -552,7 +557,7 @@ var NAV={ ov:{mode:'month',pivot:new Date()},
 /* ── i18n ────────────────────────────────────────────────── */
 var I18N={
  zh:{hdr_title:'入離職管理 Onboarding & Turnover',up:'上傳',down:'下載',exp:'匯出',imp:'還原',
-     tab_ov:'總覽',tab_join:'入職',tab_resign:'離職',tab_anly:'流動分析',tab_appr:'核可',tab_set:'設定',
+     tab_ov:'總覽',tab_join:'入職',tab_resign:'離職',tab_exit:'🚪 離職面談',tab_anly:'流動分析',tab_appr:'核可',tab_set:'設定',
      k_join:'入職 Join',k_resign:'離職 Resign',k_net:'淨增減 Net',k_hc:'期末在職 HC',k_to:'流動率 Turnover',k_ten:'平均在職天數',
      c_trend:'入離職趨勢',c_type:'離職類型',c_rpt:'期間報表',c_rpt2:'點一列看那一期的卡（人數明細）',
      c_reasondist:'離職原因分佈',c_deptten:'部門 / 年資分佈',c_deptdist:'部門 / 線別分佈',c_refdist:'介紹人統計',
@@ -563,7 +568,7 @@ var I18N={
      dz2:'拖放或點選 · 自動判斷檔案類型<br>Join___Resign_*.xlsx（入離職主檔）／ Resigned.xlsx（離職結算單）',
      dz3:'尚未匯入任何檔案。可一次拖入多個檔案，系統會依工作表標題自動判斷類型並以工號跨檔去重合併。'},
  en:{hdr_title:'Onboarding & Turnover',up:'Upload',down:'Download',exp:'Export',imp:'Restore',
-     tab_ov:'Overview',tab_join:'Join',tab_resign:'Resign',tab_anly:'Turnover',tab_appr:'Approval',tab_set:'Settings',
+     tab_ov:'Overview',tab_join:'Join',tab_resign:'Resign',tab_exit:'🚪 Exit interview',tab_anly:'Turnover',tab_appr:'Approval',tab_set:'Settings',
      k_join:'Joins',k_resign:'Resigns',k_net:'Net Change',k_hc:'Closing HC',k_to:'Turnover Rate',k_ten:'Avg Tenure (days)',
      c_trend:'Join / Resign Trend',c_type:'Resign Type',c_rpt:'Period Report',c_rpt2:'Click a row to switch period',
      c_reasondist:'Reason Distribution',c_deptten:'Dept / Tenure',c_deptdist:'Dept / Line',c_refdist:'Introducer Stats',
@@ -574,7 +579,7 @@ var I18N={
      dz2:'Drag &amp; drop or click · file type auto-detected<br>Join___Resign_*.xlsx (master) / Resigned.xlsx (settlement)',
      dz3:'No file imported yet. Drop several files at once — type is auto-detected from sheet titles and records are de-duplicated across files by Employee ID.'},
  km:{hdr_title:'ចូល/ចេញពីការងារ',up:'ផ្ទុកឡើង',down:'ទាញយក',exp:'នាំចេញ',imp:'ស្តារ',
-     tab_ov:'ទិដ្ឋភាពរួម',tab_join:'🟢 ចូលធ្វើការ',tab_resign:'🔴 ចេញពីការងារ',tab_settle:'💰 បញ្ជីទូទាត់',
+     tab_ov:'ទិដ្ឋភាពរួម',tab_join:'🟢 ចូលធ្វើការ',tab_resign:'🔴 ចេញពីការងារ',tab_exit:'🚪 សម្ភាសន៍លាលែង',tab_settle:'💰 បញ្ជីទូទាត់',
      tab_anly:'📊 វិភាគ',tab_appr:'អនុម័ត',tab_set:'⚙️ ការកំណត់',tab_imp:'📥 នាំចូល',tab_odd:'⚠️ មិនប្រក្រតី',
      k_join:'🟢 ចូលធ្វើការ',k_resign:'🔴 ចេញពីការងារ',k_hc:'👥 បុគ្គលិកសរុប',k_to:'📉 អត្រាចេញ',k_ten:'⏱ រយៈពេលមធ្យម',
      c_trend:'និន្នាការចូល/ចេញ',c_type:'ប្រភេទចេញ',c_rpt:'របាយការណ៍តាមដំណាក់កាល',c_rpt2:'ចុចជួរដើម្បីប្តូរ',
@@ -2041,6 +2046,11 @@ function decBadge(k){
   if(d.d==='ok')return '<span class="pill bg-emerald-50 text-emerald-700">✔ '+L('核可','OK')+'</span>';
   return '<span class="pill bg-rose-50 text-rose-700" title="'+esc(d.note||'')+'">✖ '+L('退回','Rej')+'</span>';
 }
+/* 離職面談連動（2026-11-24）：讀職安衛模組的本機資料看誰面談過；按鈕切到「離職面談」分頁並直接打開那個人的表單 */
+function exitDoneSet(){var o={};try{var d=JSON.parse(localStorage.getItem('ac_hra_safety_v1')||'{}');(d.recs||[]).forEach(function(r){if(r&&r._kind==='exit'&&!r.deleted&&r.empId)o[String(r.empId)]=1;});}catch(e){}return o;}
+function openExit(empId){var r=null;try{(JSON.parse(localStorage.getItem(K_RESIGNS)||'[]')||[]).forEach(function(x){if(String(x.empId)===String(empId))r=x;});}catch(e){}
+  setTab('exit');var ef=el('exitFrame');var go=function(n){try{var w=ef.contentWindow;if(w&&w.openExitFor){w.openExitFor(empId,r?{name:r.name||'',dept:r.dept||r.section||'',position:r.position||'',joinDate:String(r.joinDate||'').slice(0,10),resignDate:String(r.resignDate||'').slice(0,10)}:null);return;}}catch(e){}if(n<60)setTimeout(function(){go(n+1);},250);};go(0);}
+window.addEventListener('message',function(e){if(e.data&&e.data.vrtExit==='changed'){try{renderResign();}catch(_){}}});
 function renderResign(){
   try{
     var rows=resignFiltered();
@@ -2051,8 +2061,9 @@ function renderResign(){
       '<th>'+L('到職日','Join Date')+'</th><th>'+L('部門/線別','Dept/Line')+'</th><th>'+L('職務','Position')+'</th>'+
       '<th>'+L('性別','G')+'</th><th class="text-right">'+L('年齡','Age')+'</th><th>'+L('類型','Type')+'</th>'+
       '<th class="text-right">'+L('在職天數','Days')+'</th><th>'+L('原因','Reason')+'</th>'+
-      '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('核可','Appr')+'</th><th class="no-print"></th></tr></thead><tbody>';
-    if(!rows.length)h+='<tr><td colspan="14" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
+      '<th class="text-right">'+L('結算金額','Settlement')+'</th><th>'+L('核可','Appr')+'</th><th>'+L('面談','Exit int.')+'</th><th class="no-print"></th></tr></thead><tbody>';
+    if(!rows.length)h+='<tr><td colspan="15" class="text-center text-slate-400 py-6">'+L('此期間沒有離職記錄','No resign records in this period')+'</td></tr>';
+    var exDone=exitDoneSet();
     rows.forEach(function(r){
       var amt=r.hasSettlement?('<span title="'+esc(r.settleCalc||'')+'">💵 '+fmt(r.amount)+(r.settleVerified===true?' <span class="text-emerald-600" title="'+esc(r.settleCalc||'')+'">✔</span>':(r.settleCalc?' <span class="text-rose-600">❗</span>':''))+'</span>'):'<span class="text-slate-300">—</span>';
       var rea=r.reasonCat?('<span class="pill bg-slate-100 text-slate-600">'+esc(L(REASON_ZH[r.reasonCat]||r.reasonCat,r.reasonCat))+'</span> <span class="text-slate-400 text-[10px]">'+esc(r.reason||'')+'</span>')
@@ -2063,6 +2074,7 @@ function renderResign(){
         '<td class="text-right jmono">'+esc(r.age)+'</td><td>'+typeBadge(r.resignType||'resign')+'</td>'+
         '<td class="text-right jmono">'+fmt0(r.workingDays||0)+'</td><td>'+rea+'</td>'+
         '<td class="text-right jmono">'+amt+'</td><td>'+decBadge(r._k)+'</td>'+
+        '<td>'+(/maternity/i.test(r.resignType||'')?'<span class="text-slate-300">—</span>':(exDone[String(r.empId)]?'<button onclick="openExit(\''+esc(r.empId)+'\')" class="pill bg-emerald-50 text-emerald-700" title="'+L('已面談，點開看','Done — tap to open')+'">✅ '+L('已面談','Done')+'</button>':'<button onclick="openExit(\''+esc(r.empId)+'\')" class="pill bg-amber-50 text-amber-700">📝 '+L('填面談','Interview')+'</button>'))+'</td>'+
         '<td class="no-print"><button onclick="openRec(\'resign\',\''+r.id+'\')" title="編輯 Edit" class="text-xs text-slate-400 hover:text-rose-600">✏️</button></td></tr>';
     });
     h+='</tbody></table>';
@@ -2935,9 +2947,10 @@ function importJSON(input){
 }
 
 /* ═══════════ 分頁 / 總渲染 ═══════════ */
-var TABS=['ov','join','resign','anly','appr','set'];
+var TABS=['ov','join','resign','exit','anly','appr','set'];
 function setTab(k){
   TAB=k;
+  if(k==='exit'){var ef=el('exitFrame');if(ef&&!ef.getAttribute('src'))ef.setAttribute('src','ac_hra_safety_v1.html?embed=exit&v=2');}
   TABS.forEach(function(x){
     var b=el('tb-'+x), p=el('pn-'+x);
     if(b)b.className='px-3 py-2.5 '+(x===k?'tab-active':'tab-inactive');
@@ -3188,7 +3201,7 @@ function init(){
     applyLang();
     setupDrop();
     rebuildFilterOptions();
-    setTab('ov');
+    setTab(/^#exit/.test(location.hash||'')?'exit':'ov');
     if(META.updatedAt) setTxt('cloud-stat', '☁ '+(META.cloudUpdatedAt||META.updatedAt));
     if(!window.HRAAutoSync)autoSync();
   }catch(e){ console.error(e); toast('初始化錯誤：'+e.message,'error'); }

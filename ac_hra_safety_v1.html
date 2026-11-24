@@ -81,6 +81,7 @@ td{padding:9px 10px;border-bottom:1px solid #edf2f5;font-size:13px;vertical-alig
 @media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
 @media(max-width:650px){.brand h1{font-size:16px}.brand p{display:none}.logo{width:38px;height:38px;font-size:20px}.top-btn b{display:none}.tab-wrap{top:96px}.cards{grid-template-columns:1fr 1fr}.kpi .value{font-size:22px}.form-grid{grid-template-columns:1fr}.hbar{grid-template-columns:105px 1fr 40px}}
 @media print{.top,.tab-wrap,.bar,.toolbar,.btn{display:none!important}}
+html.embed .top,html.embed .tab-wrap,html.embed #fx-homebar,html.embed #fx-home{display:none!important}html.embed main{padding-top:4px}html.embed .bar{margin-top:6px}
 </style>
 </head>
 <body>
@@ -138,8 +139,10 @@ const T={add:['新增','Add','បន្ថែម'],down:['下載','Download','�
  tgTitle:['Telegram 摘要','Telegram summary','សង្ខេប Telegram'],lang:['語言','Language','ភាសា'],period:['期間','Period','រយៈពេល'],cancel:['取消','Cancel','បោះបង់'],send:['發到群組','Send to group','ផ្ញើទៅក្រុម'],
  tgNote:['只發摘要（人數、件數、日期），不發姓名、工號。','Summary only (counts, dates) — no names or IDs.','សង្ខេបតែចំនួន និងកាលបរិច្ឆេទ — គ្មានឈ្មោះ ឬលេខកាត។']};
 function tr(k){const a=T[k];return a?L(a[0],a[1],a[2]):k}
-const TABS=[['ov','📊',['總覽','Overview','ទិដ្ឋភាពទូទៅ']],['drill','🔥',['消防演習','Fire drill','សមយុទ្ធអគ្គិភ័យ']],['injury','🩹',['工傷','Work injury','គ្រោះថ្នាក់ការងារ']],['aider','⛑️',['急救人員','First aiders','អ្នកសង្គ្រោះបឋម']],['committee','👥',['委員會','Committees','គណៈកម្មាធិការ']],['exit','🚪',['離職面談','Exit interview','សម្ភាសន៍លាលែង']]];
-let TAB=(location.hash||'').replace('#','')||'ov';if(!TABS.some(t=>t[0]===TAB))TAB='ov';
+const TABS=[['ov','📊',['總覽','Overview','ទិដ្ឋភាពទូទៅ']],['drill','🔥',['消防演習','Fire drill','សមយុទ្ធអគ្គិភ័យ']],['injury','🩹',['工傷','Work injury','គ្រោះថ្នាក់ការងារ']],['aider','⛑️',['急救人員','First aiders','អ្នកសង្គ្រោះបឋម']],['committee','👥',['委員會','Committees','គណៈកម្មាធិការ']]];
+/* 2026-11-24 Paul：離職面談放到「入離職」頁，直接連動離職名單；這裡只在 ?embed=exit 時顯示（入離職頁嵌進去用） */
+const EMBED=new URLSearchParams(location.search).get('embed')||'';if(EMBED==='exit')TABS.push(['exit','🚪',['離職面談','Exit interview','សម្ភាសន៍លាលែង']]);
+let TAB=EMBED==='exit'?'exit':((location.hash||'').replace('#','')||'ov');if(TAB==='exit'&&EMBED!=='exit'){location.replace('ac_hra_onboarding_v3.html#exit')}if(!TABS.some(t=>t[0]===TAB))TAB='ov';
 
 /* ── 離職原因（VRT-F-HR02 Employee Resign Survey） ── */
 const RG=[['A',['工作滿足','Satisfaction in work','ការពេញចិត្តក្នុងការងារ'],[['A1','與主管理念不合','Cannot cooperate with leader','មិនអាចសហការជាមួយប្រធាន'],['A2','未獲主管肯定','Leader does not appreciate','ប្រធានក្រុមមិនពេញចិត្ត'],['A3','主管教導不佳','Leader does not train well','ប្រធានបង្រៀនមិនបានល្អ'],['A4','主管管教行為不當','Leader behaves inappropriately','ប្រធានមានអាកប្បកិរិយាមិនសមរម្យ'],['A5','不能適應主管管理風格','Cannot adapt to management style','មិនអាចសម្របនឹងរបៀបគ្រប់គ្រង'],['A6','被強迫勞動','Forced to work','បង្ខិតបង្ខំលើកម្លាំងពលកម្ម']]],
@@ -162,8 +165,11 @@ const CTYPE={hs:['🦺 職安衛委員會','🦺 Health & Safety Committee','�
 const ctName=k=>{const a=CTYPE[k]||CTYPE.other;return L(a[0],a[1],a[2])};
 
 /* ── 起始資料（不含個資） ── */
-const SEED_AT='2026-11-24T03:30:00.000Z';
-const DRV=id=>'https://drive.google.com/file/d/'+id+'/view';
+const SEED_AT='2026-11-24T04:00:00.000Z';
+/* 2026-11-24 Paul：給群組用，不放要登入 Paul Gmail／Drive 的連結——只留檔名當來源說明 */
+const DRV=id=>'';
+const VIEW=(f,t)=>'../ac-audit/assets/materials/view.html?f='+encodeURIComponent(f)+'&t='+encodeURIComponent(t);
+const isPriv=u=>/drive\.google|docs\.google|mail\.google/.test(String(u||''));
 const SEED=[
  /* 消防演習 */
  {_kind:'drill',_k:'D|2019-07-17',date:'2019-07-17',site:'factory',m:53,f:590,total:643,src:'Fire drill practice record 2019-2021.xlsx',url:DRV('1BCqlk-ZYzyNNFgUJ6v7jbTZuaPBJ10hn')},
@@ -221,6 +227,7 @@ let DB={recs:[],seeded:false,updatedAt:''};
 function load(){try{const v=JSON.parse(localStorage.getItem(LS)||'null');if(v&&Array.isArray(v.recs))DB=v}catch(e){}
  const idx=new Map(DB.recs.map((r,i)=>[r._k,i]));let add=0;SEED.forEach(s=>{const i=idx.get(s._k);if(i==null){DB.recs.push(JSON.parse(JSON.stringify(s)));add++}else{const c=DB.recs[i];if(c.seed&&!c.deleted&&String(c.updatedAt||'')<SEED_AT){DB.recs[i]=JSON.parse(JSON.stringify(s));add++}}});if(add)save('seed',true)}
 function save(reason,quiet){DB.updatedAt=nowIso();try{localStorage.setItem(LS,JSON.stringify(DB))}catch(e){console.warn(e)}
+ try{if(EMBED&&window.parent!==window)window.parent.postMessage({vrtExit:'changed'},'*')}catch(e){}
  try{localStorage.setItem('ac_hra_safety_meta',JSON.stringify({count:live().length,updatedAt:DB.updatedAt}))}catch(e){}
  if(!quiet&&!_applying&&gasUrl()&&window.HRAAutoSync)HRAAutoSync.schedule(TOOL,reason||'change',{},900)}
 const live=k=>DB.recs.filter(r=>r&&!r.deleted&&(!k||r._kind===k));
@@ -248,7 +255,7 @@ function selYear(){return $('yearSel').value||'all'}
 function inYear(d){const y=selYear();return y==='all'||yr(d)===y}
 const badge=(c,t)=>`<span class="badge ${c}">${t}</span>`;
 function hbar(label,v,max,cls){return `<div class="hbar ${cls||''}"><span>${label}</span><span class="tr"><i style="width:${max?Math.round(v/max*100):0}%"></i></span><b class="num">${v}</b></div>`}
-function srcCell(r){return r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 ${esc(r.src||L('檔案','File','ឯកសារ'))}</a>`:esc(r.src||'')}
+function srcCell(r){return (r.url&&!isPriv(r.url))?`<a href="${esc(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 ${esc(r.src||L('檔案','File','ឯកសារ'))}</a>`:esc(r.src||'')}
 function kpiBtn(cls,label,val,sub,tab){return `<button class="kpi ${cls}" onclick="go('${tab}')"><div class="label">${label}</div><div class="value">${val}</div><div class="sub">${sub||''}</div></button>`}
 function drillTotal(r){const s=n(r.prod)+n(r.cut)+n(r.wh)+n(r.office)+n(r.admin);return r.total!=null&&r.total!==''?n(r.total):(s||null)}
 function nextDrillDue(){const done=live('drill').filter(r=>!r.planned&&r.site!=='house').map(r=>r.date).sort();const last=done[done.length-1]||'';if(!last)return {last:'',due:''};const d=new Date(last+'T00:00:00');d.setMonth(d.getMonth()+6);return {last,due:d.toISOString().slice(0,7)}}
@@ -268,7 +275,7 @@ function renderOv(){const y=selYear()==='all'?String(new Date().getFullYear()):s
   ${kpiBtn(injY.length?'gold':'green',L('🩹 工傷','🩹 Work injury','🩹 គ្រោះថ្នាក់ការងារ'),injY.length+' '+L('件','cases','ករណី'),`${y} · ${L('歷年','All years','គ្រប់ឆ្នាំ')} ${inj.length} · ${L('通勤','Commute','ចរាចរណ៍')} ${injY.filter(r=>r.type==='commute').length}`,'injury')}
   ${kpiBtn('blue',L('⛑️ 急救人員','⛑️ First aiders','⛑️ អ្នកសង្គ្រោះបឋម'),aid.length+' '+L('人','ppl','នាក់'),`${L('證照待補','Cert. to fill','ត្រូវបំពេញ')} ${aid.filter(a=>!a.cert).length} · ${L('到期','Expired','ផុតកំណត់')} ${aid.filter(a=>a.expiry&&a.expiry<today()).length}`,'aider')}
   ${kpiBtn('purple',L('👥 委員會','👥 Committees','👥 គណៈកម្មាធិការ'),cms.length,`${L('最近會議','Last meeting','ប្រជុំចុងក្រោយ')} ${mts[0]?mts[0].date:'—'}`,'committee')}
-  ${kpiBtn(exY.length?'blue':'gold',L('🚪 離職面談','🚪 Exit interview','🚪 សម្ភាសន៍លាលែង'),exY.length+' '+L('份','forms','សន្លឹក'),`${y} · ${L('原因最多','Top reason','មូលហេតុច្រើន')} ${topReason(exY)||'—'}`,'exit')}
+  ${`<a class="kpi ${exY.length?'blue':'gold'}" style="text-decoration:none" href="ac_hra_onboarding_v3.html#exit"><div class="label">${L('🚪 離職面談','🚪 Exit interview','🚪 សម្ភាសន៍លាលែង')}</div><div class="value">${exY.length} ${L('份','forms','សន្លឹក')}</div><div class="sub">${y} · ${L('在「入離職」頁填','filled in Onboarding','ក្នុងទំព័រចូល/ចេញ')} ↗</div></a>`}
  </div>`;
  const warn=[];if(overdue)warn.push(L(`消防演習每半年一次：上次 ${nd.last}，${nd.due} 就該再辦。`,`Fire drill is twice a year: last ${nd.last}, next was due ${nd.due}.`,`សមយុទ្ធ ២ដង/ឆ្នាំ៖ ចុងក្រោយ ${nd.last}`));
  if(!overdue&&nd.due){const dd=new Date(nd.last+'T00:00:00');dd.setMonth(dd.getMonth()+6);const left=Math.round((dd-new Date())/86400000);if(left<=45)warn.push(L(`下次消防演習 ${dd.toISOString().slice(0,10)} 前要辦（剩 ${left} 天）；疏散計劃要在演習前 2 週交。`,`Next fire drill due by ${dd.toISOString().slice(0,10)} (${left} days left); evacuation plan due 2 weeks before.`,`សមយុទ្ធលើកក្រោយ ${dd.toISOString().slice(0,10)}`))}
@@ -333,7 +340,7 @@ function renderCommittee(){const cms=live('committee'),mts=live('meeting');
  h+=`<div class="panel"><div class="panel-head"><h2>👥 ${L('各類會議委員會','Meetings & committees','គណៈកម្មាធិការ')}</h2><div class="toolbar"><button class="btn" onclick="editMeeting()">＋ ${L('新增會議紀錄','Add meeting','បន្ថែមប្រជុំ')}</button><button class="btn primary" onclick="editCommittee()">＋ ${L('新增委員會','Add committee','បន្ថែម')}</button></div></div><div class="panel-body"><div class="cmt">`;
  h+=cms.map(c=>{const id=c._k.slice(2),ms=mts.filter(m=>m.cm===id).sort((a,b)=>b.date.localeCompare(a.date));return `<div class="cm"><h3>${ctName(c.type)}</h3><div class="meta">${esc(c.name||'')}${c.since?' · '+L('自','since','ចាប់ពី')+' '+esc(c.since):''}${c.freq?' · '+esc(c.freq):''}</div>${c.chair?`<div class="meta">👤 ${L('主席','Chair','ប្រធាន')}：${esc(c.chair)}</div>`:''}
   ${(c.members||[]).length?`<ul>${c.members.slice(0,8).map(m=>`<li>${esc(m[0])} <span class="src">${esc(m[1]||'')}</span></li>`).join('')}${c.members.length>8?`<li class="src">… ${L('共','total','សរុប')} ${c.members.length} ${L('人','ppl','នាក់')}</li>`:''}</ul>`:''}
-  ${c.link?`<div class="row"><a class="btn sm" href="${esc(c.link)}">↗ ${esc(c.docs||'')}</a></div>`:`<div class="src" style="margin-top:6px">${srcCell({src:c.docs,url:c.url})}</div>`}
+  ${c.link?`<div class="row"><a class="btn sm" href="${esc(c.link)}">↗ ${esc(c.docs||'')}</a></div>`:`<div class="src" style="margin-top:6px">${srcCell({src:c.docs,url:isPriv(c.url)?'':c.url})}</div>`}
   <div class="row">${ms.slice(0,3).map(m=>`<span class="badge ${m.planned?'b-warn':'b-info'}" title="${esc(m.topic||'')}">📅 ${esc(m.date)}${m.planned?' '+L('排定','planned','គ្រោង'):''}</span>`).join('')||`<span class="badge b-gray">${L('還沒有會議紀錄','No meeting yet','គ្មានប្រជុំ')}</span>`}</div>
   <div class="row"><button class="btn sm" onclick="editCommittee('${esc(c._k)}')">✏️ ${L('委員會','Committee','')}</button><button class="btn sm" onclick="editMeeting(null,'${esc(id)}')">＋ ${L('會議','Meeting','ប្រជុំ')}</button></div></div>`}).join('');
  h+=`</div></div></div><div class="panel"><div class="panel-head"><h2>📅 ${L('會議紀錄','Meeting records','កំណត់ត្រាប្រជុំ')}</h2></div><div class="table-wrap"><table><thead><tr><th>${L('日期','Date','កាលបរិច្ឆេទ')}</th><th>${L('委員會','Committee','គណៈកម្មាធិការ')}</th><th>${L('議題','Topics','ប្រធានបទ')}</th><th class="num">${L('出席','Attendees','អ្នកចូលរួម')}</th><th>${L('工人反映','Worker concerns','មតិកម្មករ')}</th><th>${L('來源','Source','ប្រភព')}</th><th></th></tr></thead><tbody>`;
@@ -355,9 +362,16 @@ function renderExit(){const y=selYear(),rows=live('exit').filter(r=>inYear(r.dat
  if(pend.length)h+=`<div class="panel"><div class="panel-head"><h2>⏳ ${L('離職但還沒面談','Resigned but not interviewed','មិនទាន់សម្ភាសន៍')} <span class="badge b-warn">${pend.length}</span></h2></div><div class="table-wrap"><table><thead><tr><th>${L('工號','ID','លេខកាត')}</th><th>${L('姓名','Name','ឈ្មោះ')}</th><th>${L('部門','Dept.','ផ្នែក')}</th><th>${L('職位','Position','មុខតំណែង')}</th><th>${L('到職','Joined','ចូល')}</th><th>${L('離職','Resigned','លាលែង')}</th><th></th></tr></thead><tbody>${pend.slice(0,200).map(x=>`<tr><td class="mono">${esc(x.empId)}</td><td>${esc(x.name||'')}</td><td>${esc(x.dept||'')}</td><td>${esc(x.position||'')}</td><td class="mono">${esc(x.joinDate||'')}</td><td class="mono">${esc(x.resignDate||'')}</td><td><button class="btn sm primary" onclick="editExit(null,'${esc(x.empId)}')">📝 ${L('填面談','Interview','សម្ភាសន៍')}</button></td></tr>`).join('')}</tbody></table></div></div>`;
  h+=`<div class="panel"><div class="panel-head"><h2>🚪 ${L('離職面談紀錄（VRT-F-HR02）','Exit interview records (VRT-F-HR02)','កំណត់ត្រាសម្ភាសន៍')}</h2><div class="toolbar"><button class="btn" onclick="loadResigns()">📥 ${L('帶入離職名單','Load resign list','ទាញបញ្ជីលាលែង')}</button><button class="btn primary" onclick="editExit()">＋ ${L('新增面談','Add interview','បន្ថែម')}</button></div></div><div class="table-wrap"><table><thead><tr><th>${L('面談日','Interview date','ថ្ងៃសម្ភាសន៍')}</th><th>${L('工號','ID','លេខកាត')}</th><th>${L('姓名','Name','ឈ្មោះ')}</th><th>${L('部門','Dept.','ផ្នែក')}</th><th>${L('職位','Position','មុខតំណែង')}</th><th>${L('到職','Joined','ចូល')}</th><th>${L('最後上班','Last day','ថ្ងៃចុងក្រោយ')}</th><th>${L('原因','Reasons','មូលហេតុ')}</th><th>${L('對公司建議','Suggestion','សំណើ')}</th><th>${L('面談人','Interviewer','អ្នកសម្ភាសន៍')}</th><th></th></tr></thead><tbody>`;
  h+=rows.map(r=>`<tr><td class="mono"><b>${esc(r.date||'')}</b></td><td class="mono">${esc(r.empId||'')}</td><td>${esc(r.name||'')}</td><td>${esc(r.dept||'')}</td><td>${esc(r.position||'')}</td><td class="mono">${esc(r.joinDate||'')}</td><td class="mono">${esc(r.lastDay||'')}</td><td>${(r.reasons||[]).map(c=>`<span class="badge b-pur" style="margin:1px">${esc(rcName(c))}</span>`).join(' ')}${r.other?`<div class="src">${esc(r.other)}</div>`:''}</td><td>${esc(r.suggestion||'')}</td><td>${esc(r.interviewer||'')}</td><td><button class="btn sm" onclick="editExit('${esc(r._k)}')">✏️</button></td></tr>`).join('')||`<tr><td colspan="11" class="empty">${L('還沒有面談紀錄。雲端只找到空白表單 VRT-F-HR02（2021），沒有填好的面談；之後離職的人請在這裡填。','No interviews yet. The cloud only has the blank form VRT-F-HR02 (2021), no completed interviews — record new leavers here.','')}</td></tr>`;
- h+=`</tbody></table></div></div><p class="src">${L('流程（照表單說明）：員工申請離職 → HR 把面談表給單位主管 → 主管填完交回 HR 辦後續。原因可複選；廠區主管／管理部意見寫在「主管意見」。','Process (per the form): employee applies to resign → HR gives the survey to the department supervisor → supervisor completes it and returns it to HR. Multiple reasons allowed; factory / admin comments go in "Management comments".','')} · <a href="${DRV('19g4SvSFGDj75rEGfVVZS-SXMOLZ11kBc')}" target="_blank" rel="noopener">📎 VRT-F-HR-02 Resign interview.xlsx</a></p>`;
+ h+=`</tbody></table></div></div><p class="src">${L('流程（照表單說明）：員工申請離職 → HR 把面談表給單位主管 → 主管填完交回 HR 辦後續。原因可複選；廠區主管／管理部意見寫在「主管意見」。','Process (per the form): employee applies to resign → HR gives the survey to the department supervisor → supervisor completes it and returns it to HR. Multiple reasons allowed; factory / admin comments go in "Management comments".','')} · <a href="${VIEW('VRT-F-HR-02_resign_interview_form.pdf','VRT-F-HR02 Exit interview form')}" target="_blank" rel="noopener">📄 ${L('空白表單 VRT-F-HR02（直接看）','Blank form VRT-F-HR02 (view)','ទម្រង់ទទេ')}</a></p>`;
  $('view-exit').innerHTML=h}
-async function loadResigns(){const url=gasUrl();if(!url||!window.HRASmartSync||!HRASmartSync.pullDirect){toast(L('這台裝置還沒有 HRA 雲端網址','No HRA cloud URL on this device','មិនទាន់មាន URL'));return}
+function localResigns(){let a=[];try{a=JSON.parse(localStorage.getItem('ac_hra_resigns')||'[]')}catch(e){a=[]}if(!Array.isArray(a))a=[];const y=selYear(),m=new Map();
+ a.forEach(x=>{if(!x||!x.empId)return;if(/maternity/i.test(x.resignType||''))return;const d=String(x.resignDate||'').slice(0,10);if(y!=='all'&&d.slice(0,4)!==y)return;m.set(String(x.empId),{empId:String(x.empId),name:x.name||x.nameEn||'',dept:x.dept||x.section||'',position:x.position||'',joinDate:String(x.joinDate||'').slice(0,10),resignDate:d})});
+ return [...m.values()].sort((p,q)=>q.resignDate.localeCompare(p.resignDate))}
+window.openExitFor=function(empId,info){if(info&&empId){RESIGNS=RESIGNS||[];if(!RESIGNS.some(x=>String(x.empId)===String(empId)))RESIGNS.unshift(Object.assign({empId:String(empId)},info))}const ex=live('exit').find(e=>String(e.empId)===String(empId));if(ex)editExit(ex._k);else editExit(null,empId)};
+window.exitDoneIds=function(){return live('exit').map(e=>String(e.empId))};
+async function loadResigns(){try{if(window.ACStorage&&ACStorage.ready)await ACStorage.ready}catch(e){}const loc=localResigns();if(loc.length){RESIGNS=loc;toast('✅ '+loc.length+' '+L('位離職（入離職本機資料）','resigned (onboarding data on this device)','នាក់'));renderExit();return}
+ return loadResignsCloud()}
+async function loadResignsCloud(){const url=gasUrl();if(!url||!window.HRASmartSync||!HRASmartSync.pullDirect){toast(L('這台裝置還沒有 HRA 雲端網址','No HRA cloud URL on this device','មិនទាន់មាន URL'));return}
  toast(L('讀取入離職雲端…','Reading onboarding cloud…','កំពុងអាន…'),6000);
  try{const r=await HRASmartSync.pullDirect(url,'onboarding',()=>{});const del=new Set();(r.records||[]).forEach(x=>{if(x._kind==='movement_state'&&x.deleted&&x.targetKey)del.add(x.targetKey)});
   const y=selYear(),m=new Map();(r.records||[]).forEach(x=>{if(x._kind==='resign'&&x.empId&&!del.has(x._k)){const d=String(x.resignDate||'').slice(0,10);if(y==='all'||d.slice(0,4)===y)m.set(String(x.empId),{empId:String(x.empId),name:x.name||x.nameEn||'',dept:x.dept||'',position:x.position||'',joinDate:String(x.joinDate||'').slice(0,10),resignDate:d})}});
@@ -412,6 +426,7 @@ document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>{LANG=b.datas
 document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
 (function init(){load();const ys=years();$('yearSel').innerHTML=`<option value="all">${L('全部年度','All years','គ្រប់ឆ្នាំ')}</option>`+ys.map(y=>`<option value="${y}">${y}</option>`).join('');$('yearSel').value='all';
  if(new URLSearchParams(location.search).get('from')==='admin')$('backLink').href='https://saintdou-weng.github.io/ac-admin/';
+ if(EMBED==='exit'){document.documentElement.classList.add('embed');$('yearSel').value=String(new Date().getFullYear());setTimeout(()=>{loadResigns()},400)}
  applyLang();renderAll();setSt(gasUrl()?'☁️':'☁️ —');
  const tryInstall=(n)=>{if(window.HRAAutoSync&&window.HRASmartSync){HRAAutoSync.install({key:TOOL,pull:cloudPull,push:cloudPush,canSync:()=>!!gasUrl(),startDelay:450,downId:'btn-cloud-down',upId:'btn-cloud-up'})}else if(n<40)setTimeout(()=>tryInstall(n+1),250)};tryInstall(0);
 })();
