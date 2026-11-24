@@ -82,6 +82,7 @@ td{padding:9px 10px;border-bottom:1px solid #edf2f5;font-size:13px;vertical-alig
 @media(max-width:650px){.brand h1{font-size:16px}.brand p{display:none}.logo{width:38px;height:38px;font-size:20px}.top-btn b{display:none}.tab-wrap{top:96px}.cards{grid-template-columns:1fr 1fr}.kpi .value{font-size:22px}.form-grid{grid-template-columns:1fr}.hbar{grid-template-columns:105px 1fr 40px}}
 @media print{.top,.tab-wrap,.bar,.toolbar,.btn{display:none!important}}
 html.embed .top,html.embed .tab-wrap,html.embed #fx-homebar,html.embed #fx-home{display:none!important}html.embed main{padding-top:4px}html.embed .bar{margin-top:6px}
+.agd{margin-top:8px;border:1px dashed #c4b5fd;background:#faf5ff;border-radius:10px;padding:8px 10px}.agd .agh{font-weight:800;font-size:12px;color:#6b21a8}.agd ol{margin:4px 0 6px;padding-left:18px;font-size:12.5px}.agd li{margin:2px 0}
 </style>
 </head>
 <body>
@@ -335,6 +336,54 @@ function editAider(k){const r=k?JSON.parse(JSON.stringify(DB.recs.find(x=>x._k==
  form(k?L('修改急救員','Edit first aider','កែ'):L('新增急救員','Add first aider','បន្ថែម'),[['name','text',L('姓名','Name','ឈ្មោះ')],['empId','text',L('工號','Employee ID','លេខកាត')],['pos','text',L('職位','Position','មុខតំណែង')],['dept','text',L('部門','Dept.','ផ្នែក')],['area','text',L('負責區域','Area covered','តំបន់')],['role','sel',L('角色','Role','តួនាទី'),Object.keys(AROLE).map(k=>[k,arName(k)])],['cert','date',L('證照／訓練日期','Certificate / training date','ថ្ងៃវិញ្ញាបនបត្រ')],['certBy','text',L('發證／講師','Issued by / trainer','ចេញដោយ')],['expiry','date',L('到期日','Expiry','ផុតកំណត់')],['src','text',L('來源','Source','ប្រភព')],['url','text',L('檔案連結','File link','តំណ')],['note','area',L('備註','Note','កំណត់សម្គាល់')]],r)}
 
 /* 👥 委員會 */
+/* 委員會建議議題（2026-11-24 Paul：依各委員會屬性和開會頻率準備議題，不要一直重複；放在開會提議 agenda 給人資參考；中英柬要翻清楚）
+   每個委員會一組議題庫，系統挑「最近幾次會議沒用過」的排在前面；按「排入下次會議」會建一筆排定的會議，議題寫進去（三語）。 */
+const AGENDA={
+ hs:[['hs1','上次會議改善事項追蹤（逐項確認完成或延後原因）','Follow-up of actions from the last meeting (done, or why delayed)','តាមដានការងារកែលម្អពីប្រជុំមុន (រួចរាល់ ឬមូលហេតុពន្យារ)'],
+  ['hs2','工傷與虛驚事件檢討：發生原因、預防方法','Review of injuries and near-misses: causes and prevention','ពិនិត្យគ្រោះថ្នាក់ការងារ និងហេតុការណ៍ជិតកើតឡើង៖ មូលហេតុ និងការការពារ'],
+  ['hs3','消防演習結果：疏散時間、集合點點名、要改善的地方','Fire drill results: evacuation time, roll call at assembly point, what to improve','លទ្ធផលសមយុទ្ធអគ្គិភ័យ៖ រយៈពេលជម្លៀស ការរាប់ចំនួននៅចំណុចប្រមូលផ្តុំ និងចំណុចត្រូវកែលម្អ'],
+  ['hs4','急救箱檢查（每箱 16 項）與急救員名冊更新','First aid kit check (16 items per kit) and first-aider list update','ពិនិត្យប្រអប់សង្គ្រោះបឋម (១៦ មុខក្នុងមួយប្រអប់) និងធ្វើបច្ចុប្បន្នភាពបញ្ជីអ្នកសង្គ្រោះបឋម'],
+  ['hs5','逃生通道、標線、走道不堆物巡查結果','Inspection of exits, floor lines and clear aisles','លទ្ធផលត្រួតពិនិត្យច្រកចេញបន្ទាន់ ខ្សែសម្គាល់ និងផ្លូវដើរមិនដាក់របស់'],
+  ['hs6','機台安全：針防護、皮帶護蓋、緊急停止開關','Machine safety: needle guards, belt covers, emergency stop buttons','សុវត្ថិភាពម៉ាស៊ីន៖ របាំងម្ជុល គម្របខ្សែពាន ប៊ូតុងបញ្ឈប់បន្ទាន់'],
+  ['hs7','化學品管理：清單、MSDS、標示、洗眼器','Chemical control: list, MSDS, labels, eyewash','ការគ្រប់គ្រងសារធាតុគីមី៖ បញ្ជី MSDS ស្លាក និងកន្លែងលាងភ្នែក'],
+  ['hs8','電氣安全：電箱警示、配線、漏電檢查','Electrical safety: warning signs on panels, wiring, leakage checks','សុវត្ថិភាពអគ្គិសនី៖ ស្លាកព្រមាននៅទូភ្លើង ខ្សែភ្លើង និងការពិនិត្យចរន្តលេច'],
+  ['hs9','熱天與通風：飲水、休息、風扇與溫度','Hot weather and ventilation: drinking water, breaks, fans and temperature','អាកាសធាតុក្តៅ និងខ្យល់ចេញចូល៖ ទឹកផឹក ការសម្រាក កង្ហារ និងសីតុណ្ហភាព'],
+  ['hs10','廁所、飲水、食堂衛生','Toilets, drinking water and canteen hygiene','អនាម័យបង្គន់ ទឹកផឹក និងអាហារដ្ឋាន'],
+  ['hs11','雨季交通安全：戴安全帽、上下班路線','Rainy-season road safety: helmets, commute routes','សុវត្ថិភាពចរាចរណ៍រដូវវស្សា៖ ពាក់មួកសុវត្ថិភាព និងផ្លូវទៅមកធ្វើការ'],
+  ['hs12','孕婦與哺乳員工的工作安排','Work arrangements for pregnant and breastfeeding workers','ការរៀបចំការងារសម្រាប់កម្មករមានផ្ទៃពោះ និងបំបៅកូន']],
+ env:[['en1','用電、用水與上年比較，節能目標進度','Power and water use vs last year; energy-saving target progress','ការប្រើប្រាស់អគ្គិសនី និងទឹកធៀបនឹងឆ្នាំមុន និងវឌ្ឍនភាពគោលដៅសន្សំថាមពល'],
+  ['en2','廢棄物分類與清運紀錄（布邊、紙箱、一般垃圾）','Waste sorting and pickup records (fabric scraps, cartons, general waste)','ការញែកសំរាម និងកំណត់ត្រាដឹកចេញ (កាកសំណល់ក្រណាត់ ក្រដាសកាតុង សំរាមទូទៅ)'],
+  ['en3','許可證到期檢查：廢棄物、環境相關證書','Permit expiry check: waste and environmental certificates','ពិនិត្យថ្ងៃផុតកំណត់លិខិតអនុញ្ញាត៖ សំរាម និងវិញ្ញាបនបត្របរិស្ថាន'],
+  ['en4','年度環境檢測：噪音、空氣、粉塵、照度','Yearly workplace tests: noise, air, dust, lighting','ការធ្វើតេស្តប្រចាំឆ្នាំ៖ សំឡេង ខ្យល់ ធូលី និងពន្លឺ'],
+  ['en5','化學品減量與替代','Reducing and replacing chemicals','ការកាត់បន្ថយ និងជំនួសសារធាតុគីមី'],
+  ['en6','回收材料使用與 GRS 要求','Use of recycled materials and GRS requirements','ការប្រើវត្ថុធាតុកែច្នៃ និងតម្រូវការ GRS'],
+  ['en7','員工環保宣導：關燈、關水、垃圾不落地','Staff awareness: lights off, taps off, no littering','ការផ្សព្វផ្សាយដល់បុគ្គលិក៖ បិទភ្លើង បិទទឹក និងមិនបោះសំរាមចោល']],
+ grs:[['gr1','GRS 證書與交易證書（TC）狀態','GRS certificate and transaction certificate (TC) status','ស្ថានភាពវិញ្ញាបនបត្រ GRS និងវិញ្ញាបនបត្រប្រតិបត្តិការ (TC)'],
+  ['gr2','物料平衡：投入、產出、損耗','Mass balance: input, output, waste','តុល្យភាពវត្ថុធាតុ៖ ចូល ចេញ និងខាត'],
+  ['gr3','回收料與一般料分開存放與標示','Recycled and regular materials kept apart and labelled','ការរក្សាទុក និងដាក់ស្លាកវត្ថុធាតុកែច្នៃដាច់ពីវត្ថុធាតុធម្មតា'],
+  ['gr4','供應商 GRS 證書到期追蹤','Tracking suppliers’ GRS certificate expiry','តាមដានថ្ងៃផុតកំណត់វិញ្ញាបនបត្រ GRS របស់អ្នកផ្គត់ផ្គង់'],
+  ['gr5','GRS 社會與環境要求自查','Self-check of GRS social and environmental requirements','ការត្រួតពិនិត្យខ្លួនឯងលើតម្រូវការសង្គម និងបរិស្ថាន GRS'],
+  ['gr6','GRS 相關人員訓練','Training for staff handling GRS','ការបណ្តុះបណ្តាលបុគ្គលិកដែលទទួលបន្ទុក GRS']],
+ hiv:[['hv1','愛滋病預防宣導與保密原則','HIV prevention awareness and confidentiality','ការផ្សព្វផ្សាយការការពារមេរោគអេដស៍ និងគោលការណ៍រក្សាការសម្ងាត់'],
+  ['hv2','毒品危害宣導，廠內禁止毒品','Drug harm awareness; no drugs on site','ការផ្សព្វផ្សាយគ្រោះថ្នាក់គ្រឿងញៀន និងហាមគ្រឿងញៀនក្នុងរោងចក្រ'],
+  ['hv3','不歧視：感染者照常工作，不可另眼看待','No discrimination: people living with HIV keep working normally','មិនរើសអើង៖ អ្នកផ្ទុកមេរោគអេដស៍បន្តធ្វើការធម្មតា'],
+  ['hv4','醫務室資源：保險套、轉介醫院與諮詢','Clinic resources: condoms, hospital referral and counselling','ធនធានគ្លីនិក៖ ស្រោមអនាម័យ ការបញ្ជូនទៅមន្ទីរពេទ្យ និងការប្រឹក្សា'],
+  ['hv5','酒精與吸菸規定','Alcohol and smoking rules','បទបញ្ជាស្តីពីគ្រឿងស្រវឹង និងការជក់បារី']],
+ rep:[['rp1','工人反映事項與處理結果（上次未結的先講）','Worker concerns and how they were handled (open items first)','បញ្ហាដែលកម្មករលើកឡើង និងលទ្ធផលដោះស្រាយ (ចំណុចមិនទាន់រួចនិយាយមុន)'],
+  ['rp2','薪資、加班與發薪日說明','Pay, overtime and payday explanations','ការពន្យល់អំពីប្រាក់ខែ ការងារថែមម៉ោង និងថ្ងៃបើកប្រាក់ខែ'],
+  ['rp3','下個月放假日與排班','Next month’s holidays and shift plan','ថ្ងៃឈប់សម្រាកខែក្រោយ និងការរៀបចំវេន'],
+  ['rp4','食堂、飲水、廁所意見','Canteen, drinking water and toilet feedback','មតិអំពីអាហារដ្ឋាន ទឹកផឹក និងបង្គន់'],
+  ['rp5','交通車與宿舍','Company buses and dormitory','ឡានដឹកបុគ្គលិក និងអន្តេវាសិកដ្ឋាន'],
+  ['rp6','意見箱內容與回覆','Suggestion box items and replies','មតិក្នុងប្រអប់យោបល់ និងការឆ្លើយតប'],
+  ['rp7','廠規新增或修改說明','Explaining new or changed factory rules','ការពន្យល់អំពីបទបញ្ជាផ្ទៃក្នុងថ្មី ឬដែលបានកែប្រែ'],
+  ['rp8','工人代表任期與改選時程','Representatives’ term and next election timetable','អាណត្តិតំណាងកម្មករ និងកាលវិភាគបោះឆ្នោតលើកក្រោយ']],
+ other:[['ot1','上次決議追蹤','Follow-up of last decisions','តាមដានសេចក្តីសម្រេចលើកមុន'],['ot2','本期問題與改善','Issues and improvements this period','បញ្ហា និងការកែលម្អក្នុងរយៈពេលនេះ'],['ot3','下次會議時間與負責人','Next meeting date and owners','កាលបរិច្ឆេទប្រជុំលើកក្រោយ និងអ្នកទទួលខុសត្រូវ']]};
+function agendaFor(c,ms,n){const pool=AGENDA[c.type]||AGENDA.other;const used={};ms.slice(0,3).forEach(m=>{(m.agendaIds||[]).forEach(id=>used[id]=1);pool.forEach(t=>{if(m.topic&&(m.topic.indexOf(t[1].slice(0,6))>=0||m.topic.toLowerCase().indexOf(t[2].slice(0,14).toLowerCase())>=0))used[t[0]]=1})});
+ const fresh=pool.filter(t=>!used[t[0]]),old=pool.filter(t=>used[t[0]]);const first=pool[0]&&/follow|追蹤/i.test(pool[0][2]+pool[0][1])?[pool[0]]:[];return first.concat(fresh.filter(t=>first.indexOf(t)<0),old.filter(t=>first.indexOf(t)<0)).slice(0,n||4)}
+const tL=t=>L(t[1],t[2],t[3]);
+window.planAgenda=function(ck){const c=live('committee').find(x=>x._k===ck);if(!c)return;const id=c._k.slice(2),ms=live('meeting').filter(m=>m.cm===id).sort((a,b)=>b.date.localeCompare(a.date));const ag=agendaFor(c,ms,4);
+ const d=new Date();d.setMonth(d.getMonth()+1);const r={_kind:'meeting',_k:'M|'+uid(''),cm:id,date:d.toISOString().slice(0,10),planned:true,agendaIds:ag.map(t=>t[0]),topic:ag.map((t,i)=>(i+1)+'. '+t[1]+' / '+t[2]+' / '+t[3]).join('\n'),note:L('系統建議議題，開會前可改','Suggested agenda — edit before the meeting','របៀបវារៈដែលប្រព័ន្ធស្នើ — អាចកែមុនប្រជុំ')};
+ put(r);renderAll();toast('✅ '+L('已排入下次會議（日期請自行調整）','Added to the next meeting (adjust the date)','បានបញ្ចូលក្នុងប្រជុំលើកក្រោយ'))};
 function renderCommittee(){const cms=live('committee'),mts=live('meeting');
  let h=`<div class="cards">${kpiBtn('purple',L('委員會','Committees','គណៈកម្មាធិការ'),cms.length,'','committee')}${kpiBtn('blue',L('委員人數','Members','សមាជិក'),cms.reduce((a,c)=>a+(c.members||[]).length,0),'','committee')}${kpiBtn('green',L('會議紀錄','Meetings','ប្រជុំ'),mts.filter(m=>!m.planned&&inYear(m.date)).length,selYear()==='all'?L('全部','All','ទាំងអស់'):selYear(),'committee')}${kpiBtn('gold',L('已排定','Planned','គ្រោងទុក'),mts.filter(m=>m.planned).length,L('結果待補','results to fill',''),'committee')}${kpiBtn('red',L('今年還沒開會','No meeting this year','មិនទាន់ប្រជុំ'),cms.filter(c=>c.type!=='union'&&!mts.some(m=>m.cm===c._k.slice(2)&&!m.planned&&yr(m.date)===String(new Date().getFullYear()))).length,String(new Date().getFullYear()),'committee')}</div>`;
  h+=`<div class="panel"><div class="panel-head"><h2>👥 ${L('各類會議委員會','Meetings & committees','គណៈកម្មាធិការ')}</h2><div class="toolbar"><button class="btn" onclick="editMeeting()">＋ ${L('新增會議紀錄','Add meeting','បន្ថែមប្រជុំ')}</button><button class="btn primary" onclick="editCommittee()">＋ ${L('新增委員會','Add committee','បន្ថែម')}</button></div></div><div class="panel-body"><div class="cmt">`;
@@ -342,6 +391,7 @@ function renderCommittee(){const cms=live('committee'),mts=live('meeting');
   ${(c.members||[]).length?`<ul>${c.members.slice(0,8).map(m=>`<li>${esc(m[0])} <span class="src">${esc(m[1]||'')}</span></li>`).join('')}${c.members.length>8?`<li class="src">… ${L('共','total','សរុប')} ${c.members.length} ${L('人','ppl','នាក់')}</li>`:''}</ul>`:''}
   ${c.link?`<div class="row"><a class="btn sm" href="${esc(c.link)}">↗ ${esc(c.docs||'')}</a></div>`:`<div class="src" style="margin-top:6px">${srcCell({src:c.docs,url:isPriv(c.url)?'':c.url})}</div>`}
   <div class="row">${ms.slice(0,3).map(m=>`<span class="badge ${m.planned?'b-warn':'b-info'}" title="${esc(m.topic||'')}">📅 ${esc(m.date)}${m.planned?' '+L('排定','planned','គ្រោង'):''}</span>`).join('')||`<span class="badge b-gray">${L('還沒有會議紀錄','No meeting yet','គ្មានប្រជុំ')}</span>`}</div>
+  ${c.type!=='union'?`<div class="agd"><div class="agh">💡 ${L('下次會議建議議題','Suggested agenda for next meeting','របៀបវារៈស្នើសម្រាប់ប្រជុំលើកក្រោយ')}</div><ol>${agendaFor(c,ms,4).map(t=>`<li>${esc(tL(t))}</li>`).join('')}</ol><button class="btn sm" onclick="planAgenda('${esc(c._k)}')">📅 ${L('排入下次會議','Add to next meeting','បញ្ចូលក្នុងប្រជុំលើកក្រោយ')}</button></div>`:''}
   <div class="row"><button class="btn sm" onclick="editCommittee('${esc(c._k)}')">✏️ ${L('委員會','Committee','')}</button><button class="btn sm" onclick="editMeeting(null,'${esc(id)}')">＋ ${L('會議','Meeting','ប្រជុំ')}</button></div></div>`}).join('');
  h+=`</div></div></div><div class="panel"><div class="panel-head"><h2>📅 ${L('會議紀錄','Meeting records','កំណត់ត្រាប្រជុំ')}</h2></div><div class="table-wrap"><table><thead><tr><th>${L('日期','Date','កាលបរិច្ឆេទ')}</th><th>${L('委員會','Committee','គណៈកម្មាធិការ')}</th><th>${L('議題','Topics','ប្រធានបទ')}</th><th class="num">${L('出席','Attendees','អ្នកចូលរួម')}</th><th>${L('工人反映','Worker concerns','មតិកម្មករ')}</th><th>${L('來源','Source','ប្រភព')}</th><th></th></tr></thead><tbody>`;
  h+=mts.filter(m=>inYear(m.date)).sort((a,b)=>b.date.localeCompare(a.date)).map(m=>{const c=cms.find(x=>x._k==='C|'+m.cm);return `<tr><td class="mono"><b>${esc(m.date)}</b>${m.time?`<div class="src">${esc(m.time)}</div>`:''}${m.planned?' '+badge('b-warn',L('排定','Planned','គ្រោង')):''}</td><td>${c?ctName(c.type):esc(m.cm)}</td><td>${esc(m.topic||'')}${m.note?`<div class="src">${esc(m.note)}</div>`:''}</td><td class="num">${m.attendees||''}</td><td>${esc(m.concern||'')}</td><td class="src">${srcCell(m)}</td><td><button class="btn sm" onclick="editMeeting('${esc(m._k)}')">✏️</button></td></tr>`}).join('')||`<tr><td colspan="7" class="empty">—</td></tr>`;
