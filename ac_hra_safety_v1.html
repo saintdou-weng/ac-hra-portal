@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><script src="shared/hra-gate.js?v=20261123e"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<script src="shared/ac-storage.js?v=1" data-offload="ac_hra_cloud_state_*,ac_hra_manpower_cloud_manifest_v2,ac_hra_smart_sync_v2_*,vrt_nursing_fees_v2,ac_hra_joins,ac_hra_resigns,vrt_dashProbs"></script>
+<link rel="preload" as="script" href="shared/cloud-guard.js?v=2">
+<link rel="preload" as="script" href="shared/hra-smart-sync.js?v=49">
+<link rel="preload" as="script" href="shared/hra-auto-sync.js?v=49">
+<script type="text/x-ac-after-storage" src="shared/cloud-guard.js?v=2"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-smart-sync.js?v=49"></script>
+<script type="text/x-ac-after-storage" src="shared/hra-auto-sync.js?v=49"></script>
+<title>AC HRA Safety &amp; Employee Relations</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!--
+  AC HRA 職安衛／員工關係 ac_hra_safety_v1.html（2026-11-24，Paul）
+  Paul：工傷記錄、急救人員名冊、各類委員會、離職面談要放進 HRA Portal；消防演習放在合適的地方（→ 放這裡，和急救員、安衛委員會、工傷同一組；
+        培訓計劃的「培訓材料」分頁另有連結）。雲端有的記錄用現有的補上，沒找到的照對 VRT 的認知補上。
+  分頁：總覽／🔥 消防演習／🩹 工傷／⛑️ 急救人員／👥 委員會／🚪 離職面談
+  資料：本機（localStorage ac_hra_safety_v1）＋ HRA 雲端（HRASmartSync tool 'safety'，GAS 不用改）。新增／修改／刪除都留紀錄，後改的為準。
+  起始資料（只放不含個資的內容；個資只存雲端）：
+   · 消防演習 2019–2025：Fire drill practice record 2019-2021.xlsx＋每次的 VRT Fire Drill Practice 簡報／PDF（人數依部門）
+   · 工傷 2023：Clinic 2023-10 月報的「Associate work injury」表（14 件；不放姓名、工號、電話——要補可在頁面上補，存雲端）
+   · 急救人員：VRT Emergency Action Plan（2025-07-07）、Fire drill & evacuation plan 2025、急救證書 2023-05-03
+   · 委員會：Health & Safety Committee（2023）、EMS 環境委員會圖（2024-12）、Env／GRS 委員會會議 2024-12-26、HIV & Drug 2024-12-06、工人代表選舉 2020／2022／2024
+   · 離職面談：表單照 VRT-F-HR02 Employee Resign Survey 的 A–I 原因；名單可從入離職（onboarding 雲端）帶入本月離職的人
+-->
+<style>
+:root{--navy:#173c60;--teal:#0b7b7b;--teal2:#e7f7f6;--blue:#1e80ae;--blue2:#edf8fc;--gold:#e9a21b;--gold2:#fff7df;--red:#c4454a;--red2:#fff0f1;--green:#16855d;--green2:#e9f8f1;--purple:#7357b5;--purple2:#f3effb;
+--ink:#17283b;--muted:#6d7d8f;--line:#d8e3ec;--bg:#f2f7fa;--card:#fff;--shadow:0 5px 18px rgba(25,63,92,.10)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,"Noto Sans TC","Noto Sans Khmer","Segoe UI",system-ui,sans-serif;color:var(--ink);background:var(--bg)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.top{position:sticky;top:0;z-index:50;color:#fff;background:linear-gradient(130deg,#173c60,#0c7b83 72%,#22a6a0);box-shadow:0 4px 18px rgba(0,34,55,.25)}
+.top-in{max-width:1500px;margin:auto;padding:10px 16px 8px}.brand-row{display:flex;align-items:center;gap:10px}
+.back{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.35);border-radius:9px;padding:6px 10px;font-weight:800;font-size:13px;white-space:nowrap}
+.logo{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:24px;background:linear-gradient(145deg,#ffdd75,#eea91d);flex:none}
+.brand h1{font-size:19px;line-height:1.2;margin:0}.brand p{font-size:10.5px;color:rgba(255,255,255,.72);margin:3px 0 0}.grow{flex:1}
+.lang{display:flex;border:1px solid rgba(255,255,255,.3);border-radius:9px;overflow:hidden;flex:none}.lang button{border:0;background:rgba(0,0,0,.1);color:#fff;padding:7px 10px;font-weight:850}.lang button.on{background:#ffda61;color:#173852}
+.actions{display:flex;gap:7px;flex-wrap:nowrap;overflow-x:auto;margin-top:8px;scrollbar-width:none}.actions::-webkit-scrollbar{display:none}
+.top-btn{flex:none;min-height:38px;border:1px solid rgba(255,255,255,.28);border-radius:10px;background:rgba(255,255,255,.1);color:#fff;padding:6px 11px;display:flex;align-items:center;gap:6px;font-weight:800;font-size:13px}.top-btn.primary{background:#fff;color:#0b5f66}
+.cloud-st{flex:none;font-size:11px;color:rgba(255,255,255,.8);display:flex;align-items:center;padding:0 4px;white-space:nowrap}
+.tab-wrap{position:sticky;top:108px;z-index:40;background:#fff;border-bottom:1px solid var(--line)}.tabs{max-width:1500px;margin:auto;display:flex;overflow-x:auto;scrollbar-width:none}.tabs::-webkit-scrollbar{display:none}
+.tab{white-space:nowrap;border:0;border-bottom:3px solid transparent;background:#fff;color:#6b7a8a;padding:12px 14px;font-weight:850}.tab.on{color:#087b80;border-bottom-color:#0a9891;background:#f6fdfd}
+.tab small{display:inline-block;margin-left:4px;background:#eef4f7;color:#557;border-radius:9px;padding:0 6px;font-size:11px}
+.bar{max-width:1500px;margin:12px auto 0;padding:0 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.control{height:38px;border:1px solid #b5c8d4;border-radius:10px;background:#fff;padding:0 10px;color:var(--ink)}
+main{max-width:1500px;margin:auto;padding:12px 16px 60px}.view{display:none}.view.on{display:block}
+.cards{display:grid;grid-template-columns:repeat(5,minmax(150px,1fr));gap:12px}
+.kpi{background:#fff;border:1px solid var(--line);border-left:6px solid var(--teal);border-radius:16px;padding:14px;box-shadow:var(--shadow);cursor:pointer;transition:.16s;text-align:left;color:inherit;width:100%}
+.kpi:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(25,63,92,.15)}
+.kpi.red{border-left-color:var(--red)}.kpi.gold{border-left-color:var(--gold)}.kpi.blue{border-left-color:var(--blue)}.kpi.purple{border-left-color:var(--purple)}.kpi.green{border-left-color:var(--green)}
+.kpi .label{font-size:12.5px;font-weight:850;color:#68798b}.kpi .value{font-size:28px;font-weight:900;margin-top:4px}.kpi .sub{font-size:11px;color:#8592a0;margin-top:3px;line-height:1.45}
+.panel{background:#fff;border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;margin-top:14px}
+.panel-head{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}.panel-head h2{font-size:15px;margin:0}.panel-body{padding:12px 14px}
+.toolbar{display:flex;gap:7px;align-items:center;flex-wrap:wrap;margin-left:auto}
+.btn{border:1px solid #aec1cc;border-radius:9px;background:#fff;color:#29455d;padding:7px 11px;font-weight:850;font-size:13px}.btn:hover{background:#f0f8fa}.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}.btn.danger{color:#b1333a;border-color:#e6b4b7}.btn.sm{padding:4px 8px;font-size:12px}
+.table-wrap{overflow:auto}table{border-collapse:separate;border-spacing:0;width:100%;min-width:760px}
+th{position:sticky;top:0;z-index:2;background:#e8f4f6;color:#315b67;text-align:left;font-size:12px;padding:9px 10px;border-bottom:1px solid #c5dbe0;white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid #edf2f5;font-size:13px;vertical-align:top}tbody tr{transition:background .15s}tbody tr:hover{background:#f6fbfc}td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:850;white-space:nowrap}
+.b-ok{background:var(--green2);color:#08704a}.b-warn{background:var(--gold2);color:#955a06}.b-bad{background:var(--red2);color:#a8323a}.b-info{background:var(--blue2);color:#1d5f86}.b-pur{background:var(--purple2);color:#5b3f99}.b-gray{background:#eef1f4;color:#6b7a8a}
+.notice{border:1px solid #b8dde3;background:#eefafb;border-radius:11px;padding:10px 12px;color:#285d69;font-size:12.5px;line-height:1.6}.notice.warn{border-color:#efd4a0;background:#fff9e8;color:#76521b}.notice.bad{border-color:#f0c2c4;background:var(--red2);color:#8c2c32}
+.empty{text-align:center;padding:30px 12px;color:#8794a1}
+.grid2{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(300px,.8fr);gap:14px}
+.hbar{display:grid;grid-template-columns:150px 1fr 50px;gap:8px;align-items:center;font-size:12.5px;margin:6px 0}.hbar .tr{height:12px;border-radius:6px;background:#eef3f6;overflow:hidden}.hbar .tr i{display:block;height:100%;border-radius:6px;background:linear-gradient(90deg,#22a6a0,#1e80ae)}
+.hbar.red .tr i{background:linear-gradient(90deg,#f08a8f,#c4454a)}.hbar.gold .tr i{background:linear-gradient(90deg,#f5c562,#e9a21b)}.hbar.pur .tr i{background:linear-gradient(90deg,#b4a0e6,#7357b5)}
+.tl{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px}.tl .d{flex:none;width:96px;border:1px solid var(--line);border-radius:12px;padding:8px;text-align:center;background:#fff;cursor:pointer}
+.tl .d b{display:block;font-size:12px}.tl .d .n{font-size:20px;font-weight:900;color:var(--teal)}.tl .d.miss{background:#fff8ec;border-color:#efd4a0}.tl .d.miss .n{color:#b9831d;font-size:14px}.tl .d small{font-size:10px;color:var(--muted)}
+.cmt{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}.cm{border:1px solid var(--line);border-radius:14px;padding:12px;background:#fff;transition:.16s}.cm:hover{border-color:#8fc3c6;box-shadow:0 8px 18px rgba(25,63,92,.1)}
+.cm h3{margin:0 0 4px;font-size:15px}.cm .meta{font-size:11.5px;color:var(--muted)}.cm ul{margin:8px 0 0;padding-left:18px;font-size:12.5px;line-height:1.6}.cm .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chip{border:1px solid #b9cad4;border-radius:999px;padding:5px 10px;background:#fff;font-size:12px;font-weight:700;color:#3c5566}.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.field{display:flex;flex-direction:column;gap:4px}.field.full{grid-column:1/-1}.field label{font-size:12px;font-weight:850;color:#556a7c}
+.field input,.field select,.field textarea{border:1px solid #b9cad4;border-radius:9px;padding:8px 9px;background:#fff;min-width:0}.field textarea{min-height:70px}
+.reasons{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:4px 10px;max-height:300px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px}.reasons label{font-weight:600!important;color:#2e4352!important;display:flex;gap:6px;align-items:flex-start;font-size:12px}.reasons h5{grid-column:1/-1;margin:6px 0 0;font-size:12px;color:var(--teal)}
+.modal{position:fixed;inset:0;background:rgba(7,23,35,.6);z-index:120;display:none;align-items:center;justify-content:center;padding:14px}.modal.open{display:flex}
+.dialog{width:min(860px,100%);max-height:93dvh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.35)}.dialog-head{position:sticky;top:0;background:#fff;display:flex;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid var(--line);z-index:2}.dialog-head h3{margin:0;font-size:16px;flex:1}.dialog-body{padding:14px 15px}.dialog-foot{position:sticky;bottom:0;background:#fff;display:flex;gap:8px;justify-content:flex-end;padding:11px 15px;border-top:1px solid var(--line)}
+.x{border:0;background:#eef3f6;border-radius:8px;width:34px;height:34px;font-size:18px}
+.preview{white-space:pre-wrap;background:#f4f7f9;border:1px solid #d8e3e9;border-radius:10px;padding:12px;font:12px/1.6 ui-monospace,monospace;max-height:330px;overflow:auto}
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;transition:.2s;background:#183249;color:#fff;padding:11px 18px;border-radius:10px;z-index:220;font-size:13px;font-weight:800;pointer-events:none;max-width:92vw}#toast.on{opacity:1;transform:translate(-50%,0)}
+.src{font-size:11px;color:#7b8a99}.src a{color:#1e80ae}.mono{font-family:ui-monospace,monospace;font-size:12px}
+@media(max-width:1000px){.cards{grid-template-columns:repeat(2,1fr)}.grid2{grid-template-columns:1fr}}
+@media(max-width:650px){.brand h1{font-size:16px}.brand p{display:none}.logo{width:38px;height:38px;font-size:20px}.top-btn b{display:none}.tab-wrap{top:96px}.cards{grid-template-columns:1fr 1fr}.kpi .value{font-size:22px}.form-grid{grid-template-columns:1fr}.hbar{grid-template-columns:105px 1fr 40px}}
+@media print{.top,.tab-wrap,.bar,.toolbar,.btn{display:none!important}}
+</style>
+</head>
+<body>
+<header class="top"><div class="top-in">
+  <div class="brand-row">
+    <a class="back" href="hra_portal_v2.html" id="backLink">← HRA</a>
+    <div class="logo">🦺</div>
+    <div class="brand"><h1 id="ttl">職安衛／員工關係</h1><p>AC HRA · FIRE DRILL · WORK INJURY · FIRST AIDERS · COMMITTEES · EXIT INTERVIEW</p></div>
+    <div class="grow"></div>
+    <div class="lang"><button data-l="zh">中</button><button data-l="en">EN</button><button data-l="km">ខ្មែរ</button></div>
+  </div>
+  <div class="actions">
+    <button class="top-btn primary" onclick="openAdd()"><span>＋</span><b data-t="add">新增</b></button>
+    <button class="top-btn" id="btn-cloud-down" onclick="cloudPull()"><span>☁️↓</span><b data-t="down">下載</b></button>
+    <button class="top-btn" id="btn-cloud-up" onclick="cloudPush()"><span>☁️↑</span><b data-t="up">上傳</b></button>
+    <button class="top-btn" onclick="openTg()"><span>📣</span><b data-t="tg">摘要</b></button>
+    <button class="top-btn" onclick="exportXlsx()"><span>⇩</span><b>Excel</b></button>
+    <button class="top-btn" onclick="document.getElementById('impFile').click()"><span>⇧</span><b data-t="imp">匯入</b></button>
+    <input type="file" id="impFile" accept=".xlsx,.xls,.csv,.json" hidden onchange="importFile(this.files[0]);this.value=''">
+    <span class="cloud-st" id="cloudSt">●</span>
+  </div>
+</div></header>
+<nav class="tab-wrap"><div class="tabs" id="tabs"></div></nav>
+<div class="bar"><select class="control" id="yearSel" onchange="renderAll()"></select><span class="src" id="dataHint"></span></div>
+<main>
+  <section class="view" id="view-ov"></section>
+  <section class="view" id="view-drill"></section>
+  <section class="view" id="view-injury"></section>
+  <section class="view" id="view-aider"></section>
+  <section class="view" id="view-committee"></section>
+  <section class="view" id="view-exit"></section>
+</main>
+<div class="modal" id="mEdit"><div class="dialog"><div class="dialog-head"><h3 id="mEditT"></h3><button class="x" onclick="closeM('mEdit')">×</button></div><div class="dialog-body" id="mEditB"></div><div class="dialog-foot" id="mEditF"></div></div></div>
+<div class="modal" id="mTg"><div class="dialog"><div class="dialog-head"><h3 data-t="tgTitle">Telegram 摘要</h3><button class="x" onclick="closeM('mTg')">×</button></div>
+ <div class="dialog-body"><div class="form-grid"><div class="field"><label data-t="lang">語言</label><select id="tgLang" onchange="refreshTg()"><option value="zhen">中文＋English</option><option value="en">English</option><option value="enkm">English＋ខ្មែរ</option><option value="zh">中文</option></select></div>
+ <div class="field"><label data-t="period">期間</label><select id="tgPer" onchange="refreshTg()"><option value="month">本月 Month</option><option value="year">本年 Year</option></select></div></div>
+ <p class="src" data-t="tgNote">只發摘要（人數、件數、日期），不發姓名、工號。</p><div class="preview" id="tgPrev"></div></div>
+ <div class="dialog-foot"><button class="btn" onclick="closeM('mTg')" data-t="cancel">取消</button><button class="btn primary" onclick="sendTg()" data-t="send">發到群組</button></div></div></div>
+<div id="toast"></div>
+<script>
+'use strict';
+const VER='1.0.0',LS='ac_hra_safety_v1',TOOL='safety',GAS_KEY='ac_hra_gas_url',GAS_SHARED_KEY='vrt_att_cloud_v1_url',LANG_KEY='ac_hra_lang';
+let LANG=(localStorage.getItem(LANG_KEY)||'zh');if(!['zh','en','km'].includes(LANG))LANG='zh';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const L=(zh,en,km)=>LANG==='zh'?zh:LANG==='km'?(km||en):en;
+const nowIso=()=>new Date().toISOString();
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const ym=d=>String(d||'').slice(0,7),yr=d=>String(d||'').slice(0,4);
+const n=v=>{const x=Number(String(v==null?'':v).replace(/[,\s$]/g,''));return isFinite(x)?x:0};
+const uid=p=>p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+function toast(m,ms){const t=$('toast');t.textContent=m;t.classList.add('on');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('on'),ms||2600)}
+function closeM(id){$(id).classList.remove('open')}
+const T={add:['新增','Add','បន្ថែម'],down:['下載','Download','ទាញយក'],up:['上傳','Upload','ផ្ទុកឡើង'],tg:['摘要','Summary','សង្ខេប'],imp:['匯入','Import','នាំចូល'],
+ tgTitle:['Telegram 摘要','Telegram summary','សង្ខេប Telegram'],lang:['語言','Language','ភាសា'],period:['期間','Period','រយៈពេល'],cancel:['取消','Cancel','បោះបង់'],send:['發到群組','Send to group','ផ្ញើទៅក្រុម'],
+ tgNote:['只發摘要（人數、件數、日期），不發姓名、工號。','Summary only (counts, dates) — no names or IDs.','សង្ខេបតែចំនួន និងកាលបរិច្ឆេទ — គ្មានឈ្មោះ ឬលេខកាត។']};
+function tr(k){const a=T[k];return a?L(a[0],a[1],a[2]):k}
+const TABS=[['ov','📊',['總覽','Overview','ទិដ្ឋភាពទូទៅ']],['drill','🔥',['消防演習','Fire drill','សមយុទ្ធអគ្គិភ័យ']],['injury','🩹',['工傷','Work injury','គ្រោះថ្នាក់ការងារ']],['aider','⛑️',['急救人員','First aiders','អ្នកសង្គ្រោះបឋម']],['committee','👥',['委員會','Committees','គណៈកម្មាធិការ']],['exit','🚪',['離職面談','Exit interview','សម្ភាសន៍លាលែង']]];
+let TAB=(location.hash||'').replace('#','')||'ov';if(!TABS.some(t=>t[0]===TAB))TAB='ov';
+
+/* ── 離職原因（VRT-F-HR02 Employee Resign Survey） ── */
+const RG=[['A',['工作滿足','Satisfaction in work','ការពេញចិត្តក្នុងការងារ'],[['A1','與主管理念不合','Cannot cooperate with leader','មិនអាចសហការជាមួយប្រធាន'],['A2','未獲主管肯定','Leader does not appreciate','ប្រធានក្រុមមិនពេញចិត្ត'],['A3','主管教導不佳','Leader does not train well','ប្រធានបង្រៀនមិនបានល្អ'],['A4','主管管教行為不當','Leader behaves inappropriately','ប្រធានមានអាកប្បកិរិយាមិនសមរម្យ'],['A5','不能適應主管管理風格','Cannot adapt to management style','មិនអាចសម្របនឹងរបៀបគ្រប់គ្រង'],['A6','被強迫勞動','Forced to work','បង្ខិតបង្ខំលើកម្លាំងពលកម្ម']]],
+ ['B',['工作環境','Working environment','បរិស្ថានការងារ'],[['B1','組織氣氛不佳','Work atmosphere not good','បរិស្ថានកន្លែងការងារមិនល្អ'],['B2','不認同公司文化','Disagree with company culture','មិនយល់ស្របវប្បធម៌ក្រុមហ៊ុន'],['B3','辦公室環境不佳','Office environment not good','បរិយាកាសការិយាល័យមិនល្អ']]],
+ ['C',['公司未來發展','Future in company','អនាគតក្នុងក្រុមហ៊ុន'],[['C1','公司發展前景有限','Company has limited future','ក្រុមហ៊ុនគ្មានការអភិវឌ្ឍន៍'],['C2','組織合併／裁撤','Retrenchment / merger','ក្រុមហ៊ុនធ្លាក់ចុះ ឬរួមបញ្ចូល']]],
+ ['D',['薪酬福利','Compensation','អត្ថប្រយោជន៍'],[['D1','福利不佳','Welfare not good','សុខុមាលភាពមិនល្អ'],['D2','薪資太低','Low salary','ប្រាក់ខែទាប'],['D3','獎金差','Low bonus','ប្រាក់រង្វាន់ទាប'],['D4','津貼不好','Allowance not good','ប្រាក់ឧបត្ថម្ភមិនសមស្រប']]],
+ ['E',['訓練發展','Training & development','វគ្គបណ្តុះបណ្តាល'],[['E1','教育訓練資源不足','Lack of training resources','ធនធានបណ្តុះបណ្តាលមិនគ្រប់'],['E2','訓練效果不佳','Ineffective training','ការបណ្តុះបណ្តាលគ្មានប្រសិទ្ធភាព'],['E3','沒有學習成長機會','No chance to learn or grow','គ្មានឱកាសរៀន និងអភិវឌ្ឍ']]],
+ ['F',['個人能力','Personal ability','សមត្ថភាពផ្ទាល់ខ្លួន'],[['F1','個人績效不佳','Performance not good','ប្រតិបត្តិការងារមិនល្អ'],['F2','人際關係不協調','Poor relationships','ទំនាក់ទំនងមិនល្អ'],['F3','無法勝任現職','Cannot do current job','មិនអាចធ្វើមុខងារនេះបាន'],['F4','公司資遣','Terminated by company','បញ្ឈប់ដោយក្រុមហ៊ុន']]],
+ ['G',['職涯規劃','Career plan','ផែនការការងារ'],[['G1','預期工作無法發展','Job not expected to develop','ការងារមិនរំពឹងថានឹងអភិវឌ្ឍ'],['G2','自行創業','Open own business','បើករបររកស៊ី'],['G3','自請退休','Voluntary retirement','ចូលនិវត្តន៍ស្ម័គ្រចិត្ត'],['G4','個人進修','Further study','បន្តការសិក្សា'],['G5','無升遷機會','No promotion chance','គ្មានឱកាសឡើងឋានៈ'],['G6','結婚','Marriage','រៀបការ'],['G7','生產','Maternity','មាតុភាព'],['G8','回家帶小孩','Go home for childcare','មើលថែកូន'],['G9','回老家','Return home town','ត្រឡប់ស្រុកកំណើត']]],
+ ['H',['工作內容','Work content','មាតិកាការងារ'],[['H1','工作缺乏挑戰','Lacks challenge','ខ្វះការប្រកួតប្រជែង'],['H2','工作時間太長','Working hours too long','ម៉ោងធ្វើការយូរពេក'],['H3','工作量太重','Workload too heavy','ការងារច្រើនពេក'],['H4','工作壓力大','Heavy pressure','សម្ពាធការងារធ្ងន់'],['H5','無法配合工作調派','Cannot follow work assignment','មិនអាចធ្វើការងារដែលកំណត់'],['H6','流程太繁複','Workflow too complex','លំហូរការងារស្មុគស្មាញ'],['H7','沒有輪調機會','No job rotation','គ្មានឱកាសផ្លាស់ប្តូរការងារ'],['H8','工作內容與預期不符','Work not as expected','ការងារមិនដូចការរំពឹង'],['H9','對現職沒興趣','Not interested in job','គ្មានចំណាប់អារម្មណ៍']]],
+ ['I',['其他','Others','ផ្សេងៗ'],[['I1','合約期滿','Contract ended','កុងត្រាផុតកំណត់'],['I2','交通不便','Transport inconvenient','ពិបាកធ្វើដំណើរ'],['I3','家庭因素','Family issue','បញ្ហាគ្រួសារ'],['I4','健康因素','Health issue','បញ្ហាសុខភាព'],['I5','工作倦怠','Tired of work','ធុញទ្រាន់ការងារ'],['I6','調任','Transfer to other dept.','ផ្ទេរទៅផ្នែកផ្សេង'],['I7','屆齡退休','Retirement','ចូលនិវត្តន៍'],['I8','住宿問題','Accommodation problem','បញ្ហាកន្លែងស្នាក់នៅ'],['I9','其他原因','Other reasons','មូលហេតុផ្សេងៗ']]]];
+const RCODE={};RG.forEach(g=>g[2].forEach(c=>RCODE[c[0]]={g:g[0],zh:c[1],en:c[2],km:c[3]}));
+const RGRP={};RG.forEach(g=>RGRP[g[0]]=g[1]);
+const rcName=c=>{const x=RCODE[c];return x?c+' '+L(x.zh,x.en,x.km):c};
+
+/* ── 工傷類別 ── */
+const ITYPE={commute:['🛵 上下班交通事故','🛵 Commuting traffic accident','🛵 គ្រោះថ្នាក់ចរាចរណ៍'],needle:['🪡 車針刺傷','🪡 Needle injury','🪡 មុតម្ជុល'],machine:['⚙️ 機器夾傷／刺傷','⚙️ Machine injury','⚙️ របួសម៉ាស៊ីន'],illness:['🤢 身體不適（昏倒、頭暈）','🤢 Feeling unwell (faint, dizzy)','🤢 មិនស្រួលខ្លួន'],animal:['🐍 動物咬傷','🐍 Animal bite','🐍 សត្វខាំ'],cut:['🔪 割傷','🔪 Cut','🔪 មុត/កាត់'],fall:['🧍 跌倒／撞傷','🧍 Fall / bump','🧍 ដួល/ប៉ះទង្គិច'],other:['📌 其他','📌 Other','📌 ផ្សេងៗ']};
+const itName=k=>{const a=ITYPE[k]||ITYPE.other;return L(a[0],a[1],a[2])};
+const CTYPE={hs:['🦺 職安衛委員會','🦺 Health & Safety Committee','🦺 គណៈកម្មាធិការសុខភាព និងសុវត្ថិភាព'],env:['🌿 環境（EMS）委員會','🌿 Environment (EMS) Committee','🌿 គណៈកម្មាធិការបរិស្ថាន'],grs:['♻️ GRS 委員會','♻️ GRS Committee','♻️ គណៈកម្មាធិការ GRS'],hiv:['🎗️ 愛滋與毒品防治委員會','🎗️ HIV & Drug Committee','🎗️ គណៈកម្មាធិការអេដស៍ និងគ្រឿងញៀន'],rep:['🗳️ 工人代表','🗳️ Worker representatives','🗳️ តំណាងកម្មករ'],union:['🤝 工會','🤝 Trade union','🤝 សហជីព'],other:['📁 其他委員會','📁 Other committee','📁 គណៈកម្មាធិការផ្សេង']};
+const ctName=k=>{const a=CTYPE[k]||CTYPE.other;return L(a[0],a[1],a[2])};
+
+/* ── 起始資料（不含個資） ── */
+const SEED_AT='2026-11-24T02:00:00.000Z';
+const DRV=id=>'https://drive.google.com/file/d/'+id+'/view';
+const SEED=[
+ /* 消防演習 */
+ {_kind:'drill',_k:'D|2019-07-17',date:'2019-07-17',site:'factory',m:53,f:590,total:643,src:'Fire drill practice record 2019-2021.xlsx',url:DRV('1BCqlk-ZYzyNNFgUJ6v7jbTZuaPBJ10hn')},
+ {_kind:'drill',_k:'D|2020-02-01',date:'2020-02-01',site:'factory',m:175,f:946,total:1121,src:'Fire drill practice record 2019-2021.xlsx',url:DRV('1BCqlk-ZYzyNNFgUJ6v7jbTZuaPBJ10hn')},
+ {_kind:'drill',_k:'D|2020-05-23',date:'2020-05-23',site:'factory',m:137,f:881,total:1018,src:'Fire drill practice record 2019-2021.xlsx',url:DRV('1BCqlk-ZYzyNNFgUJ6v7jbTZuaPBJ10hn')},
+ {_kind:'drill',_k:'D|2020-11-21',date:'2020-11-21',site:'factory',m:98,f:664,total:762,src:'Fire drill practice record 2019-2021.xlsx',url:DRV('1BCqlk-ZYzyNNFgUJ6v7jbTZuaPBJ10hn')},
+ {_kind:'drill',_k:'D|2021-07-24',date:'2021-07-24',site:'factory',m:60,f:555,total:615,src:'Fire drill practice record 2019-2021.xlsx',url:DRV('1BCqlk-ZYzyNNFgUJ6v7jbTZuaPBJ10hn')},
+ {_kind:'drill',_k:'D|2021-12-18',date:'2021-12-18',site:'factory',m:145,f:505,total:650,time:'16:10–16:25',police:3,helpers:'Phear, Phary',evac:'≤ 1 min',src:'(Factory) VRT Fire Drill Practice -Dec 18, 2021.pdf',url:DRV('1YBRwNnKt_ZsDCNmEXMj9Ds2WDcG5n39e')},
+ {_kind:'drill',_k:'D|2021-12-23',date:'2021-12-23',site:'house',total:null,note:'本地員工宿舍演習 Local staff house drill',src:'(Local staff house) Fire drill practice December 23,2021.pdf',url:DRV('1xwNIZEWT0Uv0sFE7ZGkzCJYuoGYjGKA2')},
+ {_kind:'drill',_k:'D|2022-06-11',date:'2022-06-11',site:'factory',prod:185,cut:11,wh:20,office:5,admin:25,total:246,time:'16:10–16:25',evac:'≤ 1 min',src:'(Factory) VRT Fire Drill Practice -June 11 2022.pptx',url:DRV('1FDhuDQJocReuYiL6M4U6fwsmWE_qSGGP')},
+ {_kind:'drill',_k:'D|2022-12-17',date:'2022-12-17',site:'factory',prod:350,cut:16,wh:19,office:4,admin:30,total:419,time:'16:10–16:25',police:2,helpers:'Phear, Phary',evac:'≤ 1 min',note:'14:45–15:15 警察先上理論與急救課 Police theory & first-aid class first',src:'(Factory) VRT Fire Drill Practice -December 17, 2022.pptx',url:DRV('1mazNuxroOyKjoRuvDtpRDBXKPxwcakTu')},
+ {_kind:'drill',_k:'D|2023-06-24',date:'2023-06-24',site:'factory',total:null,note:'Kunthea 2023-07-14 寄出紀錄（人數待補）Record sent 2023-07-14 by Kunthea — headcount to fill',src:'Email: Fire Drill on 24 June 2023'},
+ {_kind:'drill',_k:'D|2023-12-16',date:'2023-12-16',site:'factory',total:null,time:'16:10',evac:'≤ 1 min',note:'2024-06 簡報裡的照片時間（人數待補）Photo time in the 2024-06 deck — headcount to fill',src:'(Factory) VRT Fire Drill Practice.pptx (2024-06)'},
+ {_kind:'drill',_k:'D|2024-06-15',date:'2024-06-15',site:'factory',prod:321,cut:13,wh:15,office:5,admin:31,total:385,time:'16:05–16:25',police:2,helpers:'Phea, Phary',evac:'≤ 1 min',src:'(Factory) VRT Fire Drill Practice.pptx',url:DRV('19EWHcH6J0OG19e3mNBdAzpI347D6XFHZ')},
+ {_kind:'drill',_k:'D|2024-12-21',date:'2024-12-21',site:'factory',prod:413,cut:16,wh:16,office:3,admin:33,total:481,time:'16:05–16:25',police:2,helpers:'Phea, Phary',evac:'≤ 1 min',src:'(Factory) VRT Fire Drill Practice.pptx (2025-01)',url:DRV('1zVPdPrjKRYPBWCEbyDPRaD2TaFKwGJ-n')},
+ {_kind:'drill',_k:'D|2025-07-05',date:'2025-07-05',site:'factory',prod:342,cut:14,wh:14,office:3,admin:34,total:407,time:'16:05–16:25',police:2,helpers:'Phea, Phary',evac:'≤ 1 min',src:'VRT FIRE DRILL & EVACUATION PLAN 2025 + Practice PDF',url:DRV('1X2iOB6EhXPybPtfCHP5-d65sbYlI5wTy')},
+ {_kind:'drill',_k:'D|2025-12',date:'2025-12-20',site:'factory',total:null,planned:1,note:'12/09 Paul 寄出疏散計劃＋緊急應變計劃（演習前 2 週要交）；實際日期與人數待補 Plan sent 12/09 (due 2 weeks before) — actual date & headcount to fill',src:'Email: VRT Fire Drill/Emergency Practice and Training 2025-12'},
+ /* 工傷 2023（Clinic 2023-10 月報 Associate work injury；不放姓名／工號／電話） */
+ ...[['2023-01-06','16:40','Line 17','commute','下班途中交通事故','Traffic accident after work','CT'],['2023-01-06','16:40','Loading','commute','下班途中交通事故','Traffic accident after work','CT'],['2023-01-23','06:50','Line 9','commute','上班途中交通事故','Traffic accident on the way to work','CT'],
+  ['2023-02-02','15:30','Line 15','illness','工作中昏倒','Fainted at work','Chamkar Chek'],['2023-02-25','17:00','Line 9','commute','下班途中交通事故','Traffic accident after work','CT'],['2023-03-15','14:00','Line 19','needle','車針刺到手指','Needle pierced finger','CT'],
+  ['2023-06-05','18:30','ME','animal','被蛇咬','Snake bite','Chamkar Chek'],['2023-06-24','10:00','Line 8','machine','右手中指被壓腳桿夾到','Right middle finger caught by lever','CT'],['2023-07-19','07:00','Line 2','commute','上班途中交通事故','Traffic accident on the way to work','CT'],
+  ['2023-08-10','07:10','Line 21','commute','上班途中交通事故','Traffic accident on the way to work','CT'],['2023-08-14','15:30','Line 11','needle','車針刺到食指','Needle pierced index finger','CT'],['2023-08-25','09:00','Line 19','illness','頭暈＋嘔吐','Dizziness and vomiting','Chamkar Chek'],
+  ['2023-09-12','15:00','Cutting','machine','腳被拉布機刺傷','Foot pierced by fabric spreading machine','CT'],['2023-09-20','08:00','Line 2','needle','車針刺到手指','Needle pierced finger','CT']].map((r,i)=>({_kind:'injury',_k:'I|2023|'+String(i+1).padStart(2,'0'),date:r[0],time:r[1],area:r[2],type:r[3],descZh:r[4],descEn:r[5],hospital:r[6]==='CT'?'CT Clinic':'Chamkar Chek Hospital',status:'closed',src:'Clinic 2023-10 · Associate work injury (No.'+(i+1)+')'})),
+ /* 急救人員 */
+ {_kind:'aider',_k:'A|phary',name:'Yin Phary',pos:'HR Leader / Supervisor',dept:'HR',role:'esm',area:'全廠 Whole factory',src:'Fire drill & evacuation plan 2025'},
+ {_kind:'aider',_k:'A|somchanthy',name:'Som Chanthy',pos:'Nurse',dept:'HR / Clinic',role:'nurse',src:'Fire drill & evacuation plan 2025'},
+ {_kind:'aider',_k:'A|penchanmuniroath',name:'Pen Chanmuniroath',pos:'Nurse',dept:'HR / Clinic',role:'nurse',note:'演習時負責記錄 Records incidents during drills',src:'Fire drill & evacuation plan 2025'},
+ {_kind:'aider',_k:'A|nhelchanthea',name:'Nhel Chanthea',pos:'Sewing Supervisor',dept:'Production (Sewing)',role:'cpr',area:'Sewing',trained:'',src:'VRT Emergency Action Plan 2025-07-07 (CPR & First Aid)'},
+ {_kind:'aider',_k:'A|phouputrea',name:'Phou Putrea',pos:'Cutting Leader',dept:'Production (Cutting)',role:'cpr',area:'Cutting / Building B',src:'VRT Emergency Action Plan 2025-07-07 (CPR & First Aid)'},
+ {_kind:'aider',_k:'A|pheapsreypich',name:'Pheap Sreypich',pos:'',dept:'',role:'aider',cert:'2023-05-03',certBy:'Dr. Ly Chhoung',src:'Vantage - First Aid Certificate.docx',url:DRV('19k6sBAIhjtoqzjIkaGNKtmW7vH6GdO6s')},
+ /* 委員會 */
+ {_kind:'committee',_k:'C|hs',type:'hs',name:'Health and Safety Committee',since:'2019',freq:'每半年 Twice a year',chair:'Paul Weng',docs:'8-Health and Safety Committee.docx (2023)',url:DRV('1dQZxUsnrIKLCSWBpazhR6-Scx2PYWmie'),
+  members:[['Paul Weng (WENG SHEN JU)','Director'],['Yin Phary','Secretary'],['Sout Mom','Secretary'],['Em Sophea','Secretary'],['Kheav Sokunthea','Secretary'],['Pen Chanmuniroath','Member'],['Som Chanty','Member'],['Chhem Mong Hourt','Member'],['Em Sreyleak','Member'],['Nhil Chanthea','Member'],['Phok Sina','Member'],['Hang Chin','Member'],['Hear Hoeung','Member'],['Ly Bonreth','Member'],['Phou Puthrea','Member'],['Mao Sokhom','Member']],
+  duty:'主席：議程、通知、主持會議；秘書：會議紀錄、發給委員並公告；委員：回報不安全狀況、出席、回報所有事故與虛驚、檢討工傷。Director: agenda, notice, chair. Secretary: minutes, distribute & post. Member: report unsafe conditions, attend, report accidents & near-misses, review injuries.'},
+ {_kind:'committee',_k:'C|env',type:'env',name:'Environment (EMS) Committee',since:'2024',freq:'每年 Yearly',chair:'Paul Weng (EMS PIC)',docs:'VRT EMS Committee Chart (2024-12)',url:DRV('15wMF4E3L0BmSTFv4EyXiL4YQZ9Qp0vC4'),
+  members:[['Paul Weng','EMS PIC'],['Och Chanmalen','Internal EMS Auditor'],['Isay C. Jetajobe','Shipping / Finance'],['Em Sophea','GA'],['Kheav Sokunthea','Admin / Environment']]},
+ {_kind:'committee',_k:'C|grs',type:'grs',name:'GRS Committee',since:'2024',freq:'每年 Yearly',chair:'Och Chanmalen (Compliance Officer)',docs:'VRT GRS Committee Meeting Record (2024-12-26)',url:DRV('1XYAMJKYnYyvjrHXU7LtruGmQOkPtd5nF'),members:[['Och Chanmalen','Compliance Officer'],['Paul Weng','EMS PIC']]},
+ {_kind:'committee',_k:'C|hiv',type:'hiv',name:'HIV & Drug Committee',since:'2024',freq:'每年 Yearly',chair:'Admin / HR',docs:'VRT-TR-7 HIV & Drug Committee Meeting (2024-12-06)',url:DRV('1JF7zLAjQGYQmuJAtH3Bx70qPJIr4gibY'),members:[['HR / Admin','Chair'],['Factory doctor / nurse','Member']]},
+ {_kind:'committee',_k:'C|rep',type:'rep',name:"Worker representatives",since:'2020',freq:'每 2 年改選（6 月）Election every 2 years (June)',chair:'',docs:'工人代表選舉結果 2020 / 2022 / 2024',members:[['Oem Srey Leak (Aleak)','Representative · 2024 最高票 82（24%）'],['Chhen Bunna','Assistant · 2024 第 4 高票 32']]},
+ {_kind:'committee',_k:'C|union',type:'union',name:'Trade union',since:'2018',freq:'',chair:'',docs:'工會會費名單在「福利／意見箱 → 工會費」',link:'ac_hra_welfare_suggestion_v1.html',members:[]},
+ {_kind:'meeting',_k:'M|hs|2021-06',cm:'hs',date:'2021-06-30',topic:'工人代表＋安衛會議計劃 Plan for meeting of representatives and H&S',src:'Email 2021-06 (FW 2025-12)'},
+ {_kind:'meeting',_k:'M|hs|2022-06-23',cm:'hs',date:'2022-06-23',topic:'工作場所安全：消防演習與急救、雨季交通安全（戴安全帽）、垃圾分類、環境整潔、用電安全 Workplace safety: fire drill & first aid, rainy-season traffic safety (helmets), waste separation, housekeeping, electrical safety',note:'Paul：會議用週五或週六下午 1–1.5 小時，議題先送管理部；紀錄用 Word，照片附在後面 Use Fri/Sat afternoon 1–1.5 h; send topics to management first; minutes in Word with photos',src:'6-VRT health safety committee meeting (23-06-2022).pptx'},
+ {_kind:'meeting',_k:'M|hiv|2024-12-06',cm:'hiv',date:'2024-12-06',time:'13:20–14:00',topic:'毒品危害與愛滋防治宣導、委員會組成與職責 Drug harm & HIV prevention awareness; committee members and duties',src:'VRT-TR-7 HIV & Drug Committee Meeting 06DEC24.pdf',url:DRV('1JF7zLAjQGYQmuJAtH3Bx70qPJIr4gibY')},
+ {_kind:'meeting',_k:'M|env|2024-12-26',cm:'env',date:'2024-12-26',topic:'2025–2027 節能目標；生產節電、節水、垃圾與廢料管理、回收材料；委員帶頭宣導 Energy-saving goals 2025–2027; saving power & water; waste management; recycled materials; members promote awareness',src:'VRT-TR3 Env. Committee Meeting 26DEC2024.pdf',url:DRV('1JcPqOWDdwefJ3dk_nty9Fuwu3iXGiwaT')},
+ {_kind:'meeting',_k:'M|grs|2024-12-26',cm:'grs',date:'2024-12-26',time:'08:30',topic:'EMS／GRS 要求；GRS 與環境相關培訓、程序、流程；各部門 GRS 分工 EMS/GRS requirements; GRS & environment training/procedures; GRS assignments by department',src:'VRT GRS Committee Meeting Record (Revised).pdf',url:DRV('1XYAMJKYnYyvjrHXU7LtruGmQOkPtd5nF')},
+ {_kind:'meeting',_k:'M|rep|2020-06-13',cm:'rep',date:'2020-06-13',topic:'工人代表選舉 Worker representative election',src:'Email 2020-06-13'},
+ {_kind:'meeting',_k:'M|rep|2022-06-25',cm:'rep',date:'2022-06-25',topic:'工人代表選舉：代表 9 選 7、助理 9 選 7；代表票 389、助理票 368 Election: reps 7 of 9, assistants 7 of 9; 389 / 368 ballots',src:'Email 2022-06-27'},
+ {_kind:'meeting',_k:'M|rep|2024-06-15',cm:'rep',date:'2024-06-15',topic:'工人代表選舉：代表 8 選 5、助理 8 選 5；代表票 342、助理票 345；公司派 2 人 1 當選（Aleak 82 票最高），Bunna 助理第 4；無工會成員參選 Election: reps 5 of 8, assistants 5 of 8; 342 / 345 ballots; Aleak highest 82; no union candidates',note:'下次改選 2026-06 Next election 2026-06',src:'Email 2024-06-25'},
+ {_kind:'meeting',_k:'M|rep|2026-06',cm:'rep',date:'2026-06-20',planned:1,topic:'工人代表改選（依 2024 信件排定；結果待補）Representative election due (results to fill)',src:'Email 2024-06-25: next election 2026/June'}
+].map(r=>Object.assign({updatedAt:SEED_AT,seed:1},r));
+
+/* ── 狀態 ── */
+let DB={recs:[],seeded:false,updatedAt:''};
+function load(){try{const v=JSON.parse(localStorage.getItem(LS)||'null');if(v&&Array.isArray(v.recs))DB=v}catch(e){}
+ const have=new Set(DB.recs.map(r=>r._k));let add=0;SEED.forEach(s=>{if(!have.has(s._k)){DB.recs.push(JSON.parse(JSON.stringify(s)));add++}});if(add)save('seed',true)}
+function save(reason,quiet){DB.updatedAt=nowIso();try{localStorage.setItem(LS,JSON.stringify(DB))}catch(e){console.warn(e)}
+ try{localStorage.setItem('ac_hra_safety_meta',JSON.stringify({count:live().length,updatedAt:DB.updatedAt}))}catch(e){}
+ if(!quiet&&!_applying&&gasUrl()&&window.HRAAutoSync)HRAAutoSync.schedule(TOOL,reason||'change',{},900)}
+const live=k=>DB.recs.filter(r=>r&&!r.deleted&&(!k||r._kind===k));
+function put(r){r.updatedAt=nowIso();delete r.seed;const i=DB.recs.findIndex(x=>x._k===r._k);if(i>=0)DB.recs[i]=r;else DB.recs.push(r);save('edit')}
+function del(k){const r=DB.recs.find(x=>x._k===k);if(!r)return;r.deleted=true;r.updatedAt=nowIso();save('delete')}
+
+/* ── 雲端 ── */
+let _applying=false;
+function gasUrl(){return (localStorage.getItem(GAS_SHARED_KEY)||localStorage.getItem(GAS_KEY)||'').trim()}
+function setSt(t){$('cloudSt').textContent=t}
+function applyRecords(recs){_applying=true;try{const map=new Map(DB.recs.map(r=>[r._k,r]));(recs||[]).forEach(r=>{if(!r||!r._k||!r._kind)return;const c=Object.assign({},r);const cur=map.get(c._k);if(!cur||String(c.updatedAt||'')>=String(cur.updatedAt||''))map.set(c._k,c)});DB.recs=[...map.values()];save('pull',true)}finally{_applying=false}}
+async function cloudPush(o={}){const url=gasUrl();if(!url){if(!o.silent)toast(L('這台裝置還沒有 HRA 雲端網址（開一次 HRA Portal 首頁就會帶入）','No HRA cloud URL on this device yet — open the HRA Portal home once','មិនទាន់មាន URL ពពក'));return}
+ if(!window.HRASmartSync){toast('HRASmartSync ✗');return}setSt('☁️↑ …');
+ try{const recs=DB.recs.map(r=>Object.assign({},r));const d=await HRASmartSync.push({url,tool:TOOL,records:recs,recordCount:recs.length,summary:{drills:live('drill').length,injuries:live('injury').length,aiders:live('aider').length,committees:live('committee').length,exits:live('exit').length},allowDeletes:false,autoConfirmConflicts:!!o.auto});
+  setSt('☁️ ✓ '+new Date().toTimeString().slice(0,5));if(!o.silent&&d)toast('✅ '+L('已上傳','Uploaded','បានផ្ទុកឡើង')+(d.uploaded!=null?' · '+d.uploaded:''));return d}catch(e){setSt('☁️ ✗');if(!o.silent)toast('❌ '+(e.message||e),4000);throw e}}
+async function cloudPull(o={}){const url=gasUrl();if(!url){if(!o.silent)toast(L('這台裝置還沒有 HRA 雲端網址','No HRA cloud URL on this device yet','មិនទាន់មាន URL ពពក'));return}
+ if(!window.HRASmartSync)return;setSt('☁️↓ …');
+ try{const res=await HRASmartSync.pullReliable({url,tool:TOOL,localRecords:DB.recs});if(res&&res.records&&res.records.length){applyRecords(res.records);renderAll()}
+  setSt('☁️ ✓ '+new Date().toTimeString().slice(0,5));if(!o.silent)toast(res&&res.noCloud?L('雲端還沒有資料（會用本機資料上傳）','Nothing in the cloud yet','មិនទាន់មានទិន្នន័យ'):'✅ '+L('已下載','Downloaded','បានទាញយក')+(res&&res.downloaded!=null?' · '+res.downloaded:''));return res}catch(e){setSt('☁️ ✗');if(!o.silent)toast('❌ '+(e.message||e),4000)}}
+async function postGas(p){const url=gasUrl();if(!url)throw new Error('No GAS URL');const r=await fetch(url,{method:'POST',redirect:'follow',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(p)});const d=JSON.parse(await r.text());if(d.ok===false)throw new Error(d.error||'GAS error');return d}
+
+/* ── 共用 ── */
+function years(){const ys=new Set([new Date().getFullYear()]);live().forEach(r=>{const y=+yr(r.date||r.since||r.cert);if(y>2000)ys.add(y)});return [...ys].sort((a,b)=>b-a)}
+function selYear(){return $('yearSel').value||'all'}
+function inYear(d){const y=selYear();return y==='all'||yr(d)===y}
+const badge=(c,t)=>`<span class="badge ${c}">${t}</span>`;
+function hbar(label,v,max,cls){return `<div class="hbar ${cls||''}"><span>${label}</span><span class="tr"><i style="width:${max?Math.round(v/max*100):0}%"></i></span><b class="num">${v}</b></div>`}
+function srcCell(r){return r.url?`<a href="${esc(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">📎 ${esc(r.src||L('檔案','File','ឯកសារ'))}</a>`:esc(r.src||'')}
+function kpiBtn(cls,label,val,sub,tab){return `<button class="kpi ${cls}" onclick="go('${tab}')"><div class="label">${label}</div><div class="value">${val}</div><div class="sub">${sub||''}</div></button>`}
+function drillTotal(r){const s=n(r.prod)+n(r.cut)+n(r.wh)+n(r.office)+n(r.admin);return r.total!=null&&r.total!==''?n(r.total):(s||null)}
+function nextDrillDue(){const done=live('drill').filter(r=>!r.planned&&r.site!=='house').map(r=>r.date).sort();const last=done[done.length-1]||'';if(!last)return {last:'',due:''};const d=new Date(last+'T00:00:00');d.setMonth(d.getMonth()+6);return {last,due:d.toISOString().slice(0,7)}}
+let RESIGNS=null;/* 從 onboarding 雲端帶入的離職名單 */
+
+/* ── 分頁 ── */
+function renderTabs(){$('tabs').innerHTML=TABS.map(t=>{const c={drill:live('drill').length,injury:live('injury').length,aider:live('aider').length,committee:live('committee').length,exit:live('exit').length}[t[0]];return `<button class="tab${TAB===t[0]?' on':''}" data-tab="${t[0]}" onclick="go('${t[0]}')">${t[1]} ${L(t[2][0],t[2][1],t[2][2])}${c!=null?`<small>${c}</small>`:''}</button>`}).join('')}
+function go(t){TAB=t;try{history.replaceState(null,'','#'+t)}catch(e){}document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+t));renderTabs();render(t);window.scrollTo({top:0})}
+function renderAll(){renderTabs();render(TAB);document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='view-'+TAB));$('dataHint').textContent=`${live().length} ${L('筆','records','កំណត់ត្រា')} · v${VER}${DB.updatedAt?' · '+DB.updatedAt.slice(0,16).replace('T',' '):''}`}
+function render(t){({ov:renderOv,drill:renderDrill,injury:renderInjury,aider:renderAider,committee:renderCommittee,exit:renderExit}[t]||renderOv)()}
+
+function renderOv(){const y=selYear()==='all'?String(new Date().getFullYear()):selYear(),nd=nextDrillDue(),curYm=today().slice(0,7);
+ const drY=live('drill').filter(r=>yr(r.date)===y&&!r.planned),inj=live('injury'),injY=inj.filter(r=>yr(r.date)===y),aid=live('aider'),cms=live('committee'),mts=live('meeting').filter(r=>!r.planned).sort((a,b)=>b.date.localeCompare(a.date)),ex=live('exit'),exY=ex.filter(r=>yr(r.date||r.lastDay)===y);
+ const overdue=nd.due&&nd.due<=curYm;
+ let h=`<div class="cards">
+  ${kpiBtn(overdue?'red':'green',L('🔥 消防演習','🔥 Fire drill','🔥 សមយុទ្ធអគ្គិភ័យ'),drY.length+' '+L('次','times','ដង'),`${L('上次','Last','ចុងក្រោយ')} ${nd.last||'—'} · ${L('下次應辦','Next due','លើកក្រោយ')} <b style="color:${overdue?'#c4454a':'#16855d'}">${nd.due||'—'}</b>${overdue?' ⚠️':''}`,'drill')}
+  ${kpiBtn(injY.length?'gold':'green',L('🩹 工傷','🩹 Work injury','🩹 គ្រោះថ្នាក់ការងារ'),injY.length+' '+L('件','cases','ករណី'),`${y} · ${L('歷年','All years','គ្រប់ឆ្នាំ')} ${inj.length} · ${L('通勤','Commute','ចរាចរណ៍')} ${injY.filter(r=>r.type==='commute').length}`,'injury')}
+  ${kpiBtn('blue',L('⛑️ 急救人員','⛑️ First aiders','⛑️ អ្នកសង្គ្រោះបឋម'),aid.length+' '+L('人','ppl','នាក់'),`${L('證照待補','Cert. to fill','ត្រូវបំពេញ')} ${aid.filter(a=>!a.cert).length} · ${L('到期','Expired','ផុតកំណត់')} ${aid.filter(a=>a.expiry&&a.expiry<today()).length}`,'aider')}
+  ${kpiBtn('purple',L('👥 委員會','👥 Committees','👥 គណៈកម្មាធិការ'),cms.length,`${L('最近會議','Last meeting','ប្រជុំចុងក្រោយ')} ${mts[0]?mts[0].date:'—'}`,'committee')}
+  ${kpiBtn(exY.length?'blue':'gold',L('🚪 離職面談','🚪 Exit interview','🚪 សម្ភាសន៍លាលែង'),exY.length+' '+L('份','forms','សន្លឹក'),`${y} · ${L('原因最多','Top reason','មូលហេតុច្រើន')} ${topReason(exY)||'—'}`,'exit')}
+ </div>`;
+ const warn=[];if(overdue)warn.push(L(`消防演習每半年一次：上次 ${nd.last}，${nd.due} 就該再辦。`,`Fire drill is twice a year: last ${nd.last}, next was due ${nd.due}.`,`សមយុទ្ធ ២ដង/ឆ្នាំ៖ ចុងក្រោយ ${nd.last}`));
+ const pend=live('drill').filter(r=>r.total==null||r.total==='').length;if(pend)warn.push(L(`${pend} 次消防演習還沒有人數（雲端找不到那次的紀錄）。`,`${pend} fire drills have no headcount yet (no record found in the cloud).`,`${pend} សមយុទ្ធមិនទាន់មានចំនួន`));
+ const rep=live('meeting').find(r=>r._k==='M|rep|2026-06');if(rep&&rep.planned)warn.push(L('2026-06 工人代表改選：雲端信箱只到 2026-01，結果待補。','2026-06 worker-representative election: results not in the cloud yet (mailbox ends 2026-01).','ការបោះឆ្នោតតំណាងកម្មករ 2026-06 មិនទាន់មានលទ្ធផល'));
+ if(!aid.some(a=>a.cert&&a.cert>=String(+y-2)))warn.push(L('急救員證照：只找到 2023-05-03 一張，其他人的證照日期待補（建議每 2 年複訓）。','First-aid certificates: only one found (2023-05-03); fill the others (refresher every 2 years recommended).','វិញ្ញាបនបត្រសង្គ្រោះបឋម៖ ត្រូវបំពេញ'));
+ if(warn.length)h+=`<div class="notice warn" style="margin-top:12px">⚠️ ${warn.join('<br>⚠️ ')}</div>`;
+ const byT={};inj.forEach(r=>byT[r.type]=(byT[r.type]||0)+1);const mx=Math.max(1,...Object.values(byT));
+ const dr=live('drill').filter(r=>!r.planned&&r.site!=='house').sort((a,b)=>a.date.localeCompare(b.date)),dmx=Math.max(1,...dr.map(drillTotal).filter(x=>x));
+ h+=`<div class="grid2"><div class="panel"><div class="panel-head"><h2>🔥 ${L('歷次消防演習人數','Fire drill attendance','ចំនួនអ្នកចូលរួម')}</h2></div><div class="panel-body">${dr.map(r=>{const t=drillTotal(r);return t?hbar(r.date,t,dmx):`<div class="hbar gold"><span>${r.date}</span><span class="tr"><i style="width:0"></i></span><b class="num">—</b></div>`}).join('')}<p class="src">${L('每半年一次（6–7 月、12 月），疏散都在 1 分鐘內到集合點。','Twice a year (Jun–Jul and Dec); everyone at the assembly point within 1 minute.','២ដង/ឆ្នាំ')}</p></div></div>
+ <div class="panel"><div class="panel-head"><h2>🩹 ${L('工傷類別（全部）','Work injury by type (all)','ប្រភេទគ្រោះថ្នាក់')}</h2></div><div class="panel-body">${Object.keys(byT).sort((a,b)=>byT[b]-byT[a]).map(k=>hbar(itName(k),byT[k],mx,'red')).join('')||`<div class="empty">—</div>`}<p class="src">${L('2023 年 14 件裡有 7 件是上下班交通事故 → 安衛會議持續宣導戴安全帽、雨季慢騎。','7 of the 14 cases in 2023 were commuting accidents → keep promoting helmets and careful riding in the rainy season.','')}</p></div></div></div>`;
+ $('view-ov').innerHTML=h}
+function topReason(list){const c={};list.forEach(r=>(r.reasons||[]).forEach(x=>c[x]=(c[x]||0)+1));const k=Object.keys(c).sort((a,b)=>c[b]-c[a])[0];return k?rcName(k):''}
+
+/* 🔥 消防演習 */
+function renderDrill(){const rows=live('drill').filter(r=>inYear(r.date)).sort((a,b)=>b.date.localeCompare(a.date)),nd=nextDrillDue();
+ const done=rows.filter(r=>!r.planned),tot=done.map(drillTotal).filter(Boolean);
+ let h=`<div class="cards">${kpiBtn('green',L('次數','Drills','ចំនួនដង'),done.length,selYear()==='all'?L('全部年度','All years','គ្រប់ឆ្នាំ'):selYear(),'drill')}${kpiBtn('blue',L('平均參加人數','Avg attendees','មធ្យម'),tot.length?Math.round(tot.reduce((a,b)=>a+b,0)/tot.length):'—','','drill')}${kpiBtn('purple',L('上次','Last','ចុងក្រោយ'),nd.last||'—','','drill')}${kpiBtn(nd.due&&nd.due<=today().slice(0,7)?'red':'gold',L('下次應辦','Next due','លើកក្រោយ'),nd.due||'—',L('上次＋6 個月','last + 6 months','+៦ខែ'),'drill')}${kpiBtn('gold',L('人數待補','Headcount to fill','ត្រូវបំពេញ'),rows.filter(r=>drillTotal(r)==null).length,'','drill')}</div>`;
+ h+=`<div class="panel"><div class="panel-head"><h2>🔥 ${L('消防演習紀錄','Fire drill records','កំណត់ត្រាសមយុទ្ធ')}</h2><div class="toolbar"><a class="btn" href="../ac-audit/vrt_training_v1.html?from=hra#materials">📘 ${L('演習簡報／疏散計劃','Drill deck / evacuation plan','ឯកសារ')}</a><button class="btn primary" onclick="editDrill()">＋ ${L('新增演習','Add drill','បន្ថែម')}</button></div></div><div class="table-wrap"><table><thead><tr>
+ <th>${L('日期','Date','កាលបរិច្ឆេទ')}</th><th>${L('地點','Site','ទីតាំង')}</th><th class="num">${L('生產','Prod.','ផលិត')}</th><th class="num">${L('裁剪','Cut','កាត់')}</th><th class="num">${L('倉庫','WH','ឃ្លាំង')}</th><th class="num">${L('辦公室','Office','ការិយាល័យ')}</th><th class="num">${L('管理部','Admin','រដ្ឋបាល')}</th><th class="num">${L('男','M','ប្រុស')}</th><th class="num">${L('女','F','ស្រី')}</th><th class="num">${L('合計','Total','សរុប')}</th><th>${L('疏散','Evacuation','ការជម្លៀស')}</th><th>${L('警察／協助','Police / help','ប៉ូលិស')}</th><th>${L('來源','Source','ប្រភព')}</th><th></th></tr></thead><tbody>`;
+ h+=rows.map(r=>{const t=drillTotal(r);return `<tr><td class="mono"><b>${esc(r.date)}</b>${r.planned?' '+badge('b-warn',L('已排定','Planned','គ្រោងទុក')):''}</td><td>${r.site==='house'?'🏠 '+L('員工宿舍','Staff house','ផ្ទះបុគ្គលិក'):'🏭 '+L('工廠','Factory','រោងចក្រ')}</td>${['prod','cut','wh','office','admin','m','f'].map(k=>`<td class="num">${r[k]!=null&&r[k]!==''?r[k]:''}</td>`).join('')}<td class="num"><b>${t!=null?t:badge('b-warn',L('待補','To fill','ត្រូវបំពេញ'))}</b></td><td>${esc(r.evac||'')}${r.time?`<div class="src">${esc(r.time)}</div>`:''}</td><td>${r.police?'👮 '+r.police:''}${r.helpers?`<div class="src">${esc(r.helpers)}</div>`:''}</td><td class="src">${srcCell(r)}${r.note?`<div>${esc(r.note)}</div>`:''}</td><td><button class="btn sm" onclick="editDrill('${esc(r._k)}')">✏️</button></td></tr>`}).join('')||`<tr><td colspan="14" class="empty">—</td></tr>`;
+ h+=`</tbody></table></div></div><p class="src">${L('來源：雲端 Fire drill practice record 2019-2021、每次的 VRT Fire Drill Practice 簡報與 PDF、2025 疏散計劃。2023 年兩次和 2025-12 雲端只有信件、沒有人數表，請 HR 補上。','Sources: Fire drill practice record 2019-2021, each VRT Fire Drill Practice deck / PDF and the 2025 evacuation plan. The two 2023 drills and 2025-12 only have e-mails in the cloud — HR to fill the headcount.','')}</p>`;
+ $('view-drill').innerHTML=h}
+function editDrill(k){const r=k?JSON.parse(JSON.stringify(DB.recs.find(x=>x._k===k))):{_kind:'drill',_k:'D|'+uid(''),date:today(),site:'factory'};
+ form(k?L('修改消防演習','Edit fire drill','កែ'):L('新增消防演習','Add fire drill','បន្ថែម'),[['date','date',L('日期','Date','កាលបរិច្ឆេទ')],['site','sel',L('地點','Site','ទីតាំង'),[['factory',L('工廠','Factory','រោងចក្រ')],['house',L('員工宿舍','Staff house','ផ្ទះបុគ្គលិក')]]],['time','text',L('時間（例 16:05–16:25）','Time (e.g. 16:05–16:25)','ម៉ោង')],['evac','text',L('疏散時間（例 ≤ 1 min）','Evacuation time','ពេលជម្លៀស')],
+  ['prod','num',L('生產人數','Production','ផលិតកម្ម')],['cut','num',L('裁剪','Cutting','កាត់')],['wh','num',L('倉庫','Warehouse','ឃ្លាំង')],['office','num',L('辦公室','Office','ការិយាល័យ')],['admin','num',L('管理部','Admin','រដ្ឋបាល')],['m','num',L('男','Male','ប្រុស')],['f','num',L('女','Female','ស្រី')],['total','num',L('合計（空白＝自動加總）','Total (blank = sum)','សរុប')],['police','num',L('外部協助（警察）人數','Police / outside helpers','ប៉ូលិស')],['helpers','text',L('VRT 協助人員','VRT helpers','អ្នកជួយ VRT')],
+  ['planned','chk',L('只是排定、還沒辦','Planned only','គ្រោងទុក')],['src','text',L('來源檔案','Source file','ប្រភព')],['url','text',L('檔案連結','File link','តំណ')],['note','area',L('備註','Note','កំណត់សម្គាល់')]],r,x=>{if(x.total===''||x.total==null){const s=n(x.prod)+n(x.cut)+n(x.wh)+n(x.office)+n(x.admin);x.total=s||(n(x.m)+n(x.f))||null}})}
+
+/* 🩹 工傷 */
+let INJ_F='';
+function renderInjury(){const all=live('injury').filter(r=>inYear(r.date)),rows=all.filter(r=>!INJ_F||r.type===INJ_F).sort((a,b)=>b.date.localeCompare(a.date));
+ const byM={};all.forEach(r=>{const m=ym(r.date);byM[m]=(byM[m]||0)+1});const byT={};all.forEach(r=>byT[r.type]=(byT[r.type]||0)+1);const tmx=Math.max(1,...Object.values(byT));
+ const leave=all.reduce((a,r)=>a+n(r.leaveDays),0),open=all.filter(r=>r.status!=='closed').length;
+ let h=`<div class="cards">${kpiBtn(all.length?'gold':'green',L('件數','Cases','ករណី'),all.length,selYear()==='all'?L('全部年度','All years','គ្រប់ឆ្នាំ'):selYear(),'injury')}${kpiBtn('red',L('上下班交通事故','Commuting accidents','ចរាចរណ៍'),all.filter(r=>r.type==='commute').length,all.length?Math.round(all.filter(r=>r.type==='commute').length/all.length*100)+'%':'','injury')}${kpiBtn('purple',L('廠內工作傷害','Injuries at work','របួសក្នុងការងារ'),all.filter(r=>['needle','machine','cut','fall'].includes(r.type)).length,L('針刺、機器、割傷、跌倒','needle, machine, cut, fall',''),'injury')}${kpiBtn('blue',L('工傷假天數','Injury leave days','ថ្ងៃឈប់'),leave||'—',L('有填的才算','only where filled',''),'injury')}${kpiBtn(open?'red':'green',L('處理中','Open','កំពុងដោះស្រាយ'),open,L('NSSF 申報／復工未結','NSSF claim / return pending',''),'injury')}</div>`;
+ h+=`<div class="grid2"><div class="panel"><div class="panel-head"><h2>📅 ${L('每月件數','Cases by month','តាមខែ')}</h2></div><div class="panel-body">${Object.keys(byM).sort().map(m=>hbar(m,byM[m],Math.max(...Object.values(byM)),'red')).join('')||'<div class="empty">—</div>'}</div></div>
+ <div class="panel"><div class="panel-head"><h2>🏷️ ${L('類別','By type','តាមប្រភេទ')}</h2></div><div class="panel-body"><div class="chips" style="margin-bottom:8px"><button class="chip${INJ_F?'':' on'}" onclick="INJ_F='';renderInjury()">${L('全部','All','ទាំងអស់')}</button>${Object.keys(byT).map(k=>`<button class="chip${INJ_F===k?' on':''}" onclick="INJ_F='${k}';renderInjury()">${itName(k)} ${byT[k]}</button>`).join('')}</div>${Object.keys(byT).sort((a,b)=>byT[b]-byT[a]).map(k=>hbar(itName(k),byT[k],tmx,'red')).join('')}</div></div></div>`;
+ h+=`<div class="panel"><div class="panel-head"><h2>🩹 ${L('工傷紀錄','Work injury records','កំណត់ត្រាគ្រោះថ្នាក់')}</h2><div class="toolbar"><button class="btn primary" onclick="editInjury()">＋ ${L('新增工傷','Add case','បន្ថែម')}</button></div></div><div class="table-wrap"><table><thead><tr><th>${L('日期','Date','កាលបរិច្ឆេទ')}</th><th>${L('時間','Time','ម៉ោង')}</th><th>${L('工號','ID','លេខកាត')}</th><th>${L('姓名','Name','ឈ្មោះ')}</th><th>${L('組別／部門','Line / dept.','ក្រុម')}</th><th>${L('類別','Type','ប្រភេទ')}</th><th>${L('經過','What happened','មូលហេតុ')}</th><th>${L('醫院','Hospital','មន្ទីរពេទ្យ')}</th><th class="num">${L('工傷假','Leave days','ថ្ងៃឈប់')}</th><th>NSSF</th><th>${L('狀態','Status','ស្ថានភាព')}</th><th></th></tr></thead><tbody>`;
+ h+=rows.map(r=>`<tr><td class="mono"><b>${esc(r.date)}</b></td><td class="mono">${esc(r.time||'')}</td><td class="mono">${esc(r.empId||'')}</td><td>${esc(r.name||'')}</td><td>${esc(r.area||'')}</td><td>${itName(r.type)}</td><td>${esc(L(r.descZh||r.descEn,r.descEn||r.descZh,r.descKm||r.descEn||r.descZh))}</td><td>${esc(r.hospital||'')}</td><td class="num">${r.leaveDays||''}</td><td>${r.nssf?badge(r.nssf==='paid'?'b-ok':'b-warn',esc({filed:L('已申報','Filed','បានដាក់'),paid:L('已給付','Paid','បានបង់'),na:'N/A'}[r.nssf]||r.nssf)):''}</td><td>${r.status==='closed'?badge('b-ok',L('結案','Closed','បិទ')):badge('b-bad',L('處理中','Open','កំពុងដោះស្រាយ'))}</td><td><button class="btn sm" onclick="editInjury('${esc(r._k)}')">✏️</button></td></tr>`).join('')||`<tr><td colspan="12" class="empty">${L('這段期間沒有工傷紀錄','No injury records in this period','គ្មានកំណត់ត្រា')}</td></tr>`;
+ h+=`</tbody></table></div></div><p class="src">${L('2023 年 14 件來自雲端 Clinic 月報的「Associate work injury」表；姓名、工號、證人、電話沒有放進網頁原始碼，要補可直接按 ✏️ 填（只存 HRA 雲端）。2024 年起雲端沒有找到工傷表，之後的案件請 HR 在這裡登錄。','The 14 cases of 2023 come from the Clinic monthly report "Associate work injury" sheet; names, IDs, witnesses and phones are not in the page source — add them with ✏️ (stored in the HRA cloud only). No injury sheet was found for 2024 onward; HR should record new cases here.','')}</p>`;
+ $('view-injury').innerHTML=h}
+function editInjury(k){const r=k?JSON.parse(JSON.stringify(DB.recs.find(x=>x._k===k))):{_kind:'injury',_k:'I|'+uid(''),date:today(),type:'needle',status:'open'};
+ form(k?L('修改工傷','Edit case','កែ'):L('新增工傷','Add case','បន្ថែម'),[['date','date',L('日期','Date','កាលបរិច្ឆេទ')],['time','text',L('時間','Time','ម៉ោង')],['empId','text',L('工號','Employee ID','លេខកាត')],['name','text',L('姓名','Name','ឈ្មោះ')],['area','text',L('組別／部門','Line / dept.','ក្រុម')],['type','sel',L('類別','Type','ប្រភេទ'),Object.keys(ITYPE).map(k=>[k,itName(k)])],
+  ['descZh','area',L('經過（中文）','What happened (Chinese)','មូលហេតុ (ចិន)')],['descEn','area',L('經過（English）','What happened (English)','មូលហេតុ (អង់គ្លេស)')],['descKm','area',L('經過（ខ្មែរ）','What happened (Khmer)','មូលហេតុ (ខ្មែរ)')],['hospital','text',L('醫院／診所','Hospital / clinic','មន្ទីរពេទ្យ')],['witness','text',L('證人（姓名／工號）','Witness (name / ID)','សាក្សី')],['leaveDays','num',L('工傷假天數','Injury leave days','ថ្ងៃឈប់')],
+  ['nssf','sel','NSSF',[['',''],['filed',L('已申報','Filed','បានដាក់')],['paid',L('已給付','Paid','បានបង់')],['na','N/A']]],['returnDate','date',L('復工日','Return to work','ថ្ងៃត្រឡប់មកធ្វើការ')],['action','area',L('改善措施','Corrective action','វិធានការកែតម្រូវ')],['status','sel',L('狀態','Status','ស្ថានភាព'),[['open',L('處理中','Open','កំពុងដោះស្រាយ')],['closed',L('結案','Closed','បិទ')]]],['src','text',L('來源','Source','ប្រភព')]],r)}
+
+/* ⛑️ 急救人員 */
+const AROLE={esm:['🚑 現場指揮（ESM）','🚑 Emergency scene management','🚑 គ្រប់គ្រងកន្លែងគ្រោះអាសន្ន'],nurse:['🏥 護士','🏥 Nurse','🏥 គិលានុបដ្ឋាយិកា'],cpr:['❤️ CPR＋急救','❤️ CPR & first aid','❤️ CPR និងសង្គ្រោះបឋម'],aider:['⛑️ 急救員','⛑️ First aider','⛑️ អ្នកសង្គ្រោះបឋម']};
+const arName=k=>{const a=AROLE[k]||AROLE.aider;return L(a[0],a[1],a[2])};
+function renderAider(){const rows=live('aider').sort((a,b)=>String(a.role).localeCompare(String(b.role))||String(a.name).localeCompare(String(b.name))),hc=n(localStorage.getItem('ac_hra_safety_headcount'))||460,need=Math.ceil(hc/50);
+ let h=`<div class="cards">${kpiBtn('blue',L('急救人員','First aiders','អ្នកសង្គ្រោះបឋម'),rows.length,L('含護士','incl. nurses','រួមទាំងគិលានុបដ្ឋាយិកា'),'aider')}${kpiBtn(rows.length>=need?'green':'red',L('每 50 人 1 位','1 per 50 workers','១នាក់/៥០'),`${rows.length} / ${need}`,`${L('在職','Headcount','បុគ្គលិក')} ${hc}（<a href="#" onclick="event.preventDefault();setHc()">${L('改','edit','កែ')}</a>）`,'aider')}${kpiBtn('gold',L('證照日期待補','Cert. date to fill','ត្រូវបំពេញ'),rows.filter(a=>!a.cert).length,'','aider')}${kpiBtn('red',L('證照已過期','Cert. expired','ផុតកំណត់'),rows.filter(a=>a.expiry&&a.expiry<today()).length,L('到期日有填的才算','where expiry is filled',''),'aider')}${kpiBtn('purple',L('上次急救訓練','Last first-aid training','វគ្គចុងក្រោយ'),'2023-05-03',L('醫師 Ly Chhoung','Dr. Ly Chhoung',''),'aider')}</div>`;
+ h+=`<div class="panel"><div class="panel-head"><h2>⛑️ ${L('急救人員名冊','First aider roster','បញ្ជីអ្នកសង្គ្រោះបឋម')}</h2><div class="toolbar"><button class="btn primary" onclick="editAider()">＋ ${L('新增急救員','Add first aider','បន្ថែម')}</button></div></div><div class="table-wrap"><table><thead><tr><th>${L('姓名','Name','ឈ្មោះ')}</th><th>${L('工號','ID','លេខកាត')}</th><th>${L('職位','Position','មុខតំណែង')}</th><th>${L('部門','Dept.','ផ្នែក')}</th><th>${L('負責區域','Area','តំបន់')}</th><th>${L('角色','Role','តួនាទី')}</th><th>${L('證照日期','Certificate','វិញ្ញាបនបត្រ')}</th><th>${L('到期','Expiry','ផុតកំណត់')}</th><th>${L('來源','Source','ប្រភព')}</th><th></th></tr></thead><tbody>`;
+ h+=rows.map(a=>`<tr><td><b>${esc(a.name)}</b></td><td class="mono">${esc(a.empId||'')}</td><td>${esc(a.pos||'')}</td><td>${esc(a.dept||'')}</td><td>${esc(a.area||'')}</td><td>${arName(a.role)}</td><td class="mono">${a.cert?esc(a.cert)+(a.certBy?`<div class="src">${esc(a.certBy)}</div>`:''):badge('b-warn',L('待補','To fill','ត្រូវបំពេញ'))}</td><td class="mono">${a.expiry?(a.expiry<today()?badge('b-bad',esc(a.expiry)):esc(a.expiry)):''}</td><td class="src">${srcCell(a)}${a.note?`<div>${esc(a.note)}</div>`:''}</td><td><button class="btn sm" onclick="editAider('${esc(a._k)}')">✏️</button></td></tr>`).join('');
+ h+=`</tbody></table></div></div><div class="notice" style="margin-top:12px">📋 ${L('急救訓練紀錄：2021-06-30 員工急救訓練、2022-05 醫師急救訓練、2023-05-03 急救課程證書（醫師 Ly Chhoung／驗廠專員 Shunan Ang）。演習時：現場指揮 Phary＋Som Chanthy，記錄 Kunthea＋Pen Chanmuniroath，急救器材由所有急救員使用。每 50 人 1 位是常見驗廠參考，不是法規數字。','First-aid training: 2021-06-30 employee first-aid training, 2022-05 doctor-led training, 2023-05-03 first-aid course certificate (Dr. Ly Chhoung / compliance officer Shunan Ang). During drills: scene management Phary + Som Chanthy; recording Kunthea + Pen Chanmuniroath; first-aid kits used by all first aiders. "1 per 50 workers" is a common audit reference, not a legal figure.','')}</div>`;
+ $('view-aider').innerHTML=h}
+function setHc(){const v=prompt(L('在職人數','Headcount','ចំនួនបុគ្គលិក'),localStorage.getItem('ac_hra_safety_headcount')||'460');if(v&&n(v)>0){localStorage.setItem('ac_hra_safety_headcount',String(n(v)));renderAider()}}
+function editAider(k){const r=k?JSON.parse(JSON.stringify(DB.recs.find(x=>x._k===k))):{_kind:'aider',_k:'A|'+uid(''),role:'aider'};
+ form(k?L('修改急救員','Edit first aider','កែ'):L('新增急救員','Add first aider','បន្ថែម'),[['name','text',L('姓名','Name','ឈ្មោះ')],['empId','text',L('工號','Employee ID','លេខកាត')],['pos','text',L('職位','Position','មុខតំណែង')],['dept','text',L('部門','Dept.','ផ្នែក')],['area','text',L('負責區域','Area covered','តំបន់')],['role','sel',L('角色','Role','តួនាទី'),Object.keys(AROLE).map(k=>[k,arName(k)])],['cert','date',L('證照／訓練日期','Certificate / training date','ថ្ងៃវិញ្ញាបនបត្រ')],['certBy','text',L('發證／講師','Issued by / trainer','ចេញដោយ')],['expiry','date',L('到期日','Expiry','ផុតកំណត់')],['src','text',L('來源','Source','ប្រភព')],['url','text',L('檔案連結','File link','តំណ')],['note','area',L('備註','Note','កំណត់សម្គាល់')]],r)}
+
+/* 👥 委員會 */
+function renderCommittee(){const cms=live('committee'),mts=live('meeting');
+ let h=`<div class="cards">${kpiBtn('purple',L('委員會','Committees','គណៈកម្មាធិការ'),cms.length,'','committee')}${kpiBtn('blue',L('委員人數','Members','សមាជិក'),cms.reduce((a,c)=>a+(c.members||[]).length,0),'','committee')}${kpiBtn('green',L('會議紀錄','Meetings','ប្រជុំ'),mts.filter(m=>!m.planned&&inYear(m.date)).length,selYear()==='all'?L('全部','All','ទាំងអស់'):selYear(),'committee')}${kpiBtn('gold',L('已排定','Planned','គ្រោងទុក'),mts.filter(m=>m.planned).length,L('結果待補','results to fill',''),'committee')}${kpiBtn('red',L('今年還沒開會','No meeting this year','មិនទាន់ប្រជុំ'),cms.filter(c=>c.type!=='union'&&!mts.some(m=>m.cm===c._k.slice(2)&&!m.planned&&yr(m.date)===String(new Date().getFullYear()))).length,String(new Date().getFullYear()),'committee')}</div>`;
+ h+=`<div class="panel"><div class="panel-head"><h2>👥 ${L('各類會議委員會','Meetings & committees','គណៈកម្មាធិការ')}</h2><div class="toolbar"><button class="btn" onclick="editMeeting()">＋ ${L('新增會議紀錄','Add meeting','បន្ថែមប្រជុំ')}</button><button class="btn primary" onclick="editCommittee()">＋ ${L('新增委員會','Add committee','បន្ថែម')}</button></div></div><div class="panel-body"><div class="cmt">`;
+ h+=cms.map(c=>{const id=c._k.slice(2),ms=mts.filter(m=>m.cm===id).sort((a,b)=>b.date.localeCompare(a.date));return `<div class="cm"><h3>${ctName(c.type)}</h3><div class="meta">${esc(c.name||'')}${c.since?' · '+L('自','since','ចាប់ពី')+' '+esc(c.since):''}${c.freq?' · '+esc(c.freq):''}</div>${c.chair?`<div class="meta">👤 ${L('主席','Chair','ប្រធាន')}：${esc(c.chair)}</div>`:''}
+  ${(c.members||[]).length?`<ul>${c.members.slice(0,8).map(m=>`<li>${esc(m[0])} <span class="src">${esc(m[1]||'')}</span></li>`).join('')}${c.members.length>8?`<li class="src">… ${L('共','total','សរុប')} ${c.members.length} ${L('人','ppl','នាក់')}</li>`:''}</ul>`:''}
+  ${c.link?`<div class="row"><a class="btn sm" href="${esc(c.link)}">↗ ${esc(c.docs||'')}</a></div>`:`<div class="src" style="margin-top:6px">${srcCell({src:c.docs,url:c.url})}</div>`}
+  <div class="row">${ms.slice(0,3).map(m=>`<span class="badge ${m.planned?'b-warn':'b-info'}" title="${esc(m.topic||'')}">📅 ${esc(m.date)}${m.planned?' '+L('排定','planned','គ្រោង'):''}</span>`).join('')||`<span class="badge b-gray">${L('還沒有會議紀錄','No meeting yet','គ្មានប្រជុំ')}</span>`}</div>
+  <div class="row"><button class="btn sm" onclick="editCommittee('${esc(c._k)}')">✏️ ${L('委員會','Committee','')}</button><button class="btn sm" onclick="editMeeting(null,'${esc(id)}')">＋ ${L('會議','Meeting','ប្រជុំ')}</button></div></div>`}).join('');
+ h+=`</div></div></div><div class="panel"><div class="panel-head"><h2>📅 ${L('會議紀錄','Meeting records','កំណត់ត្រាប្រជុំ')}</h2></div><div class="table-wrap"><table><thead><tr><th>${L('日期','Date','កាលបរិច្ឆេទ')}</th><th>${L('委員會','Committee','គណៈកម្មាធិការ')}</th><th>${L('議題','Topics','ប្រធានបទ')}</th><th class="num">${L('出席','Attendees','អ្នកចូលរួម')}</th><th>${L('工人反映','Worker concerns','មតិកម្មករ')}</th><th>${L('來源','Source','ប្រភព')}</th><th></th></tr></thead><tbody>`;
+ h+=mts.filter(m=>inYear(m.date)).sort((a,b)=>b.date.localeCompare(a.date)).map(m=>{const c=cms.find(x=>x._k==='C|'+m.cm);return `<tr><td class="mono"><b>${esc(m.date)}</b>${m.time?`<div class="src">${esc(m.time)}</div>`:''}${m.planned?' '+badge('b-warn',L('排定','Planned','គ្រោង')):''}</td><td>${c?ctName(c.type):esc(m.cm)}</td><td>${esc(m.topic||'')}${m.note?`<div class="src">${esc(m.note)}</div>`:''}</td><td class="num">${m.attendees||''}</td><td>${esc(m.concern||'')}</td><td class="src">${srcCell(m)}</td><td><button class="btn sm" onclick="editMeeting('${esc(m._k)}')">✏️</button></td></tr>`}).join('')||`<tr><td colspan="7" class="empty">—</td></tr>`;
+ h+=`</tbody></table></div></div><p class="src">${L('工會會費名單照舊在「福利／意見箱 → 工會費」；Audit 稽核用的委員會證據也可以從這裡的連結開檔。','Union dues stay in "Welfare / Suggestion → Union dues"; audit evidence can be opened from the links here.','')}</p>`;
+ $('view-committee').innerHTML=h}
+function editCommittee(k){const r=k?JSON.parse(JSON.stringify(DB.recs.find(x=>x._k===k))):{_kind:'committee',_k:'C|'+uid('c'),type:'other',members:[]};r.membersTxt=(r.members||[]).map(m=>m[0]+(m[1]?' | '+m[1]:'')).join('\n');
+ form(k?L('修改委員會','Edit committee','កែ'):L('新增委員會','Add committee','បន្ថែម'),[['type','sel',L('類別','Type','ប្រភេទ'),Object.keys(CTYPE).map(k=>[k,ctName(k)])],['name','text',L('名稱','Name','ឈ្មោះ')],['since','text',L('成立年','Since','ចាប់ពី')],['freq','text',L('開會頻率','Meeting frequency','ប្រេកង់')],['chair','text',L('主席','Chair','ប្រធាន')],['membersTxt','area',L('委員（一行一位：姓名 | 職務）','Members (one per line: name | role)','សមាជិក')],['docs','text',L('文件','Document','ឯកសារ')],['url','text',L('檔案連結','File link','តំណ')],['duty','area',L('職責','Duties','ភារកិច្ច')]],r,x=>{x.members=String(x.membersTxt||'').split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const p=s.split('|');return [p[0].trim(),(p[1]||'').trim()]});delete x.membersTxt})}
+function editMeeting(k,cm){const r=k?JSON.parse(JSON.stringify(DB.recs.find(x=>x._k===k))):{_kind:'meeting',_k:'M|'+uid(''),cm:cm||'hs',date:today()};
+ form(k?L('修改會議紀錄','Edit meeting','កែ'):L('新增會議紀錄','Add meeting','បន្ថែម'),[['cm','sel',L('委員會','Committee','គណៈកម្មាធិការ'),live('committee').map(c=>[c._k.slice(2),ctName(c.type)+' · '+(c.name||'')])],['date','date',L('日期','Date','កាលបរិច្ឆេទ')],['time','text',L('時間','Time','ម៉ោង')],['attendees','num',L('出席人數','Attendees','អ្នកចូលរួម')],['topic','area',L('議題','Topics','ប្រធានបទ')],['concern','area',L('工人反映','Worker concerns','មតិកម្មករ')],['decision','area',L('決議／追蹤','Decisions / follow-up','សេចក្តីសម្រេច')],['planned','chk',L('只是排定','Planned only','គ្រោងទុក')],['src','text',L('來源','Source','ប្រភព')],['url','text',L('檔案連結','File link','តំណ')],['note','area',L('備註','Note','កំណត់សម្គាល់')]],r)}
+
+/* 🚪 離職面談 */
+function renderExit(){const y=selYear(),rows=live('exit').filter(r=>inYear(r.date||r.lastDay)).sort((a,b)=>String(b.date||b.lastDay).localeCompare(String(a.date||a.lastDay)));
+ const cnt={},grp={};rows.forEach(r=>(r.reasons||[]).forEach(c=>{cnt[c]=(cnt[c]||0)+1;const g=(RCODE[c]||{}).g||'I';grp[g]=(grp[g]||0)+1}));const cmx=Math.max(1,...Object.values(cnt)),gmx=Math.max(1,...Object.values(grp));
+ const pend=(RESIGNS||[]).filter(x=>!live('exit').some(e=>String(e.empId)===String(x.empId)));
+ let h=`<div class="cards">${kpiBtn('blue',L('面談份數','Interviews','សម្ភាសន៍'),rows.length,y==='all'?L('全部','All','ទាំងអស់'):y,'exit')}${kpiBtn(pend.length?'gold':'green',L('待面談（離職名單）','To interview (resign list)','មិនទាន់សម្ភាសន៍'),RESIGNS?pend.length:'—',RESIGNS?L('入離職雲端帶入','from onboarding cloud',''):L('按「帶入離職名單」','press "Load resign list"',''),'exit')}${kpiBtn('purple',L('原因最多','Top reason','មូលហេតុច្រើន'),Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a])[0]||'—',topReason(rows)||'','exit')}${kpiBtn('red',L('主管相關（A）','Leader-related (A)','ប្រធាន (A)'),grp.A||0,L('要特別追','follow up closely',''),'exit')}${kpiBtn('gold',L('薪酬福利（D）','Pay & welfare (D)','ប្រាក់ខែ (D)'),grp.D||0,'','exit')}</div>`;
+ h+=`<div class="grid2"><div class="panel"><div class="panel-head"><h2>📊 ${L('離職原因（大類）','Reasons by group','មូលហេតុតាមក្រុម')}</h2></div><div class="panel-body">${RG.map(g=>hbar(g[0]+' '+L(g[1][0],g[1][1],g[1][2]),grp[g[0]]||0,gmx,'pur')).join('')}</div></div>
+ <div class="panel"><div class="panel-head"><h2>🏷️ ${L('前 8 個原因','Top 8 reasons','មូលហេតុ ៨')}</h2></div><div class="panel-body">${Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]).slice(0,8).map(c=>hbar(rcName(c),cnt[c],cmx,'gold')).join('')||`<div class="empty">${L('還沒有面談紀錄','No interviews yet','គ្មាន')}</div>`}</div></div></div>`;
+ if(pend.length)h+=`<div class="panel"><div class="panel-head"><h2>⏳ ${L('離職但還沒面談','Resigned but not interviewed','មិនទាន់សម្ភាសន៍')} <span class="badge b-warn">${pend.length}</span></h2></div><div class="table-wrap"><table><thead><tr><th>${L('工號','ID','លេខកាត')}</th><th>${L('姓名','Name','ឈ្មោះ')}</th><th>${L('部門','Dept.','ផ្នែក')}</th><th>${L('職位','Position','មុខតំណែង')}</th><th>${L('到職','Joined','ចូល')}</th><th>${L('離職','Resigned','លាលែង')}</th><th></th></tr></thead><tbody>${pend.slice(0,200).map(x=>`<tr><td class="mono">${esc(x.empId)}</td><td>${esc(x.name||'')}</td><td>${esc(x.dept||'')}</td><td>${esc(x.position||'')}</td><td class="mono">${esc(x.joinDate||'')}</td><td class="mono">${esc(x.resignDate||'')}</td><td><button class="btn sm primary" onclick="editExit(null,'${esc(x.empId)}')">📝 ${L('填面談','Interview','សម្ភាសន៍')}</button></td></tr>`).join('')}</tbody></table></div></div>`;
+ h+=`<div class="panel"><div class="panel-head"><h2>🚪 ${L('離職面談紀錄（VRT-F-HR02）','Exit interview records (VRT-F-HR02)','កំណត់ត្រាសម្ភាសន៍')}</h2><div class="toolbar"><button class="btn" onclick="loadResigns()">📥 ${L('帶入離職名單','Load resign list','ទាញបញ្ជីលាលែង')}</button><button class="btn primary" onclick="editExit()">＋ ${L('新增面談','Add interview','បន្ថែម')}</button></div></div><div class="table-wrap"><table><thead><tr><th>${L('面談日','Interview date','ថ្ងៃសម្ភាសន៍')}</th><th>${L('工號','ID','លេខកាត')}</th><th>${L('姓名','Name','ឈ្មោះ')}</th><th>${L('部門','Dept.','ផ្នែក')}</th><th>${L('職位','Position','មុខតំណែង')}</th><th>${L('到職','Joined','ចូល')}</th><th>${L('最後上班','Last day','ថ្ងៃចុងក្រោយ')}</th><th>${L('原因','Reasons','មូលហេតុ')}</th><th>${L('對公司建議','Suggestion','សំណើ')}</th><th>${L('面談人','Interviewer','អ្នកសម្ភាសន៍')}</th><th></th></tr></thead><tbody>`;
+ h+=rows.map(r=>`<tr><td class="mono"><b>${esc(r.date||'')}</b></td><td class="mono">${esc(r.empId||'')}</td><td>${esc(r.name||'')}</td><td>${esc(r.dept||'')}</td><td>${esc(r.position||'')}</td><td class="mono">${esc(r.joinDate||'')}</td><td class="mono">${esc(r.lastDay||'')}</td><td>${(r.reasons||[]).map(c=>`<span class="badge b-pur" style="margin:1px">${esc(rcName(c))}</span>`).join(' ')}${r.other?`<div class="src">${esc(r.other)}</div>`:''}</td><td>${esc(r.suggestion||'')}</td><td>${esc(r.interviewer||'')}</td><td><button class="btn sm" onclick="editExit('${esc(r._k)}')">✏️</button></td></tr>`).join('')||`<tr><td colspan="11" class="empty">${L('還沒有面談紀錄。雲端只找到空白表單 VRT-F-HR02（2021），沒有填好的面談；之後離職的人請在這裡填。','No interviews yet. The cloud only has the blank form VRT-F-HR02 (2021), no completed interviews — record new leavers here.','')}</td></tr>`;
+ h+=`</tbody></table></div></div><p class="src">${L('流程（照表單說明）：員工申請離職 → HR 把面談表給單位主管 → 主管填完交回 HR 辦後續。原因可複選；廠區主管／管理部意見寫在「主管意見」。','Process (per the form): employee applies to resign → HR gives the survey to the department supervisor → supervisor completes it and returns it to HR. Multiple reasons allowed; factory / admin comments go in "Management comments".','')} · <a href="${DRV('19g4SvSFGDj75rEGfVVZS-SXMOLZ11kBc')}" target="_blank" rel="noopener">📎 VRT-F-HR-02 Resign interview.xlsx</a></p>`;
+ $('view-exit').innerHTML=h}
+async function loadResigns(){const url=gasUrl();if(!url||!window.HRASmartSync||!HRASmartSync.pullDirect){toast(L('這台裝置還沒有 HRA 雲端網址','No HRA cloud URL on this device','មិនទាន់មាន URL'));return}
+ toast(L('讀取入離職雲端…','Reading onboarding cloud…','កំពុងអាន…'),6000);
+ try{const r=await HRASmartSync.pullDirect(url,'onboarding',()=>{});const del=new Set();(r.records||[]).forEach(x=>{if(x._kind==='movement_state'&&x.deleted&&x.targetKey)del.add(x.targetKey)});
+  const y=selYear(),m=new Map();(r.records||[]).forEach(x=>{if(x._kind==='resign'&&x.empId&&!del.has(x._k)){const d=String(x.resignDate||'').slice(0,10);if(y==='all'||d.slice(0,4)===y)m.set(String(x.empId),{empId:String(x.empId),name:x.name||x.nameEn||'',dept:x.dept||'',position:x.position||'',joinDate:String(x.joinDate||'').slice(0,10),resignDate:d})}});
+  RESIGNS=[...m.values()].sort((a,b)=>b.resignDate.localeCompare(a.resignDate));toast('✅ '+RESIGNS.length+' '+L('位離職','resigned','នាក់'));renderExit();renderTabs()}catch(e){toast('❌ '+(e.message||e),4000)}}
+function editExit(k,empId){let r;if(k)r=JSON.parse(JSON.stringify(DB.recs.find(x=>x._k===k)));else{const x=(RESIGNS||[]).find(z=>String(z.empId)===String(empId))||{};r={_kind:'exit',_k:'X|'+(x.empId||uid('')),date:today(),empId:x.empId||'',name:x.name||'',dept:x.dept||'',position:x.position||'',joinDate:x.joinDate||'',lastDay:x.resignDate||'',reasons:[]}}
+ const reasonsHtml=()=>`<div class="reasons">${RG.map(g=>`<h5>${g[0]}、${L(g[1][0],g[1][1],g[1][2])}</h5>${g[2].map(c=>`<label><input type="checkbox" data-rc="${c[0]}" ${(r.reasons||[]).includes(c[0])?'checked':''}> ${c[0]} ${esc(L(c[1],c[2],c[3]))}</label>`).join('')}`).join('')}</div>`;
+ form(k?L('修改離職面談','Edit exit interview','កែ'):L('新增離職面談','Add exit interview','បន្ថែម'),[['date','date',L('面談日','Interview date','ថ្ងៃសម្ភាសន៍')],['empId','text',L('工號','Employee ID','លេខកាត')],['name','text',L('姓名','Name','ឈ្មោះ')],['dept','text',L('部門','Dept.','ផ្នែក')],['position','text',L('職位','Position','មុខតំណែង')],['joinDate','date',L('到職日','Join date','ថ្ងៃចូល')],['lastDay','date',L('最後上班日','Last day','ថ្ងៃចុងក្រោយ')],['interviewer','text',L('面談人（主管／HR）','Interviewer','អ្នកសម្ភាសន៍')],['__reasons','html',L('離職原因（可複選）','Reasons (tick all that apply)','មូលហេតុ'),reasonsHtml],['other','text',L('其他原因說明','Other reason','មូលហេតុផ្សេង')],['suggestion','area',L('對公司的建議','Suggestion to company','សំណើទៅក្រុមហ៊ុន')],['mgmt','area',L('主管意見（部門主管／廠區／管理部）','Management comments','យោបល់អ្នកគ្រប់គ្រង')],['rehire','sel',L('是否可再僱用','Rehire?','ជ្រើសរើសម្តងទៀត?'),[['',''],['yes',L('可以','Yes','បាន')],['no',L('不建議','No','មិនបាន')]]]],r,x=>{x.reasons=[...document.querySelectorAll('#mEditB [data-rc]:checked')].map(i=>i.dataset.rc);if(x.empId&&!k)x._k='X|'+x.empId})}
+
+/* ── 通用表單 ── */
+function form(title,fields,rec,before){$('mEditT').textContent=title;
+ $('mEditB').innerHTML=`<div class="form-grid">${fields.map(([k,t,lab,opt])=>{const v=rec[k]==null?'':rec[k];const full=(t==='area'||t==='html')?' full':'';
+  if(t==='html')return `<div class="field full"><label>${esc(lab)}</label>${opt()}</div>`;
+  if(t==='sel')return `<div class="field"><label>${esc(lab)}</label><select data-f="${k}">${opt.map(o=>`<option value="${esc(o[0])}" ${String(o[0])===String(v)?'selected':''}>${esc(o[1])}</option>`).join('')}</select></div>`;
+  if(t==='chk')return `<div class="field"><label><input type="checkbox" data-f="${k}" ${v?'checked':''}> ${esc(lab)}</label></div>`;
+  if(t==='area')return `<div class="field${full}"><label>${esc(lab)}</label><textarea data-f="${k}">${esc(v)}</textarea></div>`;
+  return `<div class="field"><label>${esc(lab)}</label><input data-f="${k}" type="${t==='num'?'number':t==='date'?'date':'text'}" value="${esc(v)}"></div>`}).join('')}</div>${rec.src?`<p class="src">${L('來源','Source','ប្រភព')}：${srcCell(rec)}</p>`:''}`;
+ const isNew=!DB.recs.some(x=>x._k===rec._k);
+ $('mEditF').innerHTML=`${isNew?'':`<button class="btn danger" id="fDel">🗑 ${L('刪除','Delete','លុប')}</button>`}<span class="grow"></span><button class="btn" onclick="closeM('mEdit')">${tr('cancel')}</button><button class="btn primary" id="fSave">💾 ${L('儲存','Save','រក្សាទុក')}</button>`;
+ $('mEdit').classList.add('open');
+ $('fSave').onclick=()=>{const x=Object.assign({},rec);document.querySelectorAll('#mEditB [data-f]').forEach(el=>{const k=el.dataset.f;if(el.type==='checkbox')x[k]=el.checked?1:0;else if(el.type==='number')x[k]=el.value===''?null:Number(el.value);else x[k]=el.value.trim()});
+  if(before)before(x);if(!x.planned)delete x.planned;put(x);closeM('mEdit');renderAll();toast('✅ '+L('已儲存','Saved','បានរក្សាទុក'))};
+ if($('fDel'))$('fDel').onclick=()=>{if(!confirm(L('確定刪除這一筆？','Delete this record?','លុបកំណត់ត្រានេះ?')))return;del(rec._k);closeM('mEdit');renderAll();toast(L('已刪除','Deleted','បានលុប'))}}
+function openAdd(){({drill:editDrill,injury:editInjury,aider:editAider,committee:editCommittee,exit:editExit}[TAB]||editDrill)()}
+
+/* ── 匯出／匯入 ── */
+const XCOLS={drill:['date','site','prod','cut','wh','office','admin','m','f','total','time','evac','police','helpers','planned','src','url','note'],injury:['date','time','empId','name','area','type','descZh','descEn','descKm','hospital','witness','leaveDays','nssf','returnDate','action','status','src'],aider:['name','empId','pos','dept','area','role','cert','certBy','expiry','src','url','note'],committee:['type','name','since','freq','chair','members','docs','url','duty'],meeting:['cm','date','time','attendees','topic','concern','decision','planned','src','url','note'],exit:['date','empId','name','dept','position','joinDate','lastDay','interviewer','reasons','other','suggestion','mgmt','rehire']};
+function exportXlsx(){if(!window.XLSX){toast('XLSX ✗');return}const wb=XLSX.utils.book_new();Object.keys(XCOLS).forEach(k=>{const rows=live(k).map(r=>{const o={_k:r._k};XCOLS[k].forEach(c=>{let v=r[c];if(Array.isArray(v))v=c==='members'?v.map(m=>m.join(' | ')).join('\n'):v.join(',');o[c]=v==null?'':v});return o});XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{_k:''}]),k)});XLSX.writeFile(wb,'VRT_Safety_ER_'+today()+'.xlsx')}
+async function importFile(f){if(!f)return;try{let add=0;if(/\.json$/i.test(f.name)){const d=JSON.parse(await f.text());(d.recs||d).forEach(r=>{if(r&&r._k&&r._kind){put(r);add++}})}
+ else{const wb=XLSX.read(await f.arrayBuffer(),{type:'array',cellDates:true});wb.SheetNames.forEach(sn=>{const k=Object.keys(XCOLS).find(x=>sn.toLowerCase().startsWith(x));if(!k)return;XLSX.utils.sheet_to_json(wb.Sheets[sn],{defval:''}).forEach(row=>{const o={_kind:k,_k:row._k||(k[0].toUpperCase()+'|'+uid(''))};XCOLS[k].forEach(c=>{let v=row[c];if(v instanceof Date)v=v.toISOString().slice(0,10);if(c==='reasons')v=String(v||'').split(/[,\s]+/).filter(Boolean);if(c==='members')v=String(v||'').split('\n').filter(Boolean).map(s=>s.split('|').map(z=>z.trim()));if(v!==''&&v!=null)o[c]=v});const cur=DB.recs.find(x=>x._k===o._k);put(Object.assign({},cur||{},o));add++})})}
+ renderAll();toast('✅ '+L('匯入','Imported','បាននាំចូល')+' '+add)}catch(e){toast('❌ '+(e.message||e),4000)}}
+
+/* ── Telegram 摘要（只發數字） ── */
+function tgText(){const lg=$('tgLang').value,per=$('tgPer').value,t0=today(),key=per==='year'?t0.slice(0,4):t0.slice(0,7),inP=d=>String(d||'').startsWith(key);
+ const Z=(zh,en,km)=>lg==='zh'?zh:lg==='en'?en:lg==='enkm'?en+(km?' / '+km:''):zh+' '+en;
+ const dr=live('drill').filter(r=>inP(r.date)&&!r.planned),nd=nextDrillDue(),inj=live('injury').filter(r=>inP(r.date)),aid=live('aider'),mts=live('meeting').filter(r=>inP(r.date)&&!r.planned),ex=live('exit').filter(r=>inP(r.date));
+ const byT={};inj.forEach(r=>byT[r.type]=(byT[r.type]||0)+1);
+ const L2=[`🦺 <b>${Z('職安衛／員工關係','Safety & Employee Relations','សុវត្ថិភាព និងទំនាក់ទំនងបុគ្គលិក')}｜${key}</b>`,''];
+ L2.push(`🔥 ${Z('消防演習','Fire drill','សមយុទ្ធ')}：${dr.length} · ${Z('上次','last','ចុងក្រោយ')} ${nd.last||'—'} · ${Z('下次應辦','next due','លើកក្រោយ')} ${nd.due||'—'}${nd.due&&nd.due<=t0.slice(0,7)?' 🔴':' 🟢'}`);
+ dr.forEach(r=>L2.push(`   • ${r.date} 👥 ${drillTotal(r)||'—'} ⏱ ${esc(r.evac||'')}`));
+ L2.push(`🩹 ${Z('工傷','Work injury','គ្រោះថ្នាក់')}：${inj.length}${inj.length?' （'+Object.keys(byT).map(k=>itName(k).split(' ')[0]+byT[k]).join(' ')+'）':' 🟢'}`);
+ L2.push(`⛑️ ${Z('急救人員','First aiders','អ្នកសង្គ្រោះ')}：${aid.length} · ${Z('證照待補','cert. to fill','ត្រូវបំពេញ')} ${aid.filter(a=>!a.cert).length}`);
+ L2.push(`👥 ${Z('委員會會議','Committee meetings','ប្រជុំ')}：${mts.length}`);
+ L2.push(`🚪 ${Z('離職面談','Exit interviews','សម្ភាសន៍លាលែង')}：${ex.length}${ex.length?' · '+Z('原因最多','top','ច្រើន')+' '+esc((Object.entries(ex.reduce((a,r)=>{(r.reasons||[]).forEach(c=>a[c]=(a[c]||0)+1);return a},{})).sort((a,b)=>b[1]-a[1])[0]||[''])[0]):''}`);
+ L2.push('',`<i>${Z('只含件數與日期，不含姓名、工號。','Counts and dates only — no names or IDs.','ចំនួន និងកាលបរិច្ឆេទតែប៉ុណ្ណោះ')}</i>`);return L2.join('\n')}
+function openTg(){$('mTg').classList.add('open');refreshTg()}
+function refreshTg(){$('tgPrev').textContent=tgText()}
+async function sendTg(){try{await postGas({action:'telegram',tool:TOOL,module:'safety',period:$('tgPer').value==='year'?today().slice(0,4):today().slice(0,7),periodType:$('tgPer').value,messageType:'summary',text:tgText()});closeM('mTg');toast('✅ '+L('已發送','Sent','បានផ្ញើ'))}catch(e){toast('❌ '+(e.message||e),4000)}}
+
+/* ── 語言 ── */
+function applyLang(){document.querySelectorAll('.lang button').forEach(b=>b.classList.toggle('on',b.dataset.l===LANG));document.querySelectorAll('[data-t]').forEach(el=>el.textContent=tr(el.dataset.t));$('ttl').textContent=L('職安衛／員工關係','Safety & Employee Relations','សុវត្ថិភាព និងទំនាក់ទំនងបុគ្គលិក');document.documentElement.lang=LANG==='zh'?'zh-TW':LANG==='km'?'km':'en'}
+document.querySelectorAll('.lang button').forEach(b=>b.onclick=()=>{LANG=b.dataset.l;try{localStorage.setItem(LANG_KEY,LANG)}catch(e){}applyLang();renderAll()});
+document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click',e=>{if(e.target===m)m.classList.remove('open')}));
+(function init(){load();const ys=years();$('yearSel').innerHTML=`<option value="all">${L('全部年度','All years','គ្រប់ឆ្នាំ')}</option>`+ys.map(y=>`<option value="${y}">${y}</option>`).join('');$('yearSel').value='all';
+ if(new URLSearchParams(location.search).get('from')==='admin')$('backLink').href='https://saintdou-weng.github.io/ac-admin/';
+ applyLang();renderAll();setSt(gasUrl()?'☁️':'☁️ —');
+ const tryInstall=(n)=>{if(window.HRAAutoSync&&window.HRASmartSync){HRAAutoSync.install({key:TOOL,pull:cloudPull,push:cloudPush,canSync:()=>!!gasUrl(),startDelay:450,downId:'btn-cloud-down',upId:'btn-cloud-up'})}else if(n<40)setTimeout(()=>tryInstall(n+1),250)};tryInstall(0);
+})();
+</script>
+<script src="https://saintdou-weng.github.io/ac-admin/shared/swipe-tabs.js" defer></script>
+<script src="shared/ui-fx.js?v=5" defer></script>
+<script src="shared/row-keynote.js?v=33" defer></script>
+</body>
+</html>
