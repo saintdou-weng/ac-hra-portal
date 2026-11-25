@@ -406,3 +406,29 @@
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
+
+/* 2026-11-26 Paul：在分頁從左邊往右滑（手機「返回」）要先回到平台首頁，不要直接跳回 Telegram。
+   v2：Chrome 會「跳過」頁面在使用者還沒碰畫面前自己加的瀏覽紀錄 → 改成手指第一次點畫面時才墊那一格。
+   已在首頁、或嵌在框裡的頁面不處理。卡片視窗（gip）自己的返回照舊。 */
+(function () {
+  try {
+    if (window.top !== window || window.__vrtBackHome) return; window.__vrtBackHome = 1;
+    var HOME = { 'ac-gas-sec': 'index.html', 'ac-ga-exp': 'index.html', 'ac-gascheck': 'ac_gascheck_portal_v1.html', 'ac-hra-portal': 'hra_portal_v2.html', 'ac-hra-pay': 'index.html', 'ac-audit': 'audit_hub_main.html', 'ac-admin': 'index.html' };
+    var url = '', armed = false;
+    function homeUrl() {
+      var seg = location.pathname.split('/').filter(Boolean), repo = (seg[0] || '').toLowerCase(), h = HOME[repo];
+      if (!h) return '';
+      var a = document.querySelector('a.tb-back[href],a[data-i="back"][href]'), u = a ? a.href : location.origin + '/' + seg[0] + '/' + h;
+      var hp = new URL(u, location.href).pathname.replace(/\/$/, '/index.html'), me = location.pathname.replace(/\/$/, '/index.html');
+      return hp === me ? '' : u;
+    }
+    function arm() {
+      if (armed) return; url = homeUrl(); if (!url) return; armed = true;
+      ['pointerup', 'touchend', 'click', 'keydown'].forEach(function (ev) { document.removeEventListener(ev, arm, true); });
+      if (history.state && history.state.vrtHome) return;
+      try { history.replaceState(Object.assign({}, history.state || {}, { vrtBase: 1 }), ''); history.pushState({ vrtHome: 1 }, ''); } catch (e) {}
+    }
+    window.addEventListener('popstate', function (e) { if (e.state && e.state.vrtBase && url) location.replace(url); });
+    ['pointerup', 'touchend', 'click', 'keydown'].forEach(function (ev) { document.addEventListener(ev, arm, true); });
+  } catch (e) {}
+})();
