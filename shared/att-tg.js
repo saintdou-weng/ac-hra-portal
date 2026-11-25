@@ -183,6 +183,6 @@
              :'🔎 ⚠️ <b>'+lab(lang,'部門加總與全廠不一致，請看平台','Dept totals ≠ factory — check platform')+'</b> · '+att+' ÷ '+rep+' = '+pc(rate));
     return L.join('\n');
   }
-  var api={build:build,groupsForDay:groupsForDay,isSewingLine:isSewingLine};
+  var api={build:build,groupsForDay:groupsForDay,isSewingLine:isSewingLine,lineName:lineName,gname:gname};
   if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.HRAAttTg=api;
 })(typeof window!=='undefined'?window:this);

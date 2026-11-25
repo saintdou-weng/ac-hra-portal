@@ -253,7 +253,7 @@
     var NUMRE=/^[-+−$＄៛]?\s?[\d,]+(\.\d+)?\s?(%|人|件|項|次|天|筆|h|hr|hrs|d|ppl|k|K|M)?$/,hasNum=String(el.innerText||el.textContent||'').split(/\n+/).some(function(x){x=x.replace(/\s+/g,' ').trim();return x.length<=24&&NUMRE.test(x);})||[].some.call(el.querySelectorAll('*'),function(n){return !n.children.length&&NUMRE.test(txt(n));});if(!hasNum)return false;
     return sibsOf(el).length>=2||el.matches(C_SEL);
   }
-  function cardOf(t){var el=t;for(var i=0;i<6&&el&&el!==document.body;i++,el=el.parentElement){if(cardish(el))return el;}return null;}
+  function cardOf(t){try{if(typeof window.acKeynoteCardEl==='function'){var h=window.acKeynoteCardEl(t);if(h)return h;}}catch(e){}var el=t;for(var i=0;i<6&&el&&el!==document.body;i++,el=el.parentElement){if(cardish(el))return el;}return null;}
   try{window.acKnCardOf=function(t){return cardOf(t);};}catch(e){}
   function cardParts(el){
     var best=null,bs=0;[].forEach.call(el.querySelectorAll('*'),function(n){if(n.children.length)return;var tx=txt(n);if(!/\d/.test(tx)||tx.length>30)return;var fs=parseFloat(getComputedStyle(n).fontSize)||0;if(fs>bs){bs=fs;best=n;}});
@@ -266,7 +266,12 @@
   }
   function capOf(el){var c=el.parentElement;for(var i=0;i<5&&c;i++,c=c.parentElement){var h=c.querySelector('h1,h2,h3,h4,.ct,.ch,.sect-title,[class*="title"]');if(h&&!el.contains(h)&&!h.contains(el))return txt(h).slice(0,60);}return '';}
   function cardSec(el,sib){KN_ROW=null;
-    var idx=sib.indexOf(el),P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
+    var idx=sib.indexOf(el);
+    /* v9（2026-11-25 Paul：KPI 按進去只顯示同一個數字＝按假的）頁面可以給整張卡的內容：window.acKeynoteCard(el) → {icon,title,chips[],html,tab} */
+    var cu=null;try{if(typeof window.acKeynoteCard==='function')cu=window.acKeynoteCard(el,idx,sib);}catch(e){cu=null;}
+    if(cu&&cu.html){KN_T=[['num','📊 '+(cu.tab||'分析 Analysis')]];KN_HASTOP=false;
+      return {hd:headHtml({icon:cu.icon||'📊',title:cu.title||'',pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:(cu.chips||[]).filter(Boolean).map(function(c){return '<span class="kn-hc">'+esc(c)+'</span>';})}),body:'<div class="kn-pane on" data-p="num">'+cu.html+'</div>',T:KN_T,title:cu.title||'',cap:cu.cap||''};}
+    var P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
     var numsHtml='<div class="kn-n" style="grid-column:1/-1"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
     var nums=all.filter(function(x){return x.n!==null;});
     if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
@@ -277,10 +282,19 @@
     var cmpHtml='';
     if(nums.length>=2){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
       cmpHtml=srt.map(function(o,k){var on=o.i===idx;return '<button type="button" class="kn-br'+(on?' on':'')+'" data-i="'+o.i+'"><span class="n">'+(on?'▶ ':'')+(k+1)+'. '+esc(o.x.label)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(o.x.n)/mx2*100))+'%"></i></span><span class="v">'+esc(o.x.val)+'</span></button>';}).join('')+'<div class="kn-ref" style="margin-top:6px">點任一條直接換到那一張</div>';}
+    rowsHtml+=relatedHtml(el);
     var body=tabsHtml(numsHtml,rowsHtml,'<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">');
     return {hd:headHtml({icon:icOf(P.label)||'📊',title:P.label,pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:P.val?['<span class="kn-hc">'+esc(P.val)+'</span>']:[]}),body:body,T:KN_T,title:P.label,cap:cap};
   }
-  function showCard(el){var sib=sibsOf(el);if(sib.indexOf(el)<0)sib=[el];
+  /* v9 一般小卡（頁面沒給內容時）：把同一區塊裡的圖表（轉成圖片）和表格一起放進來，不要只剩一個數字 */
+  function relatedHtml(el){try{var box=null,p=el.parentElement;for(var i=0;i<7&&p&&p!==document.body;i++,p=p.parentElement){if([].some.call(p.querySelectorAll('canvas,table'),function(x){return !el.contains(x)&&x.offsetParent!==null&&!x.closest('#kn-mask');})){box=p;break;}}
+    if(!box)return '';var out='',n=0;
+    [].forEach.call(box.querySelectorAll('canvas'),function(c){if(n>=4||c.offsetParent===null||c.width<60||c.closest('#kn-mask'))return;var u='';try{u=c.toDataURL('image/png');}catch(e){}if(!u||u.length<2000)return;var cd=c.closest('.card,.chart-card,section,div'),h=cd&&cd.querySelector('.ct,h2,h3,h4,[class*="title"]'),tt=h&&!h.contains(c)?txt(h).slice(0,40):'';n++;
+      out+='<div class="kn-rel"><div class="kn-ref" style="font-weight:700;margin:10px 0 4px">📈 '+esc(tt||'圖表 Chart')+'</div><img src="'+u+'" alt="" style="width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff"></div>';});
+    var tb=[].filter.call(box.querySelectorAll('table'),function(x){return x.offsetParent!==null&&!x.closest('#kn-mask');})[0];
+    if(tb){var H=heads(tb),rs=dataRows(tb).slice(0,25);if(rs.length){out+='<div class="kn-ref" style="font-weight:700;margin:12px 0 4px">📋 相關明細 Related rows'+(dataRows(tb).length>25?'（前 25 筆）':'')+'</div><div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px"><table style="border-collapse:collapse;font-size:12px;width:100%"><tr>'+H.slice(0,8).map(function(h){return '<th style="text-align:left;padding:5px 6px;background:#f1f5f9;white-space:nowrap">'+esc(h)+'</th>';}).join('')+'</tr>'+rs.map(function(r){return '<tr>'+[].slice.call(r.cells,0,8).map(function(c){return '<td style="padding:5px 6px;border-top:1px solid #f1f5f9;white-space:nowrap">'+esc(txt(c).slice(0,30))+'</td>';}).join('')+'</tr>';}).join('')+'</table></div>';}}
+    return out?'<div class="kn-r full" style="display:block">'+out+'</div>':'';}catch(e){return '';}}
+  function showCard(el){var e2=null;try{if(typeof window.acKeynoteCardEl==='function'){e2=window.acKeynoteCardEl(el);if(e2)el=e2;}}catch(e){}var sib=e2?[].filter.call(e2.parentElement.children,function(x){return x.tagName===e2.tagName&&x.offsetParent!==null&&(x.className.split(' ')[0]===e2.className.split(' ')[0]);}):sibsOf(el);if(sib.indexOf(el)<0)sib=[el];
     openAt({kind:'card',n:sib.length,els:sib,build:function(k){return cardSec(sib[k],sib);}},sib.indexOf(el));}
   /* 分頁：重點（數字＋文字重點）／全部資料／比較 */
   function tabsHtml(nums,rowsH,all,cmp){
