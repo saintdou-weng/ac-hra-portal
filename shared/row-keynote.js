@@ -18,6 +18,7 @@
   if(window.__acKeynote)return;window.__acKeynote=1;
   var SAFE=false;try{var cs0=document.currentScript;SAFE=!!(cs0&&cs0.hasAttribute('data-safe'));}catch(e){}
   /* 柬文補齊（km-fill.js）跟著大字卡一起載入 */
+  try{var me0=document.currentScript&&document.currentScript.src;if(me0&&!document.querySelector('script[src*="psj-emp.js"]')){var pe=document.createElement('script');pe.src=me0.replace(/row-keynote\.js.*$/,'psj-emp.js?v=1');pe.defer=true;document.head.appendChild(pe);}}catch(e){}   /* 員工小卡（照片） */
   try{var me=document.currentScript&&document.currentScript.src;if(me&&!document.querySelector('script[src*="km-fill.js"]')){var ks=document.createElement('script');ks.src=me.replace(/row-keynote\.js.*$/,'km-fill.js?v=2');ks.defer=true;document.head.appendChild(ks);}}catch(e){}
   var css='#kn-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9990;display:none;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
    +'#kn-mask.on{display:flex}@media(min-width:720px){#kn-mask{align-items:center}}'
