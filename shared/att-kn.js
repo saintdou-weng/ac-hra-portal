@@ -124,6 +124,7 @@
     else if(k==='turn')how=t('流失率＝離職人數 ÷ 平均在職','Turnover = resigns ÷ average headcount')+'：'+f0(G.resign)+' ÷ '+f0((G.m+G.f)/G.days)+' = '+pc(v,2);
     else if(k==='sew')how=t('車工＝在車縫線上的人；非車工＝全廠 − 車工','Sewing = people on sewing lines; non-sewing = factory − sewing');
     if(how)h+='<div class="akn-note">🧮 '+how+'</div>';
+    var P1=h;h='';
     /* 走勢 */
     var cm=k==='days'?'hc':k;
     if(mode==='day'){h+=chart(series('day',C.key,cm,20),cm,{title:'📈 '+t('近 20 個上班日','Last 20 working days')});var wk=weekOf(C.key);if(wk)h+=chart(series('week',wk,cm,10),cm,{title:'📅 '+t('近 10 週（本週為紫色）','Last 10 weeks (this week = purple)')});}
@@ -135,6 +136,7 @@
     if(k==='abs'){var lv=LVK.map(function(x){return {name:x[1]+' '+x[2],v:G.lv[x[0]]/G.days};}).filter(function(x){return x.v>0;}).sort(function(a,b){return b.v-a.v;}),mx=Math.max.apply(null,lv.map(function(x){return x.v;}).concat([1]));
       h+='<div class="akn-st">🗂 '+t('假別分布','Leave types')+(multi?t('（日均）',' (per day)'):'')+'</div>'+lv.map(function(x){return '<div class="akn-br"><span class="n">'+esc(x.name)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(x.v/mx*100))+'%;background:#f59e0b"></i></span><span class="v">'+f1(x.v)+'</span></div>';}).join('');
       if(lv.length>1)h+=chart(series(mode,C.key,'abs',mode==='day'?20:12).map(function(x){return x;}),'abs',{title:'📈 '+t('缺勤走勢（日均）','Absence trend (per day)'),h:110}).replace(/^$/,'');}
+    var P2=h;h='';
     /* 各部門 */
     var ga=groupAgg(ds),tot=null;
     if(k==='rate')tot=[t('合計＝全廠','Total = factory'),pc(v)];else if(k==='hc'||k==='days')tot=[t('合計＝全廠','Total = factory'),f0((G.m+G.f)/G.days)];else if(k==='abs')tot=[t('合計','Total'),f1(G.abs/G.days)];else if(k==='join'||k==='resign')tot=[t('合計','Total'),f0(k==='join'?G.join:G.resign)];
@@ -143,10 +145,13 @@
     /* 車縫各組 */
     var la=lineAgg(ds);if(la.length&&k!=='fem'){var lk=(k==='sew'||k==='days'||k==='turn')?'hc':k;h+=bars(la,lk,{title:'🧵 '+t('車縫各組','Sewing lines')+(multi&&(lk==='hc'||lk==='abs')?t('（日均）',' (per day)'):''),multi:multi,sort:lk==='rate'?false:true});
       if(k==='rate'){var low=la.map(function(g){return {g:g,v:gval('rate',g)};}).filter(function(x){return x.v!=null;}).sort(function(a,b){return a.v-b.v;}).slice(0,3);if(low.length)h+='<div class="akn-note">🔻 '+t('出勤率最低','Lowest')+'：'+low.map(function(x){return esc(x.g.name)+' '+pc(x.v);}).join('、')+'</div>';}}
+    var P3=h;h='';
     /* 歷史清單（往前幾期的數字，方便對照） */
     var hist=ks.slice(Math.max(0,i-11),i+1).reverse();
     h+='<div class="akn-st">🗒 '+t('最近幾期','Recent periods')+'</div><div class="akn-tb">'+hist.map(function(x){var o=aggG(datesOf(mode,x)),vv=val(cm,o);return '<div class="'+(x===C.key?'on':'')+'"><span>'+esc(capOf(mode,x))+'</span><b style="color:'+(cm==='rate'?rc(vv):'inherit')+'">'+fmtV(cm,vv)+'</b><small>'+(cm==='rate'?f0(o.att)+'/'+f0(o.rep):t('在職','HC')+' '+f0(o.days?(o.m+o.f)/o.days:0))+'</small></div>';}).join('')+'</div>';
-    return {icon:M[k].ic,title:label,chips:[capOf(mode,C.key),shown],html:'<div class="akn">'+h+'</div>',tab:t('分析','Analysis')};
+    var P4=h,W=function(x){return '<div class="akn">'+x+'</div>';};
+    /* 分頁（像員工頁）：重點＝大數字＋走勢；各組＝部門／車縫各組；歷史＝最近幾期清單 */
+    return {icon:M[k].ic,title:label,chips:[capOf(mode,C.key),shown],top:W(P1).replace('class="akn"','class="akn" style="padding-bottom:0"'),panes:[['num','📈 '+t('走勢','Trend'),W(P2)],['grp','🏢 '+t('各組','By group'),W(P3||'<div class="akn-note">'+t('這一項沒有分組資料','No group data')+'</div>')],['his','🗒 '+t('歷史','History'),W(P4)]],html:W(P1+P2+P3+P4)};
   }
   function weekOf(d){try{var I=idx(),w=null;I.weekDates.forEach(function(v,k){if(!w&&v.indexOf(d)>=0)w=k;});return w;}catch(e){return null;}}
 
