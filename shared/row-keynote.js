@@ -18,7 +18,7 @@
   if(window.__acKeynote)return;window.__acKeynote=1;
   var SAFE=false;try{var cs0=document.currentScript;SAFE=!!(cs0&&cs0.hasAttribute('data-safe'));}catch(e){}
   /* 柬文補齊（km-fill.js）跟著大字卡一起載入 */
-  try{var me0=document.currentScript&&document.currentScript.src;if(me0&&!document.querySelector('script[src*="psj-emp.js"]')){var pe=document.createElement('script');pe.src=me0.replace(/row-keynote\.js.*$/,'psj-emp.js?v=2');pe.defer=true;document.head.appendChild(pe);}}catch(e){}   /* 員工小卡（照片） */
+  try{var me0=document.currentScript&&document.currentScript.src;if(me0&&!document.querySelector('script[src*="psj-emp.js"]')){var pe=document.createElement('script');pe.src=me0.replace(/row-keynote\.js.*$/,'psj-emp.js?v=2');pe.defer=true;document.head.appendChild(pe);}if(me0&&!window.acSmartCard&&!document.querySelector('script[src*="smart-kn.js"]')){var sk0=document.createElement('script');sk0.src=me0.replace(/row-keynote\.js.*$/,'smart-kn.js?v=2');sk0.defer=true;document.head.appendChild(sk0);}}catch(e){}   /* 員工小卡（照片） */
   try{var me=document.currentScript&&document.currentScript.src;if(me&&!document.querySelector('script[src*="km-fill.js"]')){var ks=document.createElement('script');ks.src=me.replace(/row-keynote\.js.*$/,'km-fill.js?v=2');ks.defer=true;document.head.appendChild(ks);}}catch(e){}
   var css='#kn-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9990;display:none;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
    +'#kn-mask.on{display:flex}@media(min-width:720px){#kn-mask{align-items:center}}'
@@ -281,6 +281,10 @@
       return {hd:headHtml({icon:cu.icon||'📊',title:cu.title||'',pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:(cu.chips||[]).filter(Boolean).map(function(c){return '<span class="kn-hc">'+esc(c)+'</span>';})})+(cu.top||''),body:cu.panes.map(function(p){return '<div class="kn-pane'+(p[0]===KN_TAB?' on':'')+'" data-p="'+p[0]+'">'+p[2]+'</div>';}).join(''),T:KN_T,title:cu.title||'',cap:cu.cap||''};}
     if(cu&&cu.html){KN_T=[['num','📊 '+(cu.tab||'分析 Analysis')]];KN_HASTOP=false;
       return {hd:headHtml({icon:cu.icon||'📊',title:cu.title||'',pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:(cu.chips||[]).filter(Boolean).map(function(c){return '<span class="kn-hc">'+esc(c)+'</span>';})}),body:'<div class="kn-pane on" data-p="num">'+cu.html+'</div>',T:KN_T,title:cu.title||'',cap:cu.cap||''};}
+    /* v41（2026-11-25 Paul：其他頁照入離職的方式）頁面沒給內容 → 用 smart-kn 從本區塊明細表做出 名單／分布／走勢／圖表 */
+    if(!cu&&typeof window.acSmartCard==='function'){var P0=cardParts(el),sm=null;try{sm=window.acSmartCard(el,P0.label,P0.val,relatedHtml(el,1),(P0.lines||[]).join(' '));}catch(e){sm=null;}
+      if(sm&&sm.panes&&sm.panes.length){KN_T=sm.panes.map(function(p){return [p[0],p[1]];});KN_HASTOP=false;if(!KN_T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=KN_T[0][0];
+        return {hd:headHtml({icon:icOf(P0.label)||'📊',title:P0.label,pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:P0.val?['<span class="kn-hc">'+esc(P0.val)+'</span>']:[]})+(sm.top||''),body:sm.panes.map(function(p){return '<div class="kn-pane'+(p[0]===KN_TAB?' on':'')+'" data-p="'+p[0]+'">'+p[2]+'</div>';}).join(''),T:KN_T,title:P0.label,cap:capOf(el)};}}
     var P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
     var numsHtml='<div class="kn-n" style="grid-column:1/-1"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
     var nums=all.filter(function(x){return x.n!==null;});
@@ -298,13 +302,13 @@
   }
   /* v9 一般小卡（頁面沒給內容時）：把同一區塊裡的圖表（轉成圖片）和表格一起放進來，不要只剩一個數字 */
   var RTR=[];
-  function relatedHtml(el){try{var box=null,p=el.parentElement;for(var i=0;i<7&&p&&p!==document.body;i++,p=p.parentElement){if([].some.call(p.querySelectorAll('canvas,table'),function(x){return !el.contains(x)&&x.offsetParent!==null&&!x.closest('#kn-mask');})){box=p;break;}}
+  function relatedHtml(el,chartOnly){try{var box=null,p=el.parentElement;for(var i=0;i<7&&p&&p!==document.body;i++,p=p.parentElement){if([].some.call(p.querySelectorAll('canvas,table'),function(x){return !el.contains(x)&&x.offsetParent!==null&&!x.closest('#kn-mask');})){box=p;break;}}
     if(!box)return '';var out='',n=0;
     [].forEach.call(box.querySelectorAll('canvas'),function(c){if(n>=4||c.offsetParent===null||c.width<60||c.closest('#kn-mask'))return;var u='';try{var sm=document.createElement('canvas');sm.width=48;sm.height=24;var sx=sm.getContext('2d');sx.drawImage(c,0,0,48,24);var px=sx.getImageData(0,0,48,24).data,cnt=0;for(var q=0;q<px.length;q+=4){if(px[q+3]>20&&(px[q]<200||px[q+1]<200||px[q+2]<200))cnt++;}if(cnt<12)return;u=c.toDataURL('image/png');}catch(e){}if(!u||u.length<2000)return;var cd=c.closest('.card,.chart-card,section,div'),h=cd&&cd.querySelector('.ct,h2,h3,h4,[class*="title"]'),tt=h&&!h.contains(c)?txt(h).slice(0,40):'';n++;
       out+='<div class="kn-rel"><div class="kn-ref" style="font-weight:700;margin:10px 0 4px">📈 '+esc(tt||'圖表 Chart')+'</div><img src="'+u+'" alt="" style="width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff"></div>';});
     var tb=[].filter.call(box.querySelectorAll('table'),function(x){return x.offsetParent!==null&&!x.closest('#kn-mask');})[0];
-    if(tb){var H=heads(tb),rs=dataRows(tb).slice(0,25);if(rs.length){out+='<div class="kn-ref" style="font-weight:700;margin:12px 0 4px">📋 相關明細 Related rows'+(dataRows(tb).length>25?'（前 25 筆）':'')+' <span style="font-weight:400">· 點一列看那一筆（有工號的會帶出員工照片）</span></div><div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px"><table style="border-collapse:collapse;font-size:12px;width:100%"><tr>'+H.slice(0,8).map(function(h){return '<th style="text-align:left;padding:5px 6px;background:#f1f5f9;white-space:nowrap">'+esc(h)+'</th>';}).join('')+'</tr>'+rs.map(function(r){var ri=RTR.push(r)-1;return '<tr class="kn-rtr" data-rt="'+ri+'" style="cursor:pointer">'+[].slice.call(r.cells,0,8).map(function(c){return '<td style="padding:5px 6px;border-top:1px solid #f1f5f9;white-space:nowrap">'+esc(txt(c).slice(0,30))+'</td>';}).join('')+'</tr>';}).join('')+'</table></div>';}}
-    return out?'<div class="kn-r full" style="display:block">'+out+'</div>':'';}catch(e){return '';}}
+    if(tb&&!chartOnly){var H=heads(tb),rs=dataRows(tb).slice(0,25);if(rs.length){out+='<div class="kn-ref" style="font-weight:700;margin:12px 0 4px">📋 相關明細 Related rows'+(dataRows(tb).length>25?'（前 25 筆）':'')+' <span style="font-weight:400">· 點一列看那一筆（有工號的會帶出員工照片）</span></div><div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px"><table style="border-collapse:collapse;font-size:12px;width:100%"><tr>'+H.slice(0,8).map(function(h){return '<th style="text-align:left;padding:5px 6px;background:#f1f5f9;white-space:nowrap">'+esc(h)+'</th>';}).join('')+'</tr>'+rs.map(function(r){var ri=RTR.push(r)-1;return '<tr class="kn-rtr" data-rt="'+ri+'" style="cursor:pointer">'+[].slice.call(r.cells,0,8).map(function(c){return '<td style="padding:5px 6px;border-top:1px solid #f1f5f9;white-space:nowrap">'+esc(txt(c).slice(0,30))+'</td>';}).join('')+'</tr>';}).join('')+'</table></div>';}}
+    if(chartOnly)return out;return out?'<div class="kn-r full" style="display:block">'+out+'</div>':'';}catch(e){return '';}}
   function showCard(el){var e2=null;try{if(typeof window.acKeynoteCardEl==='function'){e2=window.acKeynoteCardEl(el);if(e2)el=e2;}}catch(e){}var sib=e2?(function(){var same=[].filter.call(e2.parentElement.children,function(x){return x.tagName===e2.tagName&&(x.className.split(' ')[0]===e2.className.split(' ')[0]);}),vis=same.filter(function(x){return x.offsetParent!==null||x.getClientRects().length>0;});return vis.length?vis:same;})():sibsOf(el);if(sib.indexOf(el)<0)sib=[el];
     openAt({kind:'card',n:sib.length,els:sib,build:function(k){return cardSec(sib[k],sib);}},sib.indexOf(el));}
   /* 分頁：重點（數字＋文字重點）／全部資料／比較 */
@@ -360,6 +364,7 @@
     mask.addEventListener('click',function(e){
       if(e.target===mask||e.target.id==='kn-x'){hide();return;}
       var b=e.target.closest('#kn-nav button');if(b){step(+b.dataset.d);return;}
+      var sk=e.target.closest('.skn-r[data-skr]');if(sk&&window.acSmartRow){var r1=window.acSmartRow(+sk.getAttribute('data-skr'));if(r1&&r1.nodeType===1&&document.body.contains(r1)){KN_TAB='num';show(r1);}return;}
       var rt=e.target.closest('.kn-rtr');if(rt){var r0=RTR[+rt.getAttribute('data-rt')];if(r0&&document.body.contains(r0)){KN_TAB='num';show(r0);}return;}
       var c=e.target.closest('.kn-br');if(c){if(c.hasAttribute('data-g')||c.hasAttribute('data-m')){sumClick(c);return;}if(c.dataset.i==null)return;jump(+c.dataset.i);return;}
       var tb=e.target.closest('#kn-tabs button');if(tb){KN_TAB=tb.dataset.tab;[].forEach.call(sc.querySelectorAll('.kn-sec'),showPane);paintTop();var e0=secEl(IDX);if(e0)sc.scrollTop=e0.offsetTop-sc.offsetTop-2;return;}
