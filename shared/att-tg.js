@@ -1,5 +1,6 @@
 /* AC HRA 考勤 Telegram 摘要 v5（2026-11-13）
    v5 Paul：總覽一項一行、數字在前對齊；人車比、流失率各自一行；男女用 🚺（紫）🚹（藍）兩種顏色的圖示，不可換成同色。
+   v5 Paul 11/25：各車縫組手機上一組一列（出勤/人數合欄、出勤率取整數）。
    v4 Paul：排列要整齊——入離明細、各部門、各車縫組都用「等寬數字在前、名稱在後」的表；車縫組後面加請假類型人數。
    v3 Paul：色標回到他定的 ≥92% 綠／≥88% 黃／<88% 紅；出勤率分含產假／不含產假；入離列出哪個職稱與本月累計（opt.monthDays）；車縫組一組一行列人數／出勤／出勤率。
    v2 Paul：不要過度簡化——補回應到／出勤／缺勤人數、各部門出勤人數與入離、各車縫組出勤率；人車比 🟢≤1.3 🟡≤1.8 🔴>1.8。
@@ -166,10 +167,12 @@
     var lm={},lo=[];G.forEach(function(x){(x.rows||[]).filter(isSewingLine).forEach(function(r){var k=lineName(r);if(!lm[k]){lm[k]={name:k,att:0,rep:0,np:0,hc:0,days:0};LV.forEach(function(y){lm[k][y[0]]=0;});lo.push(k);}LV.forEach(function(y){lm[k][y[0]]+=n(r[y[0]]);});lm[k].att+=n(r.att);lm[k].rep+=report(r);lm[k].np+=n(r.np);lm[k].hc+=ttl(r);lm[k].days++;});});
     if(lo.length){
       lo.sort(function(a,b){return a.localeCompare(b,undefined,{numeric:true});});
-      var th=0,ta=0,tr=0,sumH=0;lo.forEach(function(k){sumH+=lm[k].hc/lm[k].days;});var wh=Math.max(String(r1(sumH)).length,3)+1;
-      L.push('');L.push('🧵 <b>'+lab(lang,'各車縫組','Sewing lines')+'</b> · '+lab(lang,'人數／出勤／出勤率／請假','HC / att. / rate / leave')+(daily?'':' '+lab(lang,'（日均）','(daily avg)')));
-      lo.forEach(function(k){var o=lm[k],rt=o.rep>0?o.att/o.rep:null,h=o.hc/o.days,a=o.att/o.days;th+=h;ta+=a;tr+=o.rep/o.days;var c=leaveShort(o,daily?1:o.days);L.push(dot(rt)+' <code>'+padR(esc(k),4)+padL(r1(h),wh)+padL(r1(a),wh)+padL(pc(rt),7)+'</code>'+(c?' '+c:''));});
-      L.push('🧮 <code>'+padR('ALL',4)+padL(r1(th),wh)+padL(r1(ta),wh)+padL(pc(tr>0?ta/tr:null),7)+'</code> <b>'+lab(lang,'合計','Total')+'</b>');
+      var th=0,ta=0,tr=0,sumH=0;lo.forEach(function(k){sumH+=lm[k].hc/lm[k].days;});
+      /* v5（Paul 11/25）：手機一組要一列寫完——「L1 27/28 96% AL1」，出勤/人數合一欄、出勤率取整數、組名寬 3 */
+      var R0=function(v){return String(Math.round(v));},P0=function(v){return v==null?'—':Math.round(v*100)+'%';},wa=String(Math.round(sumH)).length*2+1;
+      L.push('');L.push('🧵 <b>'+lab(lang,'各車縫組','Sewing lines')+'</b> · '+lab(lang,'出勤/人數・出勤率・請假','att./HC · rate · leave')+(daily?'':' '+lab(lang,'（日均）','(daily avg)')));
+      lo.forEach(function(k){var o=lm[k],rt=o.rep>0?o.att/o.rep:null,h=o.hc/o.days,a=o.att/o.days;th+=h;ta+=a;tr+=o.rep/o.days;var c=leaveShort(o,daily?1:o.days);L.push(dot(rt)+'<code>'+padR(esc(k),3)+padL(R0(a)+'/'+R0(h),wa)+padL(P0(rt),5)+'</code>'+(c?' '+c:''));});
+      L.push('🧮<code>'+padR('ALL',3)+padL(R0(ta)+'/'+R0(th),wa)+padL(pc(tr>0?ta/tr:null),7)+'</code>');
       var low=lo.map(function(k){return lm[k];}).filter(function(o){return o.rep>0&&o.att/o.rep<0.88;}).sort(function(a,b){return a.att/a.rep-b.att/b.rep;});
       if(low.length)L.push('🔴 '+lab(lang,'低於 88%','Below 88%')+'：'+low.map(function(o){return esc(o.name)+' '+pc(o.att/o.rep)+'（'+lab(lang,'缺','absent')+' '+r1((o.rep-o.att)/D)+(o.np?' · NP '+r1(o.np/D):'')+'）';}).join('、'));
     }
