@@ -18,7 +18,7 @@
   if(window.__acKeynote)return;window.__acKeynote=1;
   var SAFE=false;try{var cs0=document.currentScript;SAFE=!!(cs0&&cs0.hasAttribute('data-safe'));}catch(e){}
   /* 柬文補齊（km-fill.js）跟著大字卡一起載入 */
-  try{var me0=document.currentScript&&document.currentScript.src;if(me0&&!document.querySelector('script[src*="psj-emp.js"]')){var pe=document.createElement('script');pe.src=me0.replace(/row-keynote\.js.*$/,'psj-emp.js?v=2');pe.defer=true;document.head.appendChild(pe);}if(me0&&!window.acSmartCard&&!document.querySelector('script[src*="smart-kn.js"]')){var sk0=document.createElement('script');sk0.src=me0.replace(/row-keynote\.js.*$/,'smart-kn.js?v=2');sk0.defer=true;document.head.appendChild(sk0);}}catch(e){}   /* 員工小卡（照片） */
+  try{var me0=document.currentScript&&document.currentScript.src;if(me0&&!document.querySelector('script[src*="psj-emp.js"]')){var pe=document.createElement('script');pe.src=me0.replace(/row-keynote\.js.*$/,'psj-emp.js?v=2');pe.defer=true;document.head.appendChild(pe);}if(me0&&!window.acSmartCard&&!document.querySelector('script[src*="smart-kn.js"]')){var sk0=document.createElement('script');sk0.src=me0.replace(/row-keynote\.js.*$/,'smart-kn.js?v=3');sk0.defer=true;document.head.appendChild(sk0);}}catch(e){}   /* 員工小卡（照片） */
   try{var me=document.currentScript&&document.currentScript.src;if(me&&!document.querySelector('script[src*="km-fill.js"]')){var ks=document.createElement('script');ks.src=me.replace(/row-keynote\.js.*$/,'km-fill.js?v=2');ks.defer=true;document.head.appendChild(ks);}}catch(e){}
   var css='#kn-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9990;display:none;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
    +'#kn-mask.on{display:flex}@media(min-width:720px){#kn-mask{align-items:center}}'
@@ -93,7 +93,7 @@
   function icOf(l){for(var i=0;i<ICONS.length;i++)if(ICONS[i][0].test(l))return ICONS[i][1];return '';}
   function valIc(l,v){if(/性別|gender|sex/i.test(l)){if(/^(f|female|女|ស្រី)/i.test(v))return '🚺 ';if(/^(m|male|男|ប្រុស)/i.test(v))return '🚹 ';}
     if(/狀態|status/i.test(l)){if(/核可|approved|完成|done|ok|正常/i.test(v))return '✅ ';if(/退|reject|錯|fail/i.test(v))return '↩️ ';if(/待|pending/i.test(v))return '⏳ ';}return '';}
-  var KN_TAB='num',KN_COL='',curCard=null;
+  var KN_SMART_SEEN=0;/* 每次打開，聰明卡先看「👥 名單」 */var KN_TAB='num',KN_COL='',curCard=null;
   function nk(v){return String(v).replace(/[◀▶►◄▸▹•\s]/g,'');}
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function txt(el){
@@ -131,7 +131,7 @@
     var table=row.closest('table');if(!table)return null;
     var H=heads(table),rows=rows0||dataRows(table),cells=[].slice.call(row.cells);
     var card=table.closest('.card,.sect,section,.panel,.box,[class*="card"]'),capEl=card&&card.querySelector('.ct,.ch,h2,h3,h4,.sect-title,.title,[class*="title"]'),cap=capEl&&!table.contains(capEl)?txt(capEl).slice(0,60):'';
-    var items=cells.map(function(td,i){return {l:H[i]||('#'+(i+1)),v:txt(td),n:num(txt(td)),i:i};}).filter(function(x){return x.v!==''&&!/^[—–-]$/.test(x.v)||x.n!==null;}).filter(function(x){return x.v!=='';});
+    var items=cells.map(function(td,i){return {l:H[i]||('#'+(i+1)),v:txt(td),n:num(txt(td)),i:i,nh:!H[i]};}).filter(function(x){return x.v!==''&&!/^[—–-]$/.test(x.v)||x.n!==null;})/* 2026-11-26：沒有欄名的格子（手機版加的摘要列、「›」箭頭）不要變成「#10」「#12 ›」 */.filter(function(x,_,arr){if(!x.nh)return true;if(/^[›»>→▸…\s]*$/.test(x.v)||x.v.length<=2&&x.n===null)return false;return !arr.some(function(y){return !y.nh&&y.v&&x.v.indexOf(y.v)>=0&&y.v.length>=2;});}).filter(function(x){return x.v!=='';});
     var ids=items.filter(function(x){return x.n===null||x.i===0||/工號|id|no\.?$|^#$|編號|期|date|日/i.test(x.l);});
     var cl=function(v){return String(v).replace(/^[◀▶►◄▸▹•\s]+|[◀▶►◄\s]+$/g,'');};
     var title=items.slice(0,3).filter(function(x,k){return k===0||x.n===null;}).map(function(x){return cl(x.v);}).slice(0,2).join(' · ');
@@ -283,7 +283,7 @@
       return {hd:headHtml({icon:cu.icon||'📊',title:cu.title||'',pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:(cu.chips||[]).filter(Boolean).map(function(c){return '<span class="kn-hc">'+esc(c)+'</span>';})}),body:'<div class="kn-pane on" data-p="num">'+cu.html+'</div>',T:KN_T,title:cu.title||'',cap:cu.cap||''};}
     /* v41（2026-11-25 Paul：其他頁照入離職的方式）頁面沒給內容 → 用 smart-kn 從本區塊明細表做出 名單／分布／走勢／圖表 */
     if(!cu&&typeof window.acSmartCard==='function'){var P0=cardParts(el),sm=null;try{sm=window.acSmartCard(el,P0.label,P0.val,relatedHtml(el,1),(P0.lines||[]).join(' '));}catch(e){sm=null;}
-      if(sm&&sm.panes&&sm.panes.length){KN_T=sm.panes.map(function(p){return [p[0],p[1]];});KN_HASTOP=false;if(!KN_T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=KN_T[0][0];
+      if(sm&&sm.panes&&sm.panes.length){KN_T=sm.panes.map(function(p){return [p[0],p[1]];});KN_HASTOP=false;if(!KN_SMART_SEEN||!KN_T.some(function(t){return t[0]===KN_TAB;}))KN_TAB=KN_T[0][0];KN_SMART_SEEN=1;
         return {hd:headHtml({icon:icOf(P0.label)||'📊',title:P0.label,pos:sib.length>1?'<b>'+(idx+1)+'</b> / '+sib.length:'',chips:P0.val?['<span class="kn-hc">'+esc(P0.val)+'</span>']:[]})+(sm.top||''),body:sm.panes.map(function(p){return '<div class="kn-pane'+(p[0]===KN_TAB?' on':'')+'" data-p="'+p[0]+'">'+p[2]+'</div>';}).join(''),T:KN_T,title:P0.label,cap:capOf(el)};}}
     var P=cardParts(el),all=sib.map(cardParts),cap=capOf(el);
     var numsHtml='<div class="kn-n" style="grid-column:1/-1"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
@@ -309,7 +309,7 @@
     var tb=[].filter.call(box.querySelectorAll('table'),function(x){return x.offsetParent!==null&&!x.closest('#kn-mask');})[0];
     if(tb&&!chartOnly){var H=heads(tb),rs=dataRows(tb).slice(0,25);if(rs.length){out+='<div class="kn-ref" style="font-weight:700;margin:12px 0 4px">📋 相關明細 Related rows'+(dataRows(tb).length>25?'（前 25 筆）':'')+' <span style="font-weight:400">· 點一列看那一筆（有工號的會帶出員工照片）</span></div><div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px"><table style="border-collapse:collapse;font-size:12px;width:100%"><tr>'+H.slice(0,8).map(function(h){return '<th style="text-align:left;padding:5px 6px;background:#f1f5f9;white-space:nowrap">'+esc(h)+'</th>';}).join('')+'</tr>'+rs.map(function(r){var ri=RTR.push(r)-1;return '<tr class="kn-rtr" data-rt="'+ri+'" style="cursor:pointer">'+[].slice.call(r.cells,0,8).map(function(c){return '<td style="padding:5px 6px;border-top:1px solid #f1f5f9;white-space:nowrap">'+esc(txt(c).slice(0,30))+'</td>';}).join('')+'</tr>';}).join('')+'</table></div>';}}
     if(chartOnly)return out;return out?'<div class="kn-r full" style="display:block">'+out+'</div>':'';}catch(e){return '';}}
-  function showCard(el){var e2=null;try{if(typeof window.acKeynoteCardEl==='function'){e2=window.acKeynoteCardEl(el);if(e2)el=e2;}}catch(e){}var sib=e2?(function(){var same=[].filter.call(e2.parentElement.children,function(x){return x.tagName===e2.tagName&&(x.className.split(' ')[0]===e2.className.split(' ')[0]);}),vis=same.filter(function(x){return x.offsetParent!==null||x.getClientRects().length>0;});return vis.length?vis:same;})():sibsOf(el);if(sib.indexOf(el)<0)sib=[el];
+  function showCard(el){KN_SMART_SEEN=0;var e2=null;try{if(typeof window.acKeynoteCardEl==='function'){e2=window.acKeynoteCardEl(el);if(e2)el=e2;}}catch(e){}var sib=e2?(function(){var same=[].filter.call(e2.parentElement.children,function(x){return x.tagName===e2.tagName&&(x.className.split(' ')[0]===e2.className.split(' ')[0]);}),vis=same.filter(function(x){return x.offsetParent!==null||x.getClientRects().length>0;});return vis.length?vis:same;})():sibsOf(el);if(sib.indexOf(el)<0)sib=[el];
     openAt({kind:'card',n:sib.length,els:sib,build:function(k){return cardSec(sib[k],sib);}},sib.indexOf(el));}
   /* 分頁：重點（數字＋文字重點）／全部資料／比較 */
   function tabsHtml(nums,rowsH,all,cmp){

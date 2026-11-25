@@ -1,4 +1,4 @@
-/* 通用「聰明」KPI 大字卡 v1.1（2026-11-25 Paul：其他頁照入離職的方式——一張卡不要只有一個數；要名單、要分布圖、要走勢、每一條都能點、點人看員工卡）
+/* 通用「聰明」KPI 大字卡 v1.2（2026-11-25 Paul：其他頁照入離職的方式——一張卡不要只有一個數；要名單、要分布圖、要走勢、每一條都能點、點人看員工卡）
    頁面沒有自己的大字卡內容時（沒有 acKeynoteCard），row-keynote 會先問這支：
    · 找這張 KPI 同一區塊裡最大的明細表（畫面上那張表）
    · 卡片名稱剛好是表裡某一欄的值（例：「離職」「Expired」「錄取」）→ 只看那些列；卡片名稱是某個數字欄（例：「金額合計」）→ 用那一欄加總
@@ -50,7 +50,9 @@
     var t=bestTable(el,label,extra);if(!t)return null;var M=model(t);if(M.R.length<2)return null;
     var L0=nz(label),fc=null,rows=M.R;
     /* 卡片名稱＝某個分類欄的值 → 只看那些列 */
-    if(L0)M.cols.forEach(function(c){if(fc||!c.cat&&!(c.u<=12))return;var hit=M.R.filter(function(r){var v=nz(c.vals[M.R.indexOf(r)]);return v&&(v===L0||(v.length>1&&L0.indexOf(v)>=0&&v.length>=L0.length*.5)||(L0.length>1&&v.indexOf(L0)>=0));});if(hit.length&&hit.length<M.R.length){fc=c;rows=hit;}});
+    /* v1.2：先找「完全一樣」（男≠女、Male≠Female），找不到才用「包含」；男/女/M/F/Male/Female/ប្រុស/ស្រី 視為同義 */
+    var CAN=function(x){x=nz(x);if(/^(女|f|female|women|woman|ស្រី|女性)$/.test(x)||/^女/.test(x)&&x.length<=3)return '#F';if(/^(男|m|male|men|man|ប្រុស|男性)$/.test(x)||/^男/.test(x)&&x.length<=3)return '#M';return x;},LC=CAN(label);
+    if(L0)[1,2].forEach(function(pass){if(fc)return;M.cols.forEach(function(c){if(fc||!c.cat&&!(c.u<=12))return;var hit=M.R.filter(function(r){var raw=c.vals[M.R.indexOf(r)],v=nz(raw),cv=CAN(raw);if(!v)return false;if(pass===1)return cv===LC||v===L0;if(LC.charAt(0)==='#'||cv.charAt(0)==='#')return false;return (v.length>1&&L0.indexOf(v)>=0&&v.length>=L0.length*.5)||(L0.length>1&&v.indexOf(L0)>=0);});if(hit.length&&hit.length<M.R.length){fc=c;rows=hit;}});});
     var ac=M.cols.filter(function(c){return c.num&&L0&&nz(c.h)&&(nz(c.h)===L0||L0.indexOf(nz(c.h))>=0||nz(c.h).indexOf(L0)>=0);})[0]||M.cols.filter(function(c){return c.num&&AMT_RE.test(c.h)&&!SKIP_RE.test(c.h);})[0]||null;
     var dcs=M.cols.filter(function(c){return c.date;}),LX=bg(label+' '+(extra||'')+(/到期|逾期|expir|due/i.test(label+extra)?' 到期expiry':'')),dc=dcs.slice().sort(function(a,b){return ov(bg(b.h),LX)-ov(bg(a.h),LX);})[0]||null;
     var sumOf=function(rs){return ac?rs.reduce(function(s,r){var v=num(ac.vals[M.R.indexOf(r)]);return s+(v||0);},0):null;};
