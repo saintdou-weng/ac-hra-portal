@@ -143,15 +143,13 @@
         var ref='',bar='';
         if(col.length>=3){var sum=col.reduce(function(a,b){return a+b;},0),max=Math.max.apply(null,col.map(Math.abs))||1,rank=col.filter(function(v){return v>x.n;}).length+1,pct=/%$/.test(x.v);
           var pctMax=Math.round(Math.abs(x.n)/max*100);hasBar=true;
-          bar='<div class="kn-bar"><i style="width:'+Math.max(3,pctMax)+'%"></i></div>';
-          ref='<div class="kn-ref">'+(pctMax>=100?'★ 這張表最高 highest':'最高值的 '+pctMax+'% of highest')+'<br>'+vsAvg(x.n,sum/col.length)+'</div>';}
+          /* 2026-11-25 Paul：排名、跟最高比、跟平均比這種沒用的不放 */ }
         numsHtml+='<div class="kn-n'+(x.n<0?' kn-neg':'')+'" data-c="'+x.i+'"><div class="kn-nl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-nv">'+esc(x.v)+'</div>'+bar+ref+'</div>';
       }else rowsHtml+='<div class="kn-r'+fullCls(x.v)+'"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';
     });
-    if(hasBar)numsHtml+='<div class="kn-leg"><i></i>橫條＝這一筆 ÷ 這張表最高的那一筆 · Bar = this row ÷ highest in the list</div>';
     var idx=rows.indexOf(row);
     var allHtml=items.map(function(x){return '<div class="kn-r'+fullCls(x.v)+'"><div class="kn-rl"><span class="kn-ic">'+icOf(x.l)+'</span>'+esc(x.l)+'</div><div class="kn-rv">'+valIc(x.l,x.v)+esc(x.v)+'</div></div>';}).join('');
-    var cmpHtml=compareHtml(items,rows,row);
+    var cmpHtml='';   /* 排名比較分頁拿掉（Paul 11/25） */
     var tabsH=tabsHtml(numsHtml,rowsHtml,allHtml,cmpHtml);   /* 先算（裡面會呼叫 acKeynoteTop 一次），表頭才知道頁面有沒有自己放照片 */
     return {hd:rowHead(row,items,title,cap,idx,rows.length),body:tabsH,T:KN_T,title:title,cap:cap};
   }
@@ -286,12 +284,12 @@
     var numsHtml='<div class="kn-n" style="grid-column:1/-1"><div class="kn-nl"><span class="kn-ic">'+icOf(P.label)+'</span>'+esc(P.label)+'</div><div class="kn-nv" style="font-size:34px">'+esc(P.val)+'</div>';
     var nums=all.filter(function(x){return x.n!==null;});
     if(P.n!==null&&nums.length>=2){var mx=Math.max.apply(null,nums.map(function(x){return Math.abs(x.n);}))||1,rank=nums.filter(function(x){return x.n>P.n;}).length+1,sum=nums.reduce(function(a,x){return a+x.n;},0);
-      numsHtml+='<div class="kn-bar"><i style="width:'+Math.max(3,Math.round(Math.abs(P.n)/mx*100))+'%"></i></div><div class="kn-ref">'+vsAvg(P.n,sum/nums.length)+'</div>';}
+      }
     numsHtml+='</div>';   /* 外面 tabsHtml 會包一層 #kn-nums；這張大數字卡佔整列 */
     var rowsHtml=P.lines.map(function(x){var m=x.match(/^(.{1,30}?)[：:]\s*(.+)$/);if(m&&/[：:|｜]/.test(m[2]))m=null;return '<div class="kn-r'+((!m||P.lines.length===1)?' full':'')+'"><div class="kn-rl"><span class="kn-ic">'+(m?icOf(m[1]):'🗒')+'</span>'+esc(m?m[1]:'說明')+'</div><div class="kn-rv">'+esc(m?m[2]:x)+'</div></div>';}).join('');
     var allHtml=all.map(function(x,i){return '<button type="button" class="kn-br'+(i===idx?' on':'')+'" data-i="'+i+'" style="grid-template-columns:1fr auto"><span class="n">'+(i===idx?'▶ ':'')+'<span class="kn-ic">'+icOf(x.label)+'</span>'+esc(x.label)+'</span><span class="v">'+esc(x.val)+'</span></button>';}).join('');
     var cmpHtml='';
-    if(nums.length>=2){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
+    if(false){var srt=all.map(function(x,i){return {x:x,i:i};}).filter(function(o){return o.x.n!==null;}).sort(function(a,b){return b.x.n-a.x.n;}),mx2=Math.max.apply(null,srt.map(function(o){return Math.abs(o.x.n);}))||1;
       cmpHtml=srt.map(function(o,k){var on=o.i===idx;return '<button type="button" class="kn-br'+(on?' on':'')+'" data-i="'+o.i+'"><span class="n">'+(on?'▶ ':'')+(k+1)+'. '+esc(o.x.label)+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(o.x.n)/mx2*100))+'%"></i></span><span class="v">'+esc(o.x.val)+'</span></button>';}).join('')+'<div class="kn-ref" style="margin-top:6px">點任一條直接換到那一張</div>';}
     rowsHtml+=relatedHtml(el);
     var body=tabsHtml(numsHtml,rowsHtml,'<div id="kn-cmp">'+allHtml+'</div>',cmpHtml).replace('<div id="kn-rows"><div id="kn-cmp">','<div><div id="kn-cmp">');
