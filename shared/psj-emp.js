@@ -40,4 +40,6 @@
         setTimeout(function(){window.vrtEmpBlock(id,nm,{dept:dp,position:po}).then(function(h){var el=document.getElementById(key);if(el)el.innerHTML=h;});},0);
         return '<div id="'+key+'" style="margin:10px 16px 0"></div>'+o;}catch(e){return o;}};}
   if(document.readyState==='complete')install();else window.addEventListener('load',function(){setTimeout(install,400);});
+  /* 先在背景把員工資料讀好，點人時就不會卡一下才出來 */
+  setTimeout(function(){try{emps();}catch(e){}},1800);
 })();
