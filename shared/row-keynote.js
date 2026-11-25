@@ -16,6 +16,7 @@
 (function(){
   'use strict';
   if(window.__acKeynote)return;window.__acKeynote=1;
+  var SAFE=false;try{var cs0=document.currentScript;SAFE=!!(cs0&&cs0.hasAttribute('data-safe'));}catch(e){}
   /* 柬文補齊（km-fill.js）跟著大字卡一起載入 */
   try{var me=document.currentScript&&document.currentScript.src;if(me&&!document.querySelector('script[src*="km-fill.js"]')){var ks=document.createElement('script');ks.src=me.replace(/row-keynote\.js.*$/,'km-fill.js?v=2');ks.defer=true;document.head.appendChild(ks);}}catch(e){}
   var css='#kn-mask{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9990;display:none;align-items:flex-end;justify-content:center;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}'
@@ -247,6 +248,7 @@
     return [].filter.call(p.children,function(x){return x.tagName+'|'+(x.getAttribute('class')||'').replace(/\b(anim(-\d)?|act|on|active|selected|fx-\S+|hp-tint|kn-\S+)\b/g,'').trim()===k&&x.offsetParent!==null;});}
   function cardish(el){
     if(!el||el.nodeType!==1||el===document.body||el.closest(C_NOGO))return false;
+    if(SAFE){for(var x=el;x&&x!==document.body;x=x.parentElement){try{if(getComputedStyle(x).cursor==='pointer'||x.hasAttribute('onclick'))return false;}catch(e){}}}
     if(el.matches('button,a,input,select,textarea,label,[onclick],[role=button]')||el.querySelector('button,a[href],input,select,textarea,[onclick],canvas,table'))return false;
     var t=txt(el);if(t.length<1||t.length>240||!/\d/.test(t))return false;
     var r=el.getBoundingClientRect();if(r.height>360||r.width<40||r.height<18)return false;
@@ -289,7 +291,7 @@
   /* v9 一般小卡（頁面沒給內容時）：把同一區塊裡的圖表（轉成圖片）和表格一起放進來，不要只剩一個數字 */
   function relatedHtml(el){try{var box=null,p=el.parentElement;for(var i=0;i<7&&p&&p!==document.body;i++,p=p.parentElement){if([].some.call(p.querySelectorAll('canvas,table'),function(x){return !el.contains(x)&&x.offsetParent!==null&&!x.closest('#kn-mask');})){box=p;break;}}
     if(!box)return '';var out='',n=0;
-    [].forEach.call(box.querySelectorAll('canvas'),function(c){if(n>=4||c.offsetParent===null||c.width<60||c.closest('#kn-mask'))return;var u='';try{u=c.toDataURL('image/png');}catch(e){}if(!u||u.length<2000)return;var cd=c.closest('.card,.chart-card,section,div'),h=cd&&cd.querySelector('.ct,h2,h3,h4,[class*="title"]'),tt=h&&!h.contains(c)?txt(h).slice(0,40):'';n++;
+    [].forEach.call(box.querySelectorAll('canvas'),function(c){if(n>=4||c.offsetParent===null||c.width<60||c.closest('#kn-mask'))return;var u='';try{var sm=document.createElement('canvas');sm.width=48;sm.height=24;var sx=sm.getContext('2d');sx.drawImage(c,0,0,48,24);var px=sx.getImageData(0,0,48,24).data,cnt=0;for(var q=0;q<px.length;q+=4){if(px[q+3]>20&&(px[q]<200||px[q+1]<200||px[q+2]<200))cnt++;}if(cnt<12)return;u=c.toDataURL('image/png');}catch(e){}if(!u||u.length<2000)return;var cd=c.closest('.card,.chart-card,section,div'),h=cd&&cd.querySelector('.ct,h2,h3,h4,[class*="title"]'),tt=h&&!h.contains(c)?txt(h).slice(0,40):'';n++;
       out+='<div class="kn-rel"><div class="kn-ref" style="font-weight:700;margin:10px 0 4px">📈 '+esc(tt||'圖表 Chart')+'</div><img src="'+u+'" alt="" style="width:100%;border:1px solid #e2e8f0;border-radius:10px;background:#fff"></div>';});
     var tb=[].filter.call(box.querySelectorAll('table'),function(x){return x.offsetParent!==null&&!x.closest('#kn-mask');})[0];
     if(tb){var H=heads(tb),rs=dataRows(tb).slice(0,25);if(rs.length){out+='<div class="kn-ref" style="font-weight:700;margin:12px 0 4px">📋 相關明細 Related rows'+(dataRows(tb).length>25?'（前 25 筆）':'')+'</div><div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:10px"><table style="border-collapse:collapse;font-size:12px;width:100%"><tr>'+H.slice(0,8).map(function(h){return '<th style="text-align:left;padding:5px 6px;background:#f1f5f9;white-space:nowrap">'+esc(h)+'</th>';}).join('')+'</tr>'+rs.map(function(r){return '<tr>'+[].slice.call(r.cells,0,8).map(function(c){return '<td style="padding:5px 6px;border-top:1px solid #f1f5f9;white-space:nowrap">'+esc(txt(c).slice(0,30))+'</td>';}).join('')+'</tr>';}).join('')+'</table></div>';}}
