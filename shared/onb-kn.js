@@ -40,7 +40,40 @@
     items.forEach(function(x,i){if(x.v==null)return;var X=i*bw+bw*.15,h=Math.max(1,(H-pt-pb)*(x.v-mn)/((mx-mn)||1)),Y=H-pb-h;out+='<rect x="'+X.toFixed(1)+'" y="'+Y.toFixed(1)+'" width="'+(bw*.7).toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'+(x.cur?'#4f46e5':(o.c||'#60a5fa'))+'"/><text x="'+(X+bw*.35).toFixed(1)+'" y="'+(Y-2).toFixed(1)+'" font-size="7.5" text-anchor="middle" fill="#475569">'+esc(x.t!=null?x.t:x.v)+'</text><text x="'+(X+bw*.35).toFixed(1)+'" y="'+(H-6)+'" font-size="8" text-anchor="middle" fill="#64748b">'+esc(x.k)+'</text>';});
     return '<div class="okn-ch"><div class="okn-st">'+esc(o.title||'')+'</div><svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="none" style="display:block;height:'+H+'px">'+out+'</svg></div>';}
   var KEYS=['join','resign','net','hc','to','ten'];
+  /* 入職／離職分頁那排（總數／車縫／非車縫／男／女）：照頁面目前的篩選（部門、類型、原因、性別、搜尋）算 */
+  function buildTab(k,isRes){
+    var all=(isRes?window.__resKpiRows:window.__joinKpiRows)||[],i=[].indexOf.call(k.parentElement.children,k);
+    var f=[function(){return true;},sew,function(r){return !sew(r);},function(r){return String(r.gender||'').toUpperCase()==='M';},function(r){return String(r.gender||'').toUpperCase()==='F';}][i]||function(){return true;};
+    var list=all.filter(f),label=((k.querySelector('.l,p:last-child')||{}).textContent||'').trim(),shown=((k.querySelector('.v,p')||{}).textContent||'').trim();
+    var st=NAV[isRes?'resign':'join'],b=null;try{b=window.pBounds(st);}catch(e){}var cap=b?(b.s===b.e?b.s:b.s+' ～ '+b.e):T('全部','All');
+    var dk=isRes?'resignDate':'joinDate',pb0=prevB(b),src=isRes?R():J(),prevN=pb0?src.filter(function(r){return inB(r[dk],pb0)&&f(r);}).length:null;
+    var sw=list.filter(sew).length,ma=list.filter(male).length,fe=list.filter(female).length;
+    var top='<div class="okn"><div class="okn-hero"><div class="okn-big" style="color:'+(isRes?'#e11d48':'#059669')+'">'+list.length+'</div><div class="okn-l">'+esc(label||T(isRes?'離職':'入職',isRes?'Resign':'Join'))+' · '+esc(cap)+'</div>'+
+      '<div class="okn-kv"><div><b style="color:#d97706">'+sw+'</b><span>'+T('車工','Sewing')+'</span></div><div><b>'+(list.length-sw)+'</b><span>'+T('非車工','Non-sewing')+'</span></div><div><b style="color:#2563eb">♂ '+ma+'</b><span>'+T('男','M')+'</span></div><div><b style="color:#db2777">♀ '+fe+'</b><span>'+T('女','F')+'</span></div></div>'+
+      (prevN!=null?'<div class="okn-cmp">'+T('跟上一期比（','vs previous (')+prevN+'）：'+(list.length===prevN?'＝':(list.length>prevN?'▲ +':'▼ −')+Math.abs(list.length-prevN))+'</div>':'')+
+      (all.length!==src.filter(function(r){return inB(r[dk],b);}).length?'<div class="okn-note">🔎 '+T('照頁面目前的篩選條件','Using the current filters on the page')+'</div>':'')+'</div></div>';
+    var ppl=pplHtml(list,isRes);
+    var g='<div class="okn"><div class="okn-st">🏢 '+T('各部門／組別','By dept / line')+'</div>'+bars(tally(list,grp).slice(0,25),{total:[T('合計','Total'),list.length+T(' 人','')]})+'<div class="okn-st">🪪 '+T('職位（前 10）','Position (top 10)')+'</div>'+bars(tally(list,function(r){return r.position;}).slice(0,10),{c:'#34d399'});
+    if(isRes){g+='<div class="okn-st">⏳ '+T('做了多久','Tenure')+'</div>'+bars(tally(list,function(r){return tenure(r.workingDays);},TEN_ORD),{c:'#fb923c'});var rsn=tally(list.filter(function(r){return r.reason||r.reasonCat;}),function(r){return String((r.reasonCat&&r.reasonCat!=='Other')?r.reasonCat:r.reason).slice(0,30);}).slice(0,10);if(rsn.length)g+='<div class="okn-st">💬 '+T('離職原因','Reasons')+'</div>'+bars(rsn,{c:'#a78bfa'});}
+    g+='</div>';
+    var endM=b?b.e.slice(0,7):(src.map(function(r){return ym(r[dk]);}).sort().pop()||''),M=[];for(var q=11;q>=0;q--)M.push(addM(endM,-q));
+    var mv=M.map(function(m){return src.filter(function(r){return ym(r[dk])===m&&f(r);}).length;});
+    var tr='<div class="okn">'+chart1(M.map(function(m,ix){return {k:String(+m.slice(5))+T('月','M'),v:mv[ix],cur:m===endM};}),{title:'📈 '+T('近 12 個月','Last 12 months')+'：'+(label||''),c:isRes?'#f87171':'#4ade80'})+
+      '<div class="okn-tb">'+M.slice().reverse().map(function(m){var ix=M.indexOf(m),pv=ix>0?mv[ix-1]:null;return '<div class="'+(m===endM?'on':'')+'"><span>'+m+'</span><span class="r"><b>'+mv[ix]+T(' 人','')+'</b></span><span class="r">'+(pv==null?'':(mv[ix]===pv?'＝':(mv[ix]>pv?'▲ +':'▼ −')+Math.abs(mv[ix]-pv)))+'</span></div>';}).join('')+'</div></div>';
+    return {icon:isRes?'🔴':'🟢',title:label,chips:[cap,shown],top:top,panes:[['ppl','👥 '+T('名單','List'),ppl],['grp','🏢 '+T('分布','Breakdown'),g],['num','📈 '+T('走勢','Trend'),tr]]};
+  }
+  /* 名單：點一個人 → 展開員工資料（在 VRT HR 裡＝照片＋重點資料＋分頁鈕；單獨開 HRA Portal＝這筆入離職的完整欄位） */
+  var PEOPLE=[];
+  function pplHtml(list,isRes){var rows=list.slice().sort(function(a,b2){return String(b2.resignDate||b2.joinDate||'').localeCompare(String(a.resignDate||a.joinDate||''));});
+    return '<div class="okn"><div class="okn-st">👥 '+T('名單','List')+'（'+rows.length+'）'+(rows.length>80?T('・先列 80 位','・first 80'):'')+' <small>'+T('點一個人看員工資料','tap a person for details')+'</small></div><div class="okn-tb">'+rows.slice(0,80).map(function(r){var out=isRes===true||(isRes==null&&!!r.resignDate),ix=PEOPLE.push(r)-1;
+      return '<div class="okn-p" data-okp="'+ix+'"><span><b>'+esc(r.empId||'')+'</b> '+esc(r.name||'')+'<small>'+esc([grp(r),r.position].filter(Boolean).join(' · '))+(female(r)?' <i style="color:#db2777">♀</i>':male(r)?' <i style="color:#2563eb">♂</i>':'')+'</small></span><span class="r">'+(out?'<b style="color:#dc2626">'+T('離職','Out')+'</b><small>'+esc(String(r.resignDate||'').slice(0,10))+'</small>':'<b style="color:#16a34a">'+T('入職','In')+'</b><small>'+esc(String(r.joinDate||'').slice(0,10))+'</small>')+'</span><span class="r">'+(out?(r.workingDays?'<span>'+n(r.workingDays)+T(' 天',' d')+'</span>':'')+(n(r.amount)>0?'<small>$'+n(r.amount).toFixed(2)+'</small>':''):'')+' ›</span></div>';}).join('')+'</div></div>';}
+  function empBlock(r){var h='';try{var P=window.parent!==window?window.parent:null;if(P&&typeof P.psjEmpHTML==='function')h=P.psjEmpHTML(r.empId,r.name,document)||'';}catch(e){}
+    if(h)return h;
+    var KV=[[T('工號','ID'),r.empId],[T('姓名','Name'),r.name],[T('部門','Dept'),r.dept],[T('組別','Section'),r.section],[T('職位','Position'),r.position],[T('性別','Gender'),r.gender],[T('入職日','Joined'),r.joinDate],[T('離職日','Resigned'),r.resignDate],[T('做了幾天','Days worked'),r.workingDays],[T('離職原因','Reason'),r.reason||r.reasonCat],[T('結算金額','Settlement'),n(r.amount)>0?'$'+n(r.amount).toFixed(2):''],[T('電話','Phone'),r.phone],[T('備註','Note'),r.note||r.remark]].filter(function(x){return x[1]!=null&&String(x[1]).trim()!=='';});
+    return '<div class="okn-emp">'+KV.map(function(x){return '<div><span>'+esc(x[0])+'</span><b>'+esc(x[1])+'</b></div>';}).join('')+'<div class="okn-note" style="grid-column:1/-1">'+T('照片和完整員工頁在 VRT HR 裡打開這頁才會出現','Photo and full profile appear when this page is opened inside VRT HR')+'</div></div>';}
+  document.addEventListener('click',function(e){var p=e.target.closest&&e.target.closest('.okn-p');if(!p)return;e.stopPropagation();var nx=p.nextElementSibling;if(nx&&nx.classList.contains('okn-ex')){nx.remove();return;}var r=PEOPLE[+p.getAttribute('data-okp')];if(!r)return;var d=document.createElement('div');d.className='okn-ex';d.innerHTML=empBlock(r);p.parentNode.insertBefore(d,p.nextSibling);},true);
   function build(el){
+    var tk=el.closest('#res-kpi .kpi,#join-kpi .kpi');if(tk)return buildTab(tk,!!tk.closest('#res-kpi'));
     var k=el.closest('#pn-ov .kpi');if(!k)return null;var cum=!!k.closest('#ov-cum');
     var key=cum?'resign':KEYS[[].indexOf.call(k.parentElement.children,k)];if(!key)return null;
     var label=((k.querySelector('.l')||{}).textContent||'').trim(),shown=((k.querySelector('.v')||{}).textContent||'').trim();
@@ -65,9 +98,7 @@
       '<div class="okn-note">🧮 '+esc(how)+'</div></div></div>';
     /* 名單 */
     var rows=list.slice().sort(function(a,b2){return String(b2.resignDate||b2.joinDate||'').localeCompare(String(a.resignDate||a.joinDate||''));});
-    var ppl='<div class="okn"><div class="okn-st">👥 '+T('名單','List')+'（'+rows.length+'）'+(rows.length>80?T('・先列 80 位','・first 80'):'')+'</div><div class="okn-tb">'+rows.slice(0,80).map(function(r){var isR=!!r.resignDate&&list!==js&&rs.indexOf(r)>=0;
-      return '<div><span><b>'+esc(r.empId||'')+'</b> '+esc(r.name||'')+'<small>'+esc([grp(r),r.position].filter(Boolean).join(' · '))+(female(r)?' <i style="color:#db2777">♀</i>':male(r)?' <i style="color:#2563eb">♂</i>':'')+'</small></span><span class="r">'+(isR?'<b style="color:#dc2626">'+T('離職','Out')+'</b><small>'+esc(String(r.resignDate).slice(0,10))+'</small>':'<b style="color:#16a34a">'+T('入職','In')+'</b><small>'+esc(String(r.joinDate||'').slice(0,10))+'</small>')+'</span><span class="r">'+(isR?(r.workingDays?'<span>'+n(r.workingDays)+T(' 天',' d')+'</span>':'')+(n(r.amount)>0?'<small>$'+n(r.amount).toFixed(2)+'</small>':'')+(r.reason?'<small>'+esc(String(r.reason).slice(0,18))+'</small>':''):'')+'</span></div>';}).join('')+'</div>'+
-      '<div class="okn-note">'+T('要看照片和完整員工資料：在入職／離職列表點那一列（在 VRT HR 裡會帶出員工照片和分頁）','Tap the row in the join/resign list for the full employee card')+'</div></div>';
+    var ppl=pplHtml(rows,key==='join'?false:(key==='net'?null:true));
     /* 分布 */
     var g='<div class="okn">';
     if(key==='hc'){g+=bars(M.map(function(m,ix){return {n:m,v:mh[ix]||0,vt:mh[ix]==null?'—':mh[ix]+T(' 人',''),c:m===endM?'#4f46e5':'#94a3b8'};}).reverse());}
@@ -89,8 +120,9 @@
    +'.okn-kv{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:8px}.okn-kv div{display:flex;flex-direction:column}.okn-kv b{font-size:17px}.okn-kv span{font-size:11px;color:#64748b}.okn-cmp{font-size:13px;margin-top:6px;font-weight:600}.okn-note{font-size:11.5px;color:#64748b;margin-top:6px;line-height:1.5}'
    +'.okn-st{font-size:13px;font-weight:700;margin:12px 0 6px;color:#1e293b}.okn-st small{font-weight:400;color:#64748b;margin-left:6px}.okn-st small i{display:inline-block;width:8px;height:8px;border-radius:2px;margin:0 3px 0 6px}.okn-ch{border:1px solid #e2e8f0;border-radius:12px;padding:4px 8px 6px;margin:8px 0;background:#fff}'
    +'.okn-br{display:grid;grid-template-columns:minmax(90px,40%) 1fr auto;gap:8px;align-items:center;padding:5px 0;border-bottom:1px solid #f1f5f9;font-size:13px}.okn-br .n{font-weight:600;word-break:break-word}.okn-br .t{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}.okn-br .t i{display:block;height:100%;border-radius:4px}.okn-br .v{font-weight:700;text-align:right;min-width:48px}.okn-tot{border-top:2px solid #cbd5e1;border-bottom:0}.okn-tot .n,.okn-tot .v{color:#4f46e5}'
+   +'.okn-p{cursor:pointer}.okn-p:hover{background:#f8fafc}.okn-ex{padding:6px 0 10px}.okn-emp{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;border:1px solid #e2e8f0;border-radius:12px;padding:10px 12px;background:#f8fafc}.okn-emp span{display:block;font-size:11px;color:#64748b}.okn-emp b{font-weight:600;word-break:break-word}.okn-st small{font-weight:400;color:#64748b}'
    +'.okn-tb>div{display:grid;grid-template-columns:1fr auto auto;gap:10px;padding:6px 4px;border-bottom:1px solid #f1f5f9;font-size:13px;align-items:center}.okn-tb>div.on{background:#eef2ff;border-radius:8px}.okn-tb small{display:block;color:#64748b;font-size:10.5px}.okn-tb .r{text-align:right}';
   try{var st=document.createElement('style');st.textContent=css;document.head.appendChild(st);}catch(e){}
-  window.acKeynoteCardEl=function(el){try{return el.closest('#pn-ov .kpi');}catch(e){return null;}};
+  window.acKeynoteCardEl=function(el){try{return el.closest('#pn-ov .kpi,#res-kpi .kpi,#join-kpi .kpi');}catch(e){return null;}};
   window.acKeynoteCard=function(el){try{return build(el);}catch(e){try{console.warn('onb-kn',e);}catch(_){}return null;}};
 })();
