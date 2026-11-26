@@ -338,6 +338,7 @@
     var show=sorted.slice(0,30);if(me&&show.indexOf(me)<0){show=show.slice(0,29);show.push(me);}
     return '<div class="kn-cc">'+numCols.map(function(x){return '<button type="button" data-col="'+esc(x.l)+'" class="'+(x===c?'on':'')+'">'+icOf(x.l)+' '+esc(x.l)+'</button>';}).join('')+'</div>'
       +'<div class="kn-st"><div>這一筆<b>'+esc(c.v)+'</b></div><div>合計<b>'+fmt(sum)+'</b></div><div>筆數<b>'+vals.length+'</b></div></div>'
+      +(function(){try{return typeof window.acKeynoteRowExtra==='function'?(window.acKeynoteRowExtra(row,c.l,row.closest('table'))||''):'';}catch(e){return '';}})()
       +show.map(function(o){var on=o.r===row;return '<button type="button" class="kn-br'+(on?' on':'')+'" data-i="'+o.ri+'"><span class="n">'+(on?'▶ ':'')+esc(lb(o.r))+'</span><span class="t"><i style="width:'+Math.max(3,Math.round(Math.abs(o.v)/mx*100))+'%"></i></span><span class="v">'+fmt(o.v)+'</span></button>';}).join('')
       +'<div class="kn-ref" style="margin-top:6px">點任一條直接跳到那一筆（最多列 '+show.length+' 筆）</div>';
   }
