@@ -25,14 +25,15 @@
   function secHead(t){var p=t.parentElement;for(var i=0;i<6&&p&&p!==document.body;i++,p=p.parentElement){var h=[].filter.call(p.querySelectorAll('h1,h2,h3,h4,.ct,.card-title,.title,[class*="title"]'),function(x){return !t.contains(x)&&!x.contains(t);})[0];if(h)return txt(h)+' '+(p.id||'');}return '';}
   /* v1.1 KPI 常在「總覽」，明細表在別的分頁（隱藏中）→ 全頁的表都看，依「同區塊、標題／欄名／值跟卡片字的重疊」打分 */
   function bestTable(el,label,extra){var near=null,p=el.parentElement;for(var i=0;i<8&&p&&p!==document.body;i++,p=p.parentElement){if([].some.call(p.querySelectorAll('table'),function(t){return !el.contains(t)&&t.offsetParent!==null;})){near=p;break;}}
-    var LB=bg(label),EB=bg(extra||''),best=null,bs=0;
+    var LB=bg(label),EB=bg(extra||''),best=null,bs=0,big=null,bigN=0;
     [].forEach.call((el.ownerDocument||document).querySelectorAll('table'),function(t){if(el.contains(t)||t.closest('#kn-mask,[data-keynote="off"],.pkn-box'))return;var R=dataRows(t);if(R.length<2)return;
       var sc=0,H=heads(t).join(' '),hb=bg(secHead(t)+' '+H);sc+=ov(LB,hb)*2+ov(EB,hb);
       var L0=nz(label);if(L0.length>=2){var hit=R.filter(function(r){return nz(txt(r)).indexOf(L0)>=0;}).length;if(hit&&hit<R.length)sc+=4;}
       if(near&&near.contains(t)&&t.offsetParent!==null)sc+=5;
       sc+=Math.min(2,R.length/20);
-      if(sc>bs){bs=sc;best=t;}});
-    return bs>=2.5?best:null;}
+      if(sc>bs){bs=sc;best=t;}if(R.length>bigN){bigN=R.length;big=t;}});
+    /* v1.3：對不到就用本頁最大的那張明細表（至少有名單／分布可看，不再只剩一個數字） */
+    return bs>=2.5?best:(bigN>=3?big:null);}
   function model(t){var H=heads(t),R=dataRows(t),cols=H.map(function(h,i){var vals=R.map(function(r){return r.cells[i]?txt(r.cells[i]):'';}),ne=vals.filter(Boolean),nn=ne.filter(function(v){return num(v)!==null;}).length,dd=ne.filter(isDate).length,uniq={};ne.forEach(function(v){uniq[v]=1;});var u=Object.keys(uniq).length;
       return {h:h,i:i,vals:vals,date:ne.length&&(dd>=ne.length*.6||(DATE_RE.test(h)&&dd>0)),num:ne.length&&nn>=ne.length*.7,cat:ne.length>=2&&nn<ne.length*.5&&dd<ne.length*.5&&u>=2&&!DATE_RE.test(h)&&!/^[—\-–\s]*$/.test(ne[0]||'')&&u<=Math.max(2,Math.min(30,R.length*.85))&&!SKIP_RE.test(h),u:u};});
     return {H:H,R:R,cols:cols};}
