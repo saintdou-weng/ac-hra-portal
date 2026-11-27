@@ -558,7 +558,8 @@ function _isLeafRecord(r){
 }
 // ── Sewing line detector (attendance records) ─────────────
 function _normLine(s){
-  const n=String(s||'').replace(/[/／].*/,'').trim();
+  let n=String(s||'').replace(/[/／].*/,'').trim();
+  try{const a=ALIASES[n.replace(/\s+/g,'').toUpperCase()];if(a)n=a}catch(e){}
   const m=n.replace(/\s+/,'').toUpperCase().match(/^(?:LINE|L)0*(\d{1,2})$/);
   if(m)return'LINE'+m[1];
   const m2=n.replace(/\s+/,'').toUpperCase().match(/^0*(\d{1,2})$/);
@@ -994,6 +995,20 @@ function loadCfg(){
   if(h)h.value=localStorage.getItem(GAS_HRA)||'';
   if(p)p.value=localStorage.getItem(GAS_PROD)||'';
 }
+/* 2026-11-27：這 5 顆按鈕（測／＋新增別名／儲存／重設預設／確認）原本沒有對應的功能，按了沒反應 → 補上。
+   別名：線別名稱寫法不同（例 APRON01）對到標準線（例 LINE1）；只影響本頁的線別統計，存在本機，不動各模組資料。 */
+const ALIAS_KEY='ac_hra_complete_line_alias_v1';let ALIASES=(()=>{try{return JSON.parse(localStorage.getItem(ALIAS_KEY)||'{}')||{}}catch(e){return {}}})();
+const _aliasK=s=>String(s||'').replace(/\s+/g,'').toUpperCase();
+function renderAliases(){const tb=document.getElementById('alias-tbody');if(!tb)return;const ks=Object.keys(ALIASES).sort();const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  tb.innerHTML=ks.length?ks.map(k=>`<tr><td style="padding:5px 8px">${esc(k)}</td><td style="padding:5px 8px">${esc(ALIASES[k])}</td><td style="text-align:center"><button class="hb" style="padding:1px 8px" onclick="delAlias('${esc(k).replace(/'/g,'')}')">×</button></td></tr>`).join(''):'<tr><td colspan="3" style="padding:10px;text-align:center;color:#6b7a9e">還沒有別名。線別名稱跟標準不一樣時（例：APRON01 → LINE1），按「＋ 新增別名」。</td></tr>'}
+function addAlias(){const m=document.getElementById('addModal');if(!m)return;document.getElementById('alias-from').value='';document.getElementById('alias-to').value='';m.classList.add('show');document.getElementById('alias-from').focus()}
+function confirmAlias(){const f=_aliasK(document.getElementById('alias-from').value),t=_aliasK(document.getElementById('alias-to').value).replace(/^LINE_?0*(\d+)$/,'LINE$1');if(!f||!t){toast('⚠️ 兩格都要填');return}ALIASES[f]=t;document.getElementById('addModal').classList.remove('show');renderAliases();toast('已加入，記得按「💾 儲存」')}
+function delAlias(k){delete ALIASES[k];renderAliases();toast('已移除，記得按「💾 儲存」')}
+function saveAliases(){try{localStorage.setItem(ALIAS_KEY,JSON.stringify(ALIASES));toast('✅ 別名已儲存（'+Object.keys(ALIASES).length+' 筆），重新計算中');if(typeof renderAll==='function')renderAll()}catch(e){toast('❌ 儲存失敗：'+e.message)}}
+function resetAliases(){if(!confirm('清掉所有別名，回到預設（沒有別名）？'))return;ALIASES={};try{localStorage.removeItem(ALIAS_KEY)}catch(e){}renderAliases();if(typeof renderAll==='function')renderAll();toast('已重設')}
+async function testUrl(t){const u=(document.getElementById(t==='hra'?'hraUrl':'prodUrl')?.value||'').trim();if(!/^https:\/\/script\.google\.com\//.test(u)){toast('⚠️ 先填 GAS 網址（https://script.google.com/…）');return}toast('連線測試中…');const t0=Date.now();
+  try{const r=await fetch(u+(u.includes('?')?'&':'?')+'action=heartbeat&t='+t0,{redirect:'follow',cache:'no-store'});const tx=await r.text();toast(r.ok?'✅ 連得上（'+(Date.now()-t0)+' ms）':'❌ 連不上：HTTP '+r.status,5000);cpLog('測試 '+(r.ok?'OK ':'失敗 ')+tx.slice(0,80))}catch(e){toast('❌ 連不上：'+e.message,5000)}}
+document.addEventListener('DOMContentLoaded',()=>setTimeout(renderAliases,300));setTimeout(renderAliases,1500);
 function saveUrl(t){const k=t==='hra'?GAS_HRA:GAS_PROD;const v=document.getElementById(t==='hra'?'hraUrl':'prodUrl')?.value?.trim()||'';localStorage.setItem(k,v);toast('✅ 已儲存');}
 
 </script>
