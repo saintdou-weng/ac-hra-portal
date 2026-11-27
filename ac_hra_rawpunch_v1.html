@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>原始打卡 Raw Punch · HRA Portal</title>
+<style>
+  :root{
+    --bg:#0f1720; --card:#18222e; --card2:#1e2a38; --line:#2a3a4c;
+    --ink:#e8eef4; --mut:#8ea3b8; --accent:#4fa3ff; --accent2:#2b6fb3;
+    --ok:#2ecc71; --miss:#ff6b6b; --am:#ffb020; --leave:#4fa3ff; --rest:#5a6b7d;
+    --chip:#223044;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans TC","Segoe UI","Khmer OS",system-ui,Arial,sans-serif;font-size:15px}
+  header{padding:14px 18px;background:linear-gradient(135deg,#16222f,#0f1720);
+    border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  h1{margin:0;font-size:20px;letter-spacing:.5px}
+  h1 small{font-weight:400;color:var(--mut);font-size:13px;margin-left:8px}
+  .meta{margin-top:6px;color:var(--mut);font-size:13px;display:flex;gap:16px;flex-wrap:wrap}
+  .fresh{color:var(--am)}
+  .wrap{padding:14px 18px;max-width:1240px;margin:0 auto}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .days{display:flex;gap:6px;flex-wrap:wrap}
+  .day{padding:6px 11px;border-radius:8px;background:var(--chip);color:var(--ink);
+    border:1px solid transparent;cursor:pointer;font-size:14px}
+  .day.active{background:var(--accent2);border-color:var(--accent)}
+  .day.future{opacity:.4}
+  select,input[type=search]{background:var(--card2);color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:7px 10px;font-size:14px}
+  .toggle{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--mut);user-select:none}
+  .cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:86px}
+  .c b{display:block;font-size:22px}
+  .c span{color:var(--mut);font-size:12px}
+  .c.ok b{color:var(--ok)} .c.miss b{color:var(--miss)} .c.am b{color:var(--am)} .c.leave b{color:var(--leave)}
+  table{width:100%;border-collapse:collapse;background:var(--card);border-radius:12px;overflow:hidden}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);font-size:14px;white-space:nowrap}
+  th{background:var(--card2);color:var(--mut);cursor:pointer;position:sticky;top:0}
+  td.t{font-variant-numeric:tabular-nums}
+  tr.absent{background:rgba(255,107,107,.08)}
+  .badge{padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600;display:inline-block}
+  .b-ok{background:rgba(46,204,113,.15);color:var(--ok)}
+  .b-miss{background:rgba(255,107,107,.17);color:var(--miss)}
+  .b-am{background:rgba(255,176,32,.17);color:var(--am)}
+  .b-leave{background:rgba(79,163,255,.17);color:var(--leave)}
+  .b-rest{background:rgba(90,107,125,.2);color:var(--rest)}
+  .mut{color:var(--mut)}
+  .foot{color:var(--mut);font-size:12px;margin-top:10px;line-height:1.7}
+  #status{padding:40px 18px;text-align:center;color:var(--mut)}
+  .btn{background:var(--accent2);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font-size:14px;margin-top:10px}
+  @media(max-width:640px){ th:nth-child(5),td:nth-child(5),th:nth-child(8),td:nth-child(8){display:none} }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖐️ 原始打卡 <small>Raw Fingerprint Punch + 假別 · HRA Portal</small></h1>
+  <div class="meta">
+    <span id="m-month"></span>
+    <span id="m-pulled"></span>
+    <span class="fresh" id="m-fresh"></span>
+  </div>
+</header>
+<div id="status">☁️ 讀取雲端打卡資料中…</div>
+<div class="wrap" id="app" style="display:none">
+  <div class="controls">
+    <div class="days" id="days"></div>
+    <select id="dep"></select>
+    <select id="team"></select>
+    <input type="search" id="q" placeholder="工號 / 姓名 搜尋">
+    <label class="toggle"><input type="checkbox" id="only"> 只看缺勤/異常</label>
+  </div>
+  <div class="cards" id="cards"></div>
+  <table id="tbl">
+    <thead><tr>
+      <th data-k="id">工號 ID</th>
+      <th data-k="nm">姓名 Name</th>
+      <th data-k="dp">部門 Dept</th>
+      <th data-k="tm">線別 Line</th>
+      <th data-k="dt">職務 Duty</th>
+      <th data-k="i">進 In</th>
+      <th data-k="o">出 Out</th>
+      <th data-k="rh">實工時 Hr</th>
+      <th data-k="le">假別 / 狀態 Leave / Status</th>
+    </tr></thead>
+    <tbody id="body"></tbody>
+  </table>
+  <div class="foot">
+    <b>狀態</b>：<span class="badge b-ok">正常</span> 有刷卡且足時 ·
+    <span class="badge b-am">遲到/早退</span> ·
+    <span class="badge b-leave">請假</span> 已登錄假單（年假/事假/病假…）·
+    <span class="badge b-miss">缺勤</span> 應出勤但沒刷卡也沒請假 ·
+    <span class="badge b-rest">休</span> 排休/例假。<br>
+    資料由工廠電腦每日自動讀指紋機原始刷卡＋人事請假單上傳。人事月底把缺勤改成年假/事假後，隔天此頁自動同步。
+  </div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const GAS=localStorage.getItem('ac_hra_gas_url')||'';
+
+async function load(){
+  if(!GAS){ $('#status').innerHTML='⚠️ 此瀏覽器尚未設定雲端網址（請先在 HRA Portal 設定雲端同步）。'; return; }
+  try{
+    const r=await fetch(GAS+'?action=pull&tool=rawpunch&meta=1',{redirect:'follow'});
+    const j=await r.json();
+    const d=(j&&j.data&&j.data.data)||{};
+    const recs=d.records||[];
+    if(!recs.length){ $('#status').innerHTML='☁️ 雲端尚無資料。工廠電腦每天 09:00 會自動上傳。'; return; }
+    initView(recs[0]);
+    $('#status').style.display='none'; $('#app').style.display='';
+  }catch(e){
+    $('#status').innerHTML='⚠️ 讀取失敗：'+String(e)+'<br><button class="btn" onclick="load()">重試</button>';
+  }
+}
+
+function initView(DATA){
+  const LT={G01:'年假',B01:'事假',C01:'病假',A10:'無薪假',A00:'排休',A01:'公出',D01:'工傷假',E01:'補休',
+    F01:'婚假',F02:'颱風假',H01:'喪假',H02:'喪假',H03:'喪假',H04:'喪假',I01:'產假',I02:'流產假',I03:'陪產假',I04:'NP',B02:'遲到早退'};
+  const pad2=n=>('0'+n).slice(-2);
+  const lmap={};
+  (DATA.leave||[]).forEach(L=>{
+    const s=L.s,e=L.e||L.s; if(!s) return;
+    let d=new Date(s+'T00:00:00'),end=new Date(e+'T00:00:00');
+    while(d<=end){ if((''+d.getFullYear())+pad2(d.getMonth()+1)===DATA.yymm){ const dd=pad2(d.getDate()),k=L.id+'|'+dd;(lmap[k]=lmap[k]||[]).push({code:L.code,label:LT[L.code]||L.name||L.code}); } d.setDate(d.getDate()+1); }
+  });
+  const emp={}; (DATA.emp||[]).forEach(e=>{emp[e.id]=e;});
+  const lastDay=DATA.lastDay;
+  const rows=(DATA.att||[]).map(a=>{
+    const m=emp[a.id]||{}; const lv=lmap[a.id+'|'+a.d]||[]; const worked=!!a.i;
+    const imported=parseInt(a.d,10)<=parseInt(lastDay,10);
+    let cls='',label=''; const lvlabel=[...new Set(lv.map(x=>x.label))].join('/');
+    if(worked){
+      if(a.lt>0&&a.et>0){cls='am';label='遲到'+a.lt+'分·早退'+a.et+'分';}
+      else if(a.lt>0){cls='am';label='遲到 '+a.lt+' 分';}
+      else if(a.et>0){cls='am';label='早退 '+a.et+' 分';}
+      else {cls='ok';label='正常';}
+      if(lv.length) label=(label==='正常'?'':label+'·')+'請假:'+lvlabel+'(半天)';
+      if(lv.length&&cls==='ok') cls='leave';
+    } else {
+      if(lv.length){cls='leave';label='請假:'+lvlabel;}
+      else if(a.hh>0&&imported){cls='miss';label='缺勤 '+a.hh+'h';}
+      else if(!imported){cls='rest';label='未匯入';}
+      else {cls='rest';label='休';}
+    }
+    return {id:a.id,nm:m.nm||'',dp:m.dp||'',tm:m.tm||'',dt:m.dt||'',d:a.d,
+      i:worked?a.i:'',o:worked?a.o:'',rh:a.rh,cls,label,anom:(cls==='miss')};
+  });
+  let state={day:lastDay,dep:'',team:'',q:'',only:false,sortK:'id',sortA:1};
+  const days=[...new Set((DATA.att||[]).map(r=>r.d))].sort();
+  $('#m-month').textContent='📅 月份 '+DATA.yymm.slice(0,4)+'/'+DATA.yymm.slice(4);
+  $('#m-pulled').textContent='⏱️ 更新 '+DATA.pulled;
+  $('#m-fresh').textContent='⚠️ 資料最新到 '+DATA.yymm.slice(4)+'/'+lastDay+'（人事最後匯入）';
+  $('#days').innerHTML=days.map(d=>`<span class="day ${parseInt(d,10)>parseInt(lastDay,10)?'future':''}" data-d="${d}">${d}</span>`).join('');
+  const deps=[...new Set(rows.map(r=>r.dp).filter(Boolean))].sort();
+  $('#dep').innerHTML='<option value="">全部部門</option>'+deps.map(d=>`<option>${d}</option>`).join('');
+  function teamOpts(){ const ts=[...new Set(rows.filter(r=>!state.dep||r.dp===state.dep).map(r=>r.tm).filter(Boolean))].sort(); $('#team').innerHTML='<option value="">全部線別</option>'+ts.map(t=>`<option>${t}</option>`).join(''); }
+  teamOpts();
+  function dayRows(){ return rows.filter(r=>r.d===state.day&&(!state.dep||r.dp===state.dep)&&(!state.team||r.tm===state.team)); }
+  function filtered(){
+    let out=dayRows();
+    if(state.only) out=out.filter(r=>r.cls==='miss'||r.cls==='am');
+    if(state.q){const q=state.q.toLowerCase();out=out.filter(r=>r.id.toLowerCase().includes(q)||(r.nm||'').toLowerCase().includes(q));}
+    const k=state.sortK,a=state.sortA;
+    out.sort((x,y)=>{let vx=x[k]||'',vy=y[k]||'';if(k==='rh'){vx=+vx;vy=+vy;}return vx>vy?a:vx<vy?-a:0;});
+    return out;
+  }
+  function render(){
+    document.querySelectorAll('.day').forEach(e=>e.classList.toggle('active',e.dataset.d===state.day));
+    const all=dayRows(); const cnt={tot:all.length,ok:0,am:0,leave:0,miss:0,rest:0};
+    all.forEach(r=>{cnt[r.cls]=(cnt[r.cls]||0)+1;});
+    $('#cards').innerHTML=`
+      <div class="c"><b>${cnt.tot}</b><span>名冊</span></div>
+      <div class="c ok"><b>${cnt.ok}</b><span>正常</span></div>
+      <div class="c am"><b>${cnt.am}</b><span>遲到/早退</span></div>
+      <div class="c leave"><b>${cnt.leave}</b><span>請假</span></div>
+      <div class="c miss"><b>${cnt.miss}</b><span>缺勤</span></div>
+      <div class="c"><b>${cnt.rest}</b><span>休/未匯入</span></div>`;
+    const BAD={ok:'b-ok',am:'b-am',leave:'b-leave',miss:'b-miss',rest:'b-rest'};
+    $('#body').innerHTML=filtered().map(r=>`<tr class="${r.anom?'absent':''}">
+        <td>${r.id}</td><td>${r.nm||'<span class=mut>—</span>'}</td>
+        <td>${r.dp||''}</td><td>${r.tm||''}</td><td class="mut">${r.dt||''}</td>
+        <td class="t">${r.i||'—'}</td><td class="t">${r.o||'—'}</td>
+        <td class="t">${r.rh?Number(r.rh).toFixed(1):'—'}</td>
+        <td><span class="badge ${BAD[r.cls]}">${r.label}</span></td></tr>`).join('')
+        ||'<tr><td colspan="9" class="mut" style="padding:20px">無資料</td></tr>';
+  }
+  $('#days').onclick=e=>{if(e.target.dataset.d){state.day=e.target.dataset.d;render();}};
+  $('#dep').onchange=e=>{state.dep=e.target.value;state.team='';teamOpts();render();};
+  $('#team').onchange=e=>{state.team=e.target.value;render();};
+  $('#q').oninput=e=>{state.q=e.target.value;render();};
+  $('#only').onchange=e=>{state.only=e.target.checked;render();};
+  document.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(state.sortK===k)state.sortA*=-1;else{state.sortK=k;state.sortA=1;}render();});
+  render();
+}
+load();
+</script>
+</body>
+</html>
